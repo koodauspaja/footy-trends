@@ -2,12 +2,13 @@ import { describe, expect, it } from "vitest";
 import { pageCount, pageFrom, USERS_PER_PAGE, windowFor } from "@/lib/admin-user-view";
 
 /**
- * The page arithmetic, from specs/028-admin-tools-and-roles.md.
+ * The page arithmetic. `pageFrom` reads an attacker-controlled query parameter,
+ * so it is tested from both sides of the boundary: `Number("0x10")` being 16 is
+ * the usual way a parser goes wrong.
  *
- * `pageFrom` reads an attacker-controlled query parameter, so it is tested from
- * both sides of the boundary — the parser class in `skills/self-review.md`,
- * where `Number("0x10")` being 16 is the usual way this goes wrong.
+ * decisions/028-admin-tools-and-roles.md
  */
+
 describe("pageFrom", () => {
   it("reads a page number", () => {
     expect(pageFrom("3")).toBe(3);

@@ -36,3 +36,33 @@ The Premier League and Veikkausliiga signed in, at 375 px in light and dark and 
 1280 px: three Premier League seasons of 20 teams, the selected season ringed;
 Veikkausliiga with two seasons left out and the line saying so; the Champions
 League without the panel; Kakkonen showing the too-few message.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
+
+- **`LeaguePath`.** Shared by the team page's position chart and the
+  competition page's table movement, so the two cannot place a team
+  differently.
+- **`getTasoSeasonMovements`.** Never `getSyncedSeasonMatches`, which asks TASO
+  for a season with nothing stored. Each season is kept to its own
+  `(competition_id, category_id)` pair, and the rounds are renumbered as the
+  standings page's are, so every table is the page's own.
+
+Cut from `src/components/charts/line-chart.tsx` at `a86c1cb` by #531.
+
+- **`captionLines`.** `Sijoitusmuutos keskimäärin` ran off both ends of the
+  drawing at 375 px. A caption with no space stays whole.
+
+Cut from `src/lib/table-volatility.ts` at `ef99862` by #531.
+
+- **`table-volatility.ts`.** Every table comes from the calculation the
+  standings page uses for that round. The module decides which round is
+  mid-season, what a season's figure is, and which seasons make the line.
+- **`COMPETITIONS`.** The Champions League's later rounds leave most teams
+  without a final position.
+- **`movementBetween`.** A team in only one table, a withdrawal or annulled
+  results, must not erase the season's figure.
+- **`singleTableMovement`.** The final table takes the same arguments
+  `getStandings` passes. Without a numbered round there is no per-round
+  table.

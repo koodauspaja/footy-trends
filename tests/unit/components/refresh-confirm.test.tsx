@@ -4,13 +4,11 @@ import { RefreshConfirm } from "@/components/refresh-confirm";
 import { NO_CHANGES, REMOVED_MATCHES_SHOWN, type RefreshPreview } from "@/lib/refresh-view";
 
 /**
- * The dialog that stands between a truncated provider answer and a deleted
- * season, from specs/029-forced-season-refresh.md.
+ * The dialog that stands between a truncated provider answer and a deleted season. A
+ * partial answer looks like a season that lost fixtures, and only a person reading this
+ * can tell them apart, so the removals are asserted by name, not by count.
  *
- * A partial answer is indistinguishable from a season that genuinely lost
- * fixtures, so nothing in the code can separate them. What separates them is a
- * person reading this. Which is why the removals are asserted here by **name**
- * rather than by count.
+ * decisions/029-forced-season-refresh.md
  */
 
 function preview(overrides: Partial<RefreshPreview> = {}): RefreshPreview {

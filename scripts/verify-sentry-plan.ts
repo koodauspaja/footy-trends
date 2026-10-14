@@ -1,16 +1,15 @@
 /**
- * The decisions behind the Sentry verification script, kept free of the SDK and
- * the network so they can be unit-tested directly — the same split as
- * `backfill-plan.ts` and its entry point.
+ * The decisions behind the Sentry verification script, free of the SDK and the
+ * network so they can be unit-tested directly.
+ *
+ * decisions/230-sentry-delivery-check.md
  */
 
 /**
- * A DSN's public key is a credential. The host and project id are not, and they
- * are the parts that answer "which project did this go to" — which is the whole
- * question the operator is asking.
+ * A DSN's host and project id, without its public key, which is a credential.
+ * `null` for a DSN that does not parse.
  *
- * Returns `null` for a DSN that does not parse, rather than echoing an
- * unrecognised string that might be a secret in an unexpected shape.
+ * decisions/230-sentry-delivery-check.md
  */
 export function describeDsn(dsn: string): string | null {
   let url: URL;
@@ -26,9 +25,10 @@ export function describeDsn(dsn: string): string | null {
 }
 
 /**
- * The text the operator searches for in Sentry. Distinctive enough not to
- * collide with a real error, and carrying the moment it was sent so two runs
- * an hour apart are told apart.
+ * The text the operator searches for in Sentry: distinctive, and carrying the
+ * moment it was sent.
+ *
+ * decisions/230-sentry-delivery-check.md
  */
 export function buildMarker(now: Date): string {
   return `footy-trends verification ${now.toISOString()}`;
@@ -40,7 +40,12 @@ export type Settings = {
   enableLogs: boolean;
 };
 
-/** One line, so the values in force are visible beside the event that proves delivery. */
+/**
+ * One line, so the values in force are visible beside the event that proves
+ * delivery.
+ *
+ * decisions/230-sentry-delivery-check.md
+ */
 export function describeSettings(settings: Settings): string {
   return [
     `tracesSampleRate=${settings.tracesSampleRate}`,
@@ -56,12 +61,10 @@ export type Outcome =
   | { kind: "sent"; eventId: string };
 
 /**
- * What the run proved, and what it did not.
+ * What the run proved, and what it did not: a flushed event reached Sentry's
+ * ingest endpoint, which does not prove it is visible.
  *
- * A flushed event proves the SDK reached Sentry's ingest endpoint. It does not
- * prove the event is *visible* — a project's inbound filters or rate limits can
- * still drop it — so the message never claims more than that, and always sends
- * the operator to look.
+ * decisions/230-sentry-delivery-check.md
  */
 export function describeOutcome(outcome: Outcome, marker: string): string {
   switch (outcome.kind) {

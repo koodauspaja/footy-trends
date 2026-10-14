@@ -14,7 +14,17 @@ import {
 import { HISTORY_AXIS, SEASON_AXIS } from "@/lib/analytics-axis";
 import { MEASURES, type SeasonComparisonSeries } from "@/lib/season-comparison";
 
-/** Every measure with a value, so a test can vary only what it is about. */
+/**
+ * The `Tämä kausi verrattuna` panel, on a club's seasons and on a national
+ * team's years.
+ *
+ * decisions/038-season-against-history.md
+ * decisions/032-goals-scored-vs-conceded.md
+ * decisions/033-home-vs-away.md
+ * decisions/041-national-team-analytics.md
+ */
+
+// Every measure with a value, so a test can vary only what it is about.
 function rowsWith(selected: number | null, baseline: number | null) {
   return MEASURES.map((measure) => ({ measure, selected, baseline }));
 }
@@ -55,7 +65,7 @@ describe("measureText", () => {
   });
 
   it("prints a share as a whole percent", () => {
-    // A no-break space before the sign, as Finnish writes it (specs/033).
+    // A no-break space before the sign, as Finnish writes it.
     expect(measureText("cleanSheets", 40, 12, true)).toBe(percentText(40));
     expect(measureText("winPercentage", 62.4, 12, true)).toBe(percentText(62));
   });
@@ -87,7 +97,7 @@ describe("comparisonSentence", () => {
 
   it("names the year rather than the season where that is the period", () => {
     // The text alternative is the chart for a screen-reader, so it cannot say
-    // `kausi` while the page says `vuosi` (specs/041, S11).
+    // `kausi` while the page says `vuosi`.
     expect(comparisonSentence("Voittoprosentti", "58 %", "47 %", HISTORY_AXIS)).toBe(
       "Voittoprosentti: tämä vuosi 58 %, tavallisesti 47 %."
     );
@@ -101,7 +111,7 @@ describe("the axis's baseline line", () => {
     );
   });
 
-  it("counts years instead on a page whose periods are years (specs/041, S11)", () => {
+  it("counts years instead on a page whose periods are years", () => {
     expect(HISTORY_AXIS.baselineLine(8, ["2018", "2019"])).toBe(
       "Verrattuna 8 muuhun vuoteen: 2018, 2019"
     );
@@ -138,8 +148,8 @@ describe("seasonComparisonPanel", () => {
   });
 
   it("heads the panel with the page's own period", () => {
-    // Only the e2e proved this before, and a heading is the first thing a
-    // reader sees — so the unit suite pins the wording too (specs/041, S11).
+    // A heading is the first thing a reader sees, so the unit suite pins the
+    // wording as the e2e does.
     ok({}, HISTORY_AXIS);
 
     expect(screen.getByRole("heading", { level: 4 })).toHaveTextContent("Tämä vuosi verrattuna");
@@ -155,7 +165,7 @@ describe("seasonComparisonPanel", () => {
     expect(screen.queryByText(SEASON_AXIS.selectedLabel)).not.toBeInTheDocument();
   });
 
-  it("uses specs/032's line before the season's first match", () => {
+  it("uses the goals panel's line before the season's first match", () => {
     ok({ rows: rowsWith(null, 0.5) });
 
     expect(screen.getByText(NO_MATCHES_MESSAGE)).toBeInTheDocument();

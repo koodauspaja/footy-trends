@@ -59,11 +59,32 @@ never refetched, so those pages make no provider request at all.
 npm run test:e2e
 ```
 
-`playwright.config.ts` starts the server itself, on port 3001, pointed at the
-test database. It never reuses one that is already listening: that server
-belongs to somebody else and is on the development database, which is the whole
-thing this separation removes. `npm run dev` on port 3000 is unaffected and can
-keep running.
+`playwright.config.ts` builds the application and starts that production build
+itself, on port 3001, pointed at the test database. It never reuses a server
+that is already listening: that server belongs to somebody else and is on the
+development database, which is the whole thing this separation removes. `npm run
+dev` on port 3000 is unaffected and can keep running: it writes to `.next/dev`,
+and the build to `.next`.
+
+### The suite runs against a production build
+
+`next dev` and a production build do not behave the same: the build prefetches
+links and `next dev` does not, which is how #189 was found, and found again at
+the v1.14.0 release gate. So the everyday command tests what ships.
+`E2E_TARGET` chooses otherwise:
+
+| `E2E_TARGET` | The server | Writes the pre-push marker |
+|---|---|---|
+| unset | `npm run build`, then `npm start` | yes |
+| `build` | `npm start`, on a build made beforehand; what `release.yml` sets | no |
+| `dev` | `npm run dev` | no |
+
+Measured on one machine on 2026-10-09, 358 tests: 4 min 39 s against `next dev`,
+and 3 min 54 s against the build, 32 s of it the build.
+`decisions/568-e2e-against-a-production-build.md` has the reasons.
+
+A server already on port 3001 stops the run at once, with Playwright's message
+that the address is already used.
 
 ### The suite runs serially, everywhere
 
@@ -94,24 +115,6 @@ when a full run passes, so a spurious parallel failure left no marker, the next
 push was blocked, and the fix was to re-run — serially, if you knew to. If you
 did not, the hook simply looked broken.
 
-To run them the way the release gate does, against a production build:
-
-```bash
-# Stop `npm run dev` first — see below.
-npm run build
-E2E_TARGET=build npm run test:e2e
-```
-
-`E2E_TARGET=build` deliberately refuses to reuse a server already on port 3000,
-even locally. Reusing one would mean a `next dev` already running is silently
-accepted and the run reports on the dev server while claiming to test what
-ships. It fails with "already used" instead, which is the loud version of the
-same situation.
-
-Worth doing before cutting a release, and worth reaching for when a spec
-passes locally but fails in CI: `dev` and a production build do not always
-behave the same, which is how #189 was found.
-
 ## Debugging a failing spec
 
 A full run is about four minutes, serial and against the real providers, so
@@ -119,6 +122,7 @@ re-running everything to look at one broken spec is the expensive way round.
 
 ```bash
 npm run test:e2e:ui                                  # pick a spec, watch it, re-run it
+E2E_TARGET=dev npm run test:e2e:ui                   # the same against `next dev`: no build, and an edit under `src/` shows at once
 npm run test:e2e -- tests/e2e/womens-team.spec.ts    # one file
 npm run test:e2e -- -g "lists only Finland's matches" # one title, anywhere
 npm run test:e2e -- --headed                          # watch the browser
@@ -152,8 +156,9 @@ cover it.
 
 ### A narrowed run writes no freshness marker
 
-`scripts/e2e-freshness-reporter.ts` records a run only when it **passed and
-covered every spec file** — no `-g`, no file path, no shard, no `--grep-invert`.
+`scripts/e2e-freshness-reporter.ts` records a run only when it **passed,
+covered every spec file and built the server it ran against** — no `-g`, no file
+path, no shard, no `--grep-invert`, and no `E2E_TARGET`.
 So a debugging session leaves the pre-push hook exactly as it found it, and the
 hook then blocks a push while looking broken to somebody who has just spent an
 hour on one spec.
@@ -192,7 +197,7 @@ A full, passing run writes `.e2e-freshness` (gitignored). The hook blocks when:
 |---|---|
 | No marker | `No passing full e2e run has been recorded` |
 | Older than **12 hours** | `The last passing e2e run finished 13 h 0 min ago` |
-| Files under `src/` or `tests/e2e/` modified since the marker | `3 file(s) changed since the last passing e2e run: …` |
+| A watched file modified since the marker: anything under `src/` or `tests/e2e/`, `next.config.ts`, `playwright.config.ts` or `scripts/e2e-target.ts` | `3 file(s) changed since the last passing e2e run: …` |
 
 The file comparison is the load-bearing one — a run is stale the moment the
 code it exercised changes. The twelve-hour window is a backstop for what that
@@ -227,6 +232,14 @@ covered **every spec file**. `--grep`, `--shard`, and naming a spec on the
 command line all leave the marker untouched, because a marker from a filtered
 run would claim a freshness it did not earn — and the hook would then wave
 through a push whose changes were never exercised.
+
+The run must also have **built the server it ran against**. With
+`E2E_TARGET=dev` or `E2E_TARGET=build` nothing says the server is the code on
+disk as it ships, so neither writes the marker.
+
+And the watched files must be **the same at the end as at the start**. The
+build is made once, before the first spec, so a file edited while the suite
+runs was not tested, and that run writes no marker.
 
 It is a reporter rather than an `&&` on the `test:e2e` script because npm
 appends a script's extra arguments to the end of the whole command, so

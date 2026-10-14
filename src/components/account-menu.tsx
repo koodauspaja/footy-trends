@@ -7,28 +7,20 @@ type Props = Readonly<{
   name: string;
   image: string | null;
   /**
-   * Whether to offer `Ylläpito`, from specs/028-admin-tools-and-roles.md.
-   *
-   * A convenience, not a control. `requireAdmin()` refuses at the page and at
-   * every action, so nothing is reachable by finding the URL.
-   *
-   * Anyone refused — a stranger, or a demoted admin whose session still says
-   * otherwise — gets the generic not-found page with a **200** status, because
-   * Next cannot change a status a stream has already committed. See
-   * `specs/028-admin-tools-and-roles.md`.
+   * Whether to offer `Ylläpito`. A convenience, not a control: `requireAdmin()`
+   * refuses at the page and at every action.
    */
   isAdmin: boolean;
   onSignOut: () => void;
 }>;
 
 /**
- * The signed-in reader's account menu, from specs/024-account-settings.md.
+ * The signed-in reader's account menu, opened by a click.
  *
- * `Kirjaudu ulos` moved in here from beside the name. Three controls in that
- * header row is what overflowed a 320px viewport in #266, and account actions
- * are where a reader looks for them anyway.
- *
- * Click, not hover: a hover menu is unreachable on the phones #266 was about.
+ * decisions/024-account-settings.md
+ * decisions/026-favourites.md
+ * decisions/028-admin-tools-and-roles.md
+ * decisions/269-colour-roles.md
  */
 export function AccountMenu({ name, image, isAdmin, onSignOut }: Props) {
   const [open, setOpen] = useState(false);
@@ -53,26 +45,8 @@ export function AccountMenu({ name, image, isAdmin, onSignOut }: Props) {
     const onPointerDown = (event: PointerEvent) => {
       if (containerRef.current?.contains(event.target as Node)) return;
 
-      /**
-       * Rescue focus only if it would otherwise be orphaned.
-       *
-       * A keyboard reader who tabs into the menu and then clicks empty space
-       * leaves focus on an element that is about to unmount, and it falls to
-       * `<body>` — measured, not assumed. But forcing focus back on *every*
-       * outside click would fight a reader who clicked a different control: the
-       * click is itself a focus request, and overriding it is the anti-pattern
-       * this avoids.
-       *
-       * So: close now, and after the click has settled, restore only if focus
-       * ended up on `<body>` — which is exactly the orphaned case, and is
-       * false whenever the reader's click gave focus to something else. Asking
-       * afterwards needs no "was focus inside" bookkeeping, and no guard for a
-       * ref that cannot be null while the menu is open.
-       *
-       * A timeout rather than a microtask because the browser moves focus as
-       * part of the click's default action, which has not happened yet when
-       * this handler runs.
-       */
+      // Close now, and once the click has settled restore focus to the trigger only
+      // if it ended up on `<body>`: orphaned, not given to another control.
       close(false);
 
       setTimeout(() => {
@@ -90,16 +64,8 @@ export function AccountMenu({ name, image, isAdmin, onSignOut }: Props) {
 
   return (
     <div className="relative" ref={containerRef}>
-      {/*
-        A disclosure, not an ARIA menu. Real `role="menu"` semantics promise
-        arrow-key navigation and typeahead that this does not implement, and
-        claiming them is worse for a screen reader than not claiming them.
-        `aria-expanded` plus `aria-controls` describes what this actually is.
-
-        `aria-label` names the trigger in both branches, so the avatar case is
-        never an unlabelled button. It contains the visible name in the
-        text branch, which is what WCAG 2.5.3 (Label in Name) asks for.
-      */}
+      {/* A disclosure, not an ARIA menu: `aria-expanded` and `aria-controls` say what
+          this is, and `aria-label` names the trigger in both branches. */}
       <button
         aria-controls={open ? menuId : undefined}
         aria-expanded={open}
@@ -123,27 +89,12 @@ export function AccountMenu({ name, image, isAdmin, onSignOut }: Props) {
 
       {open && (
         <div
-          /**
-           * `bg-background text-foreground`, not a pinned white. Those two
-           * tokens are the ones `globals.css` flips under
-           * `prefers-color-scheme`, and `body` already uses them — so the
-           * panel and its contents move together. Hardcoding a white surface
-           * while the text followed the theme is what left this at 1.17:1 in
-           * dark mode (#273).
-           *
-           * The border and the hover are roles too, `border-border` and
-           * `bg-surface`, each with its own value per scheme. #273 fixed this
-           * panel alone with alpha tints of a mid grey, which read acceptably
-           * against either background without a second scheme to maintain;
-           * #269 gave every scheme its own values, so a tint that has to work
-           * twice is no longer the best available answer. See #269 for the
-           * app-wide version of the problem.
-           */
+          // Theme roles, not pinned colours, so the panel and its contents follow the
+          // scheme together.
           className="absolute right-0 z-10 mt-2 min-w-44 rounded border border-border bg-background py-1 text-foreground shadow-sm"
           id={menuId}
         >
-          {/* Above `Asetukset`, so the reader's own things sit together and the
-              one they open most is first (specs/026-favourites.md). */}
+          {/* Above `Asetukset`, so the reader's own things sit together. */}
           <Link
             className="block px-4 py-2 text-sm hover:bg-surface"
             href="/suosikit"

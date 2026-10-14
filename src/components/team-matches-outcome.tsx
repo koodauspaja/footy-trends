@@ -1,7 +1,11 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
+import { SameRouteLink } from "@/components/same-route-link";
 
-/** One page the club does have matches on, and what to call it. */
+/**
+ * One page the club does have matches on, and what to call it.
+ *
+ * decisions/022-teams-between-tiers.md
+ */
 export type TeamSeasonLink = { label: string; href: string };
 
 const MISSING = "Joukkue ei pelannut tässä sarjassa tällä kaudella.";
@@ -11,23 +15,10 @@ const ERROR = "Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen."
 
 /**
  * What a team page shows below its selector: the matches, or why there are
- * none.
+ * none. Five outcomes, decided in one place; a failed lookup is its own and
+ * must not be reported as any of the others.
  *
- * Five outcomes, decided in one place because both team pages had the same six
- * conditions written out and Sonar counted fourteen duplicated lines:
- *
- * - matches to show — the caller's table, passed in
- * - the club exists but played elsewhere that season — an explanation and a
- *   link to where it was
- * - the competition and season exist for this club but hold no matches yet
- * - nothing is stored for this id at all
- * - the lookup failed, which is none of the above and must not be reported as
- *   any of them
- *
- * The heading above already names the club, the competition and the season, so
- * the missing-season sentence needs no inflected competition name — Finnish
- * case endings are not something to derive from a registry string. See
- * specs/022-teams-between-tiers.md.
+ * decisions/022-teams-between-tiers.md
  */
 export type TeamOutcome = {
   /** The match list's own status, as its service reports it. */
@@ -51,11 +42,9 @@ export function TeamMatchesOutcome({
 }>) {
   const { result, seasons, seasonLabel, sameSeason, newest } = outcome;
 
-  // The match list's own verdict comes first, because it is the one about this
-  // page. `empty` is only ever returned when the refresh succeeded and the
-  // season holds no matches for anyone (`refreshFailed ? error : empty` in both
-  // services), so it stays true whether or not the club's other seasons could
-  // be read — and reporting an outage instead would be less accurate, not more.
+  // The match list's own verdict comes first: it is the one about this page.
+  // `empty` is only ever returned when the refresh succeeded and the season
+  // holds no matches for anyone.
   if (result === "ok") return table;
   if (result === "empty") return <p>{EMPTY}</p>;
   if (result === "error") return <p>{ERROR}</p>;
@@ -74,9 +63,9 @@ export function TeamMatchesOutcome({
           {sameSeason.map((link, index) => (
             <span key={link.href}>
               {index > 0 && ", "}
-              <Link className="hover:underline" href={link.href}>
+              <SameRouteLink className="hover:underline" href={link.href}>
                 {link.label}
-              </Link>
+              </SameRouteLink>
             </span>
           ))}
         </p>
@@ -84,9 +73,9 @@ export function TeamMatchesOutcome({
       {sameSeason.length === 0 && newest !== null && (
         <p className="mb-4">
           {"Joukkueen uusin kausi: "}
-          <Link className="hover:underline" href={newest.href}>
+          <SameRouteLink className="hover:underline" href={newest.href}>
             {newest.label}
-          </Link>
+          </SameRouteLink>
         </p>
       )}
     </>

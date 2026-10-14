@@ -18,16 +18,10 @@ type CupStandingsControlsProps = {
 };
 
 /**
- * `Kilpailu` + `Kausi` for a cup's standings page — `StandingsControls`
- * without the `Kierros` select.
+ * `Kilpailu` and `Kausi` for a cup's standings page: `StandingsControls`
+ * without the `Kierros` select. `kierros` is cleared on navigation.
  *
- * A cup page has no round selector: its knockout matchdays are leg numbers
- * rather than rounds, and the phase tables it shows are always the phase's
- * full table. `Vaihe` lives on the match list instead, so the two controls
- * never sit side by side answering the same question.
- *
- * `kierros` is cleared on navigation so a round carried over from a league
- * competition cannot survive the switch into a cup.
+ * decisions/014-champions-league.md
  */
 export function CupStandingsControls({
   basePath,

@@ -1,10 +1,8 @@
 /**
- * What `npm run verify` *does*: each stage in turn, stopping at the first
- * failure and naming it (#401).
+ * What `npm run verify` does: each stage in turn, stopping at the first
+ * failure and naming it. Every action is injected.
  *
- * Separate from `verify.ts` so it can be tested — every action is injected, so a
- * test drives the whole sequence without running a suite. The shape
- * `setup-steps.ts` has.
+ * decisions/401-one-command-for-the-gate.md
  */
 import { run } from "./services-run";
 import { notRunByNpmMessage, npmCliFrom } from "./setup-wiring";
@@ -27,7 +25,11 @@ export type VerifyActions = {
   err: (line: string) => void;
 };
 
-/** The process exit code: the failing stage's own, or 0. */
+/**
+ * The process exit code: the failing stage's own, or 0.
+ *
+ * decisions/401-one-command-for-the-gate.md
+ */
 export async function runVerify(actions: VerifyActions): Promise<number> {
   const started = actions.now();
 
@@ -40,11 +42,8 @@ export async function runVerify(actions: VerifyActions): Promise<number> {
 
     if (code !== 0) {
       actions.err(failureMessage(stage, elapsed));
-      /**
-       * The stage's own code, not 1: `npm run verify` is what CI and a
-       * pre-push hook would read, and a suite that exits 2 has said something
-       * different from one that exits 1.
-       */
+      // The stage's own code, not 1: a suite that exits 2 has said something
+      // different from one that exits 1.
       return code;
     }
 
@@ -55,7 +54,11 @@ export async function runVerify(actions: VerifyActions): Promise<number> {
   return 0;
 }
 
-/** The real runner, with npm reached by its own path rather than through `PATH`. */
+/**
+ * The real runner, with npm reached by its own path and not through `PATH`.
+ *
+ * decisions/401-one-command-for-the-gate.md
+ */
 export function verifyActions(npmCli: string): VerifyActions {
   return {
     stages: VERIFY_STAGES,
@@ -66,7 +69,11 @@ export function verifyActions(npmCli: string): VerifyActions {
   };
 }
 
-/** The whole of `npm run verify`, from the real world in. Returns the exit code. */
+/**
+ * The whole of `npm run verify`, from the real world in. Returns the exit code.
+ *
+ * decisions/401-one-command-for-the-gate.md
+ */
 export async function startVerify(): Promise<number> {
   const npmCli = npmCliFrom(process.env);
 

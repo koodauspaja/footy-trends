@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SeasonMovement } from "@/lib/table-volatility";
 
+/**
+ * The read behind `Sijoitusten vaihtelu`: which seasons it takes and what it
+ * returns.
+ *
+ * decisions/050-table-volatility.md
+ */
+
 const { getSeasonMovements, getTasoSeasonMovements, loggerError } = vi.hoisted(() => ({
   getSeasonMovements: vi.fn<() => Promise<SeasonMovement[]>>(),
   getTasoSeasonMovements: vi.fn<() => Promise<SeasonMovement[]>>(),
@@ -24,7 +31,7 @@ beforeEach(() => {
   getTasoSeasonMovements.mockResolvedValue(seasons);
 });
 
-describe("getTableVolatility (specs/050)", () => {
+describe("getTableVolatility", () => {
   it.each([
     ["football-data", "PL", getSeasonMovements, getTasoSeasonMovements],
     ["taso", "VL", getTasoSeasonMovements, getSeasonMovements],

@@ -7,12 +7,11 @@ import {
 } from "@/lib/refresh-diff";
 
 /**
- * The pure half of the forced refresh, from specs/029-forced-season-refresh.md.
+ * The pure half of the forced refresh: rows in, counts out. Its answer is what
+ * an admin is shown in the confirmation dialog and what the run log records, so
+ * a wrong one is both a misleading prompt and a false audit trail.
  *
- * What this module answers is what an admin is shown in the confirmation
- * dialog *and* what the run log records, so a wrong answer here is both a
- * misleading prompt and a false audit trail. No database and no provider are
- * involved — these are rows in, counts out.
+ * decisions/029-forced-season-refresh.md
  */
 
 const KICKOFF = new Date("2026-05-01T16:00:00.000Z");
@@ -40,7 +39,7 @@ type StoredMatch = {
   awayGoals: number | null;
 };
 
-/** The provider row carries only the columns the upsert writes. */
+// The provider row carries only the columns the upsert writes.
 function providerMatch(overrides: Partial<Omit<StoredMatch, never>> = {}) {
   return {
     providerMatchId: 1,
@@ -90,10 +89,9 @@ describe("diffMatches", () => {
   });
 
   it("counts a value that gained or lost a date as changed", () => {
-    // One side a Date and the other not — a column that was null and now
-    // carries a time, or the reverse. Without its own case this compares a
-    // Date object against null by identity, which happens to be right here and
-    // would not be if either side were ever a string.
+    // One side a Date and the other not: a column that was null and carries a time, or the
+    // reverse. Without its own case this would compare a Date against null by identity,
+    // which happens to be right and would not be if either side were a string.
     const diff = diffMatches(
       [storedMatch({ kickoffAt: null as unknown as Date })],
       [providerMatch()]

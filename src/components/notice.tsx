@@ -1,12 +1,10 @@
 import type { ReactNode } from "react";
 
 /**
- * The amber fallback banner shown for an invalid `kilpailu`/`kausi`/
- * `kierros` param — identical markup was repeated 3–4 times per page
- * across every standings/matches/team page (both football-data.org's and
- * `/kotimaa`'s), flagged as duplicated code. `<output>` carries the same
- * implicit "status" live-region semantics as `<p role="status">` natively,
- * without the redundant explicit role.
+ * The amber fallback banner shown for an invalid `kilpailu`, `kausi` or
+ * `kierros` parameter. An `<output>`, which is a status live region natively.
+ *
+ * decisions/009-veikkausliiga.md
  */
 export function Notice({ children }: Readonly<{ children: ReactNode }>) {
   return (

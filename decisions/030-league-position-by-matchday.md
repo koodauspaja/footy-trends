@@ -67,3 +67,135 @@ them.
   The gate runs before the series is computed, so the signed-out page cannot
   know. Rare — it needs an unverified regular season — and noted rather than
   worked around.
+
+## Moved from comments, 2026-10-05
+
+Cut from `src/lib/standings-service.ts` at `55a14fc` by #531.
+
+- **`getTeamPositionSeries`.** Not `getStandings({ round })`, which re-reads the
+  season per call.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
+
+- **`getTeamPositionSeries`.** It reads nothing the standings page does not:
+  the matches and group rows come through the same `cache()`d syncs, and
+  nothing is fetched per round. The group rows are the one read the TASO team
+  page did not make before, and they are read once, since
+  `classifySeasonGroups` returns the rows it used. They carry the points
+  adjustments and decide whether a split group is verified, so a position
+  cannot equal the page's without them. Their TASO request is limited to the
+  active season and the 15-minute cache the standings page shares.
+- **`positionSeriesFrom`.** The line plots a round only where the standings
+  page has a table for it. The regular-season group must be own-calculated: a
+  pass-through group has no per-round position, so `unavailable`. After the
+  split, the continuation is combined only when it is a verified carry-over,
+  own-calculated and configured as that group's child; otherwise the line
+  ends at the regular season and `endsAtSplit` says so. A combined position is
+  the team's place in its group plus every team in the groups ranked above. A
+  league played in parallel pools is one league per pool until the end of its
+  continuation (Kakkonen's Lohko A, B and C each split into their own upper
+  and lower groups), so "the groups above" are that pool's children and the
+  axis spans the pool. What follows the continuation is a bracket, with no
+  line.
+- **`playedWithoutRound` in `positionSeriesFrom`.** Two states share it. Split
+  but not yet played in: the line is the regular season so far, and nothing
+  is missing. Played, but only in matches TASO gave no round: the standings
+  page cannot show those per round either, so the line stops, with the note.
+
+Cut from `src/components/charts/line-chart.tsx` at `a86c1cb` by #531.
+
+- **`line-chart.tsx`.** Hand-rolled and not a library, chosen on 2026-09-18:
+  SVG renders on the server with no client JavaScript, and a test can assert
+  what is drawn (the points, the scales, the direction), which a canvas would
+  not allow under this repository's coverage and mutation rules. Nothing in
+  it anticipates a chart that does not exist yet.
+- **`scale`.** A domain of one value (a season with a single round played, a
+  league of one team) puts everything in the middle of the range and does not
+  divide by zero.
+- **`ticksFor`.** Both ends are always ticks, so an axis always labels where
+  it starts and ends: a `count` below 2 is treated as 2. The step is a whole
+  number because both axes count things, rounds and places. The last regular
+  tick is dropped when it would crowd `max`, so the axis never prints 37 and
+  38 side by side.
+
+Cut from `src/lib/position-series.ts` at `94397a8` by #531.
+
+- **`position-series.ts`.** Because every table is the calculation the
+  standings page uses for that provider, a plotted position always equals the
+  one the standings page shows for that round, the property the feature
+  rests on, and a change to how a table is ranked cannot make the two
+  disagree.
+- **`PositionSeries.endsAtSplit`.** The page says so beneath the chart.
+- **`unavailable`.** The standings page shows no round selector for such a
+  season either, so there is nothing the chart could equal.
+- **`roundsToPlot`.** A bye in an odd-sized league, or a match of the team's
+  still to be played: the table moved when the others played, so where it
+  stood is still a point on the line.
+- **`positionsAfterEachRound`.** The row's own `position` is used and not its
+  index, so the chart shows exactly the number the standings page displays,
+  whatever rule produced it. It throws where it could return something a
+  caller must check: both callers' tables include every team with a match in
+  the season, since `calculateStandings` adds each match's participants to
+  the roster, so the state is unreachable and a branch for it in each caller
+  would be a condition no test could take. A missing team must still never
+  become a plausible position: the services catch the throw and report an
+  error.
+- **`singleTableSeries`.** Finished matches up to the round, and the whole
+  season as the roster, so a team that has not played yet is still in the
+  table at the position the standings page gives it.
+- **`teamsInGroupsAbove`.** Not by group id or group name, neither of which
+  records the order: the lower group's leader is 7th when the upper group has
+  six teams, whatever the ids say. Group sizes come from the data: six is
+  Veikkausliiga's current shape, not a constant.
+
+Cut from `src/lib/e2e-analytics.ts` at `ef99862` by #531.
+
+- **`e2e-analytics.ts`.** Separate from `analytics-access.ts` so the
+  Playwright suite can import the header name without pulling Next's request
+  APIs and the auth client into a test runner that has neither. One
+  spelling, shared by the server that reads the header and the tests that
+  send it.
+- **Why an override exists.** The e2e suite cannot complete a real Google
+  sign-in, and its session interception (`tests/e2e/session.ts`) reaches
+  only what the browser renders. The analytics gate runs on the server,
+  which sees no cookie. Miikka agreed to an override for the e2e suite on
+  2026-09-18.
+- **Why it cannot be triggered in production.** The flag is set only in
+  `playwright.config.ts`'s `webServer.env`, and production's database name
+  never ends in `_test`. Only then does the per-request header count, which
+  is what lets the same e2e server show a signed-out reader the prompt: a
+  test without the header is signed out.
+
+Cut from `src/lib/return-path.ts` at `ef99862` by #531.
+
+- **`return-path.ts`.** One definition because two drifted: the prompt sent
+  the bare pathname, which was harmless on `/asetukset` and `/suosikit` but
+  on a team page dropped `?kilpailu=` and `?kausi=`, so the reader signed in
+  from a chart and came back to a different competition and season.
+
+Cut from `src/lib/analytics-access.ts` at `48ebab4` by #531.
+
+- **`canSeeAnalytics`.** Miikka, 2026-09-18: "all analytics are for signed
+  in users only". Decided on the server so a signed-out page carries no
+  analytics data at all; hiding it in the browser would publish it anyway.
+  Failing closed shows a reader the sign-in prompt, where failing open would
+  show analytics to someone who is not signed in. `e2e-analytics.ts` says
+  why the override cannot reach production.
+
+Cut from `src/components/charts/position-chart.tsx` at `48ebab4` by #531.
+
+- **`PositionChart`'s axis.** With the whole league on it a season reads the
+  same way as the table beside it, and two seasons of one league share a
+  scale. The list below the chart holds each round and position, for a
+  screen reader and for anyone who cannot read the line.
+
+## Moved from comments, 2026-10-07
+
+Cut from `playwright.config.ts` at `5b180e0` by #531.
+
+- **The analytics flag in the e2e server's environment.** It lets a spec
+  send `x-e2e-analytics: signed-in` and see what a signed-in reader sees,
+  which the suite cannot otherwise reach: the gate runs on the server, where
+  session interception does not.

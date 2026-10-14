@@ -9,6 +9,13 @@ import {
   resolvePhaseShape,
 } from "@/lib/cup-stages";
 
+/**
+ * A cup's stages: their names, the shape of each phase, and which a season has.
+ *
+ * decisions/014-champions-league.md
+ * decisions/016-world-cup-and-euro.md
+ */
+
 function staged(
   stage: string | null,
   overrides: Partial<{ status: string; kickoffAt: Date }> = {}

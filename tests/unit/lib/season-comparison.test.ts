@@ -17,10 +17,19 @@ import {
   summariseSeason,
 } from "@/lib/season-comparison";
 
+/**
+ * This season against the club's other seasons: which seasons are read and
+ * compared, the pooled baseline, the rows, and the position.
+ *
+ * decisions/038-season-against-history.md
+ * decisions/003-standings-after-selected-round.md
+ * decisions/413-rounds-a-team-sat-out.md
+ */
+
 const TEAM = 1;
 const OTHER = 2;
 
-/** One finished match for `TEAM`, at home, with the score it is given. */
+// One finished match for `TEAM`, at home, with the score it is given.
 function match(id: number, scored: number, conceded: number): ResultMatch {
   return {
     providerMatchId: id,
@@ -32,7 +41,7 @@ function match(id: number, scored: number, conceded: number): ResultMatch {
   };
 }
 
-/** A season of `results`, each a `[scored, conceded]` pair. */
+// A season of `results`, each a `[scored, conceded]` pair.
 function season(
   results: ReadonlyArray<readonly [number, number]>,
   position: { place: number; teamCount: number } | null = null
@@ -115,10 +124,9 @@ describe("comparisonRows", () => {
   });
 
   it("pools the other seasons' matches rather than averaging their averages", () => {
-    // One win in a one-match season, none in a nine-match season. Pooled, that
-    // is 3 points from 10 matches. Averaging the two seasons' own rates would
-    // give 1,5 — five times as much — and let a one-match season count as
-    // heavily as a full one.
+    // One win in a one-match season, none in a nine-match season. Pooled, that is 3
+    // points from 10 matches; averaging the two seasons' own rates would give 1,5, five
+    // times as much, and let a one-match season count as heavily as a full one.
     const rows = comparisonRows(season([[1, 0] as const]), [
       season([[1, 0] as const]),
       season(Array.from({ length: 9 }, () => [0, 1] as const)),
@@ -201,7 +209,7 @@ describe("seasonLength", () => {
     expect(seasonLength([{ matchday: 5 }, { matchday: 27 }, { matchday: 12 }])).toBe(27);
   });
 
-  it("ignores a match with no round, as spec 003 has it", () => {
+  it("ignores a match with no round, as the standings after a round do", () => {
     expect(seasonLength([{ matchday: null }, { matchday: 3 }])).toBe(3);
   });
 
@@ -221,7 +229,7 @@ describe("shareCompleted", () => {
   });
 
   it("never exceeds 1, however TASO numbers its rounds", () => {
-    // A round number can outrun the scheduled count (#413).
+    // A round number can outrun the scheduled count.
     expect(shareCompleted(31, 27)).toBe(1);
   });
 
@@ -264,7 +272,7 @@ describe("positionAtShare", () => {
 });
 
 describe("compareSeasons", () => {
-  /** A season where the club played `results` in consecutive rounds. */
+  // A season where the club played `results` in consecutive rounds.
   function read(
     competition: string,
     results: ReadonlyArray<readonly [number, number]>,
@@ -374,8 +382,8 @@ describe("compareSeasons", () => {
   });
 
   it("ranks nothing from a season whose matches carry no round", () => {
-    // A season with no matchday has no length, so it can supply no position —
-    // but its matches still count towards the pooled rates (S10).
+    // A season with no matchday has no length, so it can supply no position,
+    // but its matches still count towards the pooled rates.
     const roundless = {
       ...read("Suomen Cup", [[3, 0] as const]),
       all: [{ matchday: null }],
@@ -504,7 +512,7 @@ describe("comparisonFor", () => {
   const isLeague = (code: string) => code !== "CUP";
   const selectedKey = { competitionCode: "PL", seasonId: 2024 };
 
-  /** A season that reads, with one finished match the club won. */
+  // A season that reads, with one finished match the club won.
   function okRead(competition = "Valioliiga") {
     return {
       status: "ok" as const,

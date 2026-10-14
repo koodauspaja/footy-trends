@@ -4,8 +4,9 @@ import { RefreshRunList } from "@/components/refresh-run-list";
 import type { RefreshRunView } from "@/lib/refresh-view";
 
 /**
- * The audit log as an admin reads it, from
- * specs/029-forced-season-refresh.md.
+ * The audit log as an admin reads it.
+ *
+ * decisions/029-forced-season-refresh.md
  */
 
 function run(overrides: Partial<RefreshRunView> = {}): RefreshRunView {

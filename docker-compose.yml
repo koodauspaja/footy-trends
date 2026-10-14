@@ -1,21 +1,12 @@
+# Why each setting is as it is: decisions/531-configuration-files.md
 services:
   postgres:
     image: postgres:18-alpine
     environment:
       POSTGRES_USER: postgres
-      # From the environment, not written here. A password in a tracked file is
-      # a credential in git history whatever it protects, and Sonar counts it as
-      # one (#292). Compose reads `.env` from the repository root, so
-      # `FOOTY_POSTGRES_PASSWORD=postgres` there restores the old behaviour;
-      # `:?` makes an unset value a clear error rather than a container that
-      # starts with no password at all.
-      #
-      # The name is project-scoped on purpose. Compose gives a **shell export
-      # precedence over `.env`**, so a generic `POSTGRES_PASSWORD` already
-      # exported for something else would initialise this database with one
-      # password while `DATABASE_URL` in `.env` still carried another — and the
-      # failure would arrive as a connection error with nothing pointing at the
-      # cause. Nothing else exports this name.
+      # From the environment, not written here; `:?` makes an unset value a
+      # clear error. The name is project-scoped, because a shell export beats
+      # `.env`.
       POSTGRES_PASSWORD: ${FOOTY_POSTGRES_PASSWORD:?set FOOTY_POSTGRES_PASSWORD in .env, see .env.example}
       POSTGRES_DB: footy-trends
     ports:

@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useState, useTransition } from "react";
+import { SameRouteLink } from "@/components/same-route-link";
 import { deleteUserAction, demoteUserAction, promoteUserAction } from "@/lib/admin-actions";
 import {
   type AdminRefusal,
@@ -9,14 +9,13 @@ import {
   type AdminWriteResult,
   isAdminRole,
 } from "@/lib/admin-user-view";
+import { reportClientError } from "@/lib/report-client-error";
 
 /**
- * The user list and its controls, from specs/028-admin-tools-and-roles.md.
+ * The user list and its controls. A client component: it imports
+ * `admin-user-view.ts`, never `admin-users.ts`, which reaches the database.
  *
- * A client component because every control here is interactive and a deletion
- * asks first. It imports `admin-user-view.ts` rather than `admin-users.ts`:
- * the latter reaches the database, and this is a browser bundle — the boundary
- * `avatar-limits.ts` and `favourite-keys.ts` exist for.
+ * decisions/028-admin-tools-and-roles.md
  */
 
 const SECTION = "Käyttäjät";
@@ -36,7 +35,11 @@ const PREVIOUS = "Edellinen";
 const NEXT = "Seuraava";
 const CONFIRM_BODY = "Tämä poistaa tilin, suosikit, asetukset ja profiilikuvan. Tätä ei voi perua.";
 
-/** Every refusal the actions can report, in Finnish. */
+/**
+ * Every refusal the actions can report, in Finnish.
+ *
+ * decisions/028-admin-tools-and-roles.md
+ */
 const REFUSALS: Record<AdminRefusal, string> = {
   self: "Et voi muuttaa omaa rooliasi tai poistaa omaa tiliäsi täällä.",
   last_admin: "Viimeistä ylläpitäjää ei voi poistaa.",
@@ -76,7 +79,8 @@ export function AdminUserTable({ users, currentAdminId, page, pages, total, page
         // A refusal leaves the row as it was and says why; the page revalidates
         // itself on success, so there is no local copy of the list to keep.
         if (!result.ok) setNotice(REFUSALS[result.reason]);
-      } catch {
+      } catch (error) {
+        reportClientError(error, "admin.user-write");
         setNotice(REFUSALS.failed);
       }
     });
@@ -85,11 +89,7 @@ export function AdminUserTable({ users, currentAdminId, page, pages, total, page
   return (
     <section>
       {/* The heading and the count are rendered whatever the list holds, so the
-          page has the same shape empty as full — an early return for the empty
-          case dropped both, which review caught. In practice an admin is
-          reading this page, so there is always at least one user; the branch
-          exists because "the query answered nothing" and "the table is empty"
-          must not be the same rendering. */}
+          page has the same shape empty as full. */}
       <h2 className="font-semibold text-xl">{SECTION}</h2>
       <p className="mb-4 text-muted text-sm">{`${total} käyttäjää`}</p>
 
@@ -124,10 +124,8 @@ export function AdminUserTable({ users, currentAdminId, page, pages, total, page
                     <td className="py-2 pr-4">{admin ? ROLE_ADMIN : ROLE_USER}</td>
                     <td className="py-2 pr-4">{joinedFormatter.format(entry.createdAt)}</td>
                     <td className="py-2">
-                      {/* An admin's own row carries no controls at all. The
-                        actions refuse it anyway, but offering a button whose
-                        only outcome is a refusal is a worse answer than not
-                        offering it. */}
+                      {/* An admin's own row carries no controls at all: the actions would
+                        refuse it anyway. */}
                       {self ? null : (
                         <span className="flex gap-2">
                           <button
@@ -167,13 +165,13 @@ export function AdminUserTable({ users, currentAdminId, page, pages, total, page
               so a page change is a navigation. That also makes each page
               linkable and the browser's back button work. */}
           {page > 1 ? (
-            <Link href={`?${pageParam}=${page - 1}`}>{PREVIOUS}</Link>
+            <SameRouteLink href={`?${pageParam}=${page - 1}`}>{PREVIOUS}</SameRouteLink>
           ) : (
             <span className="text-muted">{PREVIOUS}</span>
           )}
           <span className="text-muted">{`Sivu ${page} / ${pages}`}</span>
           {page < pages ? (
-            <Link href={`?${pageParam}=${page + 1}`}>{NEXT}</Link>
+            <SameRouteLink href={`?${pageParam}=${page + 1}`}>{NEXT}</SameRouteLink>
           ) : (
             <span className="text-muted">{NEXT}</span>
           )}

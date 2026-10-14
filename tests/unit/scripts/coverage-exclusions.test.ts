@@ -3,18 +3,17 @@ import { describe, expect, it } from "vitest";
 import { parseSonarProperty } from "../../../scripts/coverage-gaps-plan";
 
 /**
- * The comment above `sonar.coverage.exclusions` explains why each entry is
- * there, in groups, with a count for each. A count in prose is exactly the thing
- * that drifts — #389 got the same one wrong twice — and review on #411 read
- * these as wrong when they were right, which is the same problem from the other
- * side. So the counts are written in a form a test can read, and this is the
- * test (#403).
+ * The comment above `sonar.coverage.exclusions` says why each entry is there,
+ * in groups, with a count for each. A count in prose drifts, so the counts are
+ * written in a form a test can read, and this is the test.
+ *
+ * decisions/403-coverage-exclusions-that-earn-it.md
  */
 
 const PROPERTIES = readFileSync("sonar-project.properties", "utf8");
 
-/** Files that construct a client or migrate as soon as they are imported. */
-const CONNECTS_AT_IMPORT = new Set(["src/db/index.ts", "src/db/migrate.ts", "src/lib/redis.ts"]);
+// Files that construct a client or migrate as soon as they are imported.
+const CONNECTS_AT_IMPORT = new Set(["src/db/migrate.ts", "src/lib/redis.ts"]);
 
 function isToolingConfiguration(entry: string): boolean {
   return (
@@ -22,7 +21,7 @@ function isToolingConfiguration(entry: string): boolean {
   );
 }
 
-/** `#   exclusion-count: <name> <number>` lines from the comment. */
+// `# exclusion-count: <name> <number>` lines from the comment.
 function statedCounts(): Record<string, number> {
   const stated: Record<string, number> = {};
 
@@ -69,15 +68,11 @@ describe("the coverage exclusion list", () => {
     expect(grouped).toBe(counts.total);
   });
 
-  /**
-   * The list itself, so that changing it is a deliberate act with a diff here
-   * too. Counts alone let one entry be swapped for another in the same group
-   * without anything noticing — raised in review on #411 — and an exclusion
-   * that appears unremarked is how a file stops being measured at all.
-   */
+  // The list itself, so that changing it is a deliberate act with a diff here too.
+  // Counts alone let one entry be swapped for another in the same group, and an
+  // exclusion that appears unremarked is how a file stops being measured.
   const EXPECTED = [
     // Open a connection, or migrate, at import.
-    "src/db/index.ts",
     "src/db/migrate.ts",
     "src/lib/redis.ts",
     // Runners whose decisions live in a tested `*-plan.ts` half.
@@ -97,6 +92,7 @@ describe("the coverage exclusion list", () => {
     "scripts/ensure-services.ts",
     "scripts/db-reset.ts",
     "scripts/predictions.ts",
+    "scripts/railway-environment.ts",
     // The tooling's own configuration.
     "drizzle.config.ts",
     "next.config.ts",
@@ -115,11 +111,8 @@ describe("the coverage exclusion list", () => {
   });
 
   it("excludes nothing that no longer exists", () => {
-    /**
-     * #258 removed two exclusions for files that had been deleted long before.
-     * A coverage exclusion for a file that does not exist is how a real gap
-     * hides later: the entry looks considered, and covers nothing.
-     */
+    // A coverage exclusion for a file that does not exist is how a real gap
+    // hides later: the entry looks considered, and covers nothing.
     const missing = parseSonarProperty(PROPERTIES, "sonar.coverage.exclusions").filter(
       (entry) => !existsSync(entry)
     );

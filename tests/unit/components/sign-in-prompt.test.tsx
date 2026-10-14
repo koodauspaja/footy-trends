@@ -2,12 +2,27 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SignInPrompt } from "@/components/sign-in-prompt";
 
+/**
+ * The prompt a signed-out reader gets, and where signing in returns them.
+ *
+ * decisions/024-account-settings.md
+ * decisions/030-league-position-by-matchday.md
+ */
+
 const { socialSignIn, pathname, search, replace } = vi.hoisted(() => ({
   socialSignIn: vi.fn(() => Promise.resolve()),
   pathname: { current: "/asetukset" },
   search: { current: "" },
   replace: vi.fn(),
 }));
+
+const { reportClientError } = vi.hoisted(() => ({ reportClientError: vi.fn() }));
+
+vi.mock("@/lib/report-client-error", () => ({ reportClientError }));
+
+beforeEach(() => {
+  reportClientError.mockClear();
+});
 
 vi.mock("@/lib/auth-client", () => ({ signIn: { social: socialSignIn } }));
 vi.mock("next/navigation", () => ({
@@ -43,8 +58,8 @@ describe("SignInPrompt", () => {
   });
 
   it("returns the reader to the same competition and season of a team page", () => {
-    // The chart's prompt (specs/030). Without the query the reader came back to
-    // the bare team URL, which resolves a competition of its own.
+    // The chart's prompt. Without the query the reader would come back to the
+    // bare team URL, which resolves a competition of its own.
     pathname.current = "/kotimaa/joukkue/123";
     search.current = "kilpailu=VL&kausi=2024";
     render(<SignInPrompt />);
@@ -85,12 +100,14 @@ describe("SignInPrompt", () => {
     // Swallowing this leaves a button that appears to do nothing. It goes
     // through the same `?error=` channel Google's own failures use, so the
     // header's notice renders it.
-    socialSignIn.mockRejectedValue(new Error("network"));
+    const failure = new Error("network");
+    socialSignIn.mockRejectedValue(failure);
     render(<SignInPrompt />);
 
     fireEvent.click(screen.getByRole("button", { name: "Kirjaudu sisään" }));
 
     await vi.waitFor(() => expect(replace).toHaveBeenCalledWith("/asetukset?error=auth"));
+    expect(reportClientError).toHaveBeenCalledWith(failure, "sign-in.prompt");
   });
 
   it("leaves the URL alone when sign-in starts normally", async () => {

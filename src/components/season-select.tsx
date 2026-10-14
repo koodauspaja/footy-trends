@@ -7,10 +7,10 @@ type SeasonSelectProps = {
 };
 
 /**
- * The `Kausi` label + `<select>` only — no `<form>`, no navigation. Shared
- * between the home page (inside a form that also has a round control) and
- * the team page (its own, season-only form), so both get the same Finnish
- * label and option list without duplicating the markup.
+ * The `Kausi` label and `<select>` only: no `<form>`, no navigation. Shared
+ * between the home page and the team page.
+ *
+ * decisions/004-listing-matches-for-selected-team.md
  */
 export function SeasonSelect({ seasons, selectedSeasonId, onChange }: Readonly<SeasonSelectProps>) {
   return (

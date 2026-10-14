@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 /**
- * The entry point, imported — which is the whole point of it being shaped this
- * way. Every other runner in `scripts/` calls `main()` at import and so sits in
- * `sonar.coverage.exclusions`; #400 asked not to add another, so this one hands
- * the decision to `runWhenMain` and a test can import it safely.
+ * Setup's entry point, imported. A runner that calls `main()` at import has to
+ * be excluded from coverage; this one hands the decision to `runWhenMain`, so a
+ * test can import it safely.
+ *
+ * decisions/400-one-command-setup.md
  */
 
 const { runWhenMain, startSetup } = vi.hoisted(() => ({
@@ -32,12 +33,9 @@ describe("scripts/setup-main.ts", () => {
   });
 
   it("names the path npm actually runs, so the guard can recognise it", async () => {
-    /**
-     * `package.json` says `tsx scripts/setup.ts`, and `runWhenMain` compares
-     * that spelling against `argv[1]`. A rename here with no rename there would
-     * leave `npm run setup` doing nothing at all, silently — the one failure
-     * this shape could introduce.
-     */
+    // `package.json` says `tsx scripts/setup.ts`, and `runWhenMain` compares
+    // that spelling against `argv[1]`. A rename here with no rename there would
+    // leave `npm run setup` doing nothing at all, silently.
     const { default: packageJson } = await import("../../../package.json");
     await import("../../../scripts/setup-main");
 

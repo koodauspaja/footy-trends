@@ -16,16 +16,24 @@ import {
   WOMENS_TEAM,
 } from "@/lib/national-team";
 
+/**
+ * The national teams' TASO data: which bucket holds a year, the men's
+ * categories, how competitions are named, which matches are Finland's, their
+ * order and count, the year a match is filed under, and Finland's id.
+ *
+ * decisions/017-huuhkajat.md
+ * decisions/018-helmarit.md
+ * decisions/041-national-team-analytics.md
+ */
+
 describe("competitionIdForYear", () => {
   it("maps 2026 to the year-shaped id", () => {
     expect(competitionIdForYear(2026)).toBe("maajp2026");
   });
 
-  /**
-   * The whole reason this is a lookup: `maajp18` holds season 2021, and
-   * `seasonFromCompetitionId` — which reads an id's last two characters —
-   * would call it 2018.
-   */
+  // The whole reason this is a lookup: `maajp18` holds season 2021, and
+  // `seasonFromCompetitionId` — which reads an id's last two characters — would
+  // call it 2018.
   it("maps 2021 to maajp18, which is not year-shaped", () => {
     expect(competitionIdForYear(2021)).toBe("maajp18");
   });
@@ -91,12 +99,8 @@ describe("competitionLabel", () => {
     expect(competitionLabel(MENS_TEAM, "EM-lopputurnaus Huuhkajat")).toBe("EM-lopputurnaus");
   });
 
-  /**
-   * TASO renames one competition between buckets rather than splitting it —
-   * the category id is identical either side — so both variants render the
-   * same. This supersedes #166, which showed them as spelled. See
-   * specs/018-helmarit.md.
-   */
+  // TASO renames one competition between buckets and does not split it: the
+  // category id is identical either side, so both variants render the same.
   it("normalises the friendlies TASO renamed between buckets", () => {
     expect(competitionLabel(MENS_TEAM, "Muut A-maaottelut Huuhkajat")).toBe("A-maaottelut");
     expect(competitionLabel(MENS_TEAM, "A-maaottelut Huuhkajat")).toBe("A-maaottelut");
@@ -109,10 +113,8 @@ describe("competitionLabel", () => {
     expect(competitionLabel(WOMENS_TEAM, "MM-karsinnat Helmarit")).toBe("MM-karsinnat");
   });
 
-  /**
-   * Guards the two rules against eating a label whole. Neither has a case in
-   * the current data, which is exactly why they are pinned.
-   */
+  // Guards the two rules against eating a label whole. Neither has a case in
+  // the current data, which is exactly why they are pinned.
   it("leaves a label that is only a year, or only Muut, alone", () => {
     expect(competitionLabel(MENS_TEAM, "2023 Huuhkajat")).toBe("2023");
     expect(competitionLabel(MENS_TEAM, "Muut Huuhkajat")).toBe("Muut");
@@ -132,10 +134,8 @@ describe("competitionLabel", () => {
 });
 
 describe("isFinlandMatch", () => {
-  /**
-   * 2023's `ECQ` returns all 30 matches of the qualifying group, of which 10
-   * are Finland's — without this the page lists `Kazakstan - Slovenia`.
-   */
+  // 2023's `ECQ` returns all 30 matches of the qualifying group, of which 10
+  // are Finland's — without this the page lists `Kazakstan - Slovenia`.
   it("keeps a match Finland played either side of", () => {
     expect(isFinlandMatch({ homeTeamName: "Suomi", awayTeamName: "Malta" })).toBe(true);
     expect(isFinlandMatch({ homeTeamName: "Tanska", awayTeamName: "Suomi" })).toBe(true);
@@ -190,11 +190,9 @@ describe("playedYear", () => {
     expect(playedYear(new Date("2021-06-12T19:00:00Z"))).toBe(2021);
   });
 
-  /**
-   * A late-December kick-off is already the next year in Helsinki, which is
-   * the timezone the date column renders in — the section heading and the
-   * date beside it must not disagree.
-   */
+  // A late-December kick-off is already the next year in Helsinki, which is the
+  // timezone the date column renders in — the section heading and the date
+  // beside it must not disagree.
   it("files a late kick-off under the year Helsinki was already in", () => {
     expect(playedYear(new Date("2020-12-31T23:30:00Z"))).toBe(2021);
   });
@@ -206,12 +204,9 @@ describe("groupByPlayedYear", () => {
     kickoffAt: new Date(iso),
   });
 
-  /**
-   * The bug this exists to prevent: `maajp18` is one provider bucket holding
-   * Euro 2020 qualifying played in 2019, the 2020-21 Nations League played in
-   * 2020, and 2021's own matches. Filing all of them under the bucket's
-   * nominal season put a 2019 qualifier under a 2021 heading.
-   */
+  // `maajp18` is one provider bucket holding Euro 2020 qualifying played in 2019,
+  // the 2020-21 Nations League played in 2020, and 2021's own matches: each is
+  // filed under the year it was played, not under the bucket's nominal season.
   it("splits one bucket's matches across the years they were played in", () => {
     const grouped = groupByPlayedYear([
       match(1, "2019-09-05T19:00:00Z"),
@@ -239,7 +234,7 @@ describe("groupByPlayedYear", () => {
   });
 });
 
-describe("normalizeFinlandId (specs/041, S1)", () => {
+describe("normalizeFinlandId", () => {
   const base = {
     homeTeamName: "Suomi",
     homeTeamProviderId: 4321,

@@ -2,20 +2,47 @@ import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GoalsPerGameSeries } from "@/lib/goals-per-game";
 import type { OutcomeRow, OutcomeShares } from "@/lib/outcome-shares";
+import type { SeasonForecast } from "@/lib/season-simulation";
+import type { SeasonSurprises } from "@/lib/surprise";
 import type { TableVolatilitySeries } from "@/lib/table-volatility";
 
-const { canSeeAnalytics, getGoalsPerGame, getOutcomeShares, getTableVolatility } = vi.hoisted(
-  () => ({
-    canSeeAnalytics: vi.fn<() => Promise<boolean>>(),
-    getGoalsPerGame: vi.fn<() => Promise<GoalsPerGameSeries>>(),
-    getOutcomeShares: vi.fn<() => Promise<OutcomeShares>>(),
-    getTableVolatility: vi.fn<() => Promise<TableVolatilitySeries>>(),
-  })
-);
+/**
+ * A competition's Analyysit: its gate, which competitions have it, and its
+ * panels.
+ *
+ * decisions/048-league-goals-per-game-trend.md
+ * decisions/049-home-advantage-and-draw-rate.md
+ * decisions/050-table-volatility.md
+ * decisions/057-surprise-index.md
+ * decisions/061-season-simulation.md
+ * decisions/629-fold-side-by-side.md
+ */
+
+const {
+  canSeeAnalytics,
+  getGoalsPerGame,
+  getOutcomeShares,
+  getTableVolatility,
+  getSeasonSurprises,
+  getSeasonForecast,
+} = vi.hoisted(() => ({
+  canSeeAnalytics: vi.fn<() => Promise<boolean>>(),
+  getGoalsPerGame: vi.fn<() => Promise<GoalsPerGameSeries>>(),
+  getOutcomeShares: vi.fn<() => Promise<OutcomeShares>>(),
+  getTableVolatility: vi.fn<() => Promise<TableVolatilitySeries>>(),
+  getSeasonSurprises: vi.fn<() => Promise<SeasonSurprises>>(),
+  getSeasonForecast: vi.fn<() => Promise<SeasonForecast>>(),
+}));
 
 vi.mock("@/lib/analytics-access", () => ({ canSeeAnalytics }));
 vi.mock("@/lib/match-service", () => ({ getGoalsPerGame, getOutcomeShares }));
 vi.mock("@/lib/table-volatility-service", () => ({ getTableVolatility }));
+vi.mock("@/lib/surprise-service", () => ({ getSeasonSurprises }));
+vi.mock("@/lib/season-simulation-service", () => ({ getSeasonForecast }));
+// `Ennuste`'s link string, which the forecast panel reuses; its component reads the models.
+vi.mock("@/components/match-prediction", () => ({
+  QUALITY_LINK: "Kuinka hyvin ennusteet ovat osuneet?",
+}));
 // The prompt's sign-in flow is sign-in-prompt.test.tsx's; here it only has to
 // show which message it was given.
 vi.mock("@/components/sign-in-prompt", () => ({
@@ -31,6 +58,7 @@ import {
   HOME_ADVANTAGE_ERROR_MESSAGE,
   HOME_ADVANTAGE_HEADING,
   IN_PROGRESS_NOTE,
+  inProgressSeasonLine,
   leftOutSentence,
   MID_SEASON_NOTE,
   NO_OWN_MATCHES_MESSAGE,
@@ -40,6 +68,7 @@ import {
   STORED_SEASONS_NOTE,
   seasonSentence,
   seasonsLeftOutSentence,
+  THIS_SEASON_HEADING,
   TOO_FEW_SEASONS_MESSAGE,
   VOLATILITY_ERROR_MESSAGE,
   VOLATILITY_HEADING,
@@ -47,6 +76,8 @@ import {
   volatilitySentence,
   windowSentence,
 } from "@/components/competition-analytics";
+import { FORECAST_ERROR_MESSAGE, FORECAST_HEADING } from "@/components/season-forecast";
+import { SURPRISES_ERROR_MESSAGE, SURPRISES_HEADING } from "@/components/season-surprises";
 
 const inProgress = { seasonId: 2025, matches: 60, perGame: 3.1, inProgress: true };
 const series: GoalsPerGameSeries = {
@@ -106,6 +137,52 @@ const volatility: TableVolatilitySeries = {
   leftOut: 0,
 };
 
+const surprises: SeasonSurprises = {
+  status: "ok",
+  inProgress: true,
+  surprises: [
+    {
+      providerMatchId: 497001,
+      kickoffAt: new Date("2025-04-21T14:00:00Z"),
+      homeTeamProviderId: 57,
+      homeTeamName: "Arsenal FC",
+      awayTeamProviderId: 61,
+      awayTeamName: "Chelsea FC",
+      homeGoals: 0,
+      awayGoals: 3,
+      home: 0.7,
+      draw: 0.24,
+      away: 0.06,
+      probability: 0.06,
+    },
+  ],
+};
+
+const settled = { share: 1, settled: true };
+const forecast: SeasonForecast = {
+  status: "ok",
+  layout: "single",
+  leftOut: [],
+  tables: [
+    {
+      groupId: 0,
+      groupName: null,
+      decidesTitle: true,
+      rows: [
+        {
+          teamProviderId: 57,
+          teamName: "Arsenal FC",
+          expectedPoints: 81.3,
+          first: settled,
+          last: settled,
+          topThree: settled,
+          bottomThree: settled,
+        },
+      ],
+    },
+  ],
+};
+
 const seasonLabel = (season: number) => `${season}/${String(season + 1).slice(2)}`;
 
 async function renderSection({
@@ -136,6 +213,10 @@ beforeEach(() => {
   getOutcomeShares.mockResolvedValue(shares);
   getTableVolatility.mockReset();
   getTableVolatility.mockResolvedValue(volatility);
+  getSeasonSurprises.mockReset();
+  getSeasonSurprises.mockResolvedValue(surprises);
+  getSeasonForecast.mockReset();
+  getSeasonForecast.mockResolvedValue({ status: "unavailable" });
 });
 
 describe("the strings the spec agreed", () => {
@@ -156,7 +237,7 @@ describe("the strings the spec agreed", () => {
 });
 
 describe("CompetitionAnalyticsSection, signed in", () => {
-  /** Goals per game's own panel: the section holds another chart since specs/050. */
+  // Goals per game's own panel: the section holds another chart.
   function goalsPanel() {
     return screen.getByRole("region", { name: GOALS_PER_GAME_HEADING });
   }
@@ -169,6 +250,8 @@ describe("CompetitionAnalyticsSection, signed in", () => {
       .map((heading) => [heading.tagName, heading.textContent]);
     expect(headings).toEqual([
       ["H2", ANALYTICS_HEADING],
+      ["H3", THIS_SEASON_HEADING],
+      ["H4", SURPRISES_HEADING],
       ["H3", SEASON_BY_SEASON_HEADING],
       ["H4", GOALS_PER_GAME_HEADING],
       ["H4", VOLATILITY_HEADING],
@@ -177,13 +260,61 @@ describe("CompetitionAnalyticsSection, signed in", () => {
     ]);
   });
 
+  it("puts the season's forecast first in Tämä kausi, above the surprises", async () => {
+    getSeasonForecast.mockResolvedValue(forecast);
+    await renderSection();
+
+    const headings = screen.getAllByRole("heading").map((heading) => heading.textContent);
+    expect(headings.slice(0, 4)).toEqual([
+      ANALYTICS_HEADING,
+      THIS_SEASON_HEADING,
+      FORECAST_HEADING,
+      SURPRISES_HEADING,
+    ]);
+    expect(screen.getByRole("heading", { level: 4, name: FORECAST_HEADING })).toBeInTheDocument();
+    const panel = screen.getByRole("region", { name: FORECAST_HEADING });
+    expect(within(panel).getByRole("rowheader").textContent).toBe("Arsenal FC");
+  });
+
+  it("asks for the forecast of the page's own season, with the season in progress", async () => {
+    await renderSection({ kind: "taso", competitionCode: "VL" });
+
+    // The page's season first, then the season in progress: 2024 is a finished one.
+    expect(getSeasonForecast).toHaveBeenCalledWith("taso", "VL", 2024, 2025);
+  });
+
+  it("links the forecast to the models' record in this competition", async () => {
+    getSeasonForecast.mockResolvedValue(forecast);
+    await renderSection({ kind: "taso", competitionCode: "VL" });
+
+    const panel = screen.getByRole("region", { name: FORECAST_HEADING });
+    expect(within(panel).getByRole("link").getAttribute("href")).toBe(
+      "/ennusteet?alue=kotimaa&tyyppi=jalkikateen&kilpailu=VL"
+    );
+  });
+
+  it("shows the forecast's failure line in its own panel", async () => {
+    getSeasonForecast.mockResolvedValue({ status: "error" });
+    await renderSection();
+
+    const panel = screen.getByRole("region", { name: FORECAST_HEADING });
+    expect(panel.textContent).toBe(`${FORECAST_HEADING}${FORECAST_ERROR_MESSAGE}`);
+  });
+
+  it("has no forecast panel where the season has none", async () => {
+    await renderSection();
+
+    expect(screen.queryByRole("region", { name: FORECAST_HEADING })).toBeNull();
+    expect(screen.queryByText(FORECAST_HEADING)).toBeNull();
+  });
+
   it("asks for the competition's own seasons, with the season in progress", async () => {
     await renderSection({ kind: "taso", competitionCode: "VL" });
 
     expect(getGoalsPerGame).toHaveBeenCalledWith("taso", "VL", 2025);
   });
 
-  it("draws one point per season, the page's own season ringed (S11)", async () => {
+  it("draws one point per season, the page's own season ringed", async () => {
     await renderSection();
     const container = goalsPanel();
     const points = container.querySelectorAll("[data-part=points] circle:not([data-marked])");
@@ -201,7 +332,7 @@ describe("CompetitionAnalyticsSection, signed in", () => {
     expect(container.querySelector("[data-marked]")).toBeNull();
   });
 
-  it("labels seasons as the page does, and notes the one in progress under its tick (S15)", async () => {
+  it("labels seasons as the page does, and notes the one in progress under its tick", async () => {
     await renderSection();
     const container = goalsPanel();
     const ticks = [...container.querySelectorAll("[data-part=x-axis] text")].slice(0, -1);
@@ -217,7 +348,7 @@ describe("CompetitionAnalyticsSection, signed in", () => {
     expect(notes[0]?.parentElement).toBe(ticks[2]);
   });
 
-  it("labels every other season on a phone when a long line would crowd them (S16)", async () => {
+  it("labels every other season on a phone when a long line would crowd them", async () => {
     getGoalsPerGame.mockResolvedValue({
       ...series,
       points: Array.from({ length: 12 }, (_, index) => ({
@@ -235,7 +366,7 @@ describe("CompetitionAnalyticsSection, signed in", () => {
     expect(hidden).toHaveLength(6);
   });
 
-  it("prints the y-axis the Finnish way, from the series' own zoom (S13)", async () => {
+  it("prints the y-axis the Finnish way, from the series' own zoom", async () => {
     await renderSection();
     const container = goalsPanel();
     const ticks = [...container.querySelectorAll("[data-part=y-axis] text")].slice(0, -1);
@@ -261,7 +392,7 @@ describe("CompetitionAnalyticsSection, signed in", () => {
     ]);
   });
 
-  it("names each season left out, then says the line is the stored seasons (S9, S14)", async () => {
+  it("names each season left out, then says the line is the stored seasons", async () => {
     await renderSection();
 
     expect(screen.getByText(leftOutSentence("2022/23"))).toBeInTheDocument();
@@ -288,7 +419,36 @@ describe("CompetitionAnalyticsSection, signed in", () => {
   );
 });
 
-describe("CompetitionAnalyticsSection, signed out (S4)", () => {
+describe("Kilpailut rinnakkain, folded", () => {
+  it("is the one group a reader opens, closed on every load, its heading the thing to press", async () => {
+    const { container } = await renderSection();
+
+    const folds = [...container.querySelectorAll("details")];
+    expect(folds).toHaveLength(1);
+    const [fold] = folds;
+    expect(fold?.open).toBe(false);
+    // The marker, hidden from assistive technology, then the group's heading.
+    const summary = fold?.querySelector("summary");
+    expect(summary?.textContent).toBe(`▸${SIDE_BY_SIDE_HEADING}`);
+    expect(summary?.querySelector("[aria-hidden=true]")?.textContent).toBe("▸");
+    expect(summary?.querySelector("h3")?.textContent).toBe(SIDE_BY_SIDE_HEADING);
+  });
+
+  it("holds the comparison table and nothing of the other groups", async () => {
+    const { container } = await renderSection();
+
+    const fold = container.querySelector("details");
+    const headings = [...(fold?.querySelectorAll("h3, h4") ?? [])].map((h) => h.textContent);
+    expect(headings).toEqual([SIDE_BY_SIDE_HEADING, HOME_ADVANTAGE_HEADING]);
+    expect(fold?.querySelector("table")).not.toBeNull();
+    // Still the group's own region, named by its heading.
+    expect(fold?.parentElement?.getAttribute("aria-labelledby")).toBe(
+      fold?.querySelector("h3")?.id
+    );
+  });
+});
+
+describe("CompetitionAnalyticsSection, signed out", () => {
   beforeEach(() => {
     canSeeAnalytics.mockResolvedValue(false);
   });
@@ -304,10 +464,12 @@ describe("CompetitionAnalyticsSection, signed out (S4)", () => {
     expect(getGoalsPerGame).not.toHaveBeenCalled();
     expect(getOutcomeShares).not.toHaveBeenCalled();
     expect(getTableVolatility).not.toHaveBeenCalled();
+    expect(getSeasonSurprises).not.toHaveBeenCalled();
+    expect(getSeasonForecast).not.toHaveBeenCalled();
   });
 });
 
-describe("CompetitionAnalyticsSection where the spec has none (S5)", () => {
+describe("CompetitionAnalyticsSection where the spec has none", () => {
   it.each([
     ["football-data", "WC"],
     ["football-data", "EC"],
@@ -323,19 +485,22 @@ describe("CompetitionAnalyticsSection where the spec has none (S5)", () => {
       expect(getGoalsPerGame).not.toHaveBeenCalled();
       expect(getOutcomeShares).not.toHaveBeenCalled();
       expect(getTableVolatility).not.toHaveBeenCalled();
+      expect(getSeasonSurprises).not.toHaveBeenCalled();
+      expect(getSeasonForecast).not.toHaveBeenCalled();
+      expect(getSeasonForecast).not.toHaveBeenCalled();
     }
   );
 });
 
-describe("the home-advantage strings (specs/049)", () => {
-  it("prints Kotietu signed, with a real minus and a bare zero (S5)", () => {
+describe("the home-advantage strings", () => {
+  it("prints Kotietu signed, with a real minus and a bare zero", () => {
     expect(advantageText(15.6)).toBe("+16");
     expect(advantageText(-2.6)).toBe("−3");
     expect(advantageText(0.4)).toBe("0");
     expect(advantageText(-0.4)).toBe("0");
   });
 
-  it("names the seasons of both kinds, one kind, a single season, or nothing (S18)", () => {
+  it("names the seasons of both kinds, one kind, a single season, or nothing", () => {
     expect(windowSentence({ first: 2023, last: 2025 }, { first: 2023, last: 2025 })).toBe(
       "Kaudet 2023–2025 ja 2023/24–2025/26, kaikki tallennetut ottelut."
     );
@@ -368,7 +533,7 @@ describe("Kotietu ja tasapelit", () => {
     return within(screen.getByRole("region", { name: HOME_ADVANTAGE_HEADING }));
   }
 
-  it("lists every competition in the given order, shares as whole percentages (S4, S14)", async () => {
+  it("lists every competition in the given order, shares as whole percentages", async () => {
     await renderSection();
 
     const rows = panel()
@@ -402,7 +567,7 @@ describe("Kotietu ja tasapelit", () => {
     expect(panel().getByText(NO_OWN_MATCHES_MESSAGE)).toBeInTheDocument();
   });
 
-  it("names the seasons, then says the shares are rounded (S14, S18)", async () => {
+  it("names the seasons, then says the shares are rounded", async () => {
     await renderSection();
 
     const lines = panel()
@@ -414,7 +579,7 @@ describe("Kotietu ja tasapelit", () => {
     ]);
   });
 
-  it("still compares the others without a row of its own, and says why (S16)", async () => {
+  it("still compares the others without a row of its own, and says why", async () => {
     await renderSection({ kind: "taso", competitionCode: "M1L" });
 
     expect(panel().getByText(NO_OWN_MATCHES_MESSAGE)).toBeInTheDocument();
@@ -439,7 +604,7 @@ describe("Kotietu ja tasapelit", () => {
     expect(panel().getByText(ROUNDING_NOTE)).toBeInTheDocument();
   });
 
-  it("shows one failure message in place of the table, and keeps goals per game (S15)", async () => {
+  it("shows one failure message in place of the table, and keeps goals per game", async () => {
     getOutcomeShares.mockResolvedValue({ status: "error" });
     const { container } = await renderSection();
 
@@ -450,7 +615,7 @@ describe("Kotietu ja tasapelit", () => {
   });
 });
 
-describe("the table-movement strings (specs/050)", () => {
+describe("the table-movement strings", () => {
   it("uses the agreed Finnish", () => {
     expect(VOLATILITY_HEADING).toBe("Sijoitusten vaihtelu");
     expect(MID_SEASON_NOTE).toBe("Puoliväli: kun puolet kauden kierroksista on pelattu.");
@@ -465,7 +630,7 @@ describe("the table-movement strings (specs/050)", () => {
     );
   });
 
-  it("counts the seasons left out in the singular and the plural (S15)", () => {
+  it("counts the seasons left out in the singular and the plural", () => {
     expect(seasonsLeftOutSentence(1)).toBe(
       "1 kausi puuttuu, koska sen kierroskohtaisia taulukoita ei voida laskea."
     );
@@ -486,7 +651,7 @@ describe("Sijoitusten vaihtelu", () => {
     expect(getTableVolatility).toHaveBeenCalledWith("taso", "VL", 2025);
   });
 
-  it("draws one point per season from 0, the page's own ringed (S5, S13)", async () => {
+  it("draws one point per season from 0, the page's own ringed", async () => {
     await renderSection({ selectedSeasonId: 2023 });
     const chart = panel().getByRole("img");
     const points = chart.querySelectorAll("[data-part=points] circle:not([data-marked])");
@@ -506,7 +671,7 @@ describe("Sijoitusten vaihtelu", () => {
     expect(panel().getByRole("img").querySelector("[data-marked]")).toBeNull();
   });
 
-  it("gives the chart a text alternative, one sentence per season with its team count (S12)", async () => {
+  it("gives the chart a text alternative, one sentence per season with its team count", async () => {
     await renderSection();
     const chart = panel().getByRole("img");
     const text = panel().getByRole("list");
@@ -530,7 +695,7 @@ describe("Sijoitusten vaihtelu", () => {
     expect(panel().queryByText(/puuttuu/)).toBeNull();
   });
 
-  it("counts the seasons left out under the chart (S9)", async () => {
+  it("counts the seasons left out under the chart", async () => {
     getTableVolatility.mockResolvedValue({ ...volatility, leftOut: 2 } as TableVolatilitySeries);
     await renderSection();
 
@@ -549,11 +714,47 @@ describe("Sijoitusten vaihtelu", () => {
     expect(panel().queryByText(MID_SEASON_NOTE)).toBeNull();
   });
 
-  it("has no panel on the Champions League, whose later rounds leave no final table (S10)", async () => {
+  it("has no panel on the Champions League, whose later rounds leave no final table", async () => {
     await renderSection({ competitionCode: "CL" });
 
     expect(screen.queryByRole("region", { name: VOLATILITY_HEADING })).toBeNull();
     expect(screen.getByRole("region", { name: GOALS_PER_GAME_HEADING })).toBeInTheDocument();
     expect(getTableVolatility).not.toHaveBeenCalled();
+  });
+});
+
+describe("Kauden suurimmat yllätykset, in the section", () => {
+  const panel = () => screen.getByRole("region", { name: SURPRISES_HEADING });
+
+  it("asks for the selected season's surprises, with the season in progress", async () => {
+    await renderSection({ kind: "taso", competitionCode: "VL", selectedSeasonId: 2024 });
+
+    expect(getSeasonSurprises).toHaveBeenCalledWith("taso", "VL", 2024, 2025);
+  });
+
+  it("names the selected season as the page does, above a list still being played", async () => {
+    // The mocked read says in progress; the season named is the selected one.
+    await renderSection({ selectedSeasonId: 2024 });
+
+    expect(inProgressSeasonLine("2025/26")).toBe(`Kausi 2025/26 ${IN_PROGRESS_NOTE}`);
+    expect(within(panel()).getByText("Kausi 2024/25 (kesken)")).toBeInTheDocument();
+  });
+
+  it("links each match to its provider's match page", async () => {
+    await renderSection();
+    expect(within(panel()).getByRole("link")).toHaveAttribute("href", "/ulkomaat/ottelu/497001");
+  });
+
+  it("links a domestic match under /kotimaa", async () => {
+    await renderSection({ kind: "taso", competitionCode: "VL" });
+    expect(within(panel()).getByRole("link")).toHaveAttribute("href", "/kotimaa/ottelu/497001");
+  });
+
+  it("shows the failure line when the surprises cannot be read, and the other panels still", async () => {
+    getSeasonSurprises.mockResolvedValue({ status: "error" });
+    await renderSection();
+
+    expect(within(panel()).getByText(SURPRISES_ERROR_MESSAGE)).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: GOALS_PER_GAME_HEADING })).toBeInTheDocument();
   });
 });

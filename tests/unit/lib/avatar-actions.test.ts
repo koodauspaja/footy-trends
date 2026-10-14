@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../support/warm-module";
 
+/**
+ * The server actions that save and remove a reader's own picture.
+ *
+ * decisions/025-custom-avatar.md
+ */
+
 const { getSession, processAvatar, saveAvatar, deleteAvatar, revalidatePath, logger } = vi.hoisted(
   () => ({
     getSession: vi.fn(),

@@ -8,7 +8,15 @@ import {
 } from "@/lib/position-series";
 import { calculateStandings, type NormalizedMatch } from "@/lib/standings";
 
-/** A finished league match between two numbered teams. */
+/**
+ * League position by matchday.
+ *
+ * decisions/030-league-position-by-matchday.md
+ * decisions/003-standings-after-selected-round.md
+ * decisions/413-rounds-a-team-sat-out.md
+ */
+
+// A finished league match between two numbered teams.
 function played(
   matchday: number | null,
   home: number,
@@ -52,7 +60,7 @@ describe("lastRoundPlayedBy", () => {
     expect(lastRoundPlayedBy([played(1, 2, 3, 1, 0)], 1)).toBeNull();
   });
 
-  it("counts a match with no round towards none (spec 003)", () => {
+  it("counts a match with no round towards none", () => {
     expect(lastRoundPlayedBy([played(null, 1, 2, 1, 0)], 1)).toBeNull();
   });
 });
@@ -128,8 +136,8 @@ describe("positionsAfterEachRound", () => {
   });
 
   it("marks a round the team sat out, whose position moved only because others played", () => {
-    // Team 1 has no match in round 2 — a bye, or a round TASO numbered out of
-    // calendar order. The point is still plotted, as not played (#413).
+    // Team 1 has no match in round 2: a bye, or a round TASO numbered out of
+    // calendar order. The point is still plotted, as not played.
     const withBye = [played(1, 1, 2, 0, 1), played(2, 2, 3, 1, 0), played(3, 1, 3, 0, 0)];
     const everyone = [
       { teamProviderId: 1, position: 2 },
@@ -163,12 +171,9 @@ describe("positionsAfterEachRound", () => {
 });
 
 describe("singleTableSeries", () => {
-  /**
-   * Four teams, three rounds; team 1 climbs from 4th to 1st. After round 2
-   * teams 2 and 3 are level on 4 points above team 1's 3 — the kind of table a
-   * hand calculation gets wrong, which is why the test below checks every point
-   * against `calculateStandings` itself.
-   */
+  // Four teams, three rounds; team 1 climbs from 4th to 1st. After round 2 teams 2 and
+  // 3 are level on 4 points above team 1's 3, the kind of table a hand calculation gets
+  // wrong, so the test below checks every point against `calculateStandings`.
   const season = [
     played(1, 2, 1, 2, 0),
     played(1, 3, 4, 1, 0),
@@ -244,7 +249,7 @@ describe("singleTableSeries", () => {
 });
 
 describe("teamsInGroupsAbove", () => {
-  /** The regular season's final order: team 1 top, team 12 bottom. */
+  // The regular season's final order: team 1 top, team 12 bottom.
   const regularSeason = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
   const upper = new Set([1, 2, 3, 4, 5, 6]);
   const lower = new Set([7, 8, 9, 10, 11, 12]);

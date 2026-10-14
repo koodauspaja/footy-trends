@@ -10,21 +10,18 @@ import { getNationalTeamYears, type NationalTeamYear } from "@/lib/national-team
 
 const EMPTY_MESSAGE = "Otteluita ei ole saatavilla.";
 /**
- * Deliberately names no year. A failed bucket's matches were never read, and a
- * bucket is not one year — `maajp18` spans 2018 to 2021 — so which years are
- * missing is exactly what we do not know. Saying so beats naming a year that
- * might be complete. See #180.
+ * Deliberately names no year: which years are missing is what we do not know.
+ *
+ * decisions/017-huuhkajat.md
  */
 const INCOMPLETE_MESSAGE = "Kaikkia otteluita ei voitu ladata. Osa kausista voi puuttua.";
 const ERROR_MESSAGE = "Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
 
 /**
- * One year, collapsible.
+ * One year, collapsible with `<details>`, and open by default.
  *
- * `<details>` rather than client-side state, the same shape the Finnish cups
- * use for rounds — and open by default for the same reason: nothing is hidden
- * until the reader chooses to hide it. See specs/017-huuhkajat.md. The summary
- * shows the `FoldMarker` every fold shares (#419).
+ * decisions/017-huuhkajat.md
+ * decisions/419-shared-fold-marker.md
  */
 function YearSection({ year, basePath }: Readonly<{ year: NationalTeamYear; basePath: string }>) {
   return (
@@ -46,33 +43,18 @@ function YearSection({ year, basePath }: Readonly<{ year: NationalTeamYear; base
 
 /**
  * One national team's whole history on a page, grouped by the year each match
- * was played.
+ * was played, with no season selector. Shared by both teams.
  *
- * No season selector: 85 matches for each team, so a reader
- * scrolls rather than stepping through a dropdown. Sections are calendar years,
- * which is not the same as the provider's season buckets — `maajp18` alone
- * spans four of them. See specs/018-helmarit.md.
- *
- * Shared by both teams, which differ only in the category suffix that selects
- * their matches and in what the page is called.
+ * decisions/017-huuhkajat.md
+ * decisions/018-helmarit.md
+ * decisions/041-national-team-analytics.md
  */
 export async function NationalTeamPage({ team }: Readonly<{ team: NationalTeam }>) {
   const result = await getNationalTeamYears(team);
 
-  /**
-   * Above the year list, once (specs/041, S5): the panels describe every year,
-   * so they cannot sit inside one.
-   *
-   * The loaders are computed from `result.years` — rows already read — so the
-   * section adds no query and no provider request. They stay thunks because
-   * `AnalyticsSection` checks the sign-in gate before calling any of them, and
-   * a signed-out page must carry no computed value at all.
-   *
-   * A page that loaded some buckets and not others still gets its analytics,
-   * over what did load. The `incomplete` notice above already says the history
-   * may be short, and a partial history is still a history — see #180 for the
-   * same trade on the list itself.
-   */
+  // Above the year list, once: the panels describe every year. The loaders stay
+  // thunks, as the sign-in gate runs before any is called. A page that loaded
+  // only some buckets still gets its analytics, over what did load.
   const analyticsSection =
     result.status === "ok"
       ? await AnalyticsSection({ axis: HISTORY_AXIS, ...nationalTeamAnalytics(result.years) })

@@ -2,7 +2,11 @@ import { ChartPanel } from "@/components/charts/chart-panel";
 import { FormChart } from "@/components/charts/form-chart";
 import type { FormSeries } from "@/lib/form-series";
 
-/** The strings agreed in specs/031, each where the spec places it. */
+/**
+ * The panel's strings.
+ *
+ * decisions/031-rolling-form-trend.md
+ */
 export const FORM_HEADING = "Vire otteluittain";
 export const TOO_FEW_MESSAGE = "Vire näytetään, kun joukkue on pelannut vähintään viisi ottelua.";
 export const FORM_ERROR_MESSAGE = "Virettä ei voitu laskea. Yritä myöhemmin uudelleen.";
@@ -11,8 +15,9 @@ const HEADING_ID = "form-by-match";
 
 /**
  * The form chart's panel in the `Analyysit` section, in every state it can be
- * in (specs/031). `null` means no panel: no league table for this team's
- * season.
+ * in. `null` means no panel: no league table for this team's season.
+ *
+ * decisions/031-rolling-form-trend.md
  */
 export function formPanel(series: FormSeries) {
   if (series.status === "unavailable") return null;

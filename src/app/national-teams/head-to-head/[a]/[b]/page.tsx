@@ -8,9 +8,10 @@ import {
 export const dynamic = "force-dynamic";
 
 /**
- * `/maajoukkueet/kohtaamiset/:a/:b` — football-data's national-team
- * competitions, whose opponents are countries and so are named in Finnish. See
- * specs/042.
+ * `/maajoukkueet/kohtaamiset/:a/:b`: football-data's national-team
+ * competitions, whose opponents are countries and so are named in Finnish.
+ *
+ * decisions/042-head-to-head-view.md
  */
 const ROUTE = {
   source: { kind: "football-data", region: "national-teams" },

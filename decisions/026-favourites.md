@@ -248,3 +248,202 @@ sees none, so the e2e suite covers what is *rendered* for a signed-in reader —
 which the intercepted session does reach, unlike `/asetukset` — and the writes
 are covered by unit and integration tests. The round trip stays a human check on
 staging, the same gap specs/023 and specs/025 document.
+
+## Moved from comments, 2026-10-05
+
+Cut from `src/lib/favourites.ts` at `55a14fc` by #531.
+
+- **Module.** One table with a `kind` would need four nullable columns and a rule
+  about which pair is legal.
+- **`withUserLocked`.** The unique index does not object to two different
+  favourites, and under Read Committed each statement takes its own snapshot.
+- **`toggleFavouriteTeam`.** A toggle, so the client never picks add or remove
+  from state it may have wrong. The button is disabled in flight, so a double
+  flip needs two tabs.
+- **`favouritesForSession`.** It runs in better-auth's `customSession` on every
+  `/api/auth/get-session`: missing stars cost less than a missing header.
+- **`regionFor`.** For TASO, `/maajoukkueet/joukkue/[id]` is football-data's page
+  and `/kotimaa/joukkue/[id]` is scoped to the domestic bucket, so neither finds
+  a national-team id.
+- **`resolveTeamNames`.** Not stored on the row, or a renamed club keeps its old
+  name until re-favourited (pull request #254 rests on telling it from one that
+  does not exist). Unscoped by region, as `specs/022` has a team span
+  competitions: fifty ids in one `IN` beat fifty guesses. `distinct on`, as
+  unordered rows show whichever name the planner returned last.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/auth.ts` at `a86c1cb` by #531.
+
+- **The favourites in `customSession`.** The toggle renders on the region
+  picker, which lives on the four prerendered pages, so it cannot read a
+  session on the server at all. The cost, since this runs on every
+  `/api/auth/get-session`: the region and the avatar version come from one
+  query, a left join from `user`; the favourites are two more, in parallel,
+  because they are one-to-many and joining them would multiply the row out.
+  Measured with both caps filled: 15.1 ms against 2.6 ms with nothing stored,
+  and 2326 bytes of payload (334 gzipped).
+
+Cut from `src/db/schema.ts` at `a86c1cb` by #531.
+
+- **`favoriteTeam`.** A team page spans competitions and seasons, so a
+  favourite follows the club and not one of its league entries. The source is
+  half the identity because the two providers' id spaces are independent: 317
+  exists in both.
+- **`favoriteCompetition`.** A team is a provider and a number, a competition a
+  region and a code. One table holding both would need four nullable columns
+  plus a constraint saying which pair is legal: a check where a type will do.
+
+Cut from `src/lib/competitions.ts` at `94397a8` by #531.
+
+- **`regionOfCompetition`.** A favourite carries `(source, teamProviderId)` and
+  no region, so the only way to know whether a football-data team is a club
+  or a national side is the competition its stored matches were played in.
+
+Cut from `src/components/account-menu.tsx` at `94397a8` by #531.
+
+- **`Suosikit` in the account menu.** Above `Asetukset`, so the one the reader
+  opens most is first.
+
+Cut from `src/components/favourite-toggle.tsx` at `94397a8` by #531.
+
+- **`FavouriteToggle`, one component.** It renders in a standings row, on a
+  team page, on a competition page and in the region picker, and the picker
+  lives on the four pages `tests/unit/app/rendering-mode.test.ts` keeps
+  prerendered. A server-rendered variant would cost those pages their
+  prerendering, and there would be two versions to keep in step. It imports
+  `favourite-keys.ts` and not `favourites.ts`, which reaches the database: the
+  boundary `avatar-limits.ts` exists for.
+- **Why a test must mock `@/lib/auth-client`.** The real client opens a
+  broadcast channel whose nanostores cleanup runs a second after the last
+  unsubscribe, by which point the file's jsdom is gone. It then throws
+  `window is not defined` as an uncaught exception inside whichever file is
+  running, a flake with no relation to the file that caused it.
+- **`own`.** The session is refetched after a write, but not instantly, and a
+  star that springs back for a moment reads as a failure. Local state answers
+  until the session catches up; the session is the truth on every other
+  render.
+- **`mounted`.** Not cosmetic. Every page this appears on is server-rendered,
+  four of them prerendered, where there is no session and the star is
+  nothing. better-auth's client can answer from its cache on the first client
+  render, a real hydration mismatch that React recovers from by throwing the
+  server's markup away. `isPending` is not enough: a cached session is not
+  pending. Mounting is the only state false during server rendering by
+  construction.
+- **Handing the state back.** Kept past the refetch, the local answer would
+  outrank the session for as long as the component stays mounted, so a change
+  made in another tab would never appear. Only when they agree: dropping it
+  while the session still disagrees would show an empty star for a favourite
+  the reader just added.
+
+Cut from `src/lib/preferences.ts` at `ef7eb13` by #531.
+
+- **`favoriteTeams` in the session.** The toggle renders on the region
+  picker, which lives on the four pages `rendering-mode.test.ts` keeps
+  prerendered, and reading a session on the server there would cost them
+  that. The browser already fetches this payload, so a client toggle costs no
+  extra request.
+- **The favourites' own query.** A reader with 20 teams and 5 competitions
+  would fetch 100 rows to learn one region if the two relations were joined
+  onto the session row. Two small indexed queries beat that.
+
+Cut from `src/lib/session-extras.ts` at `ef7eb13` by #531.
+
+- **`favouriteKeysOf`.** Being the single reader keeps the choice reversible:
+  the whole list is sent because it rides free on a request the browser
+  already makes, and if it measures heavy at the cap, this function fetches
+  instead and no caller changes. A missing star is a smaller loss than a page
+  that will not render.
+
+Cut from `src/lib/favourite-keys.ts` at `dc74e3e` by #531.
+
+- **`favourite-keys.ts`.** The exclusion is the same one at the top of
+  `regions.ts` and `avatar-limits.ts`, and it is load-bearing here: the
+  toggle renders on the region picker, which lives on the four pages
+  `tests/unit/app/rendering-mode.test.ts` keeps prerendered. Anything it
+  imports is in the browser bundle.
+- **`MAX_FAVOURITES_PER_KIND`.** Fifty is a judgement, not a measurement:
+  enough that nobody sensible meets it, small enough to bound both the
+  `/suosikit` query and the session payload the list rides on. It is one
+  constant so that measuring can change it.
+- **`isTeamProviderId`.** Shared and not repeated: `parseTeamKey` reads ids
+  out of the session and the server actions read them off the wire, and two
+  copies of the rule are how they drift.
+- **`teamKey`.** `"taso:60731"` is one `includes` against a list; a
+  `{ source, id }` object would be a `find` with two fields at every call
+  site, and the session payload would carry the key names on every entry.
+- **`parseTeamKey`.** The client cannot vouch for the payload, and a
+  malformed key must render nothing and not a link to a team that does not
+  exist.
+
+Cut from `src/lib/current-user.ts` at `dc74e3e` by #531.
+
+- **`getAuthInstance`'s dynamic import.** `@/lib/auth` constructs
+  better-auth at module scope, and that constructor requires
+  `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL`. A `"use server"` module is
+  imported by name from client components: Next replaces it with a network
+  stub at build time, so production never evaluates this chain in a browser
+  and never noticed. Any environment without that transform does, and the CI
+  unit job has no environment at all, deliberately. The toggle renders inside
+  `standings-table` and the region picker, so importing the actions module
+  statically put better-auth in the import graph of eight test files that
+  have nothing to do with authentication, and 114 tests failed in CI while
+  passing locally, where a `.env` happens to exist.
+- **`currentUserId` is shared.** It was written three times, identically, in
+  `settings-actions.ts`, `avatar-actions.ts` and `favourite-actions.ts`.
+  Three copies of the rule that no action takes a user id from its caller is
+  how one of them ends up not following it, the reasoning that produced
+  `session-extras.ts`. Reading the id from the session removes "do this for
+  someone else" as a category where a check would only look for it, and one
+  function cannot be half-applied.
+
+Cut from `src/components/standings-table.tsx` at `dc74e3e` by #531.
+
+- **`favouriteSource`.** Passed and not derived from the region:
+  `/maajoukkueet` shows football-data's World Cup standings and TASO's
+  national-team pages, so the region does not decide the provider. A bracket
+  or a pass-through group has rows that are not teams anyone can follow.
+
+Cut from `src/components/competition-picker.tsx` at `ef99862` by #531.
+
+- **`favouriteRegion`.** Separate from `region`, which is football-data's
+  notion. `extraEntries` holds Huuhkajat and Helmarit, which are teams and
+  not competitions.
+
+Cut from `src/components/favourites-page.tsx` at `ef99862` by #531.
+
+- **`favourites-page.tsx`.** The page is the one place that shows what a
+  favourite is and not only whether it is one.
+- **`TeamLabel`.** No stored matches means no name. A name without a page,
+  because its competitions have left the registry and no region can be said
+  to own it, is still worth showing: `Joukkuetta ei löytynyt.` would be
+  false about a team we just named.
+- **The refetch after a removal.** Without it, removing a team and then
+  following a client-side link to its page shows a filled star for a
+  favourite that no longer exists, until something else happens to refresh
+  the session.
+
+Cut from `src/app/favorites/page.tsx` at `ef99862` by #531.
+
+- **`/suosikit` is read on the server.** Everything it shows is server data,
+  and one render beats a client endpoint per section. Reading the session
+  hits the database, and an unhandled failure would render an error page
+  where the reader expected their list; calling that "signed out" would be a
+  claim we cannot make.
+- **The order of favourite competitions.** Insertion order would mean the
+  page rearranges itself as the reader adds favourites, and query order is
+  not even that stable. A code the registry has dropped still has a row and
+  still has to be removable.
+- **The order of favourite teams.** Alphabetical is what the feature
+  promises. A team without a name has no place in that order, and would
+  otherwise sort as "".
+
+Cut from `src/lib/favourite-actions.ts` at `48ebab4` by #531.
+
+- **`ToggleResult`'s reason.** At the cap the reader must remove something,
+  and on a failure they should try again.
+- **`FAVOURITES_PATHS`.** CLAUDE.md's split, joined by the rewrite in
+  `next.config.ts`. The reader's URL is the one that matters; the folder
+  path is revalidated beside it because the extra call costs nothing and
+  this cannot be exercised end to end: the action needs a real session,
+  which the e2e suite cannot forge.

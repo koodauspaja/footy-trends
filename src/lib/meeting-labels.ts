@@ -1,22 +1,10 @@
 /**
- * What to call the competition a meeting was played in.
+ * What to call the competition a meeting was played in. A domestic row's
+ * category maps to a competition in the registry, a national-team row's name
+ * comes from TASO's category map, and the group name is the fallback.
  *
- * The head-to-head deliberately spans competitions (specs/019, specs/042 S2),
- * so this column is the only signal for which one a meeting belonged to — and
- * TASO's `group_name` names a *stage* instead: `5. Kierros` leaves a cup tie
- * looking like a league round, and on the national-team side it can be `2024`,
- * `Slovakia` or `Heinäkuu`. See #251.
- *
- * Two different lookups behind one column: a domestic row's category maps to a
- * competition in our own registry, while a national-team row's name lives only
- * in TASO's category map. The group name stays as the fallback for a row
- * nothing can name — a category the picker does not claim, or a map that could
- * not be read — which costs one line rather than the page.
- *
- * **Extracted from `match-page.tsx` for specs/042**, where the full head-to-head
- * page needs the same labels for the same rows. Two copies of this would be two
- * answers to "which competition was that", and the column exists precisely
- * because the answer is not obvious from the row.
+ * decisions/019-match-page.md
+ * decisions/042-head-to-head-view.md
  */
 import { getCompetitionName } from "./competitions";
 import { competitionCodeForCategory, getDomesticCompetitionName } from "./domestic-competitions";
@@ -31,22 +19,26 @@ import {
 } from "./national-team";
 import { getSeasonCategoryNameMap } from "./taso-standings-service";
 
-/** Always `Kilpailu`: a competition name where one resolves, TASO's series name otherwise. */
+/**
+ * Always `Kilpailu`: a competition name where one resolves, TASO's series name otherwise.
+ *
+ * decisions/042-head-to-head-view.md
+ */
 export const COMPETITION_COLUMN = "Kilpailu";
 
-/** A row with the fourth column's text already resolved. */
+/**
+ * A row with the fourth column's text already resolved.
+ *
+ * decisions/042-head-to-head-view.md
+ */
 export type Labelled<T> = T & { label: string };
 
 /**
  * TASO's category names for one provider bucket, or `null` if it cannot be
- * asked.
+ * asked. The two season arguments decide the cache TTL only: the bucket's own
+ * season first, `NATIONAL_TEAM_ACTIVE_YEAR` second.
  *
- * The two season arguments decide the cache TTL, and only that: a bucket at or
- * above the active year is treated as still changing and cached for fifteen
- * minutes, an older one as settled and cached for a year. So the bucket's own
- * season goes first and `NATIONAL_TEAM_ACTIVE_YEAR` second — passing the active
- * year twice makes every bucket look current, which is the fifteen-minute
- * re-fetch this is meant to avoid.
+ * decisions/042-head-to-head-view.md
  */
 async function loadCategoryNames(
   competitionCode: string,
@@ -68,10 +60,7 @@ export type CategoryNames = (
 /**
  * A per-render memo over `loadCategoryNames`, keyed by bucket.
  *
- * `getCached` does not deduplicate in-flight misses, so on a cold cache every
- * caller sees the miss and fetches the same map. A match page asks about the
- * match it displays and up to five previous meetings; a full history asks about
- * every meeting, which makes the memo matter more rather than less.
+ * decisions/042-head-to-head-view.md
  */
 export function categoryNameLoader(): CategoryNames {
   const byBucket = new Map<string, Promise<Record<string, string> | null>>();
@@ -87,11 +76,10 @@ export function categoryNameLoader(): CategoryNames {
 }
 
 /**
- * A category name as a competition label, with the team suffix stripped.
+ * A category name as a competition label, with the team suffix stripped. The
+ * suffix is that of the team the category names, not the team whose page this is.
  *
- * The suffix belongs to whichever team the category names, not to the team
- * whose page this is: a Helmarit row reached from a Huuhkajat match must lose
- * `Helmarit`, not `Huuhkajat`.
+ * decisions/042-head-to-head-view.md
  */
 export function labelFromCategoryName(team: NationalTeam, categoryName: string): string {
   const owner = [MENS_TEAM, WOMENS_TEAM].find((candidate) =>
@@ -101,8 +89,11 @@ export function labelFromCategoryName(team: NationalTeam, categoryName: string):
 }
 
 /**
- * The competition a single national-team match belonged to, normalised — or
+ * The competition a single national-team match belonged to, normalised, or
  * `null` when TASO's map does not name it.
+ *
+ * decisions/019-match-page.md
+ * decisions/042-head-to-head-view.md
  */
 export async function resolveNationalCompetitionName(
   team: NationalTeam,
@@ -113,14 +104,22 @@ export async function resolveNationalCompetitionName(
   return categoryName === undefined ? null : labelFromCategoryName(team, categoryName);
 }
 
-/** Each football-data row labelled by its competition, which its code names directly. */
+/**
+ * Each football-data row labelled by its competition, which its code names directly.
+ *
+ * decisions/042-head-to-head-view.md
+ */
 export function labelFootballDataRows(
   rows: readonly FootballDataMatchRow[]
 ): Array<Labelled<FootballDataMatchRow>> {
   return rows.map((row) => ({ ...row, label: getCompetitionName(row.competitionCode) }));
 }
 
-/** Each TASO row labelled by its competition, through whichever of the two lookups applies. */
+/**
+ * Each TASO row labelled by its competition, through whichever of the two lookups applies.
+ *
+ * decisions/042-head-to-head-view.md
+ */
 export async function labelTasoRows(
   team: NationalTeam | undefined,
   rows: readonly TasoMatchRow[],

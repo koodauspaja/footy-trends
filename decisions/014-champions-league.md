@@ -236,3 +236,132 @@ Checked against the running app, not only against tests:
 
 Unit tests are at **100% statements, branches, functions and lines**
 (673 tests); integration 21; the five new Playwright specs pass locally.
+
+## Moved from comments, 2026-10-05
+
+Cut from `src/lib/cup-bracket.ts` at `55a14fc` by #531.
+
+- **`BracketLeg.homeGoals`, `legScore`.** Liverpool "1-5" Paris Saint-Germain
+  (LAST_16, 2024/25) was 0-1, penalties 1-4; `fullTime` beside a 1-1 (rp)
+  aggregate contradicts the tie.
+
+Cut from `src/lib/standings-service.ts` at `55a14fc` by #531.
+
+- **`getCupSeason`.** The tables, stage list and bracket ask about one season,
+  which the provider returns in one response.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/db/schema.ts` at `a86c1cb` by #531.
+
+- **`matches.stage`.** Null for all nine league competitions, so the migration
+  needed no backfill.
+- **`regular_time_*`, `extra_time_*`, `penalties_*`.** `fullTime` includes the
+  shoot-out and is therefore useless for aggregating a two-legged tie: see
+  `ProviderMatch` in `football-data.ts`.
+
+Cut from `src/lib/cup-stages.ts` at `a86c1cb` by #531.
+
+- **`STAGE_NAMES`.** Finnish names a knockout round by fraction, a quarter of
+  a quarter-final, and not by transliterating "last 16". `LAST_32` and
+  `THIRD_PLACE` occur in no Champions League season but were named from the
+  start, because the World Cup has both and leaving them out would put a raw
+  `THIRD_PLACE` in front of a Finnish reader. The passthrough in
+  `getStageName` is the last resort for a stage no one has seen yet.
+- **`BRACKET_STAGES`.** `LAST_16` is eight ties across and `LAST_32` sixteen.
+- **`listKnockoutStages`.** Not a hardcoded list of stage names:
+  `listSeasonStages` derives the match list's `Vaihe` options from the
+  season's own matches, so a fixed list would let a stage the provider adds
+  appear in the dropdown and vanish from the standings page, which is how
+  `Pudotuspelikarsinta` came to be invisible in the first version.
+- **`getGroupName`.** A group is always a *lohko* whatever the provider calls
+  it. Unlike `getStageName` there is nothing to translate beyond the noun, so
+  no value reaches a heading without it: a raw provider token alone would be
+  a user-facing string that is not Finnish.
+- **`listSeasonStages`.** The provider's array order and the progression
+  coincide in every response checked, so relying on the provider buys nothing
+  and costs determinism: a reordered response would reshuffle the `Vaihe`
+  selector.
+- **`PhaseShape`.** The Champions League ran eight groups in 2023/24 and a
+  single 36-team league phase from 2024/25; the format changed twice in three
+  seasons. A hardcoded cutoff would need editing the next time, and be wrong
+  until someone noticed.
+- **`parseStageParam`.** An unvalidated value must never reach a cache key or
+  a query, the rule `parseCompetitionParam` and `parseSeasonParam` enforce.
+- **`resolveCurrentStage`.** The cup analogue of `resolveCurrentRound`, and
+  separate from it: a cup's `matchday` is a leg number, so the round logic
+  cannot be reused.
+
+Cut from `src/lib/football-data.ts` at `a86c1cb` by #531.
+
+- **The score breakdown in `football-data.ts`.** `fullTime` includes a penalty
+  shoot-out: Liverpool "1-5" PSG (LAST_16, 2024/25) is really 0-1 with
+  penalties 1-4, which is why the breakdown is carried through and not
+  dropped. The provider omits it for every league match and any cup match
+  decided in normal time.
+
+Cut from `src/lib/competitions.ts` at `94397a8` by #531.
+
+- **`CompetitionFormat`.** The discriminator lives in the registry and is not
+  derived from the code, so a second cup needs a registry entry and not a new
+  branch. The Champions League joined as the first cup, which is why every
+  entry carries an explicit `format`.
+- **`getCompetitionFormat`.** The league path is the one that has always
+  existed, so a bad `kilpailu` value cannot route a request into the newer cup
+  rendering. `parseCompetitionParam` rejects unknown codes before this is
+  reached in practice.
+
+Cut from `src/lib/standings.ts` at `ef7eb13` by #531.
+
+- **`toFinishedMatches`.** Excluding an unfinished match that carries goals
+  is defensive; the provider should never do this. It lives in `standings.ts`
+  and not in `standings-service` so the cup phase tables can apply the same
+  rule without importing the database.
+
+Cut from `src/components/cup-bracket.tsx` at `dc74e3e` by #531.
+
+- **`formatLeg`.** `formatMatchResult` alone would print 0-1 for a shootout
+  leg and lose the fact that it went to penalties.
+- **The split in `CupBracket`.** A readability limit, not a preference.
+  `LAST_16` is eight ties across and `LAST_32` sixteen, which no tree
+  survives on a phone; from the quarter-finals the tree is three columns and
+  shows what a list cannot: who plays whom next.
+
+Cut from `src/lib/cup-standings.ts` at `ef99862` by #531.
+
+- **`cup-standings.ts`.** Database-free so it stays testable without
+  mocking the DB.
+- **`buildCupPhaseStandings`.** Sorting by group and not by the order the
+  provider happened to return matches in: the two coincide today, and
+  sorting makes the page deterministic if that ever stops being true. A
+  team's knockout results cannot leak into the table it earned its place
+  in.
+
+Cut from `src/components/context-notices.tsx` at `48ebab4` by #531.
+
+- **`ContextNotices`.** Both the standings and match-list pages branch into
+  a league shape and a cup shape, and all four render exactly these two
+  notices: four copies of the same block if it lives in the pages.
+
+Cut from `src/components/cup-matches-controls.tsx` at `48ebab4` by #531.
+
+- **`CupMatchesControls`.** The cup counterpart to `MatchesControls`, which
+  selects a round. Dropping `kierros` means switching between a league and a
+  cup cannot leave a stale round in the query string.
+- **The stage across a season change.** 2023/24 had a group stage and
+  2024/25 a league phase.
+
+Cut from `src/components/cup-standings-controls.tsx` at `48ebab4` by #531.
+
+- **`CupStandingsControls`.** A cup page has no round selector: its knockout
+  matchdays are leg numbers and not rounds, and the phase tables it shows
+  are always the phase's full table. `Vaihe` lives on the match list, so the
+  two controls never sit side by side answering the same question. Clearing
+  `kierros` means a round carried over from a league competition cannot
+  survive the switch into a cup.
+
+Cut from `src/components/stage-select.tsx` at `48ebab4` by #531.
+
+- **`StageSelect`.** `RoundSelect` cannot be reused: a cup's `matchday` is a
+  leg number (1 or 2, and 0 for a final), not a round, so there is no 1..n
+  range to list.

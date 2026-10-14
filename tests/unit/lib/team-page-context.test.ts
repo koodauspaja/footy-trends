@@ -2,6 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TeamContextResult, TeamPageSource } from "@/lib/team-context";
 import { warmModules } from "../../support/warm-module";
 
+/**
+ * Which competition and season a team page resolves when the URL names neither.
+ *
+ * decisions/020-context-free-team-page.md
+ */
+
 const getTeamContextMock = vi.fn<(...args: unknown[]) => Promise<TeamContextResult>>();
 
 vi.mock("@/lib/team-context", () => ({ getTeamContext: getTeamContextMock }));

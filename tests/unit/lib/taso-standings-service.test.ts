@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { tasoGroupTeams } from "@/db/schema";
+import { tasoGroupTeams, tasoGroupZones } from "@/db/schema";
 import { calculateStandings, type NormalizedMatch } from "@/lib/standings";
 import type { NormalizedTasoMatch } from "@/lib/taso";
 import {
@@ -7,29 +7,80 @@ import {
   getSeasonCategoryNameMap,
   getSeasonMatchList,
   getSeasonStandings,
+  getSeasonTables,
   getTasoSeasonMovements,
-  getTeamCleanSheetSeries,
-  getTeamComebacks,
-  getTeamFormSeries,
-  getTeamGoalsSeries,
-  getTeamHomeAwaySeries,
   getTeamMatches,
+  getTeamPanelMatches,
   getTeamPositionSeries,
   getTeamSeasonComparison,
   getTeamStreakRecords,
-  getTeamStreaks,
+  hasCarryOver,
   listSeasonRounds,
   listSelectableTasoRounds,
   needsRefresh,
   parseTasoRoundParam,
   resolveTasoSeasonContext,
+  synchronizeGroupLevels,
   synchronizeGroupTeams,
   synchronizeMatches,
 } from "@/lib/taso-standings-service";
+import { teamPanelLoaders } from "@/lib/team-panels";
+
+/**
+ * The TASO standings service: what it stores and serves, how a group is
+ * classified and reconciled with TASO's own numbers, and the reads the Finnish
+ * team page's panels are built from.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/010-playoff-group-match-list.md
+ * decisions/011-current-season-discovery.md
+ * decisions/013-more-finnish-competitions.md
+ * decisions/017-huuhkajat.md
+ * decisions/029-forced-season-refresh.md
+ * decisions/030-league-position-by-matchday.md
+ * decisions/031-rolling-form-trend.md
+ * decisions/032-goals-scored-vs-conceded.md
+ * decisions/033-home-vs-away.md
+ * decisions/034-clean-sheets.md
+ * decisions/035-streaks.md
+ * decisions/036-halftime-comebacks.md
+ * decisions/037-blown-leads.md
+ * decisions/038-season-against-history.md
+ * decisions/039-streak-records.md
+ * decisions/040-cup-analytics.md
+ * decisions/043-liigacup.md
+ * decisions/050-table-volatility.md
+ * decisions/061-season-simulation.md
+ * decisions/272-group-standings-endpoint.md
+ * decisions/281-missing-carry-over-entry.md
+ * decisions/284-provider-id-validation.md
+ * decisions/304-test-database.md
+ * decisions/363-render-timeouts.md
+ * decisions/530-one-team-panel-builder.md
+ * decisions/628-zeroed-continuation-tables.md
+ * decisions/063-competition-zones.md
+ * decisions/644-stored-table-behind-results.md
+ */
+
+// The six result panels as the team page builds them: this service's one read
+// of the team's matches, then the shared builders. The panels' tests ask
+// through this.
+function panels(
+  categoryId: string,
+  competitionId: string,
+  teamProviderId: number,
+  seasonId: number,
+  activeSeasonId: number
+) {
+  return teamPanelLoaders({ teamProviderId, categoryId, competitionId, seasonId }, () =>
+    getTeamPanelMatches(categoryId, competitionId, teamProviderId, seasonId, activeSeasonId)
+  );
+}
 
 const {
   dbMock,
   getCachedMock,
+  getCachedUnlessDegradedMock,
   getSeasonMatchesMock,
   getSeasonGroupsMock,
   getSeasonCategoryNamesMock,
@@ -45,6 +96,7 @@ const {
     transaction: vi.fn(),
   },
   getCachedMock: vi.fn(),
+  getCachedUnlessDegradedMock: vi.fn(),
   getSeasonMatchesMock: vi.fn(),
   getSeasonGroupsMock: vi.fn(),
   getSeasonCategoryNamesMock: vi.fn(),
@@ -53,7 +105,10 @@ const {
   loggerErrorMock: vi.fn(),
 }));
 vi.mock("@/db", () => ({ db: dbMock }));
-vi.mock("@/lib/cache", () => ({ getCached: getCachedMock }));
+vi.mock("@/lib/cache", () => ({
+  getCached: getCachedMock,
+  getCachedUnlessDegraded: getCachedUnlessDegradedMock,
+}));
 vi.mock("@/lib/taso", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/taso")>();
   return {
@@ -71,12 +126,9 @@ const CATEGORY_ID = "VL";
 const ACTIVE_SEASON = 2025;
 const PAST_SEASON = 2024;
 
-/**
- * `updatedAt` isn't part of `NormalizedTasoMatch` (it's DB-row-only), but
- * every test here passes these fixtures through `mockStoredMatches`, which
- * simulates a DB row — and `needsRefresh` needs a real `updatedAt` to avoid
- * always treating the fixture as "nothing stored yet".
- */
+// `updatedAt` is not part of `NormalizedTasoMatch`, but every fixture here goes
+// through `mockStoredMatches`, which simulates a database row, and `needsRefresh`
+// needs a real `updatedAt` or it treats the fixture as "nothing stored yet".
 function match(
   overrides: Partial<NormalizedTasoMatch> & { updatedAt?: Date } = {}
 ): NormalizedTasoMatch & { updatedAt: Date } {
@@ -111,11 +163,9 @@ function storedAt(msAgo: number) {
   return { updatedAt: new Date(Date.now() - msAgo) };
 }
 
-/**
- * A team row as `taso_group_teams` stores it. Points default to whatever the
- * matches produce, because most tests only care that TASO agrees — a test
- * about disagreement passes `points` explicitly.
- */
+// A team row as `taso_group_teams` stores it. Points default to whatever the
+// matches produce, because most tests only care that TASO agrees: a test about
+// disagreement passes `points` explicitly.
 function groupTeam(overrides: Partial<typeof tasoGroupTeams.$inferSelect> = {}) {
   return {
     categoryId: CATEGORY_ID,
@@ -140,16 +190,22 @@ function groupTeam(overrides: Partial<typeof tasoGroupTeams.$inferSelect> = {}) 
   };
 }
 
-/**
- * The service reads two tables now, so the mock dispatches on which one.
- * `groupTeams` defaults to empty, which is the "TASO groups unavailable"
- * path — own-calculated with no adjustment, and no comparison to fall back on.
- */
-function mockStoredMatches(rows: unknown[], groupTeams: unknown[] = []) {
+// The service reads three tables, so the mock dispatches on which one.
+// `groupTeams` defaults to empty, the "TASO groups unavailable" path:
+// own-calculated with no adjustment, and no comparison to fall back on.
+function mockStoredMatches(rows: unknown[], groupTeams: unknown[] = [], levels: unknown[] = []) {
   const from = vi.fn().mockImplementation((table: unknown) => {
+    if (table === tasoGroupZones) {
+      return {
+        where: vi.fn().mockReturnValue({ orderBy: vi.fn().mockResolvedValue(levels) }),
+      };
+    }
     const rowsForTable = table === tasoGroupTeams ? groupTeams : rows;
     const orderBy = vi.fn().mockResolvedValue(rowsForTable);
-    return { where: vi.fn().mockReturnValue({ orderBy }) };
+    // Awaited as it is by the sync, ordered by the page's own reads.
+    return {
+      where: vi.fn().mockReturnValue(Object.assign(Promise.resolve(rowsForTable), { orderBy })),
+    };
   });
   dbMock.select.mockReturnValue({ from });
 }
@@ -272,10 +328,9 @@ describe("getSeasonStandings", () => {
   });
 
   it("lists only the continuation group's own teams, not every parent-group team, renumbered from 1", async () => {
-    // Mirrors a real season's shape: 4 teams in Runkosarja, of which only 2
-    // go on to Mestaruussarja. The other 2 must not leak into its table —
-    // and crucially, the 2 that continue keep the points they earned in
-    // Runkosarja *against* the teams that didn't.
+    // A real season's shape: 4 teams in Runkosarja, of which only 2 go on to
+    // Mestaruussarja. The other 2 must not leak into its table, and the 2 that continue
+    // keep the points they earned in Runkosarja against the teams that did not.
     mockStoredMatches([
       match({
         providerMatchId: 1,
@@ -450,8 +505,7 @@ describe("getSeasonStandings", () => {
   });
 
   it("renders TASO's own numbers, not ours, when the two disagree", async () => {
-    // The replacement for spec 009's shape heuristic: a group we cannot
-    // reproduce is identified by result, not by its group_id.
+    // A group we cannot reproduce is identified by result, not by its group_id.
     mockStoredMatches(
       [match({ providerMatchId: 1, groupId: 1, homeGoals: 2, awayGoals: 1 })],
       [
@@ -539,16 +593,9 @@ describe("getSeasonStandings", () => {
   });
 
   it("renders a cup's rounds as match lists even when TASO reports points for them", async () => {
-    /**
-     * The regression #272 introduced without anyone seeing it. TASO's
-     * `getGroups` omitted points for a knockout, so a cup round classified as a
-     * match list by accident of the data; `getCategory`, which the app moved to
-     * when TASO started refusing `getGroups`, sends points for those rounds.
-     *
-     * Every round of Suomen Cup then rendered as a league table, which also
-     * removed the bracket — it is built from the groups that render as matches —
-     * and put a `Kierros` selector on a page with no rounds to filter.
-     */
+    // TASO sends points for a cup's knockout rounds, so points alone cannot make a
+    // group a league table: a cup round rendered as a table would also remove the
+    // bracket, which is built from the groups that render as matches.
     mockStoredMatches(
       [match({ providerMatchId: 1, groupId: 1, groupName: "Neljäs kierros", matchday: null })],
       [
@@ -570,11 +617,9 @@ describe("getSeasonStandings", () => {
     expect(group?.kind).toBe("match-list");
   });
 
-  describe("a cup of groups then a playoff (specs/043)", () => {
-    /**
-     * A three-team round-robin in group 1, played over rounds 1-3 as TASO
-     * numbers a group stage, and a semi-finals-and-final group 2.
-     */
+  describe("a cup of groups then a playoff", () => {
+    // A three-team round-robin in group 1, played over rounds 1-3 as TASO
+    // numbers a group stage, and a semi-finals-and-final group 2.
     function groupsThenPlayoff(categoryId: string) {
       const at = (providerMatchId: number, groupId: number, home: number, away: number) =>
         match({
@@ -626,9 +671,8 @@ describe("getSeasonStandings", () => {
       return result.status === "ok" ? result.groups.map((group) => group.kind) : [];
     }
 
-    // `LC2023` is no competition code, so asking `isDomesticCup` of the category
-    // id would have classified Liigacup 2023 as a league. Ykkösliigacup lost its
-    // tables in #272.
+    // `LC2023` is no competition code, so asking `isDomesticCup` of the
+    // category id would classify Liigacup 2023 as a league.
     it.each([
       ["Liigacup", "LC"],
       ["Liigacup 2023, published as LC2023", "LC2023"],
@@ -646,11 +690,9 @@ describe("getSeasonStandings", () => {
     });
 
     describe("a tie on points", () => {
-      /**
-       * Three teams level on 3, round in a circle: 1 beats 2, 2 beats 3, and 3
-       * beats 1 by 4-0. Goal difference ranks them 3, 2, 1; TASO says 1, 2, 3,
-       * as it did Liigacup 2023's KuPS over FC Haka on their meeting.
-       */
+      // Three teams level on 3, round in a circle: 1 beats 2, 2 beats 3, and 3
+      // beats 1 by 4-0. Goal difference ranks them 3, 2, 1; TASO says 1, 2, 3,
+      // as it did Liigacup 2023's KuPS over FC Haka on their meeting.
       function levelOnPoints(categoryId: string, standings: (number | null)[] = [1, 2, 3]) {
         const nameOf = (teamProviderId: number) =>
           ["HJK", "KuPS", "FC Haka"][teamProviderId - 1] ?? "";
@@ -766,8 +808,7 @@ describe("getSeasonStandings", () => {
 
   it("subtracts a points deduction carried in starting_points", async () => {
     // Veikkausliiga 2016's PK-35 Vantaa, in miniature: TASO's published points
-    // are the calculated total minus 6, and the app showed the wrong one until
-    // this was applied. See specs/013-more-finnish-competitions.md.
+    // are the calculated total minus 6.
     mockStoredMatches(
       [match({ providerMatchId: 1, groupId: 1, homeGoals: 2, awayGoals: 1 })],
       [
@@ -865,10 +906,9 @@ describe("getSeasonStandings", () => {
   });
 
   it("scopes starting_points to the group being calculated, not the whole season", async () => {
-    // Adjustments are keyed by team, so a team that plays in both a parent and
-    // a child group has a row in each — with different starting_points. Feed
-    // the season's rows in unscoped and the last one wins, handing Runkosarja
-    // the Mestaruussarja seed and breaking its reconciliation.
+    // Adjustments are keyed by team, so a team that plays in both a parent and a child
+    // group has a row in each, with different starting_points. Fed in unscoped, the last
+    // one wins, handing Runkosarja the Mestaruussarja seed and breaking its reconciliation.
     mockStoredMatches(
       [
         match({ providerMatchId: 1, groupId: 1, homeGoals: 3, awayGoals: 0 }),
@@ -945,13 +985,9 @@ describe("getSeasonStandings", () => {
     expect(group?.kind).toBe("own-calculated");
     expect(group?.kind === "own-calculated" && group.standings).toHaveLength(2);
 
-    // Nothing stored to fall back to, so this is an error rather than a
-    // warning: every table in the group would otherwise render as zeros, which
-    // reads as a result rather than a failure. That is how a refused endpoint
-    // stayed invisible for months (#272).
-    // Logged at error, with the stored count: zero rows means every table in
-    // the group renders as zeros, which reads as a result rather than a
-    // failure. That is how a refused endpoint stayed invisible (#272).
+    // Logged at error, with the stored count. With nothing stored to fall back
+    // to, every table in the group would render as zeros, which reads as a
+    // result and not as a failure.
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ stored: 0 }),
       expect.stringContaining("falling back to stored group standings")
@@ -1043,16 +1079,9 @@ describe("getSeasonStandings", () => {
     );
   });
 
-  /**
-   * The two cases above, but for the specific failure #363 introduced.
-   *
-   * A timeout arrives as an `AbortError` thrown from `fetch`, which takes the
-   * same path as any other provider failure — so these pass by construction
-   * rather than by new handling. They are here because "by construction" is an
-   * argument, and the acceptance criterion asked for the behaviour to be
-   * verified: a bound that produced an error page instead of stored data would
-   * be worse than no bound at all.
-   */
+  // The stored-data fallback above and the nothing-stored error below, for a timeout. It
+  // arrives as an `AbortError` and takes the path of any provider failure, so these pass by
+  // construction; a bound that showed an error page over stored data would be worse than none.
   it("falls back to stored matches when the refresh times out", async () => {
     mockStoredMatches([match({ updatedAt: new Date(0) })]);
     getSeasonMatchesMock.mockRejectedValue(
@@ -1162,12 +1191,9 @@ describe("getSeasonMatchList", () => {
     expect(result).toEqual({ status: "empty" });
   });
 
-  /**
-   * The bar for an error is "nothing to serve", not "the refresh failed".
-   * `/maajoukkueet/huuhkajat` depends on this: a failed refresh of a finished
-   * season must not blank a page whose stored rows are already complete. See
-   * specs/017-huuhkajat.md.
-   */
+  // The bar for an error is "nothing to serve", not "the refresh failed".
+  // `/maajoukkueet/huuhkajat` depends on this: a failed refresh of a finished
+  // season must not blank a page whose stored rows are already complete.
   it("serves stored matches when the refresh fails, rather than reporting error", async () => {
     // `updatedAt: 0` makes the row stale, so a refresh is attempted at all.
     mockStoredMatches([match({ providerMatchId: 1, updatedAt: new Date(0) })]);
@@ -1549,10 +1575,9 @@ describe("standings edge cases", () => {
     expect(group?.kind).toBe("pass-through");
     const standings = group?.kind === "pass-through" ? group.standings : [];
 
-    // current_standing wins; final_group_standing is the fallback; a team with
-    // neither sorts as 0 and keeps its position from the row order.
-    // Ranked rows in TASO's order, the unranked one last — not sorted to the
-    // top on a 0 and numbered 1 alongside the actual leader.
+    // current_standing wins; final_group_standing is the fallback. Ranked rows
+    // come in TASO's order and the unranked one last: not sorted to the top on
+    // a 0 and numbered 1 alongside the actual leader.
     expect(standings.map((team) => [team.teamName, team.position])).toEqual([
       ["First", 1],
       ["Third", 2],
@@ -1629,13 +1654,192 @@ describe("group standings storage", () => {
     vi.clearAllMocks();
   });
 
+  // One row of a snapshot as TASO returns it: a team at zero, unless overridden.
+  function snapshotRow(
+    overrides: Partial<Parameters<typeof synchronizeGroupTeams>[3][number]> = {}
+  ): Parameters<typeof synchronizeGroupTeams>[3][number] {
+    return {
+      categoryId: CATEGORY_ID,
+      competitionCode: COMPETITION_ID,
+      seasonId: PAST_SEASON,
+      groupId: 1,
+      teamProviderId: 1,
+      teamName: "HJK",
+      startingPoints: 0,
+      points: 0,
+      played: 0,
+      won: 0,
+      drawn: 0,
+      lost: 0,
+      goalsFor: 0,
+      goalsAgainst: 0,
+      goalDifference: 0,
+      currentStanding: 1,
+      finalGroupStanding: null,
+      ...overrides,
+    };
+  }
+
+  // What the sync finds stored for the groups it asks about.
+  function mockStoredGroupTeams(stored: unknown[]) {
+    const where = vi.fn().mockResolvedValue(stored);
+    dbMock.select.mockReturnValue({ from: vi.fn().mockReturnValue({ where }) });
+    return where;
+  }
+
+  // The page's refresh and the backfill, which carry starting points over.
+  function carryingSync(rows: Parameters<typeof synchronizeGroupTeams>[3]) {
+    return synchronizeGroupTeams(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, rows, [], undefined, {
+      carryStartingPoints: true,
+    });
+  }
+
+  it("writes a group that comes back unplayed with the starting points stored for each team", async () => {
+    // TASO serves the table at zero. Its points and matches are the matches'
+    // to give back; a deduction is only in the stored row.
+    const insert = mockInsert();
+    mockStoredGroupTeams([
+      groupTeam({ teamProviderId: 1, points: 28, played: 22, startingPoints: -3 }),
+      groupTeam({ teamProviderId: 2, points: 40, played: 22, startingPoints: 0 }),
+    ]);
+
+    await carryingSync([
+      snapshotRow({ teamProviderId: 1 }),
+      snapshotRow({ teamProviderId: 2, teamName: "KuPS" }),
+    ]);
+
+    expect(insert.values).toHaveBeenCalledWith([
+      expect.objectContaining({ teamProviderId: 1, points: 0, played: 0, startingPoints: -3 }),
+      expect.objectContaining({ teamProviderId: 2, points: 0, played: 0, startingPoints: 0 }),
+    ]);
+  });
+
+  it("carries a starting point to its own team in its own group only", async () => {
+    const insert = mockInsert();
+    mockStoredGroupTeams([
+      groupTeam({ groupId: 2, teamProviderId: 1, points: 30, played: 5, startingPoints: 26 }),
+    ]);
+
+    await carryingSync([
+      // The same team in the regular season's group, which has figures.
+      snapshotRow({ groupId: 1, teamProviderId: 1, points: 26, played: 18 }),
+      snapshotRow({ groupId: 2, teamProviderId: 1 }),
+      snapshotRow({ groupId: 2, teamProviderId: 7, teamName: "KuPS" }),
+    ]);
+
+    expect(insert.values).toHaveBeenCalledWith([
+      expect.objectContaining({ groupId: 1, teamProviderId: 1, startingPoints: 0 }),
+      expect.objectContaining({ groupId: 2, teamProviderId: 1, startingPoints: 26 }),
+      expect.objectContaining({ groupId: 2, teamProviderId: 7, startingPoints: 0 }),
+    ]);
+  });
+
+  it("leaves a starting point the snapshot itself reports as it is", async () => {
+    const insert = mockInsert();
+    mockStoredGroupTeams([groupTeam({ teamProviderId: 1, points: 28, startingPoints: 26 })]);
+
+    await carryingSync([snapshotRow({ teamProviderId: 1, startingPoints: 5 })]);
+
+    expect(insert.values).toHaveBeenCalledWith([
+      expect.objectContaining({ teamProviderId: 1, startingPoints: 5 }),
+    ]);
+  });
+
+  it("decides from the rows it will write, one per team", async () => {
+    // TASO lists a team twice, at zero first: the first row is the one written.
+    const insert = mockInsert();
+    mockStoredGroupTeams([groupTeam({ teamProviderId: 1, points: 28, startingPoints: -3 })]);
+
+    await carryingSync([
+      snapshotRow({ teamProviderId: 1 }),
+      snapshotRow({ teamProviderId: 1, points: 9, played: 3 }),
+    ]);
+
+    expect(insert.values).toHaveBeenCalledWith([
+      expect.objectContaining({ teamProviderId: 1, points: 0, startingPoints: -3 }),
+    ]);
+  });
+
+  it("reads nothing stored when no group of the snapshot is unplayed", async () => {
+    const insert = mockInsert();
+    const where = mockStoredGroupTeams([
+      groupTeam({ teamProviderId: 1, points: 28, startingPoints: -3 }),
+    ]);
+
+    await carryingSync([
+      snapshotRow({ groupId: 1, teamProviderId: 1, points: 3, played: 1 }),
+      // Played and pointless is a figure too.
+      snapshotRow({ groupId: 2, teamProviderId: 5, points: 0, played: 1 }),
+      // A knockout group, whose rows report no points at all.
+      snapshotRow({ groupId: 4, teamProviderId: 9, points: null, played: null }),
+    ]);
+
+    expect(where).not.toHaveBeenCalled();
+    expect(insert.values).toHaveBeenCalledWith([
+      expect.objectContaining({ groupId: 1, startingPoints: 0 }),
+      expect.objectContaining({ groupId: 2 }),
+      expect.objectContaining({ groupId: 4 }),
+    ]);
+  });
+
+  it("carries nothing for a team whose stored row never had a starting point", async () => {
+    // TASO leaves the field out for some rows; that is no figure to put back.
+    const insert = mockInsert();
+    mockStoredGroupTeams([
+      groupTeam({ teamProviderId: 1, points: 28, startingPoints: null }),
+      groupTeam({ teamProviderId: 2, points: 20, startingPoints: -2 }),
+    ]);
+
+    await carryingSync([
+      snapshotRow({ teamProviderId: 1, startingPoints: null }),
+      snapshotRow({ teamProviderId: 2, teamName: "KuPS", startingPoints: null }),
+    ]);
+
+    expect(insert.values).toHaveBeenCalledWith([
+      expect.objectContaining({ teamProviderId: 1, startingPoints: null }),
+      expect.objectContaining({ teamProviderId: 2, startingPoints: -2 }),
+    ]);
+  });
+
+  it("writes an unplayed group as it is when nothing is stored for it", async () => {
+    const insert = mockInsert();
+    mockStoredGroupTeams([]);
+
+    await carryingSync([snapshotRow({ teamProviderId: 1 })]);
+
+    expect(insert.values).toHaveBeenCalledWith([
+      expect.objectContaining({ teamProviderId: 1, startingPoints: 0 }),
+    ]);
+  });
+
+  it("replaces the stored rows, starting points and all, when it is not asked to carry them", async () => {
+    // An administrator's refresh writes the snapshot it was shown.
+    const insert = mockInsert();
+    const where = mockStoredGroupTeams([
+      groupTeam({ teamProviderId: 1, points: 28, startingPoints: -3 }),
+    ]);
+
+    await synchronizeGroupTeams(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      [snapshotRow({ teamProviderId: 1 })],
+      []
+    );
+
+    expect(where).not.toHaveBeenCalled();
+    expect(insert.values).toHaveBeenCalledWith([
+      expect.objectContaining({ teamProviderId: 1, startingPoints: 0 }),
+    ]);
+  });
+
   it("clears the season even when TASO returns no group rows", async () => {
     // "This season has no group standings" is an answer, not a non-answer:
     // keeping the previous rows would leave every dropped team in place. A
     // failed request is the case that preserves what is stored.
     const insert = mockInsert();
 
-    await synchronizeGroupTeams(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, []);
+    await synchronizeGroupTeams(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, [], []);
 
     expect(insert.values).not.toHaveBeenCalled();
     expect(dbMock.delete).toHaveBeenCalled();
@@ -1644,27 +1848,33 @@ describe("group standings storage", () => {
   it("upserts group rows on the group-and-team identity", async () => {
     const insert = mockInsert();
 
-    await synchronizeGroupTeams(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, [
-      {
-        categoryId: "VL",
-        competitionCode: COMPETITION_ID,
-        seasonId: PAST_SEASON,
-        groupId: 1,
-        teamProviderId: 1,
-        teamName: "HJK",
-        startingPoints: -2,
-        points: 10,
-        played: 4,
-        won: 3,
-        drawn: 1,
-        lost: 0,
-        goalsFor: 8,
-        goalsAgainst: 2,
-        goalDifference: 6,
-        currentStanding: 1,
-        finalGroupStanding: null,
-      },
-    ]);
+    await synchronizeGroupTeams(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      [
+        {
+          categoryId: "VL",
+          competitionCode: COMPETITION_ID,
+          seasonId: PAST_SEASON,
+          groupId: 1,
+          teamProviderId: 1,
+          teamName: "HJK",
+          startingPoints: -2,
+          points: 10,
+          played: 4,
+          won: 3,
+          drawn: 1,
+          lost: 0,
+          goalsFor: 8,
+          goalsAgainst: 2,
+          goalDifference: 6,
+          currentStanding: 1,
+          finalGroupStanding: null,
+        },
+      ],
+      []
+    );
 
     expect(insert.values).toHaveBeenCalledWith([
       expect.objectContaining({
@@ -1682,8 +1892,8 @@ describe("group standings storage", () => {
   it("clears the season's existing rows before writing the new snapshot", async () => {
     const insert = mockInsert();
     const order: string[] = [];
-    dbMock.delete.mockImplementation(() => {
-      order.push("delete");
+    dbMock.delete.mockImplementation((table: unknown) => {
+      if (table === tasoGroupTeams) order.push("delete");
       return { where: vi.fn().mockResolvedValue(undefined) };
     });
     insert.values.mockImplementation(() => {
@@ -1691,36 +1901,41 @@ describe("group standings storage", () => {
       return { onConflictDoUpdate: vi.fn().mockResolvedValue(undefined) };
     });
 
-    await synchronizeGroupTeams(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, [
-      {
-        categoryId: CATEGORY_ID,
-        competitionCode: COMPETITION_ID,
-        seasonId: PAST_SEASON,
-        groupId: 1,
-        teamProviderId: 1,
-        teamName: "HJK",
-        startingPoints: 0,
-        points: 3,
-        played: 1,
-        won: 1,
-        drawn: 0,
-        lost: 0,
-        goalsFor: 2,
-        goalsAgainst: 1,
-        goalDifference: 1,
-        currentStanding: 1,
-        finalGroupStanding: null,
-      },
-    ]);
+    await synchronizeGroupTeams(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      [
+        {
+          categoryId: CATEGORY_ID,
+          competitionCode: COMPETITION_ID,
+          seasonId: PAST_SEASON,
+          groupId: 1,
+          teamProviderId: 1,
+          teamName: "HJK",
+          startingPoints: 0,
+          points: 3,
+          played: 1,
+          won: 1,
+          drawn: 0,
+          lost: 0,
+          goalsFor: 2,
+          goalsAgainst: 1,
+          goalDifference: 1,
+          currentStanding: 1,
+          finalGroupStanding: null,
+        },
+      ],
+      []
+    );
 
     expect(order).toEqual(["delete", "insert"]);
   });
 
   it("collapses a knockout group's repeated bracket slots to one row per team", async () => {
-    // Postgres rejects an ON CONFLICT DO UPDATE that touches the same row
-    // twice, and a team that advances occupies several slots — which cost
-    // Veikkausliiga 2019 and 2022 their whole stored group standings before
-    // this. Caught by a real database, not by a mocked insert.
+    // Postgres rejects an ON CONFLICT DO UPDATE that touches the same row twice,
+    // and a team that advances occupies several slots: without deduplication the
+    // season's whole snapshot of group standings fails to store.
     const insert = mockInsert();
     const slot = (teamProviderId: number) => ({
       categoryId: "VL",
@@ -1742,22 +1957,22 @@ describe("group standings storage", () => {
       finalGroupStanding: null,
     });
 
-    await synchronizeGroupTeams(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, [
-      slot(1),
-      slot(2),
-      slot(1),
-    ]);
+    await synchronizeGroupTeams(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      [slot(1), slot(2), slot(1)],
+      []
+    );
 
     const values = insert.values.mock.calls[0]?.[0] as { teamProviderId: number }[];
     expect(values.map((row) => row.teamProviderId)).toEqual([1, 2]);
   });
 
   it("builds a carry-over table for the current season, from a full provider refresh", async () => {
-    // The carry-over fixtures all run as completed seasons, which take the
-    // stored path. A configured *current* season — Kakkonen, Kansallinen Liiga
-    // and Kansallinen Ykkönen all have 2026 entries — refreshes both matches
-    // and group standings from TASO first, and nothing covered that
-    // combination.
+    // The carry-over fixtures all run as completed seasons, which take the stored path.
+    // A configured current season (Kakkonen, Kansallinen Liiga and Kansallinen Ykkönen
+    // have 2026 entries) refreshes both matches and group standings from TASO first.
     const synced = [
       groupTeam({ seasonId: 2022, groupId: 1, teamProviderId: 1, teamName: "HJK", points: 3 }),
       groupTeam({ seasonId: 2022, groupId: 1, teamProviderId: 2, teamName: "KuPS", points: 0 }),
@@ -1853,6 +2068,39 @@ describe("group standings storage", () => {
     expect(getSeasonGroupsMock).toHaveBeenCalledWith(COMPETITION_ID, CATEGORY_ID);
   });
 
+  it("carries a stored deduction into the rows a refresh writes for a group that comes back unplayed", async () => {
+    // The page's own refresh is one of the two that ask the sync to carry.
+    const storedTeams = [
+      groupTeam({
+        seasonId: ACTIVE_SEASON,
+        teamProviderId: 1,
+        teamName: "HJK",
+        points: 28,
+        played: 22,
+        startingPoints: -3,
+        updatedAt: new Date(0),
+      }),
+    ];
+    mockStoredMatches([match({ seasonId: ACTIVE_SEASON })], storedTeams);
+    const insert = mockInsert();
+    getSeasonGroupsMock.mockResolvedValue([
+      {
+        group_id: "1",
+        group_name: "Runkosarja",
+        teams: [{ team_id: "1", team_name: "HJK", points: 0, matches_played: 0 }],
+      },
+    ]);
+
+    await getSeasonStandings(CATEGORY_ID, COMPETITION_ID, ACTIVE_SEASON, ACTIVE_SEASON, undefined);
+
+    const written = insert.values.mock.calls.flatMap(
+      ([rows]) => rows as Array<{ teamName?: string; startingPoints?: number | null }>
+    );
+    expect(written.filter((row) => row.teamName === "HJK")).toEqual([
+      expect.objectContaining({ points: 0, played: 0, startingPoints: -3 }),
+    ]);
+  });
+
   it("keeps serving stored group standings when the refresh fails", async () => {
     // The reason these are stored rather than only cached: losing them would
     // silently drop every starting_points adjustment.
@@ -1924,11 +2172,9 @@ describe("getSeasonCategoryNameMap", () => {
     expect(getSeasonCategoryNamesMock).toHaveBeenCalledWith("maajp2026");
   });
 
-  /**
-   * Unlike `getSeasonCategoryName`, this one lets a failure through: its
-   * caller discovers which competitions a season holds, so a swallowed error
-   * would look like a season with none. See specs/017-huuhkajat.md.
-   */
+  // Unlike `getSeasonCategoryName`, this one lets a failure through: its caller
+  // discovers which competitions a season holds, so a swallowed error would
+  // look like a season with none.
   it("propagates a failure rather than returning an empty map", async () => {
     getCachedMock.mockRejectedValue(new Error("provider unavailable"));
 
@@ -2128,12 +2374,12 @@ describe("synchronizeMatches", () => {
 });
 
 describe("resolveTasoSeasonContext", () => {
-  /** `max(season_id)` for the newest-stored fallback, then the season's own rows. */
+  // The seasons held, for the newest-stored fallback, then the season's own
+  // rows.
   function mockDb(newestStored: number | null, seasonMatches: unknown[]) {
     // `storedTasoSeasons` lists the seasons we hold, across both TASO tables,
-    // and `newestStoredSeason` is the newest of them. One query shape rather
-    // than a `max()` aggregate, so "what do we hold" has a single answer — see
-    // specs/029-forced-season-refresh.md.
+    // and `newestStoredSeason` is the newest of them: one query shape and not a
+    // `max()` aggregate, so "what do we hold" has a single answer.
     dbMock.selectDistinct.mockImplementation(() => ({
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockResolvedValue(newestStored === null ? [] : [{ seasonId: newestStored }]),
@@ -2146,9 +2392,19 @@ describe("resolveTasoSeasonContext", () => {
     });
   }
 
+  // What each resolver told the cache about its own answer, by cache key: the
+  // cache stores an answer only when this is false.
+  let degraded: Record<string, boolean>;
+
   beforeEach(() => {
     vi.clearAllMocks();
     getCachedMock.mockImplementation((_key, _ttl, fetcher) => fetcher());
+    degraded = {};
+    getCachedUnlessDegradedMock.mockImplementation(async (key, _ttl, fetcher) => {
+      const fetched = await fetcher();
+      degraded[key] = fetched.degraded;
+      return fetched.value;
+    });
   });
 
   it("uses the discovered season when it already has matches", async () => {
@@ -2250,10 +2506,9 @@ describe("resolveTasoSeasonContext", () => {
   });
 
   it("never puts a competition's ceiling below its own first season", async () => {
-    // Ykkösliiga starts in 2024. With discovery down and nothing stored, an
-    // unfloored ceiling of 2015 makes listSelectableTasoSeasons count down
-    // from 2015 to 2024 — an empty selector, and a query for a season the
-    // competition never had.
+    // Ykkösliiga starts in 2024. With discovery down and nothing stored, an unfloored
+    // ceiling of 2015 makes listSelectableTasoSeasons count down from 2015 to 2024: an
+    // empty selector, and a query for a season the competition never had.
     getCurrentSeasonMock.mockRejectedValue(new Error("provider unavailable"));
     mockDb(null, []);
     getSeasonMatchesMock.mockResolvedValue([]);
@@ -2303,13 +2558,121 @@ describe("resolveTasoSeasonContext", () => {
     );
   });
 
+  it("caches a ceiling and a context that TASO answered for, for 15 minutes", async () => {
+    getCurrentSeasonMock.mockResolvedValue(2027);
+    mockDb(2027, [match({ seasonId: 2027 })]);
+
+    await resolveTasoSeasonContext("VL");
+
+    expect(degraded).toEqual({
+      "taso:season-ceiling:v2:VL": false,
+      "taso:season-context:v2:VL": false,
+    });
+    expect(getCachedUnlessDegradedMock.mock.calls.map(([, ttl]) => ttl)).toEqual([
+      15 * 60,
+      15 * 60,
+    ]);
+  });
+
+  it("caches neither the ceiling nor the context when discovery fails", async () => {
+    // TASO is back within the 15 minutes: the fallback season must not outlive
+    // the outage, so the next request has to ask again.
+    getCurrentSeasonMock.mockRejectedValue(new Error("TASO down"));
+    mockDb(2026, [match({ seasonId: 2026 })]);
+
+    await expect(resolveTasoSeasonContext("VL")).resolves.toEqual({
+      currentSeason: 2026,
+      defaultSeason: 2026,
+    });
+
+    expect(degraded).toEqual({
+      "taso:season-ceiling:v2:VL": true,
+      "taso:season-context:v2:VL": true,
+    });
+  });
+
+  it("caches neither when discovery fails and the fallback season is empty", async () => {
+    getCurrentSeasonMock.mockRejectedValue(new Error("TASO down"));
+    mockDb(2026, []);
+    getSeasonMatchesMock.mockResolvedValue([]);
+
+    await resolveTasoSeasonContext("VL");
+
+    expect(degraded).toEqual({
+      "taso:season-ceiling:v2:VL": true,
+      "taso:season-context:v2:VL": true,
+    });
+  });
+
+  it("caches the ceiling when TASO answers with no season it recognizes", async () => {
+    // An answer, not an outage: asking again gets the same one.
+    getCurrentSeasonMock.mockResolvedValue(null);
+    mockDb(2024, [match({ seasonId: 2024 })]);
+
+    await resolveTasoSeasonContext("VL");
+
+    expect(degraded).toEqual({
+      "taso:season-ceiling:v2:VL": false,
+      "taso:season-context:v2:VL": false,
+    });
+  });
+
+  it("caches the ceiling but not the context when the season's sync fails with rows stored", async () => {
+    getCurrentSeasonMock.mockResolvedValue(2027);
+    const stale = new Date(Date.now() - 16 * 60 * 1000);
+    mockDb(2027, [match({ seasonId: 2027, updatedAt: stale })]);
+    getSeasonMatchesMock.mockRejectedValue(new Error("TASO down"));
+
+    await expect(resolveTasoSeasonContext("VL")).resolves.toEqual({
+      currentSeason: 2027,
+      defaultSeason: 2027,
+    });
+
+    expect(degraded).toEqual({
+      "taso:season-ceiling:v2:VL": false,
+      "taso:season-context:v2:VL": true,
+    });
+  });
+
+  it("caches the ceiling but not the context when the season's sync fails with nothing stored", async () => {
+    getCurrentSeasonMock.mockResolvedValue(2027);
+    mockDb(2026, []);
+    getSeasonMatchesMock.mockRejectedValue(new Error("TASO down"));
+
+    await expect(resolveTasoSeasonContext("VL")).resolves.toEqual({
+      currentSeason: 2027,
+      defaultSeason: 2026,
+    });
+
+    expect(degraded).toEqual({
+      "taso:season-ceiling:v2:VL": false,
+      "taso:season-context:v2:VL": true,
+    });
+  });
+
+  it("does not cache the context when the matches check itself throws", async () => {
+    getCurrentSeasonMock.mockResolvedValue(2027);
+    dbMock.selectDistinct.mockImplementation(() => ({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([{ seasonId: 2026 }]),
+      }),
+    }));
+    dbMock.select.mockImplementation(() => {
+      throw new Error("database unavailable");
+    });
+
+    await resolveTasoSeasonContext("VL");
+
+    expect(degraded).toEqual({
+      "taso:season-ceiling:v2:VL": false,
+      "taso:season-context:v2:VL": true,
+    });
+  });
+
   describe("an unconfigured continuation group", () => {
-    /**
-     * The failure this exists to end: a hand-maintained config entry goes
-     * missing, nothing errors, and the group quietly drops its parent round
-     * and renders plausible numbers. Veikkausliiga and Ykkönen both reached
-     * their 2026 splits that way (#272, #281).
-     */
+    // The failure this exists to end: a hand-maintained config entry goes
+    // missing, nothing errors, and the group quietly drops its parent round and
+    // renders plausible numbers.
     const continuation = (groupId: string, overrides = {}) => ({
       group_id: groupId,
       group_name: "Mestaruussarja",
@@ -2318,12 +2681,9 @@ describe("resolveTasoSeasonContext", () => {
       ...overrides,
     });
 
-    /**
-     * A group with a team is the only shape that can reach storage, so the
-     * tests about ids that are not ids use it. With `teams: []` they would
-     * pass with every id check deleted, because an empty group contributes no
-     * rows whatever its id.
-     */
+    // A group with a team is the only shape that can reach storage, so the tests about
+    // ids that are not ids use it. With `teams: []` they would pass with every id check
+    // deleted, because an empty group contributes no rows whatever its id.
     const withTeam = (groupId: string) =>
       continuation(groupId, {
         teams: [{ team_id: "60731", team_name: "HJK", points: 12 }],
@@ -2401,10 +2761,9 @@ describe("resolveTasoSeasonContext", () => {
       ["carries a leading plus", "+2"],
       ["carries a leading space", " 2"],
     ])("neither reports nor stores a group whose id %s", async (_case, groupId) => {
-      // Deliberately a competition with **no** configured groups. Under
-      // `VL/spljp25`, where groups 2 and 3 are configured, `"2abc"` parses to 2
-      // and is absorbed as "already configured" — the test would pass while the
-      // malformed group was silently attributed to a real one.
+      // Deliberately a competition with no configured groups. Under `VL/spljp25`, where groups
+      // 2 and 3 are configured, `"2abc"` parses to 2 and is absorbed as "already configured":
+      // the test would pass while the malformed group was attributed to a real one.
       mockInsert();
       mockStoredMatches([match({ providerMatchId: 1, groupId: 1 })], []);
       getSeasonGroupsMock.mockResolvedValue([withTeam(groupId as string)]);
@@ -2417,10 +2776,9 @@ describe("resolveTasoSeasonContext", () => {
         expect.anything(),
         expect.stringContaining("no carry-over entry")
       );
-      // Staying quiet is only half of it, and was all the first fix did
-      // (#285). A group whose id is unusable must not reach the table either:
-      // `"0"` would be stored as group 0, and an over-long id fails the insert
-      // for the whole season's snapshot.
+      // Staying quiet is only half of it. A group whose id is unusable must not
+      // reach the table either: `"0"` would be stored as group 0, and an
+      // over-long id fails the insert for the whole season's snapshot.
       expect(dbMock.insert).not.toHaveBeenCalled();
     });
 
@@ -2460,11 +2818,9 @@ describe("resolveTasoSeasonContext", () => {
 });
 
 describe("getTeamPositionSeries", () => {
-  /**
-   * A league configured to split: groups 2 and 3 both continue group 1, unseeded
-   * (`CARRY_OVER_CONFIG`). The fixtures use TASO's real category and season ids
-   * because the carry-over rules are read from that configuration.
-   */
+  // A league configured to split: groups 2 and 3 both continue group 1,
+  // unseeded (`CARRY_OVER_CONFIG`). The fixtures use TASO's real category and
+  // season ids because the carry-over rules are read from that configuration.
   const LEAGUE = "M1";
   const SPLIT_SEASON = "spljp25";
 
@@ -2495,13 +2851,9 @@ describe("getTeamPositionSeries", () => {
     });
   }
 
-  /**
-   * Group rows whose published points are **derived from `calculateStandings`**
-   * over the group's own matches plus its parent's — what TASO publishes for a
-   * carry-over group — rather than typed by hand. A row agreeing with our
-   * calculation is what makes a group verified, and a hand calculation is the
-   * easiest thing here to get wrong.
-   */
+  // Group rows whose published points are derived from `calculateStandings` over the
+  // group's own matches plus its parent's, as TASO publishes for a carry-over group, and
+  // not typed by hand: a row agreeing with our calculation is what makes a group verified.
   function rowsFor(
     matches: ReturnType<typeof game>[],
     competitionId: string,
@@ -2531,12 +2883,9 @@ describe("getTeamPositionSeries", () => {
       );
   }
 
-  /**
-   * Four teams play a regular season of three rounds, finishing 1, 2, 3, 4.
-   * Then the league splits: {1, 2} above, {3, 4} below. TASO restarts the split
-   * groups' rounds at 1, as it did in 2019, and `withContinuedRoundNumbering`
-   * shifts them on to 4.
-   */
+  // Four teams play a regular season of three rounds, finishing 1, 2, 3, 4. Then the
+  // league splits: {1, 2} above, {3, 4} below. TASO restarts the split groups' rounds
+  // at 1, as it did in 2019, and `withContinuedRoundNumbering` shifts them on to 4.
   function splitSeason(
     competitionId: string,
     {
@@ -2598,11 +2947,9 @@ describe("getTeamPositionSeries", () => {
   });
 
   it("puts the lower group's leader directly below the whole upper group", async () => {
-    /**
-     * The rule Miikka described — the lower group's leader is 7th when the upper
-     * group has six — at the size of this fixture: team 4 leads the lower group,
-     * the upper group has two, so it is 3rd.
-     */
+    // The lower group's leader is 7th when the upper group has six. At the size
+    // of this fixture: team 4 leads the lower group, the upper group has two,
+    // so it is 3rd.
     const matches = splitSeason(SPLIT_SEASON);
     const series = await seriesFor(4, matches, verifiedRows(matches, SPLIT_SEASON));
     const standings = await getSeasonStandings(LEAGUE, SPLIT_SEASON, PAST_SEASON, ACTIVE_SEASON, 4);
@@ -2621,11 +2968,9 @@ describe("getTeamPositionSeries", () => {
   });
 
   it("equals the standings page's group table for every round, plus the groups above", async () => {
-    /**
-     * The property the feature rests on, checked against the real
-     * `getSeasonStandings` — the function behind the standings page's round
-     * selector — for every team, not against a restatement of it.
-     */
+    // The property the feature rests on, checked against the real
+    // `getSeasonStandings`, the function behind the standings page's round
+    // selector, for every team, and not against a restatement of it.
     const matches = splitSeason(SPLIT_SEASON);
     const rows = verifiedRows(matches, SPLIT_SEASON);
 
@@ -2696,6 +3041,393 @@ describe("getTeamPositionSeries", () => {
     });
   });
 
+  // The lower split group as it renders when TASO's rows for it are changed,
+  // with any rows TASO lists beside them. M1 2025 is configured, unseeded.
+  async function lowerGroup(
+    change: (row: ReturnType<typeof groupTeam>, index: number) => ReturnType<typeof groupTeam>,
+    listed: ReturnType<typeof groupTeam>[] = [],
+    competitionId = SPLIT_SEASON,
+    stored: (match: ReturnType<typeof game>) => boolean = () => true
+  ) {
+    const matches = splitSeason(competitionId).filter(stored);
+    let index = 0;
+    const rows = verifiedRows(matches, competitionId).map((row) =>
+      row.groupId === 3 ? change(row, index++) : row
+    );
+    mockStoredMatches(matches, [...rows, ...listed]);
+    const result = await getSeasonStandings(
+      LEAGUE,
+      competitionId,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+    return result.status === "ok" ? result.groups.find((group) => group.groupId === 3) : undefined;
+  }
+
+  const pointsOf = (group: Awaited<ReturnType<typeof lowerGroup>>) =>
+    group?.kind === "own-calculated"
+      ? group.standings.map((team) => [team.teamProviderId, team.points])
+      : group?.kind;
+  const zeroed = (row: ReturnType<typeof groupTeam>) => ({ ...row, points: 0, played: 0 });
+  const listedTeam = (overrides: Partial<ReturnType<typeof groupTeam>>) =>
+    groupTeam({
+      categoryId: LEAGUE,
+      competitionCode: SPLIT_SEASON,
+      groupId: 3,
+      teamProviderId: 9,
+      teamName: "Team 9",
+      currentStanding: 3,
+      ...overrides,
+    });
+
+  it("renders our own table when TASO reports the split group's table as unplayed", async () => {
+    // What TASO can serve for a continuation group: every team at no match
+    // played and no points, though the matches stand.
+    const asPublished = pointsOf(await lowerGroup((row) => row));
+
+    expect(pointsOf(await lowerGroup(zeroed))).toEqual(asPublished);
+    expect(asPublished).toEqual([
+      [4, 3],
+      [3, 3],
+    ]);
+  });
+
+  it("takes a deduction from the starting points left beside an unplayed table", async () => {
+    // The sync carries a stored deduction into the zeroed rows; the table is
+    // then ours, three points lower for that team.
+    const group = await lowerGroup((row) => ({
+      ...zeroed(row),
+      startingPoints: row.teamProviderId === 4 ? -3 : 0,
+    }));
+
+    expect(pointsOf(group)).toEqual([
+      [3, 3],
+      [4, 0],
+    ]);
+  });
+
+  it("counts a figure TASO leaves out of an unplayed table as none", async () => {
+    // No match count on one row and no points on the other, beside zeros.
+    const group = await lowerGroup((row, index) =>
+      index === 0 ? { ...row, points: 0, played: null } : { ...row, points: null, played: 0 }
+    );
+
+    expect(group?.kind).toBe("own-calculated");
+  });
+
+  it("keeps TASO's rows when an unplayed table lists a team no stored match names", async () => {
+    // Our table is built from the matches, so it would drop that team.
+    const group = await lowerGroup(zeroed, [listedTeam({ points: 0, played: 0 })]);
+
+    expect(group?.kind).toBe("pass-through");
+    expect(group?.kind === "pass-through" && group.standings).toHaveLength(3);
+  });
+
+  it("keeps TASO's rows when an unplayed table lists an unranked team no stored match names", async () => {
+    // No points reported for the third team at all: it is listed all the same.
+    const group = await lowerGroup(zeroed, [listedTeam({ points: null, played: null })]);
+
+    expect(group?.kind).toBe("pass-through");
+  });
+
+  it("leaves an unranked team out of the check on a table that has figures", async () => {
+    // As it has been since the points check was written: only the teams TASO
+    // gives points to must be in our table.
+    const group = await lowerGroup(
+      (row) => row,
+      [listedTeam({ points: null, played: null, currentStanding: null })]
+    );
+
+    expect(group?.kind).toBe("own-calculated");
+  });
+
+  it("keeps TASO's numbers when only some of its rows are at zero", async () => {
+    // One team reported unplayed beside one with points ours does not reach:
+    // a table with something in it is still TASO's to show.
+    const group = await lowerGroup((row, index) =>
+      index === 0 ? zeroed(row) : { ...row, points: (row.points ?? 0) + 5, played: 4 }
+    );
+
+    expect(group?.kind).toBe("pass-through");
+  });
+
+  it("keeps TASO's numbers when it reports matches played and no points for anyone", async () => {
+    // Zero points after a match played is a figure, not an unplayed table.
+    const group = await lowerGroup((row) => ({ ...row, points: 0, played: 4 }));
+
+    expect(group?.kind).toBe("pass-through");
+  });
+
+  it("keeps TASO's numbers when it reports points and no matches played", async () => {
+    // Points without a match are a carried total, not an unplayed table.
+    const group = await lowerGroup((row) => ({ ...row, points: 40, played: 0 }));
+
+    expect(group?.kind).toBe("pass-through");
+  });
+
+  it("keeps TASO's rows for an unplayed split group when a team's regular-season matches are not stored", async () => {
+    // Team 3's regular season is missing: its row would count the split
+    // group's own match alone, beside a team whose row counts both.
+    const group = await lowerGroup(
+      zeroed,
+      [],
+      SPLIT_SEASON,
+      (match) =>
+        match.groupId !== 1 || (match.homeTeamProviderId !== 3 && match.awayTeamProviderId !== 3)
+    );
+
+    expect(group?.kind).toBe("pass-through");
+  });
+
+  it("keeps TASO's rows for an unplayed split group whose carry-over is not configured", async () => {
+    // M1 has no 2020 entry, so our table for the group lacks its regular
+    // season: a table that would look right and count three rounds short.
+    const group = await lowerGroup(zeroed, [], "spljp20");
+
+    expect(group?.kind).toBe("pass-through");
+  });
+
+  it("renders a seeded group's own table from the starting points left beside an unplayed one", async () => {
+    // M1 2024 seeds its split groups: a team's starting points are its regular
+    // season's. Both lower teams took 3 there, and team 4 won the group's match.
+    const group = await lowerGroup((row) => ({ ...zeroed(row), startingPoints: 3 }), [], "spljp24");
+
+    expect(pointsOf(group)).toEqual([
+      [4, 6],
+      [3, 3],
+    ]);
+  });
+
+  it("keeps TASO's rows for an unplayed seeded group whose starting points are gone", async () => {
+    // Nothing was stored before the table came back at zero: without the seeds
+    // our table would count the group's own matches alone.
+    const group = await lowerGroup(zeroed, [], "spljp24");
+
+    expect(group?.kind).toBe("pass-through");
+  });
+
+  it("keeps TASO's rows for an unplayed seeded group when one team's starting point is missing", async () => {
+    // A team with none stored would be calculated without its seed beside
+    // teams that have theirs: a table that looks right and is not.
+    const group = await lowerGroup(
+      (row, index) => ({ ...zeroed(row), startingPoints: index === 0 ? 3 : 0 }),
+      [],
+      "spljp24"
+    );
+
+    expect(group?.kind).toBe("pass-through");
+  });
+
+  it("keeps TASO's rows for an unplayed seeded group whose rows report no starting points", async () => {
+    const group = await lowerGroup(
+      (row) => ({ ...zeroed(row), startingPoints: null }),
+      [],
+      "spljp24"
+    );
+
+    expect(group?.kind).toBe("pass-through");
+  });
+
+  // TASO's lower-group rows as they stood before the group's own match: three
+  // matches a team, team 3 at 3 points and team 4 at none. Ours count four.
+  const beforeTheSplitMatch = (row: ReturnType<typeof groupTeam>) => ({
+    ...row,
+    played: 3,
+    points: row.teamProviderId === 3 ? 3 : 0,
+  });
+
+  it("renders our own table when TASO's stored table is only behind the stored results", async () => {
+    // Three behind four only when the regular season's matches are counted
+    // with the group's, as TASO counts them.
+    const group = await lowerGroup(beforeTheSplitMatch);
+
+    expect(pointsOf(group)).toEqual([
+      [4, 3],
+      [3, 3],
+    ]);
+  });
+
+  it("renders our own table when only some teams are behind and the rest agree", async () => {
+    const group = await lowerGroup((row) =>
+      row.teamProviderId === 3 ? { ...row, played: 4, points: 3 } : beforeTheSplitMatch(row)
+    );
+
+    expect(group?.kind).toBe("own-calculated");
+  });
+
+  it("keeps TASO's numbers when a team behind has more points than ours", async () => {
+    // Fewer matches cannot have earned more: TASO knows of something we do not.
+    const group = await lowerGroup((row) =>
+      row.teamProviderId === 4
+        ? { ...beforeTheSplitMatch(row), points: 4 }
+        : beforeTheSplitMatch(row)
+    );
+
+    expect(group?.kind).toBe("pass-through");
+  });
+
+  it("keeps TASO's numbers when a team level with us on matches has other points", async () => {
+    // A deduction, or a corrected result, beside a team that is behind.
+    const group = await lowerGroup((row) =>
+      row.teamProviderId === 3 ? { ...row, played: 4, points: 2 } : beforeTheSplitMatch(row)
+    );
+
+    expect(group?.kind).toBe("pass-through");
+  });
+
+  it("keeps TASO's numbers when it counts more matches for a team than we store", async () => {
+    // Our matches are the ones behind, and TASO's table the newer answer.
+    const group = await lowerGroup((row) =>
+      row.teamProviderId === 3 ? { ...row, played: 5, points: 3 } : beforeTheSplitMatch(row)
+    );
+
+    expect(group?.kind).toBe("pass-through");
+  });
+
+  it("keeps TASO's numbers when a team's matches played is not reported", async () => {
+    const group = await lowerGroup((row) =>
+      row.teamProviderId === 3
+        ? { ...beforeTheSplitMatch(row), played: null }
+        : beforeTheSplitMatch(row)
+    );
+
+    expect(group?.kind).toBe("pass-through");
+  });
+
+  // Team 3's row without points, its count changed; team 4 behind as before.
+  const withoutPoints = (played: number | null) => (row: ReturnType<typeof groupTeam>) =>
+    row.teamProviderId === 3 ? { ...row, points: null, played } : beforeTheSplitMatch(row);
+
+  it("keeps TASO's numbers when a team without points counts more matches than ours", async () => {
+    expect((await lowerGroup(withoutPoints(9)))?.kind).toBe("pass-through");
+  });
+
+  it("keeps TASO's numbers when a team without points has no count", async () => {
+    expect((await lowerGroup(withoutPoints(null)))?.kind).toBe("pass-through");
+  });
+
+  it("takes a team without points and a count no more than ours as level", async () => {
+    expect((await lowerGroup(withoutPoints(4)))?.kind).toBe("own-calculated");
+  });
+
+  it("takes a table level with ours as before, beside a team TASO lists without points", async () => {
+    // Not behind, so only the teams TASO gives points to must be in ours. Team 2
+    // played the regular season, so the group stays calculable without it.
+    const group = await lowerGroup(
+      (row) => ({ ...row, played: 4 }),
+      [listedTeam({ teamProviderId: 2, teamName: "Team 2", points: null })]
+    );
+
+    expect(group?.kind).toBe("own-calculated");
+  });
+
+  it("keeps TASO's numbers when TASO lists a team with no match we store", async () => {
+    const group = await lowerGroup(beforeTheSplitMatch, [listedTeam({ played: 1, points: 0 })]);
+
+    expect(group?.kind).toBe("pass-through");
+  });
+
+  it("keeps TASO's numbers for a continuation with no carry-over entry, whose count includes the parent", async () => {
+    // 2095 has no entry: ours counts the group's one match, TASO's three include
+    // the regular season, so TASO's is not behind ours but ahead of it.
+    const group = await lowerGroup((row) => ({ ...row, played: 3, points: 0 }), [], "spljp95");
+
+    expect(group?.kind).toBe("pass-through");
+  });
+
+  it("renders a seeded group's own table from its starting points when TASO's is behind", async () => {
+    const group = await lowerGroup(
+      (row) => ({ ...row, played: 3, points: 3, startingPoints: 3 }),
+      [],
+      "spljp24"
+    );
+
+    expect(pointsOf(group)).toEqual([
+      [4, 6],
+      [3, 3],
+    ]);
+  });
+
+  it("keeps TASO's numbers for a seeded group behind its results whose starting points are gone", async () => {
+    // Without the seeds ours would count the group's own matches alone.
+    const group = await lowerGroup((row) => ({ ...row, played: 3, points: 0 }), [], "spljp24");
+
+    expect(group?.kind).toBe("pass-through");
+  });
+
+  it("renders a regular season with no carry-over entry as ours when TASO's table is behind", async () => {
+    // After two of the three rounds: 6, 3, 3 and 0, where ours has 9, 6, 3, 0.
+    const matches = splitSeason(SPLIT_SEASON);
+    const afterTwo = new Map([
+      [1, 6],
+      [2, 3],
+      [3, 3],
+      [4, 0],
+    ]);
+    const rows = verifiedRows(matches, SPLIT_SEASON).map((row) =>
+      row.groupId === 1
+        ? { ...row, played: 2, points: afterTwo.get(row.teamProviderId) ?? 0 }
+        : { ...row, played: 4 }
+    );
+    mockStoredMatches(matches, rows);
+
+    const result = await getSeasonStandings(
+      LEAGUE,
+      SPLIT_SEASON,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+
+    expect(result.status === "ok" && result.groups.map((group) => group.kind)).toEqual([
+      "own-calculated",
+      "own-calculated",
+      "own-calculated",
+    ]);
+  });
+
+  it("continues past the split, offers the group's rounds and simulates it, when TASO's table is behind", async () => {
+    const matches = splitSeason(SPLIT_SEASON);
+    const rows = verifiedRows(matches, SPLIT_SEASON).map((row) =>
+      row.groupId === 3 ? beforeTheSplitMatch(row) : { ...row, played: row.groupId === 1 ? 3 : 4 }
+    );
+
+    const series = await seriesFor(4, matches, rows);
+    expect(series.status === "ok" && series.endsAtSplit).toBe(false);
+    expect(series.status === "ok" && series.points.at(-1)).toEqual({
+      round: 4,
+      position: 3,
+      played: true,
+    });
+
+    mockStoredMatches(matches, rows);
+    await expect(
+      listSeasonRounds(LEAGUE, SPLIT_SEASON, PAST_SEASON, ACTIVE_SEASON)
+    ).resolves.toContain(4);
+
+    mockStoredMatches(matches, rows);
+    const season = await getSeasonTables(LEAGUE, SPLIT_SEASON, PAST_SEASON, ACTIVE_SEASON);
+    expect(season.status === "ok" && season.tables.find((table) => table.groupId === 3)?.kind).toBe(
+      "own-calculated"
+    );
+  });
+
+  it("continues past the split when TASO reports the continuation's table as unplayed", async () => {
+    const matches = splitSeason(SPLIT_SEASON);
+    const rows = verifiedRows(matches, SPLIT_SEASON).map((row) =>
+      row.groupId === 1 ? row : zeroed(row)
+    );
+    const series = await seriesFor(4, matches, rows);
+
+    expect(series.status === "ok" && series.endsAtSplit).toBe(false);
+    expect(series.status === "ok" && series.points.at(-1)).toEqual({
+      round: 4,
+      position: 3,
+      played: true,
+    });
+  });
+
   it("stops at the split when the season has no carry-over configured yet", async () => {
     // M1 has no 2020 entry: the live-season window before one is added and
     // verified looks like this, and so do old seasons nobody configured.
@@ -2708,13 +3440,9 @@ describe("getTeamPositionSeries", () => {
   });
 
   describe("a league played in parallel pools, each split in two (Kakkonen)", () => {
-    /**
-     * Kakkonen 2026, at this fixture's size: pools 1 and 2 play their own
-     * regular seasons, then each splits into its own upper and lower
-     * continuation — 4 and 7 from pool 1, 5 and 8 from pool 2, unseeded
-     * (`CARRY_OVER_CONFIG`). A pool is its own league until the end of
-     * jatkosarja; the promotion playoff after it is a bracket, with no line.
-     */
+    // Kakkonen 2026, at this fixture's size: pools 1 and 2 play their own regular seasons, then
+    // each splits into its own upper and lower continuation, 4 and 7 from pool 1, 5 and 8 from
+    // pool 2, unseeded. The promotion playoff after jatkosarja is a bracket, with no line.
     const KAKKONEN = "M2";
     const POOLS_SEASON = "spljp26";
     const PARENTS = new Map([
@@ -2907,11 +3635,9 @@ describe("getTeamPositionSeries", () => {
   });
 
   it("reads the matches and the group rows once each, however many rounds, and asks TASO nothing", async () => {
-    /**
-     * #331's constraint, and the budget the spec states for TASO: the group rows
-     * are the one read the team page did not make before, and nothing is read or
-     * fetched per round. A completed season with stored rows is never refetched.
-     */
+    // The budget: the group rows are the one read this adds to the team page,
+    // and nothing is read or fetched per round. A completed season with stored
+    // rows is never refetched.
     const tenRounds = Array.from({ length: 10 }, (_, index) => [
       game(SPLIT_SEASON, 1, index + 1, 1, 2, [index % 3, 1]),
       game(SPLIT_SEASON, 1, index + 1, 3, 4, [1, index % 2]),
@@ -2925,8 +3651,8 @@ describe("getTeamPositionSeries", () => {
     expect(getCachedMock).not.toHaveBeenCalled();
   });
 
-  describe("a season's table movement (specs/050)", () => {
-    /** The split fixture, filed under the season its competition id names. */
+  describe("a season's table movement", () => {
+    // The split fixture, filed under the season its competition id names.
     const inSeason = <T extends { seasonId: number }>(rows: T[], seasonId = 2025) =>
       rows.map((row) => ({ ...row, seasonId }));
 
@@ -2935,11 +3661,9 @@ describe("getTeamPositionSeries", () => {
       return getTasoSeasonMovements(code, active);
     }
 
-    /**
-     * The season's figure recomputed from what the standings page shows: the
-     * regular season's table after `halfway`, and the split groups' final
-     * tables with the lower one below both teams of the upper one.
-     */
+    // The season's figure recomputed from what the standings page shows: the
+    // regular season's table after `halfway`, and the split groups' final
+    // tables with the lower one below both teams of the upper one.
     async function fromStandingsPage(
       matches: ReturnType<typeof game>[],
       rows: unknown[],
@@ -2985,7 +3709,7 @@ describe("getTeamPositionSeries", () => {
       );
     }
 
-    it("sets every team's position after round ⌈R / 2⌉ against its combined final one (S1, S7, S8)", async () => {
+    it("sets every team's position after round ⌈R / 2⌉ against its combined final one", async () => {
       // Three regular rounds and one after the split: R = 4, halfway is round 2.
       // Team 3 wins the lower group, so it ends 3rd only by counting the upper
       // group's two teams above it.
@@ -3002,7 +3726,7 @@ describe("getTeamPositionSeries", () => {
       expect(expected).toBe(2);
     });
 
-    it("counts the continuation's rounds, renumbered, in R (S7)", async () => {
+    it("counts the continuation's rounds, renumbered, in R", async () => {
       // A second round after the split, which TASO numbers 2 in each split group
       // and the standings page renumbers 5: R = 5, halfway is round 3.
       const matches = [
@@ -3055,7 +3779,7 @@ describe("getTeamPositionSeries", () => {
       expect(expected).toBe(2);
     });
 
-    it("has no figure when the continuation does not reconcile, or the regular season has no table (S9)", async () => {
+    it("has no figure when the continuation does not reconcile, or the regular season has no table", async () => {
       const matches = splitSeason(SPLIT_SEASON);
       const unreconciled = verifiedRows(matches, SPLIT_SEASON).map((row) =>
         row.groupId === 3 ? { ...row, points: (row.points ?? 0) + 5 } : row
@@ -3082,7 +3806,7 @@ describe("getTeamPositionSeries", () => {
       ).toEqual([{ seasonId: 2025, movement: null }]);
     });
 
-    it("adds Kakkonen's pools into one season, each team measured in its own pool (S10)", async () => {
+    it("adds Kakkonen's pools into one season, each team measured in its own pool", async () => {
       const KAKKONEN = "M2";
       const POOLS_SEASON = "spljp26";
       const parents = new Map([
@@ -3124,7 +3848,7 @@ describe("getTeamPositionSeries", () => {
       });
     });
 
-    it("keeps each season to its own competition and category, and asks TASO nothing (S4)", async () => {
+    it("keeps each season to its own competition and category, and asks TASO nothing", async () => {
       const matches = splitSeason(SPLIT_SEASON).filter((row) => row.groupId === 1);
       const rows = verifiedRows(matches, SPLIT_SEASON);
       const cup = matches.map((row) => ({
@@ -3148,10 +3872,8 @@ describe("getTeamPositionSeries", () => {
 });
 
 describe("the result charts: form, goals, home and away, clean sheets", () => {
-  /**
-   * Team 1's match on `day` of September, in `groupId`. Rounds are numbered
-   * against the calendar on purpose: form follows kickoff order.
-   */
+  // Team 1's match on `day` of September, in `groupId`. Rounds are numbered
+  // against the calendar on purpose: form follows kickoff order.
   function onDay(
     categoryId: string,
     competitionId: string,
@@ -3182,7 +3904,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     });
   }
 
-  /** The same match with a half-time score, given from team 1's own side. */
+  // The same match with a half-time score, given from team 1's own side.
   function withHalfTime<T extends { homeTeamProviderId: number }>(
     row: T,
     halfTime: readonly [number, number] | null
@@ -3212,10 +3934,10 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     );
   }
 
-  describe("a cup, which has no table (specs/040)", () => {
+  describe("a cup, which has no table", () => {
     const CUP = "MSC";
     const SEASON = "spljp25";
-    /** Two knockout ties: `points: null` makes the group a match list. */
+    // Two knockout ties: `points: null` makes the group a match list.
     const matches = [onDay(CUP, SEASON, 9, 1, 2, 3, 0), onDay(CUP, SEASON, 9, 2, 3, 2, 0)].map(
       (row) => ({ ...row, categoryId: CUP })
     );
@@ -3232,7 +3954,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       // The cup selection keeps every group, which is why the panels appear.
       mockStoredMatches(matches, rows);
 
-      const series = await getTeamStreaks(CUP, SEASON, 1, ownSeason(), ACTIVE_SEASON);
+      const series = await panels(CUP, SEASON, 1, ownSeason(), ACTIVE_SEASON).loadStreaks();
 
       expect(series.status).toBe("ok");
       expect(series.status === "ok" && series.longest.wins?.length).toBe(2);
@@ -3246,7 +3968,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       }));
       mockStoredMatches(away, rowsFor(CUP, SEASON, 9, [1, 4], null));
 
-      const series = await getTeamStreaks(CUP, SEASON, 1, ownSeason(), ACTIVE_SEASON);
+      const series = await panels(CUP, SEASON, 1, ownSeason(), ACTIVE_SEASON).loadStreaks();
 
       expect(series.status === "ok" && series.longest.wins?.length).toBe(1);
     });
@@ -3256,7 +3978,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       getSeasonMatchesMock.mockResolvedValue([]);
       mockStoredMatches(matches, rows);
 
-      expect(await getTeamStreaks(CUP, SEASON, 99, ownSeason(), ACTIVE_SEASON)).toEqual({
+      expect(await panels(CUP, SEASON, 99, ownSeason(), ACTIVE_SEASON).loadStreaks()).toEqual({
         status: "unavailable",
       });
     });
@@ -3269,7 +3991,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       getSeasonMatchesMock.mockResolvedValue([]);
       mockStoredMatches([], []);
 
-      const series = await getTeamStreaks(CUP, SEASON, 1, ownSeason(), ACTIVE_SEASON);
+      const series = await panels(CUP, SEASON, 1, ownSeason(), ACTIVE_SEASON).loadStreaks();
 
       expect(series.status).toBe("ok");
       expect(series.status === "ok" && series.current).toBeNull();
@@ -3281,7 +4003,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       getSeasonGroupsMock.mockRejectedValue(new Error("TASO unavailable"));
       getSeasonMatchesMock.mockRejectedValue(new Error("TASO unavailable"));
 
-      expect(await getTeamStreaks(CUP, SEASON, 1, ownSeason(), ACTIVE_SEASON)).toEqual({
+      expect(await panels(CUP, SEASON, 1, ownSeason(), ACTIVE_SEASON).loadStreaks()).toEqual({
         status: "error",
       });
     });
@@ -3293,7 +4015,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       const comparison = await getTeamSeasonComparison(CUP, 1, selected, ACTIVE_SEASON, [
         { competitionCode: CUP, seasonId: selected, matches: 2 },
         { competitionCode: CUP, seasonId: selected - 1, matches: 2 },
-        // A league season of the same club is never a cup baseline (S1).
+        // A league season of the same club is never a cup baseline.
         { competitionCode: "VL", seasonId: selected - 1, matches: 27 },
       ]);
 
@@ -3333,7 +4055,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
         { competitionCode: CUP, seasonId: selected - 1, matches: 2 },
       ]);
 
-      // Dropped, not `–`: a row that can never have a value is noise (S7).
+      // Dropped, not `–`: a row that can never have a value is noise.
       expect(comparison.status === "ok" && comparison.rows.map((row) => row.measure)).not.toContain(
         "position"
       );
@@ -3362,15 +4084,13 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
   describe("getTeamSeasonComparison", () => {
     const LEAGUE = "M1";
     const SEASON = "spljp25";
-    /** Team 1 wins both its matches in one ordinary group. */
+    // Team 1 wins both its matches in one ordinary group.
     const matches = [
       onDay(LEAGUE, SEASON, 1, 1, 2, 3, 0),
       onDay(LEAGUE, SEASON, 1, 2, 3, 2, 0),
     ].map((row) => ({ ...row, categoryId: LEAGUE }));
-    /**
-     * Points that agree with `calculateStandings` over those two matches —
-     * team 1 wins both — so the group is verified and its table ranks.
-     */
+    // Points that agree with `calculateStandings` over those two matches, so
+    // the group is verified and its table ranks.
     const rows = [
       groupTeam({
         categoryId: LEAGUE,
@@ -3398,14 +4118,9 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       }),
     ];
 
-    /**
-     * A season id used by one test only.
-     *
-     * `classifySeasonGroups` is `cache()`d and `vi.clearAllMocks()` does not
-     * clear that memo, so two tests that supply different stored rows under
-     * one season id would poison each other — whichever ran first would decide
-     * what the other saw. Found by `npm run test:shuffle`.
-     */
+    // A season id used by one test only. `classifySeasonGroups` is `cache()`d
+    // and `vi.clearAllMocks()` does not clear that memo, so two tests supplying
+    // different stored rows under one season id would poison each other.
     let nextSeason = PAST_SEASON;
     function ownSeason() {
       nextSeason -= 10;
@@ -3445,7 +4160,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
 
     it("keeps a season whose table ranks nothing, because its results still count", async () => {
       // Published points that disagree with our calculation make the group
-      // pass-through: it is shown, but it ranks nobody (specs/030).
+      // pass-through: it is shown, but it ranks nobody.
       mockStoredMatches(matches, rowsFor(LEAGUE, SEASON, 1, [1, 2, 3], 99));
 
       const selected = ownSeason();
@@ -3468,9 +4183,8 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
 
     it("reports an error when a season cannot be read at all", async () => {
       // Its own season ids, because `classifySeasonGroups` is `cache()`d and
-      // `vi.clearAllMocks()` does not clear that memo: a failure cached here
-      // under a season another test uses would surface as an error there,
-      // depending on the order the suite happened to run in.
+      // `vi.clearAllMocks()` does not clear that memo: a failure cached under a season
+      // another test uses would surface there, depending on the order the suite ran in.
       const brokenSeason = ownSeason();
       mockStoredMatches([], []);
       getSeasonGroupsMock.mockRejectedValue(new Error("TASO unavailable"));
@@ -3496,11 +4210,9 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     });
 
     it("leaves out a season played entirely in knockout groups", async () => {
-      // A "match-list" group is not a table, so its matches are not league
-      // matches — the same rule `Vire`, `Maalit` and the standings table apply,
-      // and why the playoff is excluded from `Putket`. Counting them here would
-      // put matches in the baseline that the selected season's own measures
-      // leave out.
+      // A "match-list" group is not a table, so its matches are not league matches: the
+      // rule `Vire`, `Maalit` and the standings table apply. Counting them here would
+      // put matches in the baseline that the selected season's own measures leave out.
       const knockout = [onDay(LEAGUE, SEASON, 9, 1, 5, 4, 0)].map((row) => ({
         ...row,
         categoryId: LEAGUE,
@@ -3533,7 +4245,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       expect(comparison.rows.find((row) => row.measure === "points")?.selected).toBe(3);
     });
 
-    it("reads the club's records across its league seasons (specs/039)", async () => {
+    it("reads the club's records across its league seasons", async () => {
       mockStoredMatches(matches, rows);
 
       const selected = ownSeason();
@@ -3626,12 +4338,9 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
   });
 
   describe("a split season with a playoff", () => {
-    /**
-     * Ykkönen 2025: group 2 continues group 1 (`CARRY_OVER_CONFIG`). Group 9 is
-     * a knockout — TASO sends no points for it — so it renders as a match list.
-     * The table rows' points are made up, so both tables render pass-through:
-     * form is results, and an unverified table does not stop it (Q2).
-     */
+    // Ykkönen 2025: group 2 continues group 1 (`CARRY_OVER_CONFIG`). Group 9 is a knockout: TASO
+    // sends no points for it, so it renders as a match list. The table rows' points are made up, so
+    // both tables render pass-through: form is results, and an unverified table does not stop it.
     const LEAGUE = "M1";
     const SEASON = "spljp25";
     const matches = [
@@ -3652,7 +4361,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
 
     async function series() {
       mockStoredMatches(matches, rows);
-      return getTeamFormSeries(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON);
+      return panels(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON).loadForm();
     }
 
     it("continues across the split in kickoff order, and leaves the playoff out", async () => {
@@ -3689,7 +4398,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       // Own goals, in kickoff order: 2–0, 1–1 (away), 0–1, 3–0, then 2–1, 0–0
       // after the split. The playoff's 4–0 is not league goals.
       mockStoredMatches(matches, rows);
-      const goals = await getTeamGoalsSeries(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON);
+      const goals = await panels(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON).loadGoals();
 
       expect(goals.status === "ok" && goals.totals.at(-1)).toEqual({
         match: 6,
@@ -3706,7 +4415,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       // Home: 2–0, 0–1, 3–0, 2–1, 0–0. Away: 1–1. The playoff win is not league.
       mockStoredMatches(matches, rows);
 
-      expect(await getTeamHomeAwaySeries(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      expect(await panels(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON).loadHomeAway()).toEqual({
         status: "ok",
         home: { matches: 5, won: 3, drawn: 1, lost: 1, scored: 7, conceded: 2 },
         away: { matches: 1, won: 0, drawn: 1, lost: 0, scored: 1, conceded: 1 },
@@ -3717,7 +4426,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       // Conceded in the league, in kickoff order: 0, 1, 1, 0, 1, 0 — three.
       mockStoredMatches(matches, rows);
 
-      const series = await getTeamCleanSheetSeries(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON);
+      const series = await panels(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON).loadCleanSheets();
 
       expect(series.status === "ok" && series.points.at(-1)).toEqual({
         match: 6,
@@ -3730,7 +4439,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       // W D L W W D in the league; the playoff win on the 7th is not counted.
       mockStoredMatches(matches, rows);
 
-      expect(await getTeamStreaks(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      expect(await panels(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON).loadStreaks()).toEqual({
         status: "ok",
         current: { outcome: "draw", length: 1 },
         longest: {
@@ -3743,19 +4452,16 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     });
 
     it("counts both directions over the same league matches, not the playoff", async () => {
-      /**
-       * Half-time, from team 1's own side: 0–1 won, 0–1 drew, 1–0 lost (a lead
-       * given away), 1–0 won, none stored, 0–0 level — and the playoff win,
-       * trailing 0–3 at the break, is not a league match. Count that one and
-       * `trailed` would rise to 3.
-       */
+      // Half-time, from team 1's own side: 0–1 won, 0–1 drew, 1–0 lost (a lead given
+      // away), 1–0 won, none stored, 0–0 level. The playoff win, trailing 0–3 at the
+      // break, is not a league match: count it and `trailed` would rise to 3.
       const halfTimes = [[0, 1], [0, 1], [1, 0], [1, 0], null, [0, 0], [0, 3]] as const;
       mockStoredMatches(
         matches.map((row, index) => withHalfTime(row, halfTimes[index] ?? null)),
         rows
       );
 
-      expect(await getTeamComebacks(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+      expect(await panels(LEAGUE, SEASON, 1, PAST_SEASON, ACTIVE_SEASON).loadComebacks()).toEqual({
         status: "ok",
         trailed: { matches: 2, won: 1, drew: 1, lost: 0 },
         led: { matches: 2, won: 1, drew: 0, lost: 1 },
@@ -3794,13 +4500,13 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       })
     );
     mockStoredMatches(matches, rows);
-    const series = await getTeamFormSeries(
+    const series = await panels(
       CATEGORY_ID,
       COMPETITION_ID,
       1,
       PAST_SEASON,
       ACTIVE_SEASON
-    );
+    ).loadForm();
     mockStoredMatches(matches, rows);
     const standings = await getSeasonStandings(
       CATEGORY_ID,
@@ -3837,13 +4543,13 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       })
     );
     mockStoredMatches(matches, rows);
-    const goals = await getTeamGoalsSeries(
+    const goals = await panels(
       CATEGORY_ID,
       COMPETITION_ID,
       1,
       PAST_SEASON,
       ACTIVE_SEASON
-    );
+    ).loadGoals();
     mockStoredMatches(matches, rows);
     const standings = await getSeasonStandings(
       CATEGORY_ID,
@@ -3880,13 +4586,13 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       })
     );
     mockStoredMatches(matches, rows);
-    const series = await getTeamHomeAwaySeries(
+    const series = await panels(
       CATEGORY_ID,
       COMPETITION_ID,
       1,
       PAST_SEASON,
       ACTIVE_SEASON
-    );
+    ).loadHomeAway();
     mockStoredMatches(matches, rows);
     const standings = await getSeasonStandings(
       CATEGORY_ID,
@@ -3917,7 +4623,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     }));
     mockStoredMatches(matches, rowsFor("M1", "spljp25", 9, [1, 5], null));
 
-    expect(await getTeamHomeAwaySeries("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON).loadHomeAway()).toEqual({
       status: "unavailable",
     });
   });
@@ -3928,13 +4634,13 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     getSeasonGroupsMock.mockResolvedValue([]);
     mockInsert();
 
-    const series = await getTeamHomeAwaySeries(
+    const series = await panels(
       CATEGORY_ID,
       COMPETITION_ID,
       1,
       PAST_SEASON,
       ACTIVE_SEASON
-    );
+    ).loadHomeAway();
 
     expect(series.status === "ok" && series.home.matches + series.away.matches).toBe(0);
   });
@@ -3945,11 +4651,11 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     });
 
     expect(
-      await getTeamHomeAwaySeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+      await panels(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON).loadHomeAway()
     ).toEqual({ status: "error" });
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ categoryId: CATEGORY_ID, teamProviderId: 1 }),
-      "Unable to compute the TASO home and away series"
+      "Unable to read the matches a TASO team's panels count"
     );
   });
 
@@ -3959,7 +4665,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     getSeasonGroupsMock.mockRejectedValue(new Error("provider unavailable"));
 
     expect(
-      await getTeamHomeAwaySeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+      await panels(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON).loadHomeAway()
     ).toEqual({ status: "error" });
   });
 
@@ -3970,7 +4676,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     }));
     mockStoredMatches(matches, rowsFor("M1", "spljp25", 9, [1, 5], null));
 
-    expect(await getTeamStreaks("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON).loadStreaks()).toEqual({
       status: "unavailable",
     });
   });
@@ -3981,13 +4687,13 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     getSeasonGroupsMock.mockResolvedValue([]);
     mockInsert();
 
-    const streaks = await getTeamStreaks(
+    const streaks = await panels(
       CATEGORY_ID,
       COMPETITION_ID,
       1,
       PAST_SEASON,
       ACTIVE_SEASON
-    );
+    ).loadStreaks();
 
     expect(streaks.status === "ok" && streaks.current).toBeNull();
   });
@@ -3998,11 +4704,11 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     });
 
     expect(
-      await getTeamStreaks(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+      await panels(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON).loadStreaks()
     ).toEqual({ status: "error" });
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ categoryId: CATEGORY_ID, teamProviderId: 1 }),
-      "Unable to compute the TASO streaks"
+      "Unable to read the matches a TASO team's panels count"
     );
   });
 
@@ -4013,7 +4719,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     }));
     mockStoredMatches(matches, rowsFor("M1", "spljp25", 9, [1, 5], null));
 
-    expect(await getTeamComebacks("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON).loadComebacks()).toEqual({
       status: "unavailable",
     });
   });
@@ -4025,7 +4731,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     mockInsert();
 
     expect(
-      await getTeamComebacks(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+      await panels(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON).loadComebacks()
     ).toEqual({
       status: "ok",
       trailed: { matches: 0, won: 0, drew: 0, lost: 0 },
@@ -4041,11 +4747,11 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     });
 
     expect(
-      await getTeamComebacks(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+      await panels(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON).loadComebacks()
     ).toEqual({ status: "error" });
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ categoryId: CATEGORY_ID, teamProviderId: 1 }),
-      "Unable to compute the TASO comebacks"
+      "Unable to read the matches a TASO team's panels count"
     );
   });
 
@@ -4056,7 +4762,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     }));
     mockStoredMatches(matches, rowsFor("M1", "spljp25", 9, [1, 5], null));
 
-    expect(await getTeamCleanSheetSeries("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON).loadCleanSheets()).toEqual({
       status: "unavailable",
     });
   });
@@ -4068,7 +4774,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     mockInsert();
 
     expect(
-      await getTeamCleanSheetSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+      await panels(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON).loadCleanSheets()
     ).toEqual({ status: "ok", points: [] });
   });
 
@@ -4078,11 +4784,11 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     });
 
     expect(
-      await getTeamCleanSheetSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+      await panels(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON).loadCleanSheets()
     ).toEqual({ status: "error" });
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ categoryId: CATEGORY_ID, teamProviderId: 1 }),
-      "Unable to compute the TASO clean-sheet series"
+      "Unable to read the matches a TASO team's panels count"
     );
   });
 
@@ -4093,7 +4799,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     }));
     mockStoredMatches(matches, rowsFor("M1", "spljp25", 9, [1, 5], null));
 
-    expect(await getTeamGoalsSeries("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON).loadGoals()).toEqual({
       status: "unavailable",
     });
   });
@@ -4105,7 +4811,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     mockInsert();
 
     expect(
-      await getTeamGoalsSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+      await panels(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON).loadGoals()
     ).toEqual({ status: "ok", rolling: [], totals: [] });
   });
 
@@ -4115,11 +4821,11 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     });
 
     expect(
-      await getTeamGoalsSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+      await panels(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON).loadGoals()
     ).toEqual({ status: "error" });
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ categoryId: CATEGORY_ID, teamProviderId: 1 }),
-      "Unable to compute the TASO goals series"
+      "Unable to read the matches a TASO team's panels count"
     );
   });
 
@@ -4129,7 +4835,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     getSeasonGroupsMock.mockRejectedValue(new Error("provider unavailable"));
 
     expect(
-      await getTeamGoalsSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+      await panels(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON).loadGoals()
     ).toEqual({ status: "error" });
   });
 
@@ -4140,7 +4846,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     }));
     mockStoredMatches(matches, rowsFor("M1", "spljp25", 9, [1, 5], null));
 
-    expect(await getTeamFormSeries("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON)).toEqual({
+    expect(await panels("M1", "spljp25", 1, PAST_SEASON, ACTIVE_SEASON).loadForm()).toEqual({
       status: "unavailable",
     });
   });
@@ -4150,7 +4856,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     mockStoredMatches(matches, rowsFor(CATEGORY_ID, COMPETITION_ID, 1, [1, 2], 99));
 
     expect(
-      await getTeamFormSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+      await panels(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON).loadForm()
     ).toEqual({ status: "too-few" });
   });
 
@@ -4161,7 +4867,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     mockInsert();
 
     expect(
-      await getTeamFormSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+      await panels(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON).loadForm()
     ).toEqual({ status: "too-few" });
   });
 
@@ -4171,7 +4877,7 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     getSeasonGroupsMock.mockRejectedValue(new Error("provider unavailable"));
 
     expect(
-      await getTeamFormSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+      await panels(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON).loadForm()
     ).toEqual({ status: "error" });
   });
 
@@ -4181,11 +4887,613 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
     });
 
     expect(
-      await getTeamFormSeries(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON)
+      await panels(CATEGORY_ID, COMPETITION_ID, 1, PAST_SEASON, ACTIVE_SEASON).loadForm()
     ).toEqual({ status: "error" });
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ categoryId: CATEGORY_ID, teamProviderId: 1 }),
-      "Unable to compute the TASO form series"
+      "Unable to read the matches a TASO team's panels count"
     );
+  });
+});
+
+describe("getSeasonTables", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const upcoming = {
+    status: "SCHEDULED",
+    homeGoals: null,
+    awayGoals: null,
+  };
+
+  it("gives each stored group its table, its own matches of every status, and its parent", async () => {
+    const regular = match({ providerMatchId: 1, groupId: 1 });
+    const played = match({
+      providerMatchId: 2,
+      groupId: 2,
+      groupName: "Mestaruussarja",
+      matchday: 23,
+      homeGoals: 0,
+      awayGoals: 0,
+    });
+    const toPlay = match({
+      providerMatchId: 3,
+      groupId: 2,
+      groupName: "Mestaruussarja",
+      matchday: 24,
+      homeTeamProviderId: 2,
+      homeTeamName: "KuPS",
+      awayTeamProviderId: 1,
+      awayTeamName: "HJK",
+      ...upcoming,
+    });
+    mockStoredMatches([regular, played, toPlay]);
+
+    const [season, standings] = await Promise.all([
+      getSeasonTables(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON),
+      getSeasonStandings(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON, undefined),
+    ]);
+
+    const groups = standings.status === "ok" ? standings.groups : [];
+    expect(season).toEqual({
+      status: "ok",
+      refreshFailed: false,
+      tables: [
+        {
+          groupId: 1,
+          groupName: "Runkosarja",
+          kind: "own-calculated",
+          standings: groups[0]?.kind === "own-calculated" ? groups[0].standings : null,
+          matches: [regular],
+          parentGroupId: null,
+        },
+        {
+          groupId: 2,
+          groupName: "Mestaruussarja",
+          kind: "own-calculated",
+          standings: groups[1]?.kind === "own-calculated" ? groups[1].standings : null,
+          matches: [played, toPlay],
+          parentGroupId: 1,
+        },
+      ],
+    });
+    // The carried points are in the continuation group's table: a win and a draw.
+    expect(
+      season.status === "ok" && season.tables[1]?.standings.map((team) => team.points)
+    ).toEqual([4, 1]);
+  });
+
+  it("gives a group shown from TASO's own numbers no table of ours", async () => {
+    mockStoredMatches(
+      [match({ providerMatchId: 1, groupId: 1, homeGoals: 2, awayGoals: 1 })],
+      [
+        groupTeam({ teamProviderId: 1, teamName: "HJK", points: 9, played: 3 }),
+        groupTeam({ teamProviderId: 2, teamName: "KuPS", points: 0, played: 3 }),
+      ]
+    );
+
+    const season = await getSeasonTables(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, ACTIVE_SEASON);
+
+    expect(season.status === "ok" && season.tables).toMatchObject([
+      { groupId: 1, kind: "pass-through", standings: [] },
+    ]);
+  });
+
+  it("says when the matches are stored rows TASO could not refresh", async () => {
+    // Stale rows of the season in progress, and a provider that does not answer.
+    mockStoredMatches([
+      match({ seasonId: ACTIVE_SEASON, updatedAt: new Date(Date.now() - 60 * 60 * 1000) }),
+    ]);
+    getSeasonMatchesMock.mockRejectedValue(new Error("TASO is down"));
+    getSeasonGroupsMock.mockRejectedValue(new Error("TASO is down"));
+
+    const season = await getSeasonTables(CATEGORY_ID, COMPETITION_ID, ACTIVE_SEASON, ACTIVE_SEASON);
+
+    expect(season).toMatchObject({ status: "ok", refreshFailed: true });
+    expect(season.status === "ok" && season.tables.map((table) => table.groupId)).toEqual([1]);
+  });
+
+  it("reports a season with nothing stored as empty", async () => {
+    mockStoredMatches([]);
+    getSeasonMatchesMock.mockResolvedValue([]);
+    mockInsert();
+
+    expect(
+      await getSeasonTables(CATEGORY_ID, COMPETITION_ID, ACTIVE_SEASON, ACTIVE_SEASON)
+    ).toEqual({ status: "empty" });
+  });
+});
+
+describe("hasCarryOver", () => {
+  it("is true for a category's season with a continuation group, and false otherwise", () => {
+    expect(hasCarryOver("VL", "spljp25")).toBe(true);
+    expect(hasCarryOver("VL", "spljp20")).toBe(false);
+    expect(hasCarryOver("M1L", "spljp25")).toBe(false);
+    expect(hasCarryOver("P18SM", "spljp25")).toBe(false);
+  });
+});
+
+describe("zone levels storage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  type Level = Parameters<typeof synchronizeGroupLevels>[3][number];
+
+  function level(overrides: Partial<Level> = {}): Level {
+    return {
+      categoryId: CATEGORY_ID,
+      competitionCode: COMPETITION_ID,
+      seasonId: PAST_SEASON,
+      groupId: 1,
+      level: 1,
+      teamCount: 1,
+      label: "Kultaa",
+      ...overrides,
+    };
+  }
+
+  // Every write, by table, in the order it was made.
+  function mockWrites() {
+    const writes: Array<{ op: "delete" | "insert"; table: unknown; values?: unknown[] }> = [];
+    const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
+    dbMock.delete.mockImplementation((table: unknown) => {
+      writes.push({ op: "delete", table });
+      return { where: vi.fn().mockResolvedValue(undefined) };
+    });
+    dbMock.insert.mockImplementation((table: unknown) => ({
+      values: vi.fn().mockImplementation((values: unknown[]) => {
+        writes.push({ op: "insert", table, values });
+        return { onConflictDoUpdate };
+      }),
+    }));
+    dbMock.transaction.mockImplementation(
+      async (run: (tx: typeof dbMock) => Promise<unknown>) => await run(dbMock)
+    );
+    return {
+      writes,
+      onConflictDoUpdate,
+      to: (table: unknown) => writes.filter((write) => write.table === table).map((w) => w.op),
+      levelsWritten: () =>
+        writes.find((write) => write.op === "insert" && write.table === tasoGroupZones)?.values,
+    };
+  }
+
+  function teamRow(): Parameters<typeof synchronizeGroupTeams>[3][number] {
+    const { updatedAt: _updatedAt, ...row } = groupTeam({ points: 3, played: 1 });
+    return row;
+  }
+
+  it("replaces the season's levels with the group rows, in the same transaction", async () => {
+    const mock = mockWrites();
+
+    await synchronizeGroupTeams(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      [teamRow()],
+      [level(), level({ level: 2, teamCount: 3, label: null })]
+    );
+
+    expect(dbMock.transaction).toHaveBeenCalledTimes(1);
+    expect(mock.to(tasoGroupZones)).toEqual(["delete", "insert"]);
+    expect(mock.levelsWritten()).toEqual([
+      { ...level(), updatedAt: expect.any(Date) },
+      { ...level({ level: 2, teamCount: 3, label: null }), updatedAt: expect.any(Date) },
+    ]);
+    expect(mock.to(tasoGroupTeams)).toEqual(["delete", "insert"]);
+  });
+
+  it("stores every row under the season it replaced, whatever the row says of itself", async () => {
+    const mock = mockWrites();
+    const elsewhere = { categoryId: "M1", competitionCode: "spljp99", seasonId: 1999 };
+
+    await synchronizeGroupTeams(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      [{ ...teamRow(), ...elsewhere }],
+      [level(elsewhere)]
+    );
+
+    const here = {
+      categoryId: CATEGORY_ID,
+      competitionCode: COMPETITION_ID,
+      seasonId: PAST_SEASON,
+    };
+    expect(mock.levelsWritten()).toEqual([expect.objectContaining(here)]);
+    const teams = mock.writes.find(
+      (write) => write.op === "insert" && write.table === tasoGroupTeams
+    )?.values;
+    expect(teams).toEqual([expect.objectContaining(here)]);
+  });
+
+  it("upserts a level on its group and number", async () => {
+    const mock = mockWrites();
+
+    await synchronizeGroupTeams(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, [], [level()]);
+
+    expect(mock.onConflictDoUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        target: [
+          tasoGroupZones.categoryId,
+          tasoGroupZones.competitionCode,
+          tasoGroupZones.seasonId,
+          tasoGroupZones.groupId,
+          tasoGroupZones.level,
+        ],
+        set: expect.objectContaining({
+          teamCount: expect.anything(),
+          label: expect.anything(),
+          updatedAt: expect.anything(),
+        }),
+      })
+    );
+  });
+
+  it("writes the levels of a snapshot that has no group rows", async () => {
+    const mock = mockWrites();
+
+    await synchronizeGroupTeams(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, [], [level()]);
+
+    expect(mock.to(tasoGroupTeams)).toEqual(["delete"]);
+    expect(mock.to(tasoGroupZones)).toEqual(["delete", "insert"]);
+  });
+
+  it("clears the stored levels when the snapshot has none", async () => {
+    const mock = mockWrites();
+
+    await synchronizeGroupTeams(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, [teamRow()], []);
+
+    expect(mock.to(tasoGroupZones)).toEqual(["delete"]);
+  });
+
+  it("keeps the first of two rows for the same group and level", async () => {
+    const mock = mockWrites();
+
+    await synchronizeGroupTeams(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      [],
+      [
+        level({ label: "Kultaa" }),
+        level({ label: "Hopeaa" }),
+        level({ groupId: 2, label: "Nousee" }),
+        level({ level: 2, label: "Pronssia" }),
+      ]
+    );
+
+    expect((mock.levelsWritten() as Level[]).map((row) => row.label)).toEqual([
+      "Kultaa",
+      "Nousee",
+      "Pronssia",
+    ]);
+  });
+
+  it.each(["M2", "P21SM", "P20SM", "MSC", "LC"])(
+    "stores no level for %s, and leaves that table alone",
+    async (categoryId) => {
+      const mock = mockWrites();
+
+      await synchronizeGroupTeams(
+        categoryId,
+        COMPETITION_ID,
+        PAST_SEASON,
+        [{ ...teamRow(), categoryId }],
+        [level({ categoryId })]
+      );
+
+      expect(mock.to(tasoGroupZones)).toEqual([]);
+      expect(mock.to(tasoGroupTeams)).toEqual(["delete", "insert"]);
+    }
+  );
+
+  it.each(["VL", "M1L", "M1", "NL", "N1"])("stores the levels of %s", async (categoryId) => {
+    const mock = mockWrites();
+
+    await synchronizeGroupLevels(categoryId, COMPETITION_ID, PAST_SEASON, [level({ categoryId })]);
+
+    expect(mock.to(tasoGroupZones)).toEqual(["delete", "insert"]);
+  });
+
+  it("writes the levels alone, in a transaction, when only they are synchronized", async () => {
+    const mock = mockWrites();
+
+    await synchronizeGroupLevels(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, [level()]);
+
+    expect(dbMock.transaction).toHaveBeenCalledTimes(1);
+    expect(mock.to(tasoGroupZones)).toEqual(["delete", "insert"]);
+    expect(mock.to(tasoGroupTeams)).toEqual([]);
+    expect(dbMock.select).not.toHaveBeenCalled();
+  });
+
+  it("stores the levels of the answer a page's refresh fetched", async () => {
+    const season = 2031;
+    mockStoredMatches([match({ seasonId: season })], []);
+    const mock = mockWrites();
+    getSeasonMatchesMock.mockResolvedValue([match({ seasonId: season })]);
+    getSeasonGroupsMock.mockResolvedValue([
+      {
+        group_id: "1",
+        group_name: "Runkosarja",
+        next_stage_levels: "6,6,0,0,0,0,0,0,0,0",
+        next_stage_level_texts: [
+          "Mestaruussarjaan",
+          "Karsintasarjaan",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+        ],
+        teams: [{ team_id: "1", team_name: "HJK", points: 3 }],
+      },
+    ]);
+
+    await getSeasonStandings(CATEGORY_ID, "spljp31", season, season, undefined);
+
+    const identity = { categoryId: CATEGORY_ID, competitionCode: "spljp31", seasonId: season };
+    expect(mock.levelsWritten()).toEqual([
+      expect.objectContaining({
+        ...identity,
+        groupId: 1,
+        level: 1,
+        teamCount: 6,
+        label: "Mestaruussarjaan",
+      }),
+      expect.objectContaining({
+        ...identity,
+        groupId: 1,
+        level: 2,
+        teamCount: 6,
+        label: "Karsintasarjaan",
+      }),
+    ]);
+  });
+
+  it("logs unreadable levels once and still stores the group's rows", async () => {
+    const season = 2032;
+    mockStoredMatches([match({ seasonId: season })], []);
+    const mock = mockWrites();
+    getSeasonMatchesMock.mockResolvedValue([match({ seasonId: season })]);
+    getSeasonGroupsMock.mockResolvedValue([
+      {
+        group_id: "1",
+        next_stage_levels: "6,six",
+        teams: [{ team_id: "1", team_name: "HJK", points: 3 }],
+      },
+    ]);
+
+    const result = await getSeasonStandings(CATEGORY_ID, "spljp32", season, season, undefined);
+
+    expect(result.status).toBe("ok");
+    expect(
+      loggerWarnMock.mock.calls.filter(([, message]) => message === "Unreadable TASO zone levels")
+    ).toEqual([
+      [
+        { categoryId: CATEGORY_ID, competitionId: "spljp32", groupId: 1 },
+        "Unreadable TASO zone levels",
+      ],
+    ]);
+    expect(mock.to(tasoGroupZones)).toEqual(["delete"]);
+    expect(mock.to(tasoGroupTeams)).toEqual(["delete", "insert"]);
+  });
+});
+
+describe("the stored levels a standings read returns", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const LEVELS = [
+    { groupId: 1, level: 1, teamCount: 1, label: "Kultaa" },
+    { groupId: 1, level: 2, teamCount: 3, label: null },
+  ];
+
+  it("returns the season's levels with the groups", async () => {
+    mockStoredMatches([match({ seasonId: 2011 })], [], LEVELS);
+
+    const result = await getSeasonStandings(CATEGORY_ID, "spljp11", 2011, ACTIVE_SEASON, undefined);
+
+    expect(result).toEqual({ status: "ok", groups: [expect.anything()], levels: LEVELS });
+  });
+
+  it("returns the same levels when a round is chosen", async () => {
+    mockStoredMatches([match({ seasonId: 2012 })], [], LEVELS);
+
+    const result = await getSeasonStandings(CATEGORY_ID, "spljp12", 2012, ACTIVE_SEASON, 1);
+
+    expect(result).toEqual({ status: "ok", groups: [expect.anything()], levels: LEVELS });
+  });
+
+  it.each(["M2", "P21SM", "MSC"])(
+    "reads no level for %s, which stores none",
+    async (categoryId) => {
+      const season = 2040 + ["M2", "P21SM", "MSC"].indexOf(categoryId);
+      mockStoredMatches([match({ seasonId: season, categoryId })], [], LEVELS);
+
+      const result = await getSeasonStandings(
+        categoryId,
+        "spljp40",
+        season,
+        ACTIVE_SEASON,
+        undefined
+      );
+
+      expect(result.status === "ok" && result.levels).toEqual([]);
+      const from = dbMock.select.mock.results[0]?.value.from as ReturnType<typeof vi.fn>;
+      expect(from.mock.calls.length).toBeGreaterThan(0);
+      expect(from.mock.calls.map(([table]) => table)).not.toContain(tasoGroupZones);
+    }
+  );
+
+  it("asks for no level of a season with no matches", async () => {
+    mockStoredMatches([], [], LEVELS);
+    getSeasonMatchesMock.mockResolvedValue([]);
+    getSeasonGroupsMock.mockResolvedValue([]);
+    mockInsert();
+
+    const result = await getSeasonStandings(CATEGORY_ID, "spljp13", 2013, ACTIVE_SEASON, undefined);
+
+    expect(result).toEqual({ status: "empty", groups: [] });
+  });
+
+  it("answers with the page's error when the levels cannot be read", async () => {
+    const from = vi.fn().mockImplementation((table: unknown) => {
+      if (table === tasoGroupZones) {
+        return {
+          where: vi.fn().mockReturnValue({
+            orderBy: vi.fn().mockRejectedValue(new Error("connection lost")),
+          }),
+        };
+      }
+      const rows = table === tasoGroupTeams ? [] : [match({ seasonId: 2014 })];
+      return {
+        where: vi
+          .fn()
+          .mockReturnValue(
+            Object.assign(Promise.resolve(rows), { orderBy: vi.fn().mockResolvedValue(rows) })
+          ),
+      };
+    });
+    dbMock.select.mockReturnValue({ from });
+
+    const result = await getSeasonStandings(CATEGORY_ID, "spljp14", 2014, ACTIVE_SEASON, undefined);
+
+    expect(result).toEqual({ status: "error", groups: [] });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ categoryId: CATEGORY_ID, seasonId: 2014 }),
+      "Unable to load TASO standings"
+    );
+  });
+});
+
+describe("a table behind its results at the start of a season", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("keeps TASO's numbers when only a fixture to come would make its table look behind", async () => {
+    // Every count agrees with the finished match; team 1's points do not. Counted
+    // as played, the fixture would put team 1 behind, and its table ours.
+    mockStoredMatches(
+      [
+        match({ providerMatchId: 1, homeTeamProviderId: 1, awayTeamProviderId: 2 }),
+        match({
+          providerMatchId: 2,
+          homeTeamProviderId: 2,
+          awayTeamProviderId: 1,
+          status: "SCHEDULED",
+          homeGoals: null,
+          awayGoals: null,
+        }),
+      ],
+      [
+        groupTeam({ teamProviderId: 1, points: 2, played: 1 }),
+        groupTeam({ teamProviderId: 2, teamName: "KuPS", points: 0, played: 1 }),
+      ]
+    );
+
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+
+    expect(result.status === "ok" && result.groups[0]?.kind).toBe("pass-through");
+  });
+
+  it("counts a team with only a fixture to come as having played none", async () => {
+    // Team 1 has won its one match, which TASO's table does not count yet; team 3
+    // has played nothing, as TASO says.
+    mockStoredMatches(
+      [
+        match({ providerMatchId: 1, homeTeamProviderId: 1, awayTeamProviderId: 2 }),
+        match({
+          providerMatchId: 2,
+          homeTeamProviderId: 3,
+          homeTeamName: "Team 3",
+          awayTeamProviderId: 1,
+          status: "SCHEDULED",
+          homeGoals: null,
+          awayGoals: null,
+        }),
+      ],
+      [
+        groupTeam({ teamProviderId: 1, points: 0, played: 0 }),
+        groupTeam({ teamProviderId: 2, teamName: "KuPS", points: 0, played: 1 }),
+        groupTeam({ teamProviderId: 3, teamName: "Team 3", points: 0, played: 0 }),
+      ]
+    );
+
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+
+    expect(result.status === "ok" && result.groups[0]?.kind).toBe("own-calculated");
+  });
+});
+
+describe("a cup's table behind its results", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // Three teams, a match each against each, at 3 points each; TASO's rows count
+  // one match a team and no points, as before the last two were played.
+  async function kindFor(categoryId: string) {
+    const game = (id: number, home: number, away: number) =>
+      match({
+        providerMatchId: id,
+        categoryId,
+        groupName: "Lohko B",
+        matchday: id,
+        homeTeamProviderId: home,
+        homeTeamName: `Team ${home}`,
+        awayTeamProviderId: away,
+        awayTeamName: `Team ${away}`,
+        homeGoals: 1,
+        awayGoals: 0,
+      });
+    mockStoredMatches(
+      [game(1, 1, 2), game(2, 2, 3), game(3, 3, 1)],
+      [1, 2, 3].map((teamProviderId) =>
+        groupTeam({
+          categoryId,
+          teamProviderId,
+          teamName: `Team ${teamProviderId}`,
+          points: 0,
+          played: 1,
+          currentStanding: teamProviderId,
+        })
+      )
+    );
+    const result = await getSeasonStandings(
+      categoryId,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+    return result.status === "ok" ? result.groups[0]?.kind : undefined;
+  }
+
+  it("keeps TASO's numbers for a Liigacup group, which is ranked in TASO's order", async () => {
+    expect(await kindFor("LC")).toBe("pass-through");
+  });
+
+  it("renders the same rows of a league group as our own table", async () => {
+    expect(await kindFor(CATEGORY_ID)).toBe("own-calculated");
   });
 });

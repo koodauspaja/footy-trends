@@ -13,18 +13,10 @@ import {
 
 /**
  * Fails the unit suite when a source file is missing from the coverage report
- * entirely, or when lcov records a condition never taken — see
- * `coverage-gaps-plan.ts` for why neither is the same as 0%.
+ * entirely, or when lcov records a condition never taken. Its scope is
+ * Sonar's, read from Sonar's own configuration.
  *
- * **Its scope is Sonar's scope, read from Sonar's own configuration.** The
- * point of this guard is to fail locally for the same reasons Sonar fails
- * remotely, so a hardcoded list of directories would only approximate that: the
- * project scans `sonar.sources=.`, the whole repository, minus
- * `sonar.exclusions`. A new source file at the root, or in a directory nobody
- * thought of, is scored by Sonar and must be seen here too.
- *
- * Run from `npm run test:unit`, so a developer machine fails before a push
- * rather than CI failing after one.
+ * decisions/385-untested-source-files-fail.md
  */
 
 const ROOT = process.cwd();
@@ -35,8 +27,9 @@ const indexExclusions = parseSonarProperty(PROPERTIES, "sonar.exclusions");
 const coverageExclusions = parseSonarProperty(PROPERTIES, "sonar.coverage.exclusions");
 
 /**
- * `.git` is pruned regardless: Sonar never indexes it, and it is not worth a
- * line in the project's configuration to say so.
+ * `.git` is pruned regardless: Sonar never indexes it.
+ *
+ * decisions/385-untested-source-files-fail.md
  */
 const ALWAYS_PRUNED = [".git/**"];
 const prunePatterns = [...indexExclusions, ...ALWAYS_PRUNED];

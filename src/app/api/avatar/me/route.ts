@@ -4,31 +4,20 @@ import { getAvatar } from "@/lib/avatar";
 import { logger } from "@/lib/logger";
 
 /**
- * Serves the reader their own stored avatar, from specs/025-custom-avatar.md.
+ * Serves the reader their own stored avatar. `/me`, not `/[userId]`: the
+ * session says who is asking, and nothing in the URL does. Node, not edge.
  *
- * **`/me`, not `/[userId]`.** The session says who is asking; nothing in the URL
- * does. That is the same rule the write actions follow, and it means there is
- * no id to guess and no ownership check to get wrong.
- *
- * Node rather than edge: this reads a session and the database, and neither
- * belongs on an edge runtime.
+ * decisions/025-custom-avatar.md
  */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * A year, and `immutable` — which is only safe because the URL carries
- * `?v=<random token>`. A new upload produces a new URL, so the old one is never
- * requested again. Without the version parameter this would pin a stale picture
- * for a year.
+ * A year, and `immutable`: safe only because the URL carries a random
+ * `?v=` token, new with every upload and different for every reader. `private`,
+ * so no shared cache holds it.
  *
- * The token is random rather than a timestamp for a second reason: this path is
- * the same for every reader, so the parameter is the only thing keeping one
- * reader's cached image off another's URL. Two timestamps landing in the same
- * millisecond would have shared one. See `avatar.ts`.
- *
- * `private` because the response is scoped to one reader's session: a shared
- * cache must never hold it.
+ * decisions/025-custom-avatar.md
  */
 const CACHE_CONTROL = "private, max-age=31536000, immutable";
 

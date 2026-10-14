@@ -3,7 +3,11 @@ import { MatchPage, type MatchPageOptions, matchMetadata } from "@/components/ma
 
 export const dynamic = "force-dynamic";
 
-/** `/ulkomaat/ottelu/:id` — football-data rows whose competition is a foreign one. */
+/**
+ * `/ulkomaat/ottelu/:id`: football-data rows whose competition is a foreign one.
+ *
+ * decisions/019-match-page.md
+ */
 const ROUTE = {
   source: { kind: "football-data", region: "foreign" },
   basePath: "/ulkomaat",

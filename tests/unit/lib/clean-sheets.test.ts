@@ -3,7 +3,13 @@ import { cleanSheetSeries } from "@/lib/clean-sheets";
 import { formSeries } from "@/lib/form-series";
 import { calculateStandings, type NormalizedMatch } from "@/lib/standings";
 
-/** A finished match on `day` of September; the day is what orders them. */
+/**
+ * Clean sheets over a season: the series and its running share.
+ *
+ * decisions/034-clean-sheets.md
+ */
+
+// A finished match on `day` of September; the day is what orders them.
 function result(
   day: number,
   home: number,
@@ -26,10 +32,8 @@ function result(
   };
 }
 
-/**
- * Team 1 concedes 0, 1, 0, 2, 0 — three clean sheets in five, the last of them
- * away. Listed out of order on purpose; kickoff decides.
- */
+// Team 1 concedes 0, 1, 0, 2, 0 — three clean sheets in five, the last of them
+// away. Listed out of order on purpose; kickoff decides.
 const season = [
   result(3, 1, 4, 2, 0),
   result(1, 1, 2, 3, 0),

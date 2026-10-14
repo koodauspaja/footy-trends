@@ -9,6 +9,12 @@ import {
   TRACK,
 } from "@/components/charts/bar-chart";
 
+/**
+ * The bar chart's geometry.
+ *
+ * decisions/033-home-vs-away.md
+ */
+
 const rows: BarRow[] = [
   {
     label: "Pisteitä / ottelu",

@@ -2,6 +2,12 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { StageSelect } from "@/components/stage-select";
 
+/**
+ * The stage selector of a cup's match list.
+ *
+ * decisions/014-champions-league.md
+ */
+
 const stages = ["LEAGUE_STAGE", "QUARTER_FINALS", "FINAL"];
 
 function renderSelect(

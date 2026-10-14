@@ -1,5 +1,12 @@
 import { expect, test } from "@playwright/test";
 
+/**
+ * The Maajoukkueet region, end to end: the World Cup's and the Euro's groups
+ * and brackets, with country names in Finnish.
+ *
+ * decisions/016-world-cup-and-euro.md
+ */
+
 test.describe("Maajoukkueet", () => {
   test("reaches the region from the landing page", async ({ page }) => {
     await page.goto("/");

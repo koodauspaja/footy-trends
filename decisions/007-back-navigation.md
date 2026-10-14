@@ -35,3 +35,12 @@ Sourcery's other suggestion — wrapping page content in `<main>` for a11y landm
 - 12 integration tests unaffected (this feature touches no data layer).
 - 17 e2e tests passing, including three new cases: the header's "Etusivu" link from a non-home page, the round surviving `/sarjataulukko` → `/ottelut`, and the "Sarjataulukkoon" link surviving `/sarjataulukko` → `/joukkue/:id` → back.
 - Manual verification against a real dev server: confirmed "Etusivu" renders on the picker, and both "Etusivu" and "Sarjataulukkoon" render on `/ottelut` and `/joukkue/:id`.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/page-context.ts` at `dc74e3e` by #531.
+
+- **`resolveBasePageContext`.** Called once from `generateMetadata` and once
+  from the page, which Next.js invokes separately, but `getSeasonContext` is
+  wrapped in React's `cache()`, so the underlying fetch happens once per
+  request.

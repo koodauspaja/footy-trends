@@ -3,10 +3,14 @@ import { describe, expect, it } from "vitest";
 import { SiteFooter } from "@/components/site-footer";
 
 /**
- * The footer, from #302. It exists so the privacy policy is *reachable*: Google
- * requires that before the OAuth consent screen can leave Testing, and a page
- * nothing links to is reachable only by someone who knows the URL.
+ * The footer. It exists so the privacy policy is reachable: Google requires
+ * that before the OAuth consent screen can leave Testing, and a page nothing
+ * links to is reachable only by someone who knows the URL.
+ *
+ * decisions/302-privacy-policy-and-footer.md
+ * decisions/303-terms-and-attribution.md
  */
+
 describe("SiteFooter", () => {
   it("links to the privacy policy, on its Finnish URL", () => {
     render(<SiteFooter />);
@@ -24,24 +28,15 @@ describe("SiteFooter", () => {
   });
 
   it("carries football-data.org's attribution on every page", () => {
-    /**
-     * Their free tier requires it in "a visible section of your application or
-     * website" (#303). The footer is on every page, which is the strongest
-     * reading of that; the terms page alone would be the weakest.
-     *
-     * In Finnish, because CLAUDE.md admits no exceptions. What their
-     * requirement actually needs is the credit — their name, visible, with a
-     * link — and that survives the translation.
-     */
+    // Their free tier requires the credit in "a visible section of your application or website",
+    // and the footer is on every page. In Finnish, as every string a reader sees is: what the
+    // requirement needs is their name, visible, with a link, and that survives the translation.
     render(<SiteFooter />);
 
     const footer = screen.getByRole("contentinfo");
-    /**
-     * A joint credit, deliberately drawing no line between the two. Both
-     * providers appear on `/maajoukkueet`, and a one-line footer that tries to
-     * say which is which gets it wrong — it did, twice, in opposite directions.
-     * The split lives on the terms page.
-     */
+    // A joint credit, deliberately drawing no line between the two: both
+    // providers appear on `/maajoukkueet`, and a one-line footer that says
+    // which is which gets it wrong. The split lives on the terms page.
     expect(footer.textContent).toContain("Tiedot tarjoaa football-data.org ja Suomen Palloliitto.");
     expect(screen.getByRole("link", { name: "football-data.org" })).toHaveAttribute(
       "href",

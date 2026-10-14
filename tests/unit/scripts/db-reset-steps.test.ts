@@ -6,10 +6,20 @@ import {
   type TestResetActions,
 } from "../../../scripts/db-reset-steps";
 
+/**
+ * The order of a database reset: what is refused before anything is destroyed,
+ * what is said when a later step fails, and what the test database's reset
+ * leaves out.
+ *
+ * decisions/399-local-commands-start-the-database.md
+ * decisions/404-reset-only-the-compose-database.md
+ * decisions/406-safe-and-destructive-resets.md
+ */
+
 const LOCAL = "postgresql://postgres:secret@localhost:5432/footy-trends";
 const REMOTE = "postgresql://user:hunter2@altaria.proxy.rlwy.net:45459/railway";
 
-/** Every action recorded, nothing real — `steps` is the order things happened in. */
+// Every action recorded, nothing real: `steps` is the order things happened in.
 function actions(overrides: Partial<ResetActions> = {}): ResetActions & { steps: string[] } {
   const steps: string[] = [];
   const base: ResetActions & { steps: string[] } = {
@@ -40,11 +50,9 @@ function actions(overrides: Partial<ResetActions> = {}): ResetActions & { steps:
 
 describe("runReset", () => {
   it("says what was destroyed as soon as it is destroyed", async () => {
-    /**
-     * Everything after the volume goes can fail, and the data is gone in every
-     * one of those cases — so a notice printed only on success would be missing
-     * from exactly the runs that needed it. Raised in review on #405.
-     */
+    // Everything after the volume goes can fail, and the data is gone in every
+    // one of those cases, so a notice printed only on success would be missing
+    // from exactly the runs that needed it.
     const a = actions({ startContainers: () => false });
 
     expect(await runReset(a)).toBe(1);
@@ -73,11 +81,9 @@ describe("runReset", () => {
     expect(a.steps.filter((s) => !s.startsWith("out:"))).toEqual(["destroy", "start", "migrate"]);
   });
 
-  /**
-   * The tests that matter most here. This is the only command in the repository
-   * that deletes data on purpose, so what needs pinning is not the happy path —
-   * it is that every refusal happens *before* anything is destroyed.
-   */
+  // The tests that matter most here. This command deletes data on purpose, so
+  // what needs pinning is that every refusal happens before anything is
+  // destroyed.
   describe("refuses before destroying anything", () => {
     it("when the target is not this project's database", async () => {
       const a = actions({ url: REMOTE });
@@ -163,12 +169,9 @@ describe("runTestReset", () => {
     const a = testActions();
 
     expect(await runTestReset(a)).toBe(0);
-    /**
-     * No containers, no volume, no migrations — `ensureTestDatabase` rebuilds it
-     * at the start of the next run, so doing it here would repeat work the thing
-     * about to use it does anyway. That is the whole difference between a
-     * one-second command and a thirty-second one.
-     */
+    // No containers, no volume, no migrations: `ensureTestDatabase` rebuilds it
+    // at the start of the next run, so doing it here would repeat work the
+    // thing about to use it does anyway.
     expect(a.steps).toEqual([
       "drop",
       "out:The test database is gone. The next test run recreates and migrates it.",

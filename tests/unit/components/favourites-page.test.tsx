@@ -7,18 +7,26 @@ import {
 } from "@/components/favourites-page";
 
 /**
- * `/suosikit`'s list, from specs/026-favourites.md.
+ * `/suosikit`'s list. The cases worth most are a competition retired after
+ * someone favourited it and a team with no stored match: both must stay on the
+ * page, because an entry nobody can see is an entry nobody can remove.
  *
- * The two cases worth most here are the ones the rest of the feature cannot
- * show: a competition retired after someone favourited it, and a team with no
- * stored match. Both must stay on the page, because an entry nobody can see is
- * an entry nobody can remove.
+ * decisions/026-favourites.md
  */
+
 const { removeTeam, removeCompetition, refetch } = vi.hoisted(() => ({
   refetch: vi.fn(async () => {}),
   removeTeam: vi.fn<(source: string, id: number) => Promise<{ ok: boolean }>>(),
   removeCompetition: vi.fn<(region: string, code: string) => Promise<{ ok: boolean }>>(),
 }));
+
+const { reportClientError } = vi.hoisted(() => ({ reportClientError: vi.fn() }));
+
+vi.mock("@/lib/report-client-error", () => ({ reportClientError }));
+
+beforeEach(() => {
+  reportClientError.mockClear();
+});
 
 vi.mock("@/lib/auth-client", () => ({ useSession: () => ({ data: null, refetch }) }));
 vi.mock("@/lib/favourite-actions", () => ({
@@ -53,7 +61,8 @@ function renderPage(
 
 const removeButtons = () => screen.getAllByRole("button", { name: "Poista suosikeista" });
 
-/** The remove button in the row for `name` — position would count the other section's rows. */
+// The remove button in the row for `name`: position would count the other
+// section's rows.
 const removeRow = (name: string) => {
   const row = screen.getByText(name).closest("li");
   if (row === null) throw new Error(`No row for ${name}`);
@@ -108,12 +117,9 @@ describe("what it shows", () => {
   });
 
   it("names a team whose page we could not work out, without linking it", () => {
-    /**
-     * Name but no href: we know who it is, but not which region's page it
-     * belongs to — its competitions have left the registry. Saying
-     * `Joukkuetta ei löytynyt.` here would be false about a team we just
-     * named, and a link to nowhere is not the alternative.
-     */
+    // Name but no href: we know who it is, but not which region's page it belongs to,
+    // because its competitions have left the registry. `Joukkuetta ei löytynyt.` would
+    // be false about a team just named, and a link to nowhere is no alternative.
     renderPage({ teams: [{ ...ILVES, href: null }] });
 
     expect(screen.getByText("Ilves")).toBeInTheDocument();
@@ -178,7 +184,8 @@ describe("removing", () => {
   });
 
   it("treats a rejected invocation the same as a refusal", async () => {
-    removeCompetition.mockRejectedValue(new Error("network"));
+    const failure = new Error("network");
+    removeCompetition.mockRejectedValue(failure);
     renderPage({ teams: [] });
 
     fireEvent.click(screen.getByRole("button", { name: "Poista suosikeista" }));
@@ -187,6 +194,7 @@ describe("removing", () => {
       expect(screen.getByText("Poistaminen epäonnistui. Yritä uudelleen.")).toBeInTheDocument()
     );
     expect(screen.getByRole("link", { name: "Veikkausliiga" })).toBeInTheDocument();
+    expect(reportClientError).toHaveBeenCalledWith(failure, "favourites.remove");
   });
 
   it("clears an old failure when the next attempt works", async () => {

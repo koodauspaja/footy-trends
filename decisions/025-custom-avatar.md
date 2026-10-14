@@ -110,3 +110,168 @@ does not touch it — the boundary `tests/e2e/settings.spec.ts` documents for
 specs/024. What e2e does cover is the signed-out page and the route handler's
 401. Uploading a real photograph from a real phone is a manual staging check,
 listed on #268.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/db/schema.ts` at `a86c1cb` by #531.
+
+- **`bytea`.** A `Buffer` is what `sharp` produces and what the route handler
+  hands to a `Response`.
+- **`userAvatar`.** Image bytes have no business in a row read on every
+  session lookup.
+- **`user_avatar.version`.** `/api/avatar/me` is one URL for every reader, so
+  the query parameter is the only thing separating one reader's cached image
+  from another's. A millisecond timestamp collides across readers, and the
+  response is cached `private, immutable` for a year, so a shared browser
+  profile could serve the previous account's picture to the next one. A
+  random token cannot collide, and says nothing about when.
+
+Cut from `src/components/auth-controls.tsx` at `a86c1cb` by #531.
+
+- **The avatar in `AuthButtons`.** It extends the fallback chain by one. The
+  version rides on the session the browser already fetches, so it costs no
+  extra request.
+
+Cut from `src/components/settings-page.tsx` at `a86c1cb` by #531.
+
+- **`pictureInUse`.** The three states are the reader's own picture, then
+  Google's, then the name, so the sentence and the picture beside it cannot
+  disagree.
+- **`ProfilePicture`.** The stored image is served with a year-long
+  `immutable` cache, which is safe only because a new upload changes the URL.
+- **The chosen file.** A `<form action>` would hand the action a `FormData`
+  built from the DOM: one more place for the file to be missing, and
+  untestable outside a real browser.
+- **The size check in the browser.** Not validation: the server is the truth
+  for what gets stored. A reader who picks a 20 MB file is otherwise told
+  nothing, since a rejection cannot carry a reason.
+- **A rejected upload.** A dropped connection, a crashed server and Next's
+  body limit all arrive the same way, and in production the message is
+  redacted. A specific notice would be wrong more often than right; the size
+  case is caught before anything is sent.
+
+Cut from `src/lib/avatar.ts` at `ef7eb13` by #531.
+
+- **`avatar.ts`.** Postgres and not object storage or a volume: no new vendor,
+  no new secret, and deletion is a foreign-key cascade, so an account cannot
+  leave an orphaned image behind. That keeps the account deletion's
+  "irreversible and complete" promise true by construction and not by a
+  reconciliation job.
+- **`DATABASE_LIMIT_BYTES` and the threshold.** The arithmetic, measured while
+  scoping: an avatar is at most about 21 kB, since random noise is
+  incompressible and no photograph encodes worse at the same dimensions; with
+  row overhead, 24 kB. So 800 MB is roughly 33 000 readers with custom
+  pictures, against a whole database that was 21 MB. The threshold is there
+  so that the ratio changing is noticed by somebody, with the remaining 90%
+  of the limit left to react in. The next step when it fires is a Railway
+  volume.
+- **`warnIfTableIsGrowing`.** It runs after a successful upload, a rare write,
+  so the cost is one extra query on a path nobody waits on twice. A
+  diagnostic that can break the thing it watches is worse than none: the
+  avatar is already stored when it runs, and losing the warning costs a log
+  line where throwing would cost the reader their upload.
+- **The version in `saveAvatar`.** The same reasoning as the column's: one URL
+  for every reader, cached `private, immutable` for a year, so two avatars
+  saved in the same millisecond would have shared a URL. Randomness removes
+  the collision, and stops the URL disclosing when the picture was set.
+
+Cut from `src/lib/avatar-image.ts` at `ef7eb13` by #531.
+
+- **`avatar-image.ts`.** The pure half, so every rejection can be tested by
+  calling a function and not by driving a page. The numbers and the rejection
+  type sit in `avatar-limits.ts`; the comment there says what it cost to
+  learn.
+- **`MAX_INPUT_PIXELS`.** A few hundred kilobytes of PNG can declare
+  40000×40000, which sharp's own default limit (about 268 megapixels) would
+  attempt at roughly 800 MB of raw pixels. 40 MP covers every phone camera
+  and peaks around 120 MB.
+- **`isSupportedImage`.** The browser's `Content-Type` is the client's claim
+  about its own file and is not evidence: a renamed PDF arrives as
+  `image/png` for the asking.
+- **`processAvatar`.** A cap applied after decoding is not a cap. Every
+  rejection is a `reason` and not a message, because the strings are Finnish
+  UI copy and belong in the component. A second cap check on the buffer would
+  be a branch that cannot be taken, and an untestable branch reads as a
+  guarded case and not an impossible one.
+
+Cut from `src/lib/preferences.ts` at `ef7eb13` by #531.
+
+- **`getSessionExtrasFor`.** Separate from `getPreferencesFor` because it
+  runs inside better-auth's `customSession` on every `/api/auth/get-session`
+  call: reading a few columns and swallowing failure keeps a database blip
+  from turning a session lookup, and so the whole header, into an error. A
+  reader who cannot be redirected sees the region picker, the app's stock
+  behaviour, and one whose avatar version is missing gets the Google picture,
+  the fallback that already exists. The preference row and the avatar row are
+  independently optional, and joining from `user` keeps a missing preference
+  row from hiding a present avatar. Adding a field must not add a round trip
+  to every page load.
+
+Cut from `src/lib/session-extras.ts` at `ef7eb13` by #531.
+
+- **`session-extras.ts`.** better-auth's browser client is not typed for
+  server-side plugins, so `defaultRegion` and `avatarVersion` arrive as
+  `unknown` however the server declares them. That is worth narrowing and not
+  asserting: a region retired from the app must not redirect anyone, and a
+  version that is not a string or is empty must not become a URL. The cast
+  had been written twice, in `site-header.tsx` and `start-redirect.tsx`, and
+  the avatar added a third field-reader; three copies of a narrowing rule is
+  how one of them ends up narrower than the others.
+- **`unknown` parameters.** better-auth's own session type declares none of
+  these fields, so a parameter typed as "an object that might have them" has
+  no overlap with what callers hold and TypeScript rejects the call.
+- **`avatarSourceOf`.** The image is served `private, immutable` for a year
+  on a path that is the same for every reader, so the token does two jobs: a
+  new upload has to be a new URL, and one reader's cached picture must never
+  be reachable at another's URL. See `src/app/api/avatar/me/route.ts`.
+
+Cut from `src/app/settings/page.tsx` at `dc74e3e` by #531.
+
+- **`avatarVersion` on the settings page.** Read on the server like
+  everything else there; the version is what the preview URL carries.
+
+Cut from `src/lib/avatar-limits.ts` at `ef99862` by #531.
+
+- **`avatar-limits.ts`.** The exclusion is the same shape as the one at the
+  top of `regions.ts`. `avatar-image.ts` imports `sharp`, which reaches `fs`
+  and `child_process`; pulling any value out of it from `settings-page.tsx`,
+  a `"use client"` module, fails the build on those two modules. Measured:
+  importing `MAX_UPLOAD_BYTES` from `avatar-image.ts` took every page on the
+  site to a 500. Types are erased and could have stayed, but the value could
+  not, and a rule with an exception is one nobody can apply at a glance.
+- **`MAX_UPLOAD_BYTES`.** A 12-megapixel phone photograph is 3 to 5 MB as
+  JPEG, and the commonest upload there is must not bounce. Next's limit is
+  1 MB by default, which would make the number decorative; it is raised to
+  10 MB.
+
+Cut from `src/app/api/avatar/me/route.ts` at `ef99862` by #531.
+
+- **`/api/avatar/me`.** The same rule the write actions follow: there is no
+  id to guess and no ownership check to get wrong. It reads a session and
+  the database, and neither belongs on an edge runtime.
+- **`CACHE_CONTROL`.** A new upload produces a new URL, so the old one is
+  never requested again; without the version parameter this would pin a
+  stale picture for a year. The token is random and not a timestamp for a
+  second reason: the path is the same for every reader, so the parameter is
+  the only thing keeping one reader's cached image off another's URL, and
+  two timestamps landing in the same millisecond would have shared one. See
+  `avatar.ts`. The response is scoped to one reader's session.
+
+Cut from `src/components/start-redirect.tsx` at `ef99862` by #531.
+
+- **`defaultRegion` in `Redirect`.** The browser client is not typed
+  for server-side plugins, so the field `customSession` adds (see
+  `src/lib/auth.ts`) is narrowed by `defaultRegionOf`, the check wanted
+  regardless.
+
+## Moved from comments, 2026-10-07
+
+Cut from `next.config.ts` at `5b180e0` by #531.
+
+- **`bodySizeLimit`.** Without it the app's own 8 MB cap would be fiction:
+  Next rejects an oversized action body with a 413 before the action runs,
+  so every upload between 1 MB and 8 MB, which is most phone photographs,
+  would fail as a rejected invocation and not as the "image is too large"
+  notice, which would be unreachable except for files the client already
+  refused. 10 MB against a cap of 8: the gap absorbs multipart framing,
+  bytes on the wire that are not bytes of the image.

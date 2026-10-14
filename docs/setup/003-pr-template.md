@@ -1,102 +1,29 @@
-# 003 — Pull request template
+# 003 — Pull request template and workflow skills
 
 ## Goal
-Add a PR template that links every pull request to its GitHub Issue, spec file,
-and decisions file. Claude Code should fill most of this in automatically.
+
+Confirm that a new pull request starts from the template, and know where the
+working agreements live. Nothing is created here: both arrive with the clone.
+
+| What | Where |
+|---|---|
+| The pull request template | `.github/PULL_REQUEST_TEMPLATE.md` |
+| How a pull request is opened, reviewed and handed over | `skills/open-pr.md` |
+| The workflow for a feature, a chore, a bug and a release | `CLAUDE.md`, and the `skills/` it names |
 
 ---
 
-## Step 1 — Create the PR template
+## Step 1 — Confirm the template loads
 
-Create file: `.github/PULL_REQUEST_TEMPLATE.md`
-
-```markdown
-## Linked issue
-Closes #<!-- issue number -->
-
-## Spec
-`specs/<!-- NNN-feature-name.md -->`
-
-## Decision record
-`decisions/<!-- NNN-feature-name.md -->`
-
-## Summary
-<!-- What was built? One or two sentences. Written by the coding agent. -->
-
-## How to verify
-<!-- What should a reviewer check? Written by the coding agent. -->
-- [ ]
-- [ ]
-
-## Checklist
-- [ ] Spec file exists and is linked above
-- [ ] Decision record exists and is linked above
-- [ ] Tests written and passing
-- [ ] UI strings are in Finnish
-- [ ] No API keys or secrets committed
-- [ ] No console.log left in code
-```
-
----
-
-## Step 2 — Commit the template
-
-```bash
-git add .github/PULL_REQUEST_TEMPLATE.md
-git commit -m "chore: add PR template"
-git push origin main
-```
-
----
-
-## Step 3 — Instruct Claude Code to use it
-
-Add this to your `skills/` folder as a reusable instruction for Claude Code.
-
-Create file: `skills/open-pr.md`
-
-```markdown
-# Skill: opening a pull request
-
-When you have finished implementing a feature and tests are passing, open a pull
-request using the following steps:
-
-1. Create a feature branch named `feature/NNN-short-description` where NNN is the
-   **spec** number — the `NNN` in `specs/NNN-feature-name.md`, not the issue
-   number. The two matched in the first few features and have not for a long
-   time.
-
-   That is what keeps the trail lined up: the branch, `specs/NNN-*.md`,
-   `decisions/NNN-*.md` and the pull request all carry the same number, so any
-   one of them leads to the rest.
-
-   **Chores and bugs use the issue number** instead, because they have no spec —
-   `chore/172-branch-naming-spec-number`, `bug/220-freshness-deleted-files`. The
-   asymmetry is deliberate: each kind of branch is numbered by the document that
-   defines it, and for a chore or a bug that document is the issue.
-2. Commit all changes with a conventional commit message, e.g.
-   `feat: add standings form table (#NNN)`.
-3. Push the branch and open a PR against main.
-4. Fill in the PR template:
-   - Link the GitHub Issue number
-   - Link the spec file path
-   - Link the decisions file path
-   - Write a one or two sentence summary of what was built
-   - List the steps a reviewer should take to verify the feature works
-5. Do not merge the PR yourself. Leave it for human review.
-```
-
-```bash
-git add skills/open-pr.md docs/setup/003-pr-template.md
-git commit -m "chore: add open-pr skill and update setup instructions"
-git push origin main
-```
+Open a draft pull request from any branch. Its description starts with
+`## Linked issue`. Close it without merging.
 
 ---
 
 ## Done when
-- [ ] PR template appears automatically when opening a new PR
-- [ ] `skills/open-pr.md` committed to repo
+
+- [ ] A new pull request opens with the template
 
 ## Next
-→ `004-sourcery-setup.md`
+
+→ `012-project-init.md`

@@ -1,16 +1,11 @@
 import type { CompetitionRegion } from "./competitions";
 
 /**
- * Finnish names for the national teams football-data.org reports in English.
+ * Finnish names for the national teams football-data.org reports in English:
+ * every country in World Cup 2026 and Euro 2024. TASO has its own map below.
  *
- * Covers every country appearing in World Cup 2026 and Euro 2024, which is the
- * full set the app can currently reach through that provider. See
- * specs/016-world-cup-and-euro.md.
- *
- * TASO needs its own map — `FINNISH_TASO_TEAM_NAMES` below — and not this one.
- * An earlier version of this comment claimed TASO publishes Finnish names
- * throughout and that the national-team pages would get them for free. That is
- * true of most of it and wrong in the corner that matters; see there.
+ * decisions/016-world-cup-and-euro.md
+ * decisions/017-huuhkajat.md
  */
 const FINNISH_COUNTRY_NAMES: Record<string, string> = {
   Albania: "Albania",
@@ -75,25 +70,11 @@ const FINNISH_COUNTRY_NAMES: Record<string, string> = {
 };
 
 /**
- * Finnish names for the handful of national teams TASO reports in English.
+ * Finnish names for the handful of national teams TASO reports in English, in
+ * the spelling TASO itself uses elsewhere. Further English names go here.
  *
- * TASO is *mostly* Finnish, which is exactly what made this easy to miss:
- * every `maajp{YYYY}` bucket is Finnish throughout, and only the older
- * `maajp18` content — the 2019 Euro qualifiers and the 2020 Nations League —
- * carries English. Eight rows, four countries.
- *
- * Mapped to the spelling **TASO itself uses elsewhere**, not to
- * `FINNISH_COUNTRY_NAMES`'s. That map says `Bosnia ja Hertsegovina` while
- * TASO's own Finnish rows say `Bosnia-Hertsegovina`, and one country must not
- * read two ways on a single page — which is the whole defect being fixed here,
- * since `Greece` and `Kreikka` were both appearing.
- *
- * Helmarit reads the same buckets and needed five more: `Croatia`, `Cyprus`,
- * `Czech Republic`, `Portugal` and `Scotland`, all likewise from `maajp18`.
- * Three of those — Croatia, Portugal, Scotland — appear in Finnish elsewhere
- * in the same data, so leaving them would put one country under two spellings
- * on one page. Add any further English names here rather than starting a
- * second map.
+ * decisions/017-huuhkajat.md
+ * decisions/018-helmarit.md
  */
 const FINNISH_TASO_TEAM_NAMES: Record<string, string> = {
   "Bosnia and Herzegovina": "Bosnia-Hertsegovina",
@@ -107,12 +88,20 @@ const FINNISH_TASO_TEAM_NAMES: Record<string, string> = {
   Scotland: "Skotlanti",
 };
 
-/** A TASO team name in Finnish, unchanged when it already is. */
+/**
+ * A TASO team name in Finnish, unchanged when it already is.
+ *
+ * decisions/017-huuhkajat.md
+ */
 export function toFinnishTasoTeamName(tasoName: string): string {
   return FINNISH_TASO_TEAM_NAMES[tasoName] ?? tasoName;
 }
 
-/** Both sides of every match, with any English TASO name replaced. */
+/**
+ * Both sides of every match, with any English TASO name replaced.
+ *
+ * decisions/017-huuhkajat.md
+ */
 export function toFinnishTasoTeamNames<T extends { homeTeamName: string; awayTeamName: string }>(
   matches: T[]
 ): T[] {
@@ -125,25 +114,19 @@ export function toFinnishTasoTeamNames<T extends { homeTeamName: string; awayTea
 
 /**
  * A national team's Finnish name, or the provider's own name where there is no
- * translation.
+ * translation. Applied only to national-team competitions.
  *
- * Falling through rather than guessing: a country that qualifies later shows
- * under its English name, which is wrong but readable, where a mangled
- * translation would be neither. Add it to the map instead.
- *
- * Applied only to national-team competitions. Club names are proper nouns and
- * are never translated — `Paris Saint-Germain` stays as it is.
+ * decisions/016-world-cup-and-euro.md
  */
 export function toFinnishCountryName(providerName: string): string {
   return FINNISH_COUNTRY_NAMES[providerName] ?? providerName;
 }
 
 /**
- * A match list with both team names in Finnish.
+ * A match list with both team names in Finnish. Applied once, where the data
+ * enters a page.
  *
- * Applied once where the data enters a page, so standings, the bracket, the
- * match list and the team page all read from the same translated rows rather
- * than each translating at render time.
+ * decisions/016-world-cup-and-euro.md
  */
 export function toFinnishTeamNames<T extends { homeTeamName: string; awayTeamName: string }>(
   matches: T[]
@@ -159,8 +142,7 @@ export function toFinnishTeamNames<T extends { homeTeamName: string; awayTeamNam
  * The match list a region should render: translated for national teams, left
  * alone everywhere else.
  *
- * Club names are proper nouns — `Paris Saint-Germain FC` stays as it is — so
- * the region, not the competition, decides.
+ * decisions/016-world-cup-and-euro.md
  */
 export function localiseForRegion<T extends { homeTeamName: string; awayTeamName: string }>(
   matches: T[],

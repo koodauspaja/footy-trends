@@ -120,3 +120,71 @@ Checked against the running app, not only tests:
 - No English opponent name; `Kroatia` and `Skotlanti` present.
 - `/maajoukkueet/huuhkajat` unchanged except its 2021 friendlies label.
 - Both routes build as `ƒ`, never prerendered.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/national-team.ts` at `a86c1cb` by #531.
+
+- **`national-team.ts`.** Pure functions only: the bucket table, category
+  discovery, the label rules, the Finland filter and the year grouping.
+  Fetching lives in `national-team-service.ts`, so every rule is testable
+  without a provider.
+- **`COMPETITION_IDS`.** 2021 breaks the pattern: it lives at `maajp18`, whose
+  categories report `season_id: 2021`. Deriving a season from an id is what
+  stored rows under 2018 while every read asked for 2021;
+  `seasonFromCompetitionId` was deleted for it and must not come back. The
+  `year` is the bucket's nominal season and not the year a match is filed
+  under: see `groupByPlayedYear`.
+- **`nationalTeamCategories`.** The set moves between buckets: Huuhkajat
+  carries `EC` in 2022–2024 and not after, Helmarit gains `WUNL` only from
+  2023, and `maajp18` holds three of its five. The suffix is also what keeps
+  the other team, the youth sides and futsal out. The label is resolved here,
+  with the name in hand: a second lookup later would need a fallback for a
+  key that came out of this very map.
+- **`competitionLabel`.** A trailing four-digit campaign year (`MM-karsinnat
+  2023` in the buckets up to 2024, plain `MM-karsinnat` from 2025) and a
+  leading `Muut ` (`Muut A-maaottelut` in `maajp18`, `A-maaottelut` from 2022)
+  are TASO's own wording variants. Rules and not an id-to-name table, which
+  would need an entry per bucket. Checked against all thirteen distinct
+  category names both teams produce: nothing else is touched. The `Muut` case
+  is a rename, not two competitions: the category id is identical either side
+  of it in every bucket. This superseded the earlier decision to show
+  provider labels exactly as spelled, taken when `Muut A-maaottelut` was the
+  only example.
+- **`isFinlandMatch`.** A category is not only Finland's matches, and on the
+  women's side two are entirely other teams': `maajp2024/Naiset-A` and
+  `maajp2025/WEC`. TASO publishes the name in Finnish already.
+- **`playedYear`, `groupByPlayedYear`.** A bucket is not a calendar year:
+  `maajp18` holds three years of Huuhkajat matches and four of Helmarit's,
+  reaching back to 2018. Filing them under the bucket's nominal season put a
+  2019 qualifier under a 2021 heading. Finnish local time, so a late kick-off
+  cannot be filed under one year and displayed under another.
+
+Cut from `src/lib/country-names.ts` at `ef7eb13` by #531.
+
+- **Helmarit's names in `FINNISH_TASO_TEAM_NAMES`.** Helmarit reads the same
+  buckets and needed five more: `Croatia`, `Cyprus`, `Czech Republic`,
+  `Portugal` and `Scotland`, all from `maajp18`. Croatia, Portugal and
+  Scotland appear in Finnish elsewhere in the same data, so leaving them
+  would put one country under two spellings on one page.
+
+Cut from `src/lib/national-team-service.ts` at `ef7eb13` by #531.
+
+- **Empty categories in `loadSeason`.** Thirteen of Helmarit's categories
+  return no rows at all, and two more hold only other teams' matches.
+- **Buckets in `getNationalTeamYears`.** `maajp18` holds three years of
+  Huuhkajat matches and four of Helmarit's.
+
+Cut from `src/components/national-team-page.tsx` at `dc74e3e` by #531.
+
+- **`NationalTeamPage`.** No season selector: 85 matches for each team, so a
+  reader scrolls and does not step through a dropdown. Sections are calendar
+  years, which is not the same as the provider's season buckets; `maajp18`
+  alone spans four of them. The two teams differ only in the category suffix
+  that selects their matches and in what the page is called.
+
+Cut from `src/app/national-teams/page.tsx` at `48ebab4` by #531.
+
+- **The national teams' picker entries.** `SUPPORTED_COMPETITIONS` is
+  football-data's list and feeds `kilpailu` validation, unlike the two
+  tournaments beside them.

@@ -123,3 +123,94 @@ That same distinction is why `x-real-ip` came back out of the default list. The
 principle is one line: **read a header only where the edge is known to overwrite
 it**, and "known" means a sentinel came back overwritten, not that the header
 looked plausible.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/auth.ts` at `a86c1cb` by #531.
+
+- **Why the address headers are configuration.** better-auth resolves an IP
+  from a single-value header on its own, but from `x-forwarded-for` only when
+  `trustedProxies` names the hops to skip. Behind Railway that header arrives
+  with two entries, so without help every visitor shares one rate-limit bucket
+  and one attacker locks everyone out. Measured on staging: the edge replaces
+  `x-forwarded-for`, it does not append, and sets `x-real-ip` beside it.
+- **The rule: read a header only where the edge is measured to overwrite it.**
+  A header the platform passes through is not a client address, it is a
+  request body. Trusting one lets an attacker rotate it for a fresh bucket per
+  request, worse than the shared bucket, where they at least share the limit.
+- **The measurement.** `192.0.2.1` (TEST-NET-1) was sent as each candidate and
+  `/api/health?forwarded=1` read: `x-real-ip` was overwritten by the edge,
+  matching forwarded entry 0; `x-envoy-external-address`, `cf-connecting-ip`
+  and `true-client-ip` arrived intact. So `x-real-ip` is the only default.
+  `x-envoy-external-address` was the default for one release, on the reasoning
+  that Railway fronts applications with Envoy; it does, but does not forward
+  that header, and an absent header a client may set is the worst case.
+- **Why both are read from the environment.** If a platform turns out to pass
+  a client-supplied `x-real-ip` through, the correction is a Railway variable
+  and not a release.
+- **`advanced.ipAddress`.** Without it every request resolves to no IP and
+  better-auth falls back to one shared per-path bucket, the warning in the
+  logs since the first production deploy. `trustedProxies` is passed only
+  when set: an empty array leaves chain mode disabled anyway, and an absent
+  option says more plainly that nothing is trusted.
+
+Cut from `src/lib/forwarding.ts` at `a86c1cb` by #531.
+
+- **Why `forwarding.ts` reports a shape and not the addresses.** better-auth
+  refuses to resolve a client IP from `x-forwarded-for` unless the header holds
+  exactly one entry or `trustedProxies` says which hops to skip, so choosing
+  the configuration needs to know how many hops arrive and of what kind. The
+  addresses would answer that too, but `/api/health` is public.
+- **Why it also compares the single-value headers.** The first round measured
+  two hops on Railway, both public, so there is no infrastructure hop to
+  recognise by its range and nothing to put in `trustedProxies`, which takes
+  literal addresses this never reports. That leaves the single-value headers,
+  which better-auth resolves with no proxy list. Whether one can be trusted
+  comes down to two things, both answered by an index: does it agree with a
+  hop the edge wrote, and does a value sent by the client survive to the app.
+- **`CandidateShape.matchesEntries`.** Reading agreement as provenance would
+  trust a spoofable header: a client who sets it to their own address agrees
+  with the chain for the same reason the edge would. The probe sends a
+  sentinel the client could not otherwise be, an address from TEST-NET-1
+  (`192.0.2.0/24`). Empty: the sentinel survived, so the client sets this
+  header and it must not be trusted. Non-empty: it was overwritten by
+  something matching a hop the edge wrote, and the indices say which hop it
+  names, so nothing has to assume leftmost. Every matching index and not the
+  first: a chain may carry one address twice, and `indexOf` would answer `0`
+  for `A, B, A` whichever occurrence the platform meant.
+- **`CANDIDATE_HEADERS`.** Not only `x-real-ip`: answering the question for one
+  header at a time costs a deployment per guess. Railway fronts applications
+  with Envoy, hence `x-envoy-external-address`; the two Cloudflare spellings
+  are there because a CDN in front of the platform is the other way this
+  shape changes.
+- **`IPV4_IN_IPV6`, and the expanded form in `parseAddress`.** Calling a mapped
+  private address public would put a real proxy hop on the wrong side of the
+  decision. The regex catches only the `::ffff:` spelling with a dotted tail,
+  and a proxy is free to emit either.
+- **`expandIpv6`.** Expanding, not pattern-matching the text, is what makes the
+  classification correct: link-local is `fe80::/10`, which spans `fe80`
+  through `febf`, and a prefix test on the string reports `fe90::1` as
+  public. The dotted tail is what makes `2001:db8::192.0.2.1` valid.
+- **`parseAddress`.** Canonical because the comparison is the point: the edge
+  may write `::ffff:203.0.113.5` in one header and `203.0.113.5` in another,
+  and two spellings of one address must not read as two hops.
+- **`isPrivateIpv4`.** A request from the public internet cannot have such a
+  source address, so those are the hops `trustedProxies` would skip.
+
+Cut from `src/app/api/health/route.ts` at `ef7eb13` by #531.
+
+- **`?forwarded` on the health endpoint.** A platform probe has no use for
+  it. It answers how many hops arrive in `x-forwarded-for`, which of them are
+  infrastructure, and which single-value header agrees with one the edge
+  wrote: better-auth refuses to resolve a client IP from a multi-hop header
+  unless `trustedProxies` says which to skip, and resolves a single-value
+  header with no proxy list at all.
+
+## Moved from comments, 2026-10-08
+
+Cut from `tests/unit/lib/forwarding.test.ts` at `ec04260` by #531.
+
+- **Two faults of the first classification.** Colons alone were enough for
+  a hop to be called public. And a valid IPv6 with a dotted tail was
+  rejected as invalid until the address was expanded and not
+  pattern-matched.

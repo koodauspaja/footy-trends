@@ -10,6 +10,13 @@ import {
   UNKNOWN_TEAM_NAME,
 } from "@/lib/match-detail";
 
+/**
+ * A match page's details: the score as printed, the declared winner,
+ * placeholder teams, the kickoff, and the context lines.
+ *
+ * decisions/019-match-page.md
+ */
+
 const teams = {
   homeTeamProviderId: 60901,
   homeTeamName: "VPS",

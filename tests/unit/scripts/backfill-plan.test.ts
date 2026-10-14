@@ -6,7 +6,18 @@ import {
   describeError,
   describeTarget,
   tasoSeasonsFor,
+  zonesConflict,
 } from "../../../scripts/backfill-plan";
+
+/**
+ * The backfill's pure decisions: which seasons to fetch and which to skip,
+ * which database a run targets and how that and an error are said, and what a
+ * reset needs first.
+ *
+ * decisions/169-production-backfill.md
+ * decisions/196-concurrent-group-syncs.md
+ * decisions/063-competition-zones.md
+ */
 
 describe("tasoSeasonsFor", () => {
   it("lists every season from the competition's own floor, newest first", () => {
@@ -159,5 +170,23 @@ describe("canSkip", () => {
 
   it("does not skip a future season", () => {
     expect(canSkip(10, 2027, 2026)).toBe(false);
+  });
+});
+
+describe("zonesConflict", () => {
+  it("lets the zone backfill run on its own", () => {
+    expect(zonesConflict(["--zones"])).toBeNull();
+  });
+
+  it.each([
+    ["--refetch", "--refetch"],
+    ["--reset", "--reset"],
+    ["--reset=railway", "--reset"],
+  ])("refuses it beside %s", (flag, named) => {
+    expect(zonesConflict(["--zones", flag])).toBe(`--zones cannot be combined with ${named}`);
+  });
+
+  it("does not take another flag that merely starts the same way for a reset", () => {
+    expect(zonesConflict(["--zones", "--resetting"])).toBeNull();
   });
 });

@@ -28,12 +28,21 @@ import {
   waitFor,
 } from "../../../scripts/services-plan";
 
+/**
+ * The decisions behind the local commands' database handling: which database a
+ * URL names, when Docker is asked anything, what a reset refuses, and how long
+ * a wait may run.
+ *
+ * decisions/399-local-commands-start-the-database.md
+ * decisions/400-one-command-setup.md
+ * decisions/404-reset-only-the-compose-database.md
+ * decisions/406-safe-and-destructive-resets.md
+ */
+
 const LOCAL = "postgresql://postgres:secret@localhost:5432/footy-trends";
 
-/**
- * Probes that record whether they were asked, so a test can assert that the
- * expensive ones were not. `answers` is what each returns when called.
- */
+// Probes that record whether they were asked, so a test can assert that the
+// expensive ones were not. `answers` is what each returns when called.
 function probes(answers: { postgres: boolean; available: boolean; running: boolean }) {
   const asked = { postgres: 0, available: 0, running: 0 };
   return {
@@ -53,13 +62,13 @@ function probes(answers: { postgres: boolean; available: boolean; running: boole
   };
 }
 
-/** Everything present and working, so each test can vary one thing. */
+// Everything present and working, so each test can vary one thing.
 const HEALTHY = { postgres: true, available: true, running: true };
 
-/** A local target, which is the case every Docker branch below assumes. */
+// A local target, which is the case every Docker branch below assumes.
 const LOCAL_TARGET = { targetIsLocal: true, url: LOCAL } as const;
 
-/** A valid Postgres URL that is not this machine's compose database. */
+// A valid Postgres URL that is not this machine's compose database.
 const REMOTE_TARGET = {
   targetIsLocal: false,
   url: "postgresql://user@db.example.com:5432/app",
@@ -95,11 +104,9 @@ describe("decidePreflight", () => {
   });
 
   it("never asks Docker anything when Postgres answers", async () => {
-    /**
-     * The whole reason the probes are functions. Asking `docker info` on the
-     * common path cost about 1.3s on every `npm run dev`, and a boolean
-     * signature could not express that it must not happen.
-     */
+    // The whole reason the probes are functions: asking `docker info` on the
+    // common path is slow on every `npm run dev`, and a boolean signature could
+    // not express that it must not happen.
     const p = probes(HEALTHY);
     await decidePreflight({ ci: false, ...LOCAL_TARGET, ...p });
 
@@ -161,11 +168,9 @@ describe("decidePreflight", () => {
 
 describe("decidePreflight, when DATABASE_URL is not a Postgres URL", () => {
   it("does not probe it, because the answer would not mean anything", async () => {
-    /**
-     * `http://localhost:5432/app` names a host and a port, so a Postgres
-     * listening there answers `select 1` — and the preflight would report ready
-     * for a URL the application cannot use. Raised in review on #402.
-     */
+    // `http://localhost:5432/app` names a host and a port, so a Postgres
+    // listening there answers `select 1`, and the preflight would report ready
+    // for a URL the application cannot use.
     const p = probes({ postgres: true, available: true, running: true });
     const decision = await decidePreflight({
       ci: false,
@@ -233,12 +238,9 @@ describe("decidePreflight, when DATABASE_URL is not this project's database", ()
   });
 
   it("does not even ask whether Docker is there", async () => {
-    /**
-     * Caught in review on #402. Starting the compose containers would bind this
-     * machine's 5432 with a database nobody is connecting to, and the probe
-     * would go on failing against the remote until the timeout — so the command
-     * fails anyway, a minute later, with two containers nobody asked for.
-     */
+    // Starting the compose containers would bind this machine's 5432 with a database nobody
+    // is connecting to, and the probe would go on failing against the remote until the
+    // timeout: the command fails anyway, later, with two containers nobody asked for.
     const p = probes({ postgres: false, available: true, running: true });
     await decidePreflight({ ci: false, ...REMOTE_TARGET, ...p });
 
@@ -336,12 +338,9 @@ describe("parseTarget", () => {
 
 describe("runsOnComposeServer", () => {
   it("matches the port docker-compose.yml actually publishes", () => {
-    /**
-     * The constant is a second copy of a value that lives in the compose file,
-     * so it gets a mechanism rather than a comment asking people to remember.
-     * Changing the published port without changing the constant would let
-     * `db:reset` refuse the real database, or worse, accept the wrong one.
-     */
+    // The constant is a second copy of a value that lives in the compose file, so it
+    // gets a mechanism and not a comment. Changing the published port without the
+    // constant would let `db:reset` refuse the real database, or accept the wrong one.
     const compose = readFileSync("docker-compose.yml", "utf8");
     const published = /-\s*"(\d+):(\d+)"/.exec(compose);
 
@@ -371,13 +370,9 @@ describe("runsOnComposeServer", () => {
   });
 
   it("rejects another Postgres on this machine, on a different port", () => {
-    /**
-     * Caught in review on #402. A hostname check alone let a second local
-     * Postgres through, and then both callers did the wrong thing: the
-     * preflight would start containers binding 5432 that cannot serve 6543,
-     * and db:reset would destroy this project's volume while the URL pointed
-     * somewhere else — reporting a fresh database it had never touched.
-     */
+    // A hostname check alone would let a second local Postgres through: the
+    // preflight would start containers binding 5432 that cannot serve 6543, and
+    // db:reset would destroy this project's volume while the URL pointed elsewhere.
     expect(runsOnComposeServer("postgresql://user@localhost:6543/app")).toBe(false);
   });
 
@@ -428,11 +423,9 @@ describe("resetRefusal", () => {
   it.each(["postgres", "footy-trends_test", "someone-elses-db"])(
     "refuses /%s on the compose server, before anything is destroyed",
     (name) => {
-      /**
-       * #404. The guard checked scheme, host and port but not the database
-       * name, so db:reset destroyed the volume and then migrated whichever
-       * database DATABASE_URL named — reporting success afterwards.
-       */
+      // The guard must check the database name as well as scheme, host and
+      // port: without it db:reset destroys the volume and then migrates
+      // whichever database DATABASE_URL names, reporting success.
       const refusal = resetRefusal(`postgresql://postgres:x@localhost:5432/${name}`);
 
       expect(refusal).toContain("not this project's database");
@@ -458,7 +451,7 @@ describe("resetRefusal", () => {
 });
 
 describe("waitFor", () => {
-  /** A clock the test moves, so no test waits for anything. */
+  // A clock the test moves, so no test waits for anything.
   function clock() {
     let nowMs = 0;
     return {
@@ -495,16 +488,9 @@ describe("waitFor", () => {
   });
 
   it("does not sleep at all once a slow probe has used the whole budget", async () => {
-    /**
-     * A probe that itself takes time can cross the deadline. Sleeping a further
-     * full interval after that made the reported wait exceed the timeout, so
-     * the message said "within 90s" after rather more than 90s. Caught in
-     * review on #402.
-     *
-     * The wait reported here is 2500 rather than 2000, and that is honest: the
-     * probe overran on its own. What the fix guarantees is that nothing sleeps
-     * *after* the deadline, which is the part this controls.
-     */
+    // A probe that itself takes time can cross the deadline, and nothing may
+    // sleep after it. The wait reported here is 2500, not 2000, and that is
+    // honest: the probe overran on its own.
     const slept: number[] = [];
     let nowMs = 0;
 
@@ -605,10 +591,9 @@ describe("effectiveDatabaseUrl", () => {
   });
 
   it("prefers TEST_DATABASE_URL for the suites, which may be a different server", () => {
-    // The suites derive their database from DATABASE_URL by suffixing the name —
-    // same server, so probing either is the same question. TEST_DATABASE_URL
-    // replaces that outright, and probing the wrong one would start local
-    // containers for a run that never touches them.
+    // The suites derive their database from DATABASE_URL by suffixing the name: same server, so
+    // probing either is the same question. TEST_DATABASE_URL replaces that outright, and
+    // probing the wrong one would start local containers for a run that never touches them.
     expect(effectiveDatabaseUrl({ forTests: true, testUrl: OVERRIDE, databaseUrl: DEV })).toBe(
       OVERRIDE
     );
@@ -697,11 +682,9 @@ describe("isComposeDatabase", () => {
     expect(isComposeDatabase(on(COMPOSE_DATABASE_NAME))).toBe(true);
   });
 
-  /**
-   * The bug in #404. Each of these reached the guard, destroyed the compose
-   * volume, then migrated the database the URL named — reporting the reset a
-   * success with the destructive step already done.
-   */
+  // Each of these names a database that is not this project's: resetting would
+  // destroy the compose volume and then migrate the database the URL named,
+  // with the destructive step already done.
   it.each(["postgres", "footy-trends_test", "someone-elses-db", ""])(
     "refuses /%s on the same server",
     (name) => {
@@ -748,21 +731,18 @@ describe("testResetRefusal", () => {
   });
 
   it("refuses any other database on that server", () => {
-    /**
-     * An earlier version allowed everything on the server that was not the dev
-     * or a system database, which was laxer than #406 described and meant a
-     * mistyped TEST_DATABASE_URL dropped whatever it named. Raised in review on
-     * #407.
-     */
+    // Only the test database: allowing everything on the server that is not the
+    // dev or a system database would let a mistyped TEST_DATABASE_URL drop
+    // whatever it named.
     const refusal = testResetRefusal(onCompose("footy-trends_scratch"));
 
     expect(refusal).toContain(`this command resets ${COMPOSE_TEST_DATABASE_NAME}`);
   });
 
   it.each(["postgres", "template0", "template1"])("refuses Postgres's own %s database", (name) => {
-    // Behaviour kept from the previous round; the exact-name rule now covers
-    // it rather than a separate list. `postgres` matters most: it is the
-    // database the drop connects *through* to issue its statement.
+    // The exact-name rule covers these with no separate list. `postgres`
+    // matters most: it is the database the drop connects through to issue its
+    // statement.
     expect(testResetRefusal(onCompose(name))).toContain("nothing else");
   });
 
@@ -796,11 +776,9 @@ describe("decideConfirmation", () => {
   });
 
   it("refuses when there is nobody to ask", () => {
-    /**
-     * Treating an unanswerable prompt as consent would make every scripted or
-     * agent-driven run a silent destruction of the developer's database, which
-     * is the case the confirmation exists for.
-     */
+    // Treating an unanswerable prompt as consent would make every scripted or
+    // agent-driven run a silent destruction of the developer's database, which
+    // is the case the confirmation exists for.
     expect(decideConfirmation({ yes: false, interactive: false })).toBe("refuse");
   });
 });

@@ -5,8 +5,8 @@ Use this skill for maintenance work that does not introduce a product feature,
 such as dependency updates, documentation changes, tooling changes, CI changes,
 refactoring, or repository configuration.
 
-Chores go directly from a GitHub issue to a pull request. They do not require a
-feature spec or a decision record.
+Chores go directly from a GitHub issue to a pull request. They have no feature
+spec, and write a decision record whenever they change something meaningful.
 
 When to use
 - A chore issue is ready to be implemented.
@@ -58,7 +58,15 @@ Workflow
    `chore/short-description`.
 4. Inspect the affected code, configuration, or documentation and make the
    smallest change that satisfies the issue.
-   - Keep code, comments, and documentation in English.
+   - Before changing code, look up why it is the way it is: the decision
+     records its comments link to, then `decisions/` and `specs/` searched for
+     its file and function names, then its history (`git log -L`, `git log -S`).
+     A normal step of every change, not a fallback.
+   - Keep code, comments, and documentation in English, and comments in the
+     shape `CLAUDE.md` gives.
+   - When the chore changes something meaningful, write
+     `decisions/NNN-short-name.md`, numbered by the issue. Records are added,
+     not edited: a later one says which earlier one it overrides.
    - Preserve existing project conventions and avoid unrelated cleanup.
 5. Add or update focused tests when the chore changes executable behavior.
 6. Run the relevant validation for the changed surface.
@@ -99,6 +107,10 @@ Workflow
    and closed with all eight boxes empty.
 
 9. Push the chore branch and open a pull request against `main`.
+   - **Before the push, review your own diff**: the pass in
+     `skills/self-review.md` and the `code-review` skill at its lowest effort,
+     with what they find fixed first, per `skills/open-pr.md` step 5. The pull
+     request's Checklist has a box for it.
    - **When the chore has an issue**, link it with a closing keyword —
      `Closes #NNN` (or `Fixes #NNN` / `Resolves #NNN`), never a bare `#NNN` or
      `Refs #NNN`. Only a closing keyword makes GitHub populate the PR↔issue
@@ -111,7 +123,8 @@ Workflow
      same reason. Then there is nothing to link, and nothing to tick.
    - Summarize what changed and why.
    - List the validation commands and their results.
-   - Mark the Spec and Decision record sections as `Not applicable - chore`.
+   - Mark the Spec section `Not applicable - chore`. Link the decision record,
+     or mark that section `Not applicable - chore` when there is none.
    - Do not create placeholder files in `specs/` or `decisions/`.
    - Move the card to `In Review` once the pull request is open.
 10. Leave the pull request for human review. **Never merge on your own
@@ -121,8 +134,9 @@ Workflow
     `skills/open-pr.md` — a `skipped` Sourcery check is a hard block unless
     every changed path is on that document's short allowlist of unreviewable
     files (documentation and workflows are **not** on it), unresolved review
-    threads must be read immediately before merging, and a light re-check
-    after fix commits is not a full review. Either Miikka or Kalle may be the
+    threads must be read immediately before merging, and the quick check
+    after a push is not a full review: `npm run check:sourcery -- <PR>` says
+    which one the head has, and must exit 0. Either Miikka or Kalle may be the
     reviewer.
 
 Important rules
@@ -131,7 +145,8 @@ Important rules
   not paperwork afterwards.
 - This workflow intentionally does not use `skills/write-spec.md` or create a
   file under `specs/`.
-- This workflow intentionally does not create a file under `decisions/`.
+- A file under `decisions/` is written only when the chore changes something
+  meaningful, and never as a placeholder.
 - Never begin implementation (branch creation, code, or tests) before the work
   is authorised — a human-set `Ready` card, or a human saying to start.
   Confirming scope in chat is neither of those. The AI never moves a card to

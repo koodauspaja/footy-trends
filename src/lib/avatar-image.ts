@@ -7,22 +7,17 @@ import {
 } from "@/lib/avatar-limits";
 
 /**
- * Turning whatever a reader picked into something we are willing to store, from
- * specs/025-custom-avatar.md.
+ * Turning whatever a reader picked into something we are willing to store.
+ * No database and no session. Nothing a client component imports may live
+ * here: `sharp` reaches `fs` and `child_process`.
  *
- * No database and no session — this is the half that is pure, so every
- * rejection can be tested by calling a function rather than by driving a page.
- *
- * **Nothing that a client component imports may live here.** `sharp` reaches
- * `fs` and `child_process`, so the numbers and the rejection type sit in
- * `avatar-limits.ts` instead — see the comment there for what it cost to learn.
+ * decisions/025-custom-avatar.md
  */
 
 /**
- * Bounds a decompression bomb: a few hundred kilobytes of PNG can declare
- * 40000×40000, which sharp's own default limit (~268 megapixels) would happily
- * attempt at roughly 800 MB of raw pixels. 40 MP covers every phone camera and
- * peaks around 120 MB.
+ * Bounds a decompression bomb: the most pixels sharp is allowed to attempt.
+ *
+ * decisions/025-custom-avatar.md
  */
 const MAX_INPUT_PIXELS = 40_000_000;
 
@@ -31,11 +26,10 @@ export type AvatarImageResult =
   | { ok: false; reason: AvatarRejection };
 
 /**
- * What the file actually is, read from its first bytes.
+ * What the file actually is, read from its first bytes, not from the
+ * browser's `Content-Type`.
  *
- * The browser's `Content-Type` is the client's claim about its own file and is
- * not evidence: a renamed PDF arrives as `image/png` for the asking. These four
- * are what we decode, and the check is on the bytes.
+ * decisions/025-custom-avatar.md
  */
 function isSupportedImage(bytes: Buffer): boolean {
   // PNG: \x89PNG\r\n\x1a\n
@@ -64,33 +58,25 @@ function isSupportedImage(bytes: Buffer): boolean {
 }
 
 /**
- * One upload, validated and re-encoded, or the reason it was refused.
+ * One upload, validated and re-encoded, or the reason it was refused. The
+ * order matters: the byte cap before anything decodes, the type from the bytes
+ * before sharp interprets them, then the pixel limit.
  *
- * The order is the point. The byte cap is applied before anything decodes,
- * because a cap applied after decoding is not a cap; the type is read from the
- * bytes before sharp is asked to interpret them; and the pixel limit bounds
- * what sharp will attempt even for a file that passed both.
- *
- * Every rejection is a `reason` rather than a message, because the strings are
- * Finnish UI copy and belong in the component.
+ * decisions/025-custom-avatar.md
  */
 export async function processAvatar(file: File): Promise<AvatarImageResult> {
   if (file.size === 0) return { ok: false, reason: "missing" };
   if (file.size > MAX_UPLOAD_BYTES) return { ok: false, reason: "too-large" };
 
-  // No second cap check on the buffer. `File.size` is derived from the bytes by
-  // the runtime that parsed the body, not claimed by the client, so a
-  // re-check here is a branch that cannot be taken — and an untestable branch
-  // reads as a guarded case rather than an impossible one.
+  // No second cap check on the buffer: `File.size` is derived from the bytes by
+  // the runtime that parsed the body, not claimed by the client.
   const uploaded = Buffer.from(await file.arrayBuffer());
   if (!isSupportedImage(uploaded)) return { ok: false, reason: "unsupported" };
 
   try {
     const bytes = await sharp(uploaded, { limitInputPixels: MAX_INPUT_PIXELS })
-      // Before the resize, so a phone photo is not stored on its side. This is
-      // also what drops EXIF — including the GPS coordinates a phone writes —
-      // because the orientation is applied to the pixels and the metadata is
-      // not carried into the output.
+      // Before the resize, so a phone photo is not stored on its side. This also
+      // drops EXIF, GPS coordinates included: the metadata is not carried over.
       .rotate()
       // `attention` crops by saliency rather than taking the middle, which is
       // the difference between keeping a face and keeping a chin.

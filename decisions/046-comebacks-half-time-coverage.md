@@ -30,3 +30,16 @@ Implementation notes for `specs/046-comebacks-half-time-coverage.md` (#473).
 light and dark, with no sideways scroll. The production figures in #473 (about 8
 of 84, and 1 of 84) are both below 40 %, so production will show the note too;
 that is read off the issue's own numbers, not seen on production.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/components/comebacks-section.tsx` at `dc74e3e` by #531.
+
+- **`ENOUGH`.** As a fraction, exactly 40 % is exact by construction and does
+  not rest on how a decimal happens to round.
+- **`enoughHalfTimeKnown`.** A season with no played match has nothing to
+  measure, and the figures' own `Ei vielä otteluita …` lines speak for it.
+- **`coverageNote`.** A numeral's case ending follows how the number is read
+  (`8:sta`, `84:stä`); `N ottelusta` is the same for one as for many.
+- **Too few known.** None at all is the case of an old football-data season,
+  or one stored before the half-time columns.

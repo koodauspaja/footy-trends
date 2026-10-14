@@ -133,7 +133,11 @@ threshold.
 The discovery lookup is cached through the existing `getCached` helper on
 the current-season TTL (`15 * 60` seconds), matching how
 `getCachedSeasonGroups` already caches. At most one extra TASO request per
-15 minutes, not one per render.
+15 minutes, not one per render, while TASO answers.
+
+A ceiling or context built because the lookup or the current season's sync
+failed is returned and not cached, so during an outage both are tried again on
+each request (`decisions/534-taso-season-fallback-cache.md`).
 
 ## Edge Cases
 
@@ -172,7 +176,9 @@ the current-season TTL (`15 * 60` seconds), matching how
 
 One extra TASO request per 15 minutes per competition, shared across all
 `/kotimaa` pages via the existing Redis cache. Negligible against the ~1 MB
-`getMatches` season response already fetched on the same TTL.
+`getMatches` season response already fetched on the same TTL. During a TASO
+outage the lookup is retried on each request instead, each attempt bounded by
+the provider request's timeout.
 
 No additional database queries: the "newest season with stored matches"
 fallback and default both read data the pages already load, or a single

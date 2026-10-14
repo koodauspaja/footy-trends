@@ -3,13 +3,14 @@ import { describe, expect, it } from "vitest";
 import Terms, { metadata } from "@/app/terms/page";
 
 /**
- * The terms of service, from #303.
+ * The terms of service page. It names both providers as the source of the data.
+ * Two tests assert something it deliberately does not say: that the app holds a
+ * licence from either.
  *
- * Two of these assert something the page deliberately does *not* say. The
- * providers' positions differ — football-data.org publishes a permission the app
- * meets, while the TASO arrangement is an open question (#307) — so the page
- * attributes both and claims a licence from neither.
+ * decisions/303-terms-and-attribution.md
+ * decisions/029-forced-season-refresh.md
  */
+
 describe("the terms of service", () => {
   it("renders without a session, because Google requires it reachable signed out", () => {
     render(<Terms />);
@@ -29,14 +30,9 @@ describe("the terms of service", () => {
   });
 
   it("splits the two sources the way the code actually does", () => {
-    /**
-     * `/maajoukkueet` mixes both providers, which the first version of this
-     * page got wrong: it credited football-data.org with the national teams.
-     * `national-team.ts` says otherwise — "These matches are TASO's while
-     * `/maajoukkueet/ottelu/:id` is football-data's" — so Huuhkajat's and
-     * Helmarit's own matches come from Palloliitto, and only the tournaments
-     * (MM, EM) come from football-data.org.
-     */
+    // `/maajoukkueet` mixes both providers, as `national-team.ts` says:
+    // Huuhkajat's and Helmarit's own matches come from Palloliitto, and only
+    // the tournaments (MM, EM) come from football-data.org.
     render(<Terms />);
 
     const body = document.body.textContent ?? "";
@@ -49,48 +45,23 @@ describe("the terms of service", () => {
   });
 
   it("claims no licence or permission from either provider", () => {
-    /**
-     * The page says where the data comes from and that the rights are theirs.
-     * It does not say the app has an agreement, because for TASO there is not
-     * one — see #307. Asserting a permission nobody granted would be worse than
-     * silence, so this test fails if such a claim appears.
-     */
+    // The page says where the data comes from and that the rights are theirs.
+    // It does not say the app has an agreement, because for TASO there is none:
+    // asserting a permission nobody granted would be worse than silence.
     render(<Terms />);
 
     const body = document.body.textContent ?? "";
-    /**
-     * Stems rather than whole words, because Finnish inflects: `luvalla`,
-     * `luvan`, `lisenssi`, `lisenssin`, `sopimuksella` are all the same claim
-     * wearing different endings, and a list of exact strings would miss most of
-     * them.
-     *
-     * `lupa` is listed separately from `luva` because of consonant gradation —
-     * the nominative keeps its `p` and the inflected forms do not, so a stem
-     * list built from `luvalla` alone lets "Meillä on lupa" straight through.
-     *
-     * Anchored at a word start, because the unanchored version matched
-     * `kuuluvat` — "belong to", which is the opposite claim and the very
-     * sentence this test wants the page to keep.
-     *
-     * A guard, not a proof: no pattern catches every way of implying
-     * permission. The assertion carrying the weight is the positive one below,
-     * that the page says the rights belong to the providers.
-     */
+    // Stems, because Finnish inflects, and `lupa` beside `luva` because of consonant gradation.
+    // Anchored at a word start: unanchored it matches `kuuluvat`, "belong to", the sentence the
+    // page must keep. A guard, not a proof: the positive assertion below carries the weight.
     expect(body).not.toMatch(/\b(lupa|luva|lisenss|sopimukse)/i);
     expect(body).toContain("oikeudet niihin");
   });
 
   it("warns that seasons older than the current one are never refetched", () => {
-    /**
-     * A real limit of the app, not boilerplate: a points deduction applied to a
-     * past season after we synced will not appear, which is why #150 exists.
-     *
-     * The wording matters and review caught it wrong. `needsRefresh` stops
-     * refreshing when `seasonId < activeSeasonId` — *older than the current
-     * one*, not *finished*. A season that has ended but is still the newest
-     * keeps refreshing on the interval, so "päättyneen kauden" claimed a limit
-     * the app does not have.
-     */
+    // A real limit of the app: a points deduction applied to a past season after it was
+    // synced will not appear. `needsRefresh` stops when `seasonId < activeSeasonId`, older
+    // than the current one and not merely finished, and the wording has to say that.
     render(<Terms />);
 
     expect(document.body.textContent).toContain("vanhempien kausien tietoja ei haeta uudelleen");

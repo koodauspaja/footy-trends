@@ -2,12 +2,13 @@ import { describe, expect, it } from "vitest";
 import { forwardingShape } from "@/lib/forwarding";
 
 /**
- * Reading the forwarding headers' shape, from #309.
+ * Reading the forwarding headers' shape. The point is what these do not return:
+ * `/api/health` is public, so the diagnostic answers
+ * "how many hops, and which are infrastructure" without ever reporting an address.
  *
- * The point of these is what they *do not* return. `/api/health` is public, so
- * the diagnostic answers "how many hops, and which are infrastructure" without
- * ever reporting an address.
+ * decisions/309-client-ip-resolution.md
  */
+
 const headersOf = (values: Record<string, string>) => new Headers(values);
 
 describe("forwardingShape", () => {
@@ -77,13 +78,12 @@ describe("forwardingShape", () => {
     ["IPv4-mapped public, expanded", "0:0:0:0:0:ffff:cb00:7105", "public"],
     // ::ffff:0:1 is not mapped — group six must be ffff, not group five.
     ["IPv6 that merely contains ffff", "ffff::1", "public"],
-    // Colons alone used to be enough to be called a public hop — the answer
-    // most likely to be acted on, and the hardest to notice is wrong.
-    // Valid IPv6 with a dotted tail — rejected as invalid until the address was
-    // expanded rather than pattern-matched.
+    // Valid IPv6 with a dotted tail: the address is expanded, not pattern-matched.
     ["IPv6 with an embedded IPv4 tail", "2001:db8::192.0.2.1", "public"],
     ["an embedded IPv4 that is not last", "2001:db8::1.2.3.4:abcd", "invalid"],
     ["an embedded IPv4 with a bad octet", "2001:db8::300.0.2.1", "invalid"],
+    // Colons alone must not make a hop public: that is the answer most likely to
+    // be acted on, and the hardest to notice is wrong.
     ["text with colons", "not:an:address", "invalid"],
     ["too few groups, uncompressed", "1:2:3:4:5:6:7", "invalid"],
     ["compression standing for nothing", "1:2:3:4:5:6:7:8::9", "invalid"],

@@ -11,29 +11,20 @@ type TasoSeasonOnlyControlsProps = {
   seasons: SeasonOption[];
   selectedSeasonId: number;
   /**
-   * Season → the competition the club played that season, where it differs
-   * from the one being shown.
-   *
-   * Promotion and relegation mean a club's seasons are spread across tiers, so
-   * picking a season on its Veikkausliiga page should land on the Ykkösliiga
-   * page it actually played — not on an empty one. Omitted on pages that are
-   * not a club's, where the competition never changes.
-   *
-   * Navigation only: a typed URL still renders the competition it names, and
-   * the plain GET fallback below keeps carrying the current one, which lands on
-   * a page that explains itself. See specs/022-teams-between-tiers.md.
+   * Season → the competition the club played that season, where it differs from
+   * the one being shown. Navigation only; omitted on pages that are not a
+   * club's.
    */
   seasonCompetitions?: Readonly<Record<number, string>>;
 };
 
 /**
  * Season-only selector shared by `/kotimaa/ottelut` and
- * `/kotimaa/joukkue/:id` — no round selector on either page (the season's
- * full match list is shown at once; see specs/009-veikkausliiga.md's
- * acceptance criteria, which describe both as listing "a season's
- * matches"/"a team's matches for a season", not a round-paginated view).
- * `actionPath` is the full target path, including a team id for the team
- * page — same reasoning as `TeamSeasonSelector`.
+ * `/kotimaa/joukkue/:id`: neither page has a round selector. `actionPath` is
+ * the full target path, including a team id for the team page.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/022-teams-between-tiers.md
  */
 export function TasoSeasonOnlyControls({
   actionPath,

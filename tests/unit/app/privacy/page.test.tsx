@@ -3,12 +3,14 @@ import { describe, expect, it } from "vitest";
 import Privacy, { metadata } from "@/app/privacy/page";
 
 /**
- * The privacy policy page, from #302.
+ * The privacy policy page. The assertions are about the claims, not the prose:
+ * each names a fact the code has to keep true, so changing the code without
+ * this page fails here.
  *
- * These assertions are about the **claims**, not the prose. Each one names a
- * fact the code has to keep true, so that changing the code without changing
- * this page fails here rather than silently making the policy a lie.
+ * decisions/302-privacy-policy-and-footer.md
+ * decisions/024-account-settings.md
  */
+
 describe("the privacy policy", () => {
   it("renders without a session, because Google requires it reachable signed out", () => {
     // No mocks: if this page ever reads a session, this test stops compiling or
@@ -18,14 +20,9 @@ describe("the privacy policy", () => {
     expect(screen.getByRole("heading", { name: "Tietosuojaseloste", level: 1 })).toBeVisible();
   });
 
-  /**
-   * One row per thing the schema stores, so a column added without a sentence
-   * here fails rather than quietly making the policy incomplete.
-   *
-   * The phrases are specific on purpose: "profiilikuva" alone would be
-   * satisfied by the *Google* picture and hide the uploaded one, and
-   * "Suosikkijoukkueesi" alone would hide favourite competitions.
-   */
+  // One row per thing the schema stores, so a column added without a sentence here fails. The
+  // phrases are specific: "profiilikuva" alone would be satisfied by the Google picture and
+  // hide the uploaded one, and "Suosikkijoukkueesi" alone would hide favourite competitions.
   it.each([
     ["user.name", "Nimi"],
     ["user.email", "sähköpostiosoite"],
@@ -61,8 +58,8 @@ describe("the privacy policy", () => {
   });
 
   it("points at the deletion that actually exists", () => {
-    // specs/024 ships `Poista tili`, and the cascades are covered by an
-    // integration test — so the page can promise it as fact.
+    // `Poista tili` ships, and the cascades are covered by an integration test,
+    // so the page can promise it as fact.
     render(<Privacy />);
 
     expect(screen.getAllByRole("link", { name: "Asetukset" }).length).toBeGreaterThan(0);
@@ -70,15 +67,9 @@ describe("the privacy policy", () => {
   });
 
   it("does not claim deletion reaches the log store, because it does not", () => {
-    /**
-     * Account deletion cascades through our database. It cannot reach entries
-     * Axiom already holds, and a page promising otherwise would be false for
-     * every reader who ever hit an error path.
-     *
-     * What makes that acceptable is the second half: the id is a random string,
-     * so once the account it referred to is gone, nothing can connect it to a
-     * person.
-     */
+    // Account deletion cascades through our database and cannot reach entries
+    // Axiom already holds, so the page may not promise otherwise. The id is a
+    // random string: once the account is gone, nothing connects it to a person.
     render(<Privacy />);
 
     const body = document.body.textContent ?? "";

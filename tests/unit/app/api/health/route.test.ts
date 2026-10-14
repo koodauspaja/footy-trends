@@ -1,6 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../../../support/warm-module";
 
+/**
+ * The health endpoint: the database and cache checks, the provider check asked
+ * for by parameter, the running commit and the forwarding diagnostic.
+ *
+ * decisions/085-release-workflow.md
+ * decisions/113-taso-key-monitor.md
+ * decisions/182-national-team-pages-not-prerendered.md
+ * decisions/309-client-ip-resolution.md
+ */
+
 const executeMock = vi.fn();
 const pingMock = vi.fn();
 const getCurrentSeasonMock = vi.fn();
@@ -37,12 +47,12 @@ async function loadGetRoute() {
   return module.GET;
 }
 
-/** The platform probe's request: no provider check asked for. */
+// The platform probe's request: no provider check asked for.
 function probeRequest() {
   return new Request("http://localhost/api/health");
 }
 
-/** A human asking the deeper question while debugging. */
+// A human asking the deeper question while debugging.
 function providerRequest() {
   return new Request("http://localhost/api/health?providers=1");
 }
@@ -179,11 +189,6 @@ describe("GET /api/health — provider check", () => {
     pingMock.mockResolvedValue("PONG");
   });
 
-  /**
-   * The season is discovered from TASO rather than derived from the clock: a
-   * calendar-year guess would report a false failure every January, before
-   * TASO publishes the new season.
-   */
   it("is not run at all for a plain probe, so routine checks never call the provider", async () => {
     const GET = await loadGetRoute();
 
@@ -203,6 +208,9 @@ describe("GET /api/health — provider check", () => {
     expect(signal).toBeInstanceOf(AbortSignal);
   });
 
+  // The season is discovered from TASO, not derived from the clock: a
+  // calendar-year guess would report a false failure every January, before TASO
+  // publishes the new season.
   it("asks the provider which season it publishes, naming no competition", async () => {
     getCurrentSeasonMock.mockResolvedValue(2026);
     const GET = await loadGetRoute();
@@ -221,17 +229,9 @@ describe("GET /api/health — provider check", () => {
     expect(body.checks.taso).toBe("ok");
   });
 
-  /**
-   * TASO has two failure shapes and only one of them throws.
-   *
-   * A stale or missing key is blocked by Cloudflare with a 403, which throws.
-   * But TASO's own API answers a bad request with **HTTP 200** and an error
-   * body — that parses fine and yields no recognisable season, so
-   * `getCurrentSeason` returns `null`. Awaiting it without looking reported the
-   * provider healthy on a response containing no data at all, which is the
-   * failure #113 exists to catch and the one a scheduled check would have
-   * slept through.
-   */
+  // TASO has two failure shapes and only one throws. A stale or missing key is
+  // a Cloudflare 403, which throws; a bad request is answered with HTTP 200 and
+  // an error body, which parses and leaves `getCurrentSeason` returning `null`.
   it("reports the provider as error when it answers with no recognisable season", async () => {
     getCurrentSeasonMock.mockResolvedValue(null);
     const GET = await loadGetRoute();
@@ -245,11 +245,9 @@ describe("GET /api/health — provider check", () => {
     );
   });
 
-  /**
-   * The gap #182 exposed: every page but one was fine, the endpoint reported
-   * everything healthy, and there was no way to ask whether the provider was
-   * reachable short of probing pages one at a time.
-   */
+  // Every page but one can be fine and the database healthy while the provider
+  // is unreachable: this is the way to ask, short of probing pages one at a
+  // time.
   it("reports the provider as error when it cannot be reached", async () => {
     getCurrentSeasonMock.mockRejectedValue(new Error("TASO request failed: 403"));
     const GET = await loadGetRoute();
@@ -261,11 +259,9 @@ describe("GET /api/health — provider check", () => {
     expect(loggerWarnMock).toHaveBeenCalledWith(expect.anything(), "TASO health check failed");
   });
 
-  /**
-   * Non-fatal on purpose: pages backed by stored rows keep serving, so a
-   * provider outage must not make the whole service look down to a platform
-   * health probe.
-   */
+  // Non-fatal on purpose: pages backed by stored rows keep serving, so a
+  // provider outage must not make the whole service look down to a platform
+  // health probe.
   it("stays 200 when only the provider is unreachable", async () => {
     getCurrentSeasonMock.mockRejectedValue(new Error("TASO request failed: 403"));
     const GET = await loadGetRoute();

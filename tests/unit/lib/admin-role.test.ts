@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_ROLE, isAdmin, isRole, ROLES } from "@/lib/admin-role";
 
 /**
- * The role vocabulary, from specs/028-admin-tools-and-roles.md.
+ * The role vocabulary. `isAdmin` is the one that earns real tests: it decides
+ * an authorisation, it takes `unknown` because the value arrives from a `text`
+ * column and from session payloads, and the direction it fails in matters.
  *
- * `isAdmin` is the one that earns real tests: it decides an authorisation, it
- * takes `unknown` because the value arrives from a `text` column and from
- * session payloads, and the direction it fails in matters more than anywhere
- * else in the app.
+ * decisions/028-admin-tools-and-roles.md
  */
+
 describe("the role vocabulary", () => {
   it("has exactly the two roles, and defaults to the harmless one", () => {
     // A third role is a design question rather than a column change; if one is

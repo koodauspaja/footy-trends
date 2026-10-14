@@ -3,21 +3,16 @@ import { paintsWithShade } from "../shared/hardcoded-colour";
 import { openAccountMenu, signedInAs } from "./session";
 
 /**
- * Every rendered string, measured against what is actually painted behind it,
- * in both colour schemes.
+ * Every rendered string, measured against what is painted behind it, in both colour
+ * schemes. jsdom has neither layout nor computed colours, so only a browser can. It
+ * walks the page, so a component added later is covered without being named.
  *
- * This exists because #273 shipped: the account menu pinned a white surface
- * while its text followed the theme, reaching 1.17:1 in dark mode. Light mode
- * looked fine, which is exactly why it got through — and 23 files carried the
- * same class of problem (#269).
- *
- * jsdom has neither layout nor computed colours, so this can only be a browser
- * test. It walks the page rather than naming elements, so a component added
- * later is covered without anyone remembering to add it here.
+ * decisions/269-colour-roles.md
  */
+
 const AA_NORMAL_TEXT = 4.5;
 
-/** Pages chosen for the roles they render, not for their data. */
+// Pages chosen for the roles they render, not for their data.
 const PAGES = [
   ["the region picker", "/"],
   ["a standings table", "/kotimaa/sarjataulukko?kilpailu=VL&kausi=2026"],
@@ -52,7 +47,7 @@ async function lowContrastText(page: Page): Promise<Offender[]> {
       return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
     };
 
-    /** One colour laid over another at `alpha`, which is what the GPU does. */
+    // One colour laid over another at `alpha`, which is what the GPU does.
     const over = (
       top: [number, number, number],
       alpha: number,
@@ -66,21 +61,9 @@ async function lowContrastText(page: Page): Promise<Offender[]> {
 
     const paints = (colour: string) => colour !== "rgba(0, 0, 0, 0)" && colour !== "transparent";
 
-    /**
-     * The two colours the reader's eye actually compares: the painted text,
-     * and the painted surface directly behind it.
-     *
-     * Opacity is why this is not simply `style.color` against the first
-     * ancestor that paints. CSS fades an element's **entire** subtree, its own
-     * background included, over whatever sits behind that element — so a fade
-     * is never applied to the text alone. Text and surface fade together
-     * toward the same backdrop, and the ratio between them collapses as both
-     * converge on it. A surface painted *outside* the fade does not move,
-     * while the text over it does.
-     *
-     * So each is faded by its own node's opacity and every ancestor's, never
-     * by a descendant's, and both are composited onto the page behind them.
-     */
+    // The two colours the eye compares: the painted text and the painted surface
+    // behind it. Each is faded by its own node's opacity and every ancestor's,
+    // never a descendant's, and both are composited onto the page behind them.
     const paintedPair = (
       element: Element,
       colour: [number, number, number]
@@ -174,32 +157,16 @@ async function expectLegible(page: Page, where: string, scheme: string) {
   ).toEqual([]);
 }
 
-/**
- * Tailwind emits a utility for every class-shaped string it finds while
- * scanning, and what it scans is configured rather than obvious.
- *
- * Left to auto-detect it reads the whole project: the table in
- * `tests/unit/app/theme-tokens.test.ts` that exists to *forbid* shades put six
- * of them into the shipped stylesheet, and `specs/024-account-settings.md`
- * added `.border-zinc-200`. Harmless to look at and wrong to leave — a grep of
- * the bundle for a shade should find nothing, and the source guard's own
- * fixtures should not be the thing that breaks that.
- */
+// Tailwind emits a utility for every class-shaped string it scans, and what it
+// scans is configured, not obvious. A grep of the bundle for a shade should find
+// nothing, and the source guard's own fixtures must not be what breaks that.
 test("ships no shade utility, whatever the source scan picks up", async ({ page }) => {
   await page.goto("/");
 
   const selectors = await page.evaluate(() => {
-    /**
-     * Every selector in the sheet, however deeply nested.
-     *
-     * Two traps, both hit while writing this. Tailwind emits its utilities
-     * inside one `@layer utilities` block, so matching the top-level rules
-     * finds nothing whatever the stylesheet contains — the first version of
-     * this test passed with six shades in the bundle. And in a browser that
-     * supports CSS nesting a plain `CSSStyleRule` *also* answers to
-     * `cssRules`, so treating "has cssRules" as "is not a style rule" throws
-     * away every selector there is. A rule can be both, and is read as both.
-     */
+    // Every selector in the sheet, however deeply nested: Tailwind's utilities sit
+    // in one `@layer utilities` block, and with CSS nesting a `CSSStyleRule` also
+    // answers to `cssRules`. A rule can be both, and is read as both.
     const selectorsOf = (rules: CSSRuleList): string[] =>
       [...rules].flatMap((rule) => [
         ...(typeof (rule as CSSStyleRule).selectorText === "string"
@@ -241,25 +208,18 @@ for (const scheme of ["light", "dark"] as const) {
       });
     }
 
-    /**
-     * `bg-surface` is painted by nothing at rest.
-     *
-     * Every use of it in the app is a `hover:` variant or sits inside the
-     * account menu, so a sweep of resting pages walks past the token entirely
-     * — including on the very panel whose colours started this (#273). Both
-     * states below are therefore part of the claim "every rendered string",
-     * not extras.
-     */
+    // At rest `bg-surface` is painted only on a table's current row: every other use is a
+    // `hover:` variant or inside the account menu, so a sweep of resting pages mostly walks
+    // past the token. Both states below are part of the claim "every rendered string".
     test("a hovered card keeps its text legible against the surface it paints", async ({
       page,
     }) => {
       await page.goto("/");
       const card = page.getByRole("link").filter({ hasText: "Kotimaa" }).first();
       await card.hover();
-      // Playwright leaves the pointer where it moved it, so `:hover` is live
-      // in the computed styles the sweep reads. Asserted rather than assumed,
-      // because a sweep of a card that never painted its surface would pass
-      // exactly as loudly as one that did.
+      // Playwright leaves the pointer where it moved it, so `:hover` is live in
+      // the computed styles. Asserted, because a sweep of a card that never
+      // painted its surface would pass as loudly as one that did.
       await expect(card).not.toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
 
       await expectLegible(page, "/ with a hovered region card", scheme);
@@ -278,16 +238,9 @@ for (const scheme of ["light", "dark"] as const) {
       await expectLegible(page, "the open account menu", scheme);
     });
 
-    /**
-     * The sweep's own alarm, checked rather than assumed.
-     *
-     * Opacity is the one way a colour can be wrong that no token controls, and
-     * the only place the app uses it today — `disabled:opacity-50` on the
-     * delete-account button — sits on a page this sweep cannot reach, because
-     * `/asetukset` reads its session on the server. Without this test the
-     * compositing above is unexercised code claiming coverage it never
-     * demonstrates.
-     */
+    // The sweep's own alarm, checked. Opacity is the one way a colour can be wrong that no token
+    // controls, and the only control disabled at rest is the delete-account button on `/asetukset`,
+    // which this sweep cannot reach: without this the compositing above is unexercised.
     test("catches text a fade makes illegible, which measuring the declared colour would miss", async ({
       page,
     }) => {
@@ -307,15 +260,9 @@ for (const scheme of ["light", "dark"] as const) {
       expect(offenders.map((offender) => offender.text)).toEqual(["Melkein näkymätön"]);
     });
 
-    /**
-     * The case that fading the text alone gets *backwards*.
-     *
-     * A panel that both paints a background and carries opacity fades as one
-     * group: its surface goes with its text. Measuring faded text against the
-     * panel's raw background reports a contrast the reader never sees — here a
-     * near-black surface behind pale grey text, which reads as excellent while
-     * the panel is in fact almost invisible. Both colours must be composited.
-     */
+    // The case fading the text alone gets backwards: a panel that paints a
+    // background and carries opacity fades as one group, so faded text against
+    // its raw background reports a contrast the reader never sees.
     test("catches a faded panel, whose surface fades along with its text", async ({ page }) => {
       await page.goto("/");
       await page.evaluate(() => {

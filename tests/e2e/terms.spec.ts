@@ -1,9 +1,12 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * The terms of service, from #303. Signed out throughout: Google requires both
- * this and the privacy policy reachable without an account.
+ * The terms of service. Signed out throughout: Google requires both this and
+ * the privacy policy reachable without an account.
+ *
+ * decisions/303-terms-and-attribution.md
  */
+
 test.describe("Terms of service", () => {
   test("opens without signing in", async ({ page }) => {
     await page.goto("/kayttoehdot");
@@ -20,10 +23,9 @@ test.describe("Terms of service", () => {
   });
 
   test("carries football-data.org's attribution on an ordinary page", async ({ page }) => {
-    // Their free tier asks for it in "a visible section of your application or
-    // website", so the check is on a standings page rather than on the terms.
-    // In Finnish, per CLAUDE.md — what their requirement needs is the credit,
-    // and their name and link both survive the translation.
+    // Their free tier asks for the credit in
+    // "a visible section of your application or website", so the check is on a standings
+    // page, not on the terms. In Finnish: their name and link both survive the translation.
     await page.goto("/ulkomaat/sarjataulukko");
 
     const footer = page.getByRole("contentinfo");

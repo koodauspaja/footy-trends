@@ -7,18 +7,10 @@ const HEADING = "Käyttöehdot";
 export const metadata: Metadata = { title: HEADING };
 
 /**
- * `/kayttoehdot`, from #303.
+ * `/kayttoehdot`. Public and static, as the privacy policy is. It attributes
+ * both data sources and claims no licence or agreement with either.
  *
- * Public and static, for the same reason as the privacy policy: Google requires
- * both reachable without signing in before an OAuth consent screen can leave
- * Testing.
- *
- * **What this page deliberately does not say.** It attributes both data sources
- * and states that the data is theirs, and it claims no licence or agreement with
- * either — because football-data.org's free tier is a published permission the
- * app meets, while the TASO arrangement is an open question recorded on #303.
- * Asserting a permission that has not been established would be worse than
- * saying nothing.
+ * decisions/303-terms-and-attribution.md
  */
 const SECTION = "mb-8";
 const HEADING_2 = "mb-3 font-semibold text-xl";

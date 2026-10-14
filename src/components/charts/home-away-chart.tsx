@@ -9,15 +9,20 @@ import { matchCountLabel } from "@/lib/national-team";
 import { BarChart, BarLegend, type BarRow } from "./bar-chart";
 import { formatDecimal, percentText } from "./line-chart";
 
-/** `2,11`: a season's per-match average, two decimals (specs/033, Q5). */
+/**
+ * `2,11`: a season's per-match average, two decimals.
+ *
+ * decisions/033-home-vs-away.md
+ */
 function perMatchText(value: number): string {
   return formatDecimal(value, 2);
 }
 
 /**
- * The four measures, each on its own fixed scale (specs/033, Q3): points 0–3,
- * the most possible; goals 0–4, which no stored top-tier side reached over a
- * season (3,12 at most); win % 0–100.
+ * The four measures, each on its own fixed scale: points 0–3, the most
+ * possible; goals 0–4; win % 0–100.
+ *
+ * decisions/033-home-vs-away.md
  */
 export const MEASURES = [
   { label: "Pisteitä / ottelu", max: 3, value: pointsPerMatch, text: perMatchText },
@@ -26,12 +31,20 @@ export const MEASURES = [
   { label: "Voittoprosentti", max: 100, value: winPercentage, text: percentText },
 ] as const;
 
-/** A measure's printed value: `–` for a side with no match yet, never `0` (Q7). */
+/**
+ * A measure's printed value: `–` for a side with no match yet, never `0`.
+ *
+ * decisions/033-home-vs-away.md
+ */
 export function measureText(value: number | null, text: (value: number) => string): string {
   return value === null ? "–" : text(value);
 }
 
-/** One row of the text alternative, per measure (specs/033, Q4). */
+/**
+ * One row of the text alternative, per measure.
+ *
+ * decisions/033-home-vs-away.md
+ */
 export function homeAwaySentence(label: string, home: string, away: string): string {
   return `${label}: kotona ${home}, vieraissa ${away}.`;
 }
@@ -39,6 +52,8 @@ export function homeAwaySentence(label: string, home: string, away: string): str
 /**
  * The team at home and away: a row per measure, a filled bar for home and an
  * outlined one for away, the values printed and listed as text.
+ *
+ * decisions/033-home-vs-away.md
  */
 export function HomeAwayChart({
   title,

@@ -3,14 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../../support/warm-module";
 
 /**
- * The `/suosikit` route itself, from specs/026-favourites.md. Without this file
- * it has no test, which vitest scores as 100% — it only measures files a test
- * imports — while Sonar correctly reports 0%.
+ * The `/suosikit` route itself: keys in, names and links out. The registry is real here,
+ * because "is this competition still one we have" is the question the page answers. A route
+ * file nothing imports is absent from the coverage report, so it has a test of its own.
  *
- * The route's own job is the resolving: keys in, names and links out. The
- * registry is real here rather than mocked, because "is this competition still
- * one we have" is the question the page exists to answer.
+ * decisions/026-favourites.md
  */
+
 const { getSession, getFavouriteKeys, resolveTeamNames, logger, state } = vi.hoisted(() => {
   const state = {
     signedIn: true,
@@ -228,11 +227,9 @@ describe("the favourites route", () => {
   });
 
   it("lists competitions in registry order, not the order they were favourited", async () => {
-    /**
-     * specs/026 promises the registry's own order. Query order is whatever the
-     * planner returns, so without sorting the page rearranges itself as the
-     * reader adds favourites.
-     */
+    // The registry's own order is promised. Query order is whatever the planner
+    // returns, so without sorting the page rearranges itself as the reader adds
+    // favourites.
     state.keys = { teams: [], competitions: ["kotimaa:M1L", "kotimaa:VL"] };
 
     await renderPage();
@@ -262,16 +259,9 @@ describe("the favourites route", () => {
   });
 
   it("lists teams alphabetically, by the Finnish collation", async () => {
-    /**
-     * The fixture is chosen so it can only pass one way. The Finnish alphabet
-     * ends Z, Å, Ä, Ö; UTF-16 puts Ä (U+00C4) before Å (U+00C5). So a plain
-     * `<` comparison answers `Ähtäri, ÅIFK` and only `localeCompare(…, "fi")`
-     * answers `ÅIFK, Ähtäri`.
-     *
-     * A `Zurich`/`Äänekoski` fixture would have proved nothing: both orderings
-     * agree there, which is how the first version of this test passed with the
-     * collation removed.
-     */
+    // The fixture can only pass one way. The Finnish alphabet ends Z, Å, Ä, Ö,
+    // and UTF-16 puts Ä before Å: a plain `<` answers `Ähtäri, ÅIFK`, and only
+    // `localeCompare(…, "fi")` answers `ÅIFK, Ähtäri`.
     state.keys = { teams: ["taso:1", "taso:2", "taso:3"], competitions: [] };
     state.names = [
       {

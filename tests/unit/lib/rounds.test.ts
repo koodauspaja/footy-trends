@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { listSelectableRounds, parseRoundParam, resolveCurrentRound } from "@/lib/rounds";
 
+/**
+ * A league's rounds: which are selectable, how the `kierros` parameter is read,
+ * and the current round.
+ *
+ * decisions/003-standings-after-selected-round.md
+ * decisions/005-listing-matches-for-selected-season.md
+ */
+
 describe("listSelectableRounds", () => {
   it("lists every round from 1 to the highest known matchday", () => {
     expect(listSelectableRounds(3)).toEqual([1, 2, 3]);
@@ -42,7 +50,8 @@ describe("parseRoundParam", () => {
   });
 
   it("rejects non-numeric and malformed values", () => {
-    for (const value of ["abc", "5.0", "5abc", " 5"]) {
+    // The last three are 5 to `Number()`, a round within the range.
+    for (const value of ["abc", "5abc", "2147483648", "5.0", " 5", "0x5", "5e0"]) {
       expect(parseRoundParam(value, 10)).toEqual({ kind: "invalid" });
     }
   });

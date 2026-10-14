@@ -2,11 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TeamPageSource } from "@/lib/team-context";
 
 /**
- * The grouped query runs against a real Postgres in
- * `tests/integration/team-seasons.test.ts`. These cover what surrounds it: the
- * category-to-competition mapping, the short-circuits, and the ordering the
- * selector depends on.
+ * What surrounds the grouped query: the category-to-competition mapping, the
+ * short-circuits, and the ordering the selector depends on. The query itself
+ * runs against a real Postgres in `tests/integration/team-seasons.test.ts`.
+ *
+ * decisions/022-teams-between-tiers.md
  */
+
 const groupedMock = vi.fn();
 const newestMock = vi.fn();
 const loggerErrorMock = vi.fn();
@@ -64,10 +66,9 @@ describe("getTeamSeasons", () => {
   });
 
   it("counts a competition once when a season spans two of its category eras", async () => {
-    // A competition outlives its own `category_id`; both eras are the same
-    // competition to a reader.
-    // `P21SM` has been published as `ASM`, `P20SM` and `P21SM` in turn — all
-    // three are one competition in the picker.
+    // A competition outlives its own `category_id`: `P21SM` has been published
+    // as `ASM`, `P20SM` and `P21SM` in turn, and all three are one competition
+    // in the picker.
     groupedMock.mockResolvedValue([
       { categoryId: "P20SM", seasonId: 2020, matches: 8 },
       { categoryId: "ASM", seasonId: 2020, matches: 4 },

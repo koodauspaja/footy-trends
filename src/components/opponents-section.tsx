@@ -7,7 +7,11 @@ import {
   type OpponentsSeries,
 } from "@/lib/head-to-head";
 
-/** The strings agreed in specs/045, each where the spec places it. */
+/**
+ * The group's strings.
+ *
+ * decisions/045-bogey-teams.md
+ */
 export const OPPONENTS_GROUP_HEADING = "Vastustajat";
 export const OPPONENTS_HEADING = "Vaikeimmat vastustajat";
 export const THRESHOLD_NOTE = `Vähintään ${BOGEY_MINIMUM_MEETINGS} kohtaamista.`;
@@ -20,7 +24,9 @@ type Row = OpponentRecord & { href: string };
 
 /**
  * `O`, `V`, `T` and `H` with the standings table's own titles, so a reader who
- * knows the table knows these (specs/045). `P/O` is the one this panel adds.
+ * knows the table knows these. `P/O` is the one this panel adds.
+ *
+ * decisions/045-bogey-teams.md
  */
 const NUMBERS: ReadonlyArray<{ header: string; title: string; value: (row: Row) => string }> = [
   { header: "O", title: "Ottelut", value: (row) => String(row.played) },
@@ -35,14 +41,11 @@ const NUMBERS: ReadonlyArray<{ header: string; title: string; value: (row: Row) 
 ];
 
 /**
- * A compact table rather than `DataTable`, deliberately.
+ * A compact table, not `DataTable`: it has no sibling to line up with, and
+ * with 40 px number columns all six fit a phone's width.
  *
- * `DataTable`'s fixed widths exist so sibling tables line up (specs/021), and
- * its 240 px floor for the name column put this one at 480 px — so at 375 px a
- * phone showed `O` and `V` and scrolled `P/O`, the figure the rows are ranked
- * by, out of sight. This table has no sibling to line up with, and at 40 px a
- * number column all six fit a phone's width: names wrap rather than push the
- * numbers away.
+ * decisions/021-table-consistency.md
+ * decisions/045-bogey-teams.md
  */
 function OpponentsTable({ rows }: Readonly<{ rows: readonly Row[] }>) {
   return (
@@ -84,9 +87,11 @@ function OpponentsTable({ rows }: Readonly<{ rows: readonly Row[] }>) {
 }
 
 /**
- * The `Vaikeimmat vastustajat` panel in `Analyysit` (specs/045): the club's
+ * The `Vaikeimmat vastustajat` panel in `Analyysit`: the club's
  * worst opponents across every stored season, each linking to the full
- * head-to-head. `null` means no panel: a national team's page (S5).
+ * head-to-head. `null` means no panel: a national team's page.
+ *
+ * decisions/045-bogey-teams.md
  */
 export function opponentsPanel(series: OpponentsSeries) {
   if (series.status === "unavailable") return null;

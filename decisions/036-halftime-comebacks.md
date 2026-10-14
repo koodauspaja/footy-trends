@@ -62,3 +62,50 @@ panel says how many it could not read.
   figures are asserted against the seeded season, which is rewritten every run;
   the live league is checked for `won + drew ≤ trailed ≤ played`, and for the
   no-data message when it has none.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/taso.ts` at `a86c1cb` by #531.
+
+- **`TasoProviderMatch.hts_A`.** Present for all but one of Ykkönen 2025's 132
+  played matches, and for all of Veikkausliiga 2015, 2019 and 2025: measured.
+
+Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
+
+- **`FinishedMatchRow`.** Not narrowed to `NormalizedMatch`, which is a subset
+  of the row, so `calculateStandings` and the rest still take one unchanged.
+
+Cut from `src/db/schema.ts` at `a86c1cb` by #531.
+
+- **`half_time_home`, `half_time_away`.** Nullable twice over. TASO omitted the
+  half-time score for 1 of 132 Ykkönen 2025 matches, and football-data
+  refuses older seasons outright. "No half-time score" and "0–0 at the break"
+  must stay distinguishable.
+
+Cut from `src/components/analytics-section.tsx` at `ef7eb13` by #531.
+
+- **Panels, not charts.** Most are charts; `Putket` and `Kääntyneet ottelut`
+  are lists of figures, which is why `AnalyticsSection` calls its parts
+  panels.
+
+Cut from `src/lib/comebacks.ts` at `dc74e3e` by #531.
+
+- **`comebacks.ts`.** Two directions, one question: the deficits a team
+  rescued and the leads it gave away. They are counted together because they
+  come out of the same column and the same matches, so a match missing a
+  half-time score is missing from both. Neither provider guarantees one:
+  football-data refuses older seasons outright, and TASO omitted it for 1 of
+  Ykkönen 2025's 132 played matches. A missing score and a goalless first
+  half must not look the same, so the panel says how many it could not read.
+  Counted over exactly the matches the other result panels count; the
+  services pass them in.
+
+## Moved from comments, 2026-10-07
+
+Cut from `scripts/backfill.ts` at `5b180e0` by #531.
+
+- **`--refetch`.** It exists for a column added after production was
+  filled, the half-time score, where every stored row is complete by the old
+  definition and empty by the new one; without it such a column stays null
+  until each season happens to become the active one again. `--reset` is the
+  other way to the same place, and throws the rows away first.

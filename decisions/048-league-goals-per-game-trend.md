@@ -50,3 +50,42 @@ Premier League and Veikkausliiga signed in, at 375 px in light and dark and at
 full label at the right edge, and on the phone Veikkausliiga's labels thinned to
 every other one from 2026. The World Cup, the men's cup and the Liigacup show no
 `Analyysit` at all.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/match-service.ts` at `a86c1cb` by #531.
+
+- **`getGoalsPerGame`.** A failed read is its own case, never "too few". A
+  TASO competition is read over every category id the registry has published
+  it under, and each season keeps only the `(competition_id, category_id)`
+  pair the registry names for it: a competition renamed or re-coded between
+  seasons is one line, and a category reused by another competition in
+  another season is not counted.
+
+Cut from `src/components/charts/line-chart.tsx` at `a86c1cb` by #531.
+
+- **`ChartPoint.marked`.** The season a page is showing.
+- **`xTickNote`.** `(kesken)` under the season in progress.
+- **`thinXTicksOnPhone`.** Counting back from the last tick means the latest
+  season and its note always show.
+- **The overhang in `LineChart`.** A label or note wider than twice the margin
+  would run off the drawing. No chart before this feature needed it.
+
+Cut from `src/components/competition-analytics.tsx` at `dc74e3e` by #531.
+
+- **`CompetitionAnalyticsSection`'s sign-in rules.** The ones the team
+  page's `Analyysit` follows: no section at all on a competition the feature
+  does not name; the gate is asked before anything is read, so a signed-out
+  page carries no value; one prompt, not one per panel. Awaited by the pages
+  and not rendered, as `AnalyticsSection` is: an async component nested in
+  JSX is not something every renderer can draw.
+
+Cut from `src/lib/goals-per-game.ts` at `dc74e3e` by #531.
+
+- **`COMPETITIONS`.** The domestic cups and the national teams are out by
+  choice, the World Cup and the Euro because each has one stored edition and
+  a line needs two.
+- **`halfStepAxis`.** Zoomed and not from 0, because the reader's question is
+  the change, and from 0 a league moving between 2,6 and 3,0 draws a flat
+  line. Doubling first makes a boundary value such as 2,5 land on itself and
+  not on a neighbouring step.

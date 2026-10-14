@@ -6,6 +6,15 @@ import {
   toFinnishTeamNames,
 } from "@/lib/country-names";
 
+/**
+ * Country names in Finnish: football-data's, and the few TASO reports in
+ * English.
+ *
+ * decisions/016-world-cup-and-euro.md
+ * decisions/017-huuhkajat.md
+ * decisions/018-helmarit.md
+ */
+
 describe("toFinnishCountryName", () => {
   it("translates the names that actually differ", () => {
     expect(toFinnishCountryName("Netherlands")).toBe("Alankomaat");
@@ -70,11 +79,9 @@ describe("toFinnishTeamNames", () => {
 });
 
 describe("toFinnishTasoTeamName", () => {
-  /**
-   * TASO is mostly Finnish, and only the older `maajp18` content — the 2019
-   * Euro qualifiers and the 2020 Nations League — carries English. Eight rows,
-   * four countries. See specs/017-huuhkajat.md.
-   */
+  // TASO is mostly Finnish, and only older `maajp18` content carries English:
+  // the men's 2019 Euro qualifiers and 2020 Nations League, and Helmarit's
+  // matches of 2018 to 2021.
   it("translates the nine names TASO reports in English", () => {
     expect(toFinnishTasoTeamName("Croatia")).toBe("Kroatia");
     expect(toFinnishTasoTeamName("Cyprus")).toBe("Kypros");
@@ -87,12 +94,9 @@ describe("toFinnishTasoTeamName", () => {
     expect(toFinnishTasoTeamName("Bosnia and Herzegovina")).toBe("Bosnia-Hertsegovina");
   });
 
-  /**
-   * The defect this fixes was one country reading two ways on one page:
-   * `Greece` in 2019 and `Kreikka` in a later year. Mapping to TASO's own
-   * Finnish spelling is what keeps them identical — `FINNISH_COUNTRY_NAMES`
-   * would have produced `Bosnia ja Hertsegovina` here and reintroduced it.
-   */
+  // One country must not read two ways on one page, `Greece` in 2019 and
+  // `Kreikka` in a later year, so the map uses TASO's own Finnish spelling:
+  // `FINNISH_COUNTRY_NAMES` would produce `Bosnia ja Hertsegovina` here.
   it("matches the spelling TASO itself uses elsewhere", () => {
     expect(toFinnishTasoTeamName("Bosnia and Herzegovina")).toBe(
       toFinnishTasoTeamName("Bosnia-Hertsegovina")
@@ -100,20 +104,16 @@ describe("toFinnishTasoTeamName", () => {
     expect(toFinnishTasoTeamName("Republic of Ireland")).toBe(toFinnishTasoTeamName("Irlanti"));
   });
 
-  /**
-   * Three of Helmarit's English names appear in Finnish elsewhere in the same
-   * data, so leaving them would put one country under two spellings on one
-   * page — the defect this map exists to prevent.
-   */
+  // Three of Helmarit's English names appear in Finnish elsewhere in the same
+  // data, so leaving them would put one country under two spellings on one page
+  // — the defect this map exists to prevent.
   it("collapses the three that TASO spells both ways", () => {
     expect(toFinnishTasoTeamName("Croatia")).toBe(toFinnishTasoTeamName("Kroatia"));
     expect(toFinnishTasoTeamName("Portugal")).toBe(toFinnishTasoTeamName("Portugali"));
     expect(toFinnishTasoTeamName("Scotland")).toBe(toFinnishTasoTeamName("Skotlanti"));
   });
 
-  /**
-   * These are the same word in both languages and must not be "corrected".
-   */
+  // These are the same word in both languages and must not be "corrected".
   it("leaves names identical in Finnish alone", () => {
     for (const name of [
       "Albania",

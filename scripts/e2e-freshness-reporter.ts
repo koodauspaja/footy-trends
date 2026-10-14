@@ -2,9 +2,15 @@ import { readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { FullConfig, FullResult, Reporter, Suite } from "@playwright/test/reporter";
 import { fingerprint } from "./e2e-freshness-git";
-import { isFullRun, MARKER_PATH } from "./e2e-freshness-plan";
+import { changedBetweenFingerprints, isFullRun, MARKER_PATH } from "./e2e-freshness-plan";
+import { e2eTarget, vouchesForAPush } from "./e2e-target";
 
-/** Spec files on disk, so a run narrowed to one file is not mistaken for all of them. */
+/**
+ * Spec files on disk, so a run narrowed to one file is not mistaken for all of
+ * them.
+ *
+ * decisions/084-e2e-freshness-before-push.md
+ */
 function availableSpecFiles(testDir: string, readdir: ReporterDeps["readdir"]): string[] {
   return readdir(testDir)
     .filter((name) => name.endsWith(".spec.ts"))
@@ -13,25 +19,25 @@ function availableSpecFiles(testDir: string, readdir: ReporterDeps["readdir"]): 
 
 /**
  * The filesystem and git this reporter touches, injected so that a test can
- * drive it without a Playwright run or a marker on disk (#403).
+ * drive it without a Playwright run or a marker on disk.
  *
- * Playwright constructs a reporter with its configured options, and this one is
- * configured with none — so the defaults are what production uses, and the
- * parameter exists for the test.
+ * decisions/403-coverage-exclusions-that-earn-it.md
+ * decisions/568-e2e-against-a-production-build.md
  */
 export type ReporterDeps = {
   readdir: (directory: string) => string[];
   fingerprint: () => string[] | null;
   writeMarker: (contents: string) => void;
   now: () => Date;
+  /** Whether the server under test was built by this run. */
+  builtWhatItTested: () => boolean;
 };
 
 /**
- * The real filesystem and git.
+ * The real filesystem and git. `markerPath` is a parameter so a test can use a
+ * throwaway file.
  *
- * `markerPath` is a parameter so a test can exercise this wiring against a
- * throwaway file: writing the real marker would either vouch for a run that
- * never happened or destroy the record of one that did.
+ * decisions/403-coverage-exclusions-that-earn-it.md
  */
 export function reporterDeps(markerPath: string = MARKER_PATH): ReporterDeps {
   return {
@@ -39,27 +45,30 @@ export function reporterDeps(markerPath: string = MARKER_PATH): ReporterDeps {
     fingerprint: () => fingerprint(),
     writeMarker: (contents) => writeFileSync(markerPath, contents),
     now: () => new Date(),
+    builtWhatItTested: () => vouchesForAPush(e2eTarget(process.env.E2E_TARGET)),
   };
 }
 
 /**
  * Records that the whole e2e suite passed, for the pre-push hook to read.
+ * Nothing is written unless the run passed, covered every spec file, built
+ * the server it ran against, and ended on the files it started with.
  *
- * Wired into `playwright.config.ts` rather than chained onto the `test:e2e`
- * script with `&&`, because npm appends a script's extra arguments to the end
- * of the whole command — `npm run test:e2e -- --grep x` would have handed
- * `--grep x` to the marker writer instead of to Playwright.
- *
- * Nothing is written unless the run both passed and covered every spec file. A
- * marker from a filtered run would claim a freshness it did not earn, and the
- * hook would then wave through a push whose changes were never exercised.
+ * decisions/084-e2e-freshness-before-push.md
+ * decisions/242-freshness-compares-content.md
+ * decisions/568-e2e-against-a-production-build.md
  */
 export default class E2eFreshnessReporter implements Reporter {
   private covered = false;
   private readonly deps: ReporterDeps;
+  /** The watched files before the server was built, or `null` when no marker can follow. */
+  private readonly atStart: string[] | null;
 
   constructor(deps: Partial<ReporterDeps> = {}) {
     this.deps = { ...reporterDeps(), ...deps };
+    // Playwright constructs its reporters before it starts the server, so this
+    // is what the build is made from.
+    this.atStart = this.deps.builtWhatItTested() ? this.deps.fingerprint() : null;
   }
 
   onBegin(config: FullConfig, suite: Suite): void {
@@ -77,17 +86,15 @@ export default class E2eFreshnessReporter implements Reporter {
 
   onEnd(result: FullResult): void {
     if (result.status !== "passed" || !this.covered) return;
+    if (this.atStart === null) return;
 
-    // The marker records the *content* of the watched trees, not where git is
-    // keeping it. The hook compares hashes, so committing what the run already
-    // covered is invisible (#242), while a deletion still shows as an entry
-    // that disappeared (#220).
-    //
-    // A fingerprint git cannot produce is no fingerprint: writing one that
-    // cannot be checked is worse than writing none, because the hook would
-    // have to trust it.
+    // The marker records the content of the watched trees, not where git keeps it.
+    // A fingerprint git cannot produce is no fingerprint, so nothing is written.
     const files = this.deps.fingerprint();
     if (files === null) return;
+
+    // A file edited while the suite ran is not in the build the suite tested.
+    if (changedBetweenFingerprints(this.atStart, files).length > 0) return;
 
     this.deps.writeMarker(
       `${JSON.stringify({ finishedAt: this.deps.now().toISOString(), files })}\n`

@@ -41,7 +41,8 @@ not secrets — only the key itself needs an environment variable.
 
 ## Step 3 — Store the key in Railway
 
-1. Go to Railway → project → app service → **Variables** tab
+1. Go to Railway → `staging` → app service → **Variables** tab (production
+   shares the same key: 021)
 2. Click **+ New Variable**
 3. Name: `TASO_API_KEY`
 4. Value: paste the scraped key
@@ -116,4 +117,4 @@ looked at it, so a response with no data at all passed.
       `competition_id` returns data, not a 403
 
 ## Next
-→ Back to `specs/009-veikkausliiga.md` for the feature implementation.
+→ `014-google-oauth-setup.md`

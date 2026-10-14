@@ -5,18 +5,36 @@ import type { HomeBaseline } from "@/lib/home-baseline";
 import type { FootballDataMatchRow, MatchPageData } from "@/lib/match-service";
 import { warmModules } from "../../../../../support/warm-module";
 
+/**
+ * A foreign match's page: its details, its earlier meetings and the prediction
+ * for a match still to play.
+ *
+ * decisions/019-match-page.md
+ * decisions/051-home-win-baseline.md
+ * decisions/057-surprise-index.md
+ */
+
 const getMatchPageDataMock = vi.fn<() => Promise<MatchPageData>>();
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
 const getHomeBaselineMock = vi.fn<() => Promise<HomeBaseline>>();
 const canSeeAnalyticsMock = vi.fn<() => Promise<boolean>>();
+const getMatchSurpriseMock = vi.fn<() => Promise<number | null>>();
 
 vi.mock("@/lib/match-service", () => ({
   getMatchPageData: getMatchPageDataMock,
   getHomeBaseline: getHomeBaselineMock,
 }));
 
+vi.mock("@/lib/elo-service", () => ({
+  getEloRatings: async () => ({ status: "ok", ratings: new Map() }),
+}));
+
 vi.mock("@/lib/analytics-access", () => ({
   canSeeAnalytics: canSeeAnalyticsMock,
+}));
+
+vi.mock("@/lib/surprise-service", () => ({
+  getMatchSurprise: getMatchSurpriseMock,
 }));
 
 vi.mock("@/lib/football-data", () => ({
@@ -95,7 +113,7 @@ describe("/ulkomaat/ottelu/:id", () => {
     });
   });
 
-  it("puts an upcoming match's prediction after its details and before the meetings (specs/051, S6)", async () => {
+  it("puts an upcoming match's prediction after its details and before the meetings", async () => {
     canSeeAnalyticsMock.mockResolvedValue(true);
     getHomeBaselineMock.mockResolvedValue({
       status: "ok",
@@ -123,7 +141,33 @@ describe("/ulkomaat/ottelu/:id", () => {
     expect(getHomeBaselineMock).toHaveBeenCalledWith("football-data", "PL");
   });
 
-  it("has no prediction on a finished match (specs/051, S3)", async () => {
+  it("says under a finished match's score what Elo gave the result", async () => {
+    canSeeAnalyticsMock.mockResolvedValue(true);
+    getMatchSurpriseMock.mockResolvedValue(0.08);
+
+    await renderPage();
+
+    const line = screen.getByText(/^Elo antoi tälle tulokselle 8\s%\.$/);
+    const score = screen.getByText("2–1");
+    const kickoff = screen.getByText(/^14\.02\.2026 klo/);
+    expect(score.compareDocumentPosition(line)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(line.compareDocumentPosition(kickoff)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(getMatchSurpriseMock).toHaveBeenCalledWith({
+      source: "football-data",
+      match: expect.objectContaining({ providerMatchId: 497001 }),
+    });
+  });
+
+  it("says nothing about Elo signed out, and reads nothing", async () => {
+    canSeeAnalyticsMock.mockResolvedValue(false);
+
+    await renderPage();
+
+    expect(screen.queryByText(/Elo antoi/)).not.toBeInTheDocument();
+    expect(getMatchSurpriseMock).not.toHaveBeenCalled();
+  });
+
+  it("has no prediction on a finished match", async () => {
     await renderPage();
 
     expect(screen.queryByRole("heading", { name: "Ennuste" })).not.toBeInTheDocument();

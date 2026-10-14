@@ -4,19 +4,11 @@ import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN, e2eOverrideAllowed } from "@/lib/e
 import { logger } from "@/lib/logger";
 
 /**
- * Who may see analytics: **signed-in readers only.** Miikka, 2026-09-18: *"all
- * analytics are for signed in users only"* (specs/030).
+ * Who may see analytics: signed-in readers only. Decided on the server, before
+ * anything is computed; a session that cannot be read counts as signed out.
+ * The e2e suite's override is the one exception.
  *
- * Decided on the server, before anything is computed, so a signed-out page
- * carries no analytics data at all — hiding it in the browser would publish it
- * anyway.
- *
- * A session that cannot be read counts as signed out: failing closed shows a
- * reader the sign-in prompt, where failing open would show analytics to
- * someone who is not signed in.
- *
- * The one exception is the e2e suite's, and `e2e-analytics.ts` says why it
- * cannot reach production.
+ * decisions/030-league-position-by-matchday.md
  */
 export async function canSeeAnalytics(): Promise<boolean> {
   if (e2eOverrideAllowed(process.env)) {

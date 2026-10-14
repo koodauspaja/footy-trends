@@ -9,8 +9,9 @@ import {
 import { decodeChoice } from "@/lib/refresh-view";
 
 /**
- * Which competitions the forced refresh offers, from
- * specs/029-forced-season-refresh.md.
+ * Which competitions the forced refresh offers.
+ *
+ * decisions/029-forced-season-refresh.md
  */
 
 describe("listCompetitionOptions", () => {

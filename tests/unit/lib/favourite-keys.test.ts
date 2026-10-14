@@ -10,10 +10,11 @@ import {
 } from "@/lib/favourite-keys";
 
 /**
- * What a favourite is, from specs/026-favourites.md.
+ * What a favourite is. The keys arrive from a session payload the client cannot
+ * vouch for, so the parsing half is about what must be refused, not what round
+ * trips.
  *
- * These keys arrive from a session payload the client cannot vouch for, so the
- * parsing half is about what must be refused rather than what round trips.
+ * decisions/026-favourites.md
  */
 
 describe("teamKey", () => {

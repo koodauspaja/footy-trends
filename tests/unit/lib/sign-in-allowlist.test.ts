@@ -2,17 +2,24 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { allowedSignInEmails, refusesSignIn, signInRefusal } from "@/lib/sign-in-allowlist";
 import { SIGN_IN_NOT_ALLOWED } from "@/lib/sign-in-refusal";
 
+const { logger } = vi.hoisted(() => ({ logger: { warn: vi.fn() } }));
+
+vi.mock("@/lib/logger", () => ({ logger }));
+
 /**
- * Who may sign in, from #314.
+ * Who may sign in. The variable is read on every call, not at import, so these
+ * stub it per test: that property is the point of the design, and one of the
+ * tests.
  *
- * The variable is read on every call rather than at import, so these stub it
- * per test — that property is the point of the design and one of the tests.
+ * decisions/314-sign-in-allowlist.md
  */
+
 beforeEach(() => {
   // Stubbed empty rather than trusted to be absent: a developer with this set
   // locally to exercise the feature would otherwise fail every unrestricted
   // case, and the failure would look like a bug in the code under test.
   vi.stubEnv("AUTH_ALLOWED_EMAILS", "");
+  logger.warn.mockReset();
 });
 
 afterEach(() => {
@@ -106,11 +113,28 @@ describe("signInRefusal", () => {
     expect(signInRefusal("stranger@example.fi")).toEqual({ error: SIGN_IN_NOT_ALLOWED });
   });
 
+  it("logs a refusal, and the address is nowhere in the line", () => {
+    vi.stubEnv("AUTH_ALLOWED_EMAILS", "miikka@example.fi");
+
+    signInRefusal("stranger@example.fi");
+
+    expect(logger.warn.mock.calls).toEqual([
+      ["Sign-in refused: the address is not on the allowlist"],
+    ]);
+  });
+
+  it("logs nothing for an admitted identity", () => {
+    vi.stubEnv("AUTH_ALLOWED_EMAILS", "miikka@example.fi");
+
+    signInRefusal("miikka@example.fi");
+
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
   it("reflects a variable changed after the module was imported", () => {
     // The environment as it is when asked, not as it was when the module was
-    // imported. On Railway this saves no restart — a variable change redeploys
-    // the service either way — but it is what lets these tests change the
-    // variable between cases, and it removes import order from the answer.
+    // imported: that lets these tests change the variable between cases, and
+    // removes import order from the answer.
     expect(signInRefusal("kalle@example.fi")).toBeUndefined();
 
     vi.stubEnv("AUTH_ALLOWED_EMAILS", "miikka@example.fi");

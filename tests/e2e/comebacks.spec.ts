@@ -2,25 +2,26 @@ import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 
 /**
- * The team page's `Kääntyneet ottelut` panel (specs/036, specs/037), end to
- * end: deficits rescued and leads given away. Signed in the way
- * league-position.spec.ts explains.
+ * `Kääntyneet ottelut` on the team page, end to end. Signed in the way league-position.spec.ts
+ * explains. Exact figures come from the seeded 2017 season, whose half-time scores are the same
+ * on every machine; a live league is checked only for the invariants.
  *
- * **The exact figures are asserted against the seeded 2017 season**, not
- * against a live one. Half-time scores arrive with a sync, and a past season
- * that already has stored rows is never refetched — so on one machine a live
- * season has them and on another it does not, which is no basis for an exact
- * assertion. The fixture is rewritten before every run, so its half-time
- * scores are the same everywhere. A live league still gets checked, for the
- * invariants that hold whatever it stores.
+ * decisions/036-halftime-comebacks.md
+ * decisions/037-blown-leads.md
+ * decisions/038-season-against-history.md
+ * decisions/039-streak-records.md
+ * decisions/045-bogey-teams.md
+ * decisions/046-comebacks-half-time-coverage.md
+ * decisions/424-analytics-panel-groups.md
  */
 
 const HEADING = "Kääntyneet ottelut";
-/** Fixture HJK, in the seeded season — see tests/e2e/fixtures/veikkausliiga-2017.ts. */
+// Fixture HJK, in the seeded season: see
+// tests/e2e/fixtures/veikkausliiga-2017.ts.
 const FIXTURE_TEAM = "/kotimaa/joukkue/990001?kilpailu=VL&kausi=2017";
-/** Fixture KuPS, the same season. */
+// Fixture KuPS, the same season.
 const FIXTURE_OTHER_TEAM = "/kotimaa/joukkue/990002?kilpailu=VL&kausi=2017";
-/** Fixture Ilves, which surrendered two leads and never rescued a deficit. */
+// Fixture Ilves, which surrendered two leads and never rescued a deficit.
 const FIXTURE_THIRD_TEAM = "/kotimaa/joukkue/990003?kilpailu=VL&kausi=2017";
 const LIVE_TEAM = "/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024";
 
@@ -28,7 +29,7 @@ async function signedIn(page: Page): Promise<void> {
   await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
 }
 
-/** The panel's figures, by their label. */
+// The panel's figures, by their label.
 async function figures(page: Page): Promise<Record<string, string>> {
   const panel = page.getByRole("region", { name: HEADING });
   await panel.waitFor();
@@ -49,13 +50,9 @@ test.describe("Comebacks, signed in", () => {
   });
 
   test("counts both directions, and says which match it cannot read", async ({ page }) => {
-    /**
-     * Fixture HJK's three league matches: trailed 0–1 and won, led 1–0 and won,
-     * and one with no half-time score. The lead it held shows as a total with
-     * neither outcome beneath it, because it did not give that lead away. The
-     * knockout match it also came from behind to win is not a league match, so
-     * counting it would make the first figure two.
-     */
+    // Fixture HJK's three league matches: trailed 0–1 and won, led 1–0 and won, and
+    // one with no half-time score. The lead it kept shows as a total with neither
+    // outcome beneath it. Its knockout comeback is not a league match: not counted.
     await page.goto(FIXTURE_TEAM);
 
     expect(await figures(page)).toEqual({
@@ -123,7 +120,7 @@ test.describe("Comebacks, signed in", () => {
 
     if (Object.keys(shown).length === 0) {
       // Stored before the half-time columns existed, and not backfilled here:
-      // too few known to show, so the coverage note instead (specs/046).
+      // too few known to show, so the coverage note instead.
       await expect(panel).toContainText(/Puoliaikatulos on tiedossa vain \d+ ottelusta/);
       return;
     }
@@ -135,9 +132,8 @@ test.describe("Comebacks, signed in", () => {
   });
 
   test("comes last in Kausi kokonaisuutena", async ({ page }) => {
-    // Placed within its #424 group, not counted from the end of Analyysit:
-    // every later panel moved the end, and this test with it (specs/038,
-    // specs/039, specs/045).
+    // Placed within its group, not counted from the end of Analyysit: every
+    // later panel moves the end.
     await page.goto(FIXTURE_TEAM);
     const subheadings = page
       .getByRole("region", { name: "Kausi kokonaisuutena", exact: true })

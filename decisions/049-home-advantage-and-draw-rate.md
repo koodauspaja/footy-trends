@@ -39,3 +39,18 @@ Veikkausliiga and the Premier League signed in, at 375 px in light and dark and
 at 1280 px: five competitions with completed seasons locally, from both
 providers; the page's own row marked; `Kaudet 2025 ja 2023/24–2025/26, kaikki
 tallennetut ottelut.` from the data; the rounding line under it.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/match-service.ts` at `a86c1cb` by #531.
+
+- **`getOutcomeShares`.** A partial table could rank a competition against
+  only some of the others. One aggregate per provider, from the football-data
+  plan floor on. Which seasons are completed is decided from the same rows,
+  so no provider is asked for a current season.
+
+Cut from `src/lib/outcome-shares.ts` at `dc74e3e` by #531.
+
+- **The order in `outcomeShares`.** Ordering by the printed value keeps two
+  rows reading `+16` in the order the tie-break gives, and not by a decimal
+  the reader cannot see.

@@ -1,14 +1,15 @@
 /**
  * The work of the backfill: walks every competition-season for both providers,
- * paced to their rate limits, and stores results through the existing sync path.
+ * paced to their rate limits, and stores results through the existing sync
+ * path. Loaded only after the target database has been settled.
  *
- * Imported dynamically by `backfill.ts`, after the target database has been
- * settled — importing `src/db` fixes the connection, so nothing here may be
- * loaded before then.
+ * decisions/169-production-backfill.md
+ * decisions/292-sonar-zero-open-issues.md
+ * decisions/063-competition-zones.md
  */
 import { and, eq, sql } from "drizzle-orm";
 import { closeDatabase, db } from "../src/db";
-import { matches, tasoGroupTeams, tasoMatches } from "../src/db/schema";
+import { matches, tasoGroupTeams, tasoGroupZones, tasoMatches } from "../src/db/schema";
 import { SUPPORTED_COMPETITIONS } from "../src/lib/competitions";
 import {
   categoryIdForSeason,
@@ -27,12 +28,14 @@ import {
   getCurrentSeason,
   getSeasonGroups,
   getSeasonMatches as getTasoMatches,
+  normalizeGroupLevels,
   normalizeGroupTeams,
 } from "../src/lib/taso";
 import {
   synchronizeGroupTeams,
   synchronizeMatches as synchronizeTasoMatches,
 } from "../src/lib/taso-standings-service";
+import { backfillZones, ZONE_BACKFILL_PER_MINUTE } from "../src/lib/zone-backfill";
 import { canSkip, describeError, tasoSeasonsFor } from "./backfill-plan";
 
 function out(line = ""): void {
@@ -42,7 +45,11 @@ function err(line = ""): void {
   process.stderr.write(`${line}\n`);
 }
 
-/** Rows already stored for one football-data competition-season. */
+/**
+ * Rows already stored for one football-data competition-season.
+ *
+ * decisions/169-production-backfill.md
+ */
 async function alreadyStored(
   competitionCode: string,
   seasonId: number,
@@ -55,7 +62,11 @@ async function alreadyStored(
   return canSkip(row?.n ?? 0, seasonId, currentSeason);
 }
 
-/** The same question for TASO, which is keyed by category rather than code. */
+/**
+ * The same question for TASO, which is keyed by category, not code.
+ *
+ * decisions/169-production-backfill.md
+ */
 async function alreadyStoredTaso(
   categoryId: string,
   seasonId: number,
@@ -69,11 +80,10 @@ async function alreadyStoredTaso(
 }
 
 /**
- * The same question for a season's group snapshot.
+ * The same question for a season's group snapshot, asked separately because
+ * the groups are a separate write.
  *
- * Asked separately from the matches because the two are separate writes: a
- * season whose matches stored and whose groups then failed would otherwise be
- * skipped for ever, its group data never retried, because the season "has rows".
+ * decisions/169-production-backfill.md
  */
 async function alreadyStoredTasoGroups(
   categoryId: string,
@@ -87,15 +97,18 @@ async function alreadyStoredTasoGroups(
   return canSkip(row?.n ?? 0, seasonId, currentSeason);
 }
 
-/** How much of one half of the run failed, and how much it did not have to do. */
+/**
+ * How much of one half of the run failed, and how much it did not have to do.
+ *
+ * decisions/292-sonar-zero-open-issues.md
+ */
 type HalfResult = { failures: number; skipped: number };
 
 /**
  * The football-data half.
  *
- * Split out of `backfill` because the two providers share nothing but the
- * counters: different rate limits, different season discovery, different
- * failure shapes. Reading them as one function meant holding both at once.
+ * decisions/169-production-backfill.md
+ * decisions/292-sonar-zero-open-issues.md
  */
 async function backfillFootballData(
   footballData: <T>(work: () => Promise<T>) => Promise<T>,
@@ -143,17 +156,19 @@ async function backfillFootballData(
   return { failures, skipped };
 }
 
-/** The TASO half, with its own season discovery and its own refusal to guess. */
-/** What one competition-season did, for the counters the caller keeps. */
+/**
+ * What one competition-season did, for the counters the caller keeps.
+ *
+ * decisions/292-sonar-zero-open-issues.md
+ */
 type SeasonOutcome = "stored" | "skipped" | "failed";
 
 /**
  * One TASO competition-season: its matches, its groups, or the reason neither
  * was needed.
  *
- * Split out of `backfillTaso` because the loop and the work are different
- * jobs — the loop knows about competitions and seasons, this knows about the
- * two separate writes and what it means for one to be stored and the other not.
+ * decisions/169-production-backfill.md
+ * decisions/292-sonar-zero-open-issues.md
  */
 async function backfillTasoSeason(
   taso: <T>(work: () => Promise<T>) => Promise<T>,
@@ -162,12 +177,8 @@ async function backfillTasoSeason(
   currentTasoSeason: number,
   refetch: boolean
 ): Promise<SeasonOutcome> {
-  // `competitionIdForSeason`, not the bare season umbrella: most
-  // competitions sit under the season umbrella (`spljp26`), but one that
-  // declares its own prefix does not (`M1LCUP26`). The generic one asks TASO
-  // about a competition that does not exist there, and TASO answers with an
-  // empty list rather than an error — so the run reports success having stored
-  // nothing.
+  // `competitionIdForSeason`, not the bare season umbrella: a competition that
+  // declares its own prefix (`M1LCUP26`) does not sit under it.
   const competitionId = competitionIdForSeason(code, seasonId);
   const categoryId = categoryIdForSeason(code, seasonId);
 
@@ -196,7 +207,11 @@ async function backfillTasoSeason(
     if (!hasGroups) {
       const groups = await taso(() => getSeasonGroups(competitionId, categoryId));
       const teams = normalizeGroupTeams(groups, categoryId, competitionId, seasonId);
-      await synchronizeGroupTeams(categoryId, competitionId, seasonId, teams);
+      // A table TASO now serves at zero keeps the starting points stored for it.
+      const levels = normalizeGroupLevels(groups, categoryId, competitionId, seasonId);
+      await synchronizeGroupTeams(categoryId, competitionId, seasonId, teams, levels, undefined, {
+        carryStartingPoints: true,
+      });
       groupCount = `${teams.length} group rows`;
     }
 
@@ -208,6 +223,12 @@ async function backfillTasoSeason(
   }
 }
 
+/**
+ * The TASO half, with its own season discovery and its own refusal to guess.
+ *
+ * decisions/169-production-backfill.md
+ * decisions/292-sonar-zero-open-issues.md
+ */
 async function backfillTaso(
   taso: <T>(work: () => Promise<T>) => Promise<T>,
   refetch: boolean
@@ -217,26 +238,11 @@ async function backfillTaso(
 
   out(`\n=== TASO: ${DOMESTIC_COMPETITIONS.length} competitions ===`);
 
-  // The current season comes from the provider, not the clock (#219).
-  // `new Date().getUTCFullYear()` contradicted spec 011, and the two
-  // disagree whenever TASO publishes the next season before January or runs
-  // the current one past it. That value decides which seasons are fetched
-  // and, through `canSkip`, which count as finished — so a disagreement can
-  // skip a season that is still gaining matches.
-  //
-  // `getCurrentSeason` rather than `resolveTasoSeasonContext`, which the app
-  // uses: that also computes `defaultSeason`, and answering "does this season
-  // have matches" means *syncing* the season. Thirteen of those turns a
-  // discovery step into a second backfill. Discovery itself is
-  // competition-agnostic (spec 011), so this is one request for the whole
-  // loop, floored per competition below exactly as the app floors it.
+  // The current season comes from the provider, not the clock: one request
+  // for the whole loop, floored per competition below as the app floors it.
 
-  // Two failure shapes, not one. `getCurrentSeason` returns `null` when TASO
-  // answers with no published seasons, and *throws* on a network or HTTP
-  // error — the app's own `discoverCurrentSeason` wraps it in a try for
-  // exactly this reason. Without the catch, a provider outage escapes to the
-  // top-level handler, and the run loses both this refusal and the summary
-  // line that reports how much of the football-data half succeeded.
+  // Two failure shapes, not one: `getCurrentSeason` returns `null` when TASO
+  // publishes no seasons, and throws on a network or HTTP error.
   let discovered: number | null;
   try {
     discovered = await taso(() => getCurrentSeason());
@@ -261,12 +267,7 @@ async function backfillTaso(
     const currentTasoSeason = Math.max(discovered, tasoEarliestSeasonFor(competition.code));
     const seasons = tasoSeasonsFor(tasoEarliestSeasonFor(competition.code), currentTasoSeason);
     for (const seasonId of seasons) {
-      // `competitionIdForSeason`, not the bare season umbrella:
-      // most competitions sit under the season umbrella (`spljp26`), but one
-      // that declares its own prefix does not (`M1LCUP26`). The generic one
-      // asks TASO about a competition that does not exist there, and TASO
-      // answers with an empty list rather than an error — so the run reports
-      // success having stored nothing.
+      // `competitionIdForSeason`, not the bare season umbrella, as above.
       const outcome = await backfillTasoSeason(
         taso,
         competition.code,
@@ -298,10 +299,8 @@ export async function backfill({
   const startedAt = Date.now();
 
   try {
-    // One round trip before any provider is called. Without it, an unreachable
-    // database still costs a full run: every competition-season is fetched, at
-    // the providers' pace, and then fails to store — eleven minutes and 329
-    // requests of rate limit spent to discover the database was never there.
+    // One round trip before any provider is called, so an unreachable database
+    // does not cost a full run.
     try {
       await db.execute(sql`SELECT 1`);
     } catch (error) {
@@ -310,15 +309,15 @@ export async function backfill({
     }
 
     if (reset) {
-      out("\nResetting — deleting every row in matches, taso_matches, taso_group_teams");
-      // One transaction, so a reset is all or nothing. Three separate deletes
-      // would leave the database partly emptied if the second or third failed,
-      // and the run aborts on that failure — turning a deliberate clean start
-      // into destroyed data with nothing put back.
+      out(
+        "\nResetting — deleting every row in matches, taso_matches, taso_group_teams, taso_group_zones"
+      );
+      // One transaction, so a reset is all or nothing.
       await db.transaction(async (tx) => {
         await tx.delete(matches);
         await tx.delete(tasoMatches);
         await tx.delete(tasoGroupTeams);
+        await tx.delete(tasoGroupZones);
       });
       out("Reset done.");
     }
@@ -334,11 +333,8 @@ export async function backfill({
     failures += domestic.failures;
     skipped += domestic.skipped;
   } finally {
-    // Settled together, not awaited in sequence: a rejection from the first
-    // would skip the second and escape the function, so a run that fetched
-    // everything successfully would print no summary and return no exit code
-    // because a socket failed to close. Cleanup cannot be allowed to decide
-    // whether the backfill succeeded.
+    // Settled together, not awaited in sequence: cleanup cannot be allowed to
+    // decide whether the backfill succeeded.
     for (const result of await Promise.allSettled([closeDatabase(), redis.quit()])) {
       if (result.status === "rejected") err(`  cleanup: ${describeError(result.reason)}`);
     }
@@ -351,4 +347,28 @@ export async function backfill({
   // A partial run is re-runnable: every write is an upsert, so repeating it
   // costs requests rather than correctness.
   return failures === 0 ? 0 : 1;
+}
+
+/**
+ * `--zones`: the zone levels of every stored season of the competitions that
+ * show them, and nothing else. Exits 1 when a season could not be read.
+ *
+ * decisions/063-competition-zones.md
+ */
+export async function backfillZoneLevels(): Promise<number> {
+  out(`Rates        TASO ${ZONE_BACKFILL_PER_MINUTE}/min`);
+  out("Zones        on — only taso_group_zones is written");
+  try {
+    const result = await backfillZones(createPacer(ZONE_BACKFILL_PER_MINUTE), out);
+    out(
+      `\nFinished with ${result.written} season(s) written, ${result.skipped} skipped ` +
+        `and ${result.failed.length} failed.`
+    );
+    if (result.failed.length > 0) err(`Could not read: ${result.failed.join(", ")}`);
+    return result.failed.length === 0 ? 0 : 1;
+  } finally {
+    for (const settled of await Promise.allSettled([closeDatabase(), redis.quit()])) {
+      if (settled.status === "rejected") err(`  cleanup: ${describeError(settled.reason)}`);
+    }
+  }
 }

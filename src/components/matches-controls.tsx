@@ -17,14 +17,13 @@ type MatchesControlsProps = {
 };
 
 /**
- * Season + round selector for the season-wide match list at `/ulkomaat/ottelut`.
- * Plain GET form so both selections still work without JavaScript, same
- * pattern as `StandingsControls` on the standings page. The round select is
- * only rendered once a round is actually known — see the "known
- * limitation" note in specs/005-listing-matches-for-selected-season.md for
- * why that can briefly be absent right after a season's first sync.
- * Carries `kilpailu` forward via a hidden field — there's no competition
- * selector on this page (see specs/006-other-competitions.md).
+ * Season and round selector for the season-wide match list at
+ * `/ulkomaat/ottelut`: a plain GET form, with `kilpailu` carried in a hidden
+ * field. The round select renders only once a round is known.
+ *
+ * decisions/005-listing-matches-for-selected-season.md
+ * decisions/006-other-competitions.md
+ * decisions/012-finnish-urls-english-code.md
  */
 export function MatchesControls({
   basePath,
@@ -34,20 +33,20 @@ export function MatchesControls({
   availableRounds,
   selectedRound,
 }: Readonly<MatchesControlsProps>) {
-  const navigate = useSeasonRoundNavigation(`${basePath}/ottelut`, competitionCode);
+  const navigate = useSeasonRoundNavigation(`${basePath}/ottelut`);
 
   return (
     <SeasonForm actionPath={`${basePath}/ottelut`} competitionCode={competitionCode}>
       <SeasonSelect
         seasons={seasons}
         selectedSeasonId={selectedSeasonId}
-        onChange={(seasonId) => navigate(seasonId, selectedRound)}
+        onChange={(seasonId) => navigate(competitionCode, seasonId, selectedRound)}
       />
       {selectedRound !== undefined && availableRounds.length > 0 && (
         <RoundSelect
           availableRounds={availableRounds}
           selectedRound={selectedRound}
-          onChange={(round) => navigate(selectedSeasonId, round)}
+          onChange={(round) => navigate(competitionCode, selectedSeasonId, round)}
         />
       )}
     </SeasonForm>

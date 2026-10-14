@@ -10,22 +10,14 @@ import {
 import fixture from "../../fixtures/taso-carry-over.json";
 
 /**
- * Guards `CARRY_OVER_CONFIG` against TASO's own published numbers.
+ * Guards `CARRY_OVER_CONFIG` against TASO's own published numbers, through the real
+ * `getSeasonStandings`: the config is under test, not the arithmetic. A wrong entry fails
+ * silently in production; here it fails to reconcile, so kind and numbers are both asserted.
  *
- * A wrong or missing entry fails silently in production: the table still
- * renders, with wrong points. So these run through the real
- * `getSeasonStandings` rather than calling `calculateStandings` directly —
- * the config is the thing under test, not the arithmetic.
- *
- * TASO's own group standings are fed in alongside the matches, which makes the
- * guard sharper than asserting numbers alone: a wrong entry no longer merely
- * produces different points, it fails to reconcile, and the group renders as
- * `pass-through` instead of `own-calculated`. Both are asserted.
- *
- * Fixtures are real TASO data captured per competition-season — every match in
- * the groups a carry-over touches, plus those groups' published points and
- * `starting_points` — so the tests are deterministic in CI with no live API
- * access. See specs/013-more-finnish-competitions.md.
+ * decisions/127-carry-over-config-validation.md
+ * decisions/009-veikkausliiga.md
+ * decisions/013-more-finnish-competitions.md
+ * decisions/133-split-group-round-numbering.md
  */
 
 const { dbMock, getCachedMock, getSeasonGroupsMock, getSeasonMatchesMock } = vi.hoisted(() => ({
@@ -57,11 +49,9 @@ type FixtureSeason = {
   expected: Record<string, [number, number, number][]>;
 };
 
-/**
- * Fixtures are keyed `categoryId/competitionId`: `competition_id` alone is the
- * season umbrella every Finnish competition shares, so Ykkönen's and
- * Veikkausliiga's 2025 fixtures would collide under a bare `spljp25`.
- */
+// Fixtures are real TASO data captured per competition-season, so no live API is needed.
+// Keyed `categoryId/competitionId`: `competition_id` alone is the season umbrella every
+// Finnish competition shares, so two 2025 fixtures would collide under a bare `spljp25`.
 const seasons = Object.entries(fixture as unknown as Record<string, FixtureSeason>).map(
   ([key, season]) => {
     // Sliced rather than destructured from `split`, which types both halves
@@ -76,7 +66,8 @@ const seasons = Object.entries(fixture as unknown as Record<string, FixtureSeaso
   }
 );
 
-/** Every fixture season is finished, so none is the active one — no refresh, no provider call. */
+// Every fixture season is finished, so none is the active one: no refresh, no
+// provider call.
 const ACTIVE_SEASON = 2027;
 
 function expandMatches(
@@ -197,17 +188,17 @@ describe("CARRY_OVER_CONFIG validated against TASO's published standings", () =>
     }
   }
 
-  // #133: 2019, 2022 and 2023 restart their split groups at round 1 instead
-  // of continuing from Runkosarja's 22, while 2021/2024/2025 continue. The
-  // round filter takes `matchday <= round` across parent + child, so without
-  // renumbering a child round of 5 is indistinguishable from Runkosarja's 5.
+  // 2019, 2022 and 2023 restart their split groups at round 1, while 2021, 2024 and 2025
+  // continue from Runkosarja's 22. The round filter takes `matchday <= round` across parent
+  // and child, so without renumbering a child round of 5 is Runkosarja's 5.
   describe("split groups that restart round numbering", () => {
-    /** Runkosarja pairs all 12 teams per round; a 6-team split group, 3. */
+    // Runkosarja pairs all 12 teams per round; a 6-team split group, 3.
     function matchesPerRound(groupId: number): number {
       return groupId === 1 ? 6 : 3;
     }
 
-    /** Numbers rounds the way TASO does for these seasons: the child restarts at 1. */
+    // Numbers rounds the way TASO does for these seasons: the child restarts at
+    // 1.
     function withRestartedRounds(rows: NormalizedTasoMatch[]): NormalizedTasoMatch[] {
       const seen = new Map<number, number>();
       return rows.map((row) => {
@@ -217,10 +208,8 @@ describe("CARRY_OVER_CONFIG validated against TASO's published standings", () =>
       });
     }
 
-    /**
-     * Keyed by category as well as competition: five competitions now have a
-     * 2022 fixture, and these assertions are about Veikkausliiga's shape.
-     */
+    // Keyed by category as well as competition: five competitions have a 2022
+    // fixture, and these assertions are about Veikkausliiga's shape.
     function fixtureFor(key: string): {
       categoryId: string;
       competitionId: string;
@@ -258,8 +247,8 @@ describe("CARRY_OVER_CONFIG validated against TASO's published standings", () =>
         expandGroupTeams(categoryId, competitionId, season)
       );
 
-      // The selector reads the same funnel, so it must now offer rounds past
-      // Runkosarja's 22 — it previously stopped there.
+      // The selector reads the same funnel, so it must offer rounds past
+      // Runkosarja's 22.
       const result = await getSeasonMatchList(categoryId, competitionId, 2022, ACTIVE_SEASON);
       const rounds =
         result.status === "ok"
@@ -335,10 +324,8 @@ describe("CARRY_OVER_CONFIG validated against TASO's published standings", () =>
 
   it("has a fixture for every configured entry, so none can be added untested", () => {
     // Compared per `categoryId + competitionId + groupId` against the real config, in
-    // both directions. Matching on competition alone would let a new group
-    // be added to an already-fixtured season — `spljp25: { 2: 1, 3: 1, 4: 1 }`
-    // — and go untested, and a count-based check would miss it too. Guarding
-    // exactly this is what spec 009 asked of these tests.
+    // both directions. Matching on competition alone would let a new group be added to
+    // an already-fixtured season and go untested, and a count would miss it too.
     const configured = listCarryOverEntries()
       .map((entry) => `${entry.categoryId}/${entry.competitionId}:${entry.groupId}`)
       .sort();

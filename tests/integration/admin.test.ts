@@ -13,14 +13,10 @@ import {
 import { changeRole, deleteUser, listUsers } from "@/lib/admin-users";
 
 /**
- * Administration against a real Postgres, from specs/028-admin-tools-and-roles.md.
+ * Administration against a real Postgres: the cascade, the last-admin guard
+ * under two concurrent demotions, and a promoted role visible to the next read.
  *
- * Three things cannot be tested anywhere else. The **cascade** really removes
- * everything a reader owns — the acceptance criterion says to verify it by
- * querying each table rather than by trusting the constraint. The **last-admin
- * guard** really holds when two demotions run at once, which a mocked
- * transaction cannot demonstrate. And a promoted user's role really is visible
- * to the next read, with no session involved.
+ * decisions/028-admin-tools-and-roles.md
  */
 
 const ADMIN_ID = "itest-admin-1";
@@ -33,7 +29,7 @@ async function insertUser(id: string, email: string, role: "user" | "admin") {
     .values({ id, name: "Integration Reader", email, emailVerified: true, role });
 }
 
-/** Everything that must disappear with the row, one per referencing table. */
+// Everything that must disappear with the row, one per referencing table.
 async function giveTheReaderThings(): Promise<void> {
   await db.insert(session).values({
     id: `${READER_ID}-session`,
@@ -82,10 +78,7 @@ describe("deleting a user", () => {
 
     await expect(deleteUser(ADMIN_ID, READER_ID)).resolves.toEqual({ ok: true });
 
-    // Queried table by table rather than trusting the constraint, which is what
-    // the acceptance criterion asks for. `user_avatar`'s own comment says the
-    // cascade is what makes deletion complete "without a second code path to
-    // forget" — this is the test that would notice if one were needed.
+    // Queried table by table, not trusting the constraint.
     const counts = await Promise.all([
       db.select().from(session).where(eq(session.userId, READER_ID)),
       db.select().from(account).where(eq(account.userId, READER_ID)),
@@ -122,16 +115,9 @@ describe("the last-admin guard", () => {
   });
 
   it("leaves an admin standing when two admins demote each other at once", async () => {
-    /**
-     * The case a mocked transaction cannot show: both callers read the same
-     * count, and only the lock on the admin set stops both from proceeding.
-     *
-     * Each call is **one admin demoting the other**, which is the scenario the
-     * guard exists for. An earlier version passed `READER_ID` as the actor for
-     * both, so neither call was an admin acting and the test passed without
-     * exercising what it described — `changeRole` does not check the actor's
-     * role, because `requireAdmin()` does that a layer up.
-     */
+    // Both callers read the same count, and only the lock on the admin set stops
+    // both. Each actor is an admin: `changeRole` does not check the actor's
+    // role, so a non-admin actor would pass without testing the guard.
     const [first, second] = await Promise.all([
       changeRole(ADMIN_ID, SECOND_ADMIN_ID, "user"),
       changeRole(SECOND_ADMIN_ID, ADMIN_ID, "user"),
@@ -178,12 +164,8 @@ describe("listUsers", () => {
     // The three this file seeded, at least. Not an exact number: other
     // integration files insert their own users, and they share a database.
     expect(total).toBeGreaterThanOrEqual(3);
-    // A page never exceeds its size. Deliberately not `users.length <= total`:
-    // the count and the page are two queries rather than one snapshot, so a
-    // concurrent insert between them can leave the page one row ahead of the
-    // count. That is inherent to reading a live table and harmless for a list
-    // that is refetched on every request — but it is a real race, so the test
-    // must not claim otherwise.
+    // A page never exceeds its size. Not `users.length <= total`: the count and
+    // the page are two queries, so a concurrent insert can put the page one ahead.
     expect(users.length).toBeLessThanOrEqual(USERS_PER_PAGE);
   });
 });

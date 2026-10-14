@@ -1,11 +1,19 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   COLUMN_WIDTHS,
   DataTable,
   type DataTableColumn,
   tableMinWidth,
 } from "@/components/data-table";
+
+/**
+ * The shared table: its columns come from one scale.
+ *
+ * decisions/021-table-consistency.md
+ * decisions/049-home-advantage-and-draw-rate.md
+ * decisions/063-competition-zones.md
+ */
 
 type Row = { id: number; name: string; points: number };
 
@@ -100,7 +108,7 @@ describe("DataTable", () => {
     expect(screen.queryByRole("cell")).not.toBeInTheDocument();
   });
 
-  it("marks the current row, and only it, for the eye and for a screen reader (specs/049)", () => {
+  it("marks the current row, and only it, for the eye and for a screen reader", () => {
     render(
       <DataTable
         columns={columns}
@@ -122,6 +130,52 @@ describe("DataTable", () => {
 
     expect(screen.getAllByRole("row").filter((row) => row.hasAttribute("aria-current"))).toEqual(
       []
+    );
+  });
+});
+
+describe("DataTable rules between rows", () => {
+  it("draws a heavier rule under the rows it is asked to, by row and by index", () => {
+    const hasRuleBelow = vi.fn((_row: unknown, index: number) => index === 0);
+    render(
+      <DataTable
+        columns={columns}
+        hasRuleBelow={hasRuleBelow}
+        rowKey={(row) => row.id}
+        rows={rows}
+      />
+    );
+    const [first, second] = screen.getAllByRole("row").slice(1);
+
+    expect(first).toHaveClass("border-muted", "border-b-2");
+    expect(first).not.toHaveClass("border-border-subtle", "border-b");
+    expect(second).toHaveClass("border-border-subtle", "border-b");
+    expect(second).not.toHaveClass("border-b-2");
+    expect(hasRuleBelow).toHaveBeenCalledWith(rows[0], 0);
+    expect(hasRuleBelow).toHaveBeenCalledWith(rows[1], 1);
+  });
+
+  it("draws every row with the ordinary rule unless asked", () => {
+    render(<DataTable columns={columns} rowKey={(row) => row.id} rows={rows} />);
+
+    for (const row of screen.getAllByRole("row").slice(1)) {
+      expect(row.className).toBe("border-border-subtle border-b");
+    }
+  });
+
+  it("keeps the rule on the row a page is about", () => {
+    render(
+      <DataTable
+        columns={columns}
+        hasRuleBelow={() => true}
+        isCurrentRow={() => true}
+        rowKey={(row) => row.id}
+        rows={rows}
+      />
+    );
+
+    expect(screen.getAllByRole("row")[1]?.className).toBe(
+      "border-muted border-b-2 bg-surface font-semibold"
     );
   });
 });

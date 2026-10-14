@@ -1,7 +1,11 @@
 import { ChartPanel } from "@/components/charts/chart-panel";
 import type { CurrentStreak, Streak, StreaksSeries } from "@/lib/streaks";
 
-/** The strings agreed in specs/035, each where the spec places it. */
+/**
+ * The panel's strings.
+ *
+ * decisions/035-streaks.md
+ */
 export const STREAKS_HEADING = "Putket";
 export const CURRENT_LABEL = "Tämänhetkinen putki";
 export const LONGEST_WINS_LABEL = "Pisin voittoputki";
@@ -13,19 +17,31 @@ export const STREAKS_ERROR_MESSAGE = "Putkia ei voitu laskea. Yritä myöhemmin 
 
 const HEADING_ID = "streaks";
 
-/** `1 voitto` / `3 voittoa`, and so on: Finnish counts one thing differently. */
+/**
+ * `1 voitto` / `3 voittoa`, and so on: Finnish counts one thing differently.
+ *
+ * decisions/035-streaks.md
+ */
 function count(length: number, one: string, many: string): string {
   return `${length} ${length === 1 ? one : many}`;
 }
 
-/** What the run the team is on now is made of. */
+/**
+ * What the run the team is on now is made of.
+ *
+ * decisions/035-streaks.md
+ */
 export function currentText(current: CurrentStreak): string {
   if (current.outcome === "win") return count(current.length, "voitto", "voittoa");
   if (current.outcome === "defeat") return count(current.length, "tappio", "tappiota");
   return count(current.length, "tasapeli", "tasapeliä");
 }
 
-/** The matches a longest run spans: `Ottelut 5–9`, or `Ottelu 5` for one. */
+/**
+ * The matches a longest run spans: `Ottelut 5–9`, or `Ottelu 5` for one.
+ *
+ * decisions/035-streaks.md
+ */
 export function spanText(streak: Streak): string {
   return streak.from === streak.to
     ? `Ottelu ${streak.from}`
@@ -33,9 +49,11 @@ export function spanText(streak: Streak): string {
 }
 
 /**
- * The streaks panel in `Analyysit` (specs/035): five figures, not a chart. A
+ * The streaks panel in `Analyysit`: five figures, not a chart. A
  * streak is one number, and five numbers do not need an axis. `null` means no
  * panel: no league table for this team's season.
+ *
+ * decisions/035-streaks.md
  */
 export function streaksPanel(series: StreaksSeries) {
   if (series.status === "unavailable") return null;
@@ -88,7 +106,11 @@ function bodyFor(series: Exclude<StreaksSeries, { status: "unavailable" }>) {
   );
 }
 
-/** One figure: its name, and what it is. */
+/**
+ * One figure: its name, and what it is.
+ *
+ * decisions/035-streaks.md
+ */
 function Figure({ label, children }: Readonly<{ label: string; children: React.ReactNode }>) {
   return (
     <div>

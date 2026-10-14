@@ -8,11 +8,10 @@ import { currentUserId } from "@/lib/current-user";
 import { logger } from "@/lib/logger";
 
 /**
- * Writing the reader's own profile picture, from specs/025-custom-avatar.md.
+ * Writing the reader's own profile picture. A file of its own, so `sharp` is
+ * not pulled into the module every other settings write goes through.
  *
- * A file of its own rather than another export from `settings-actions.ts`, so
- * that `sharp` is not pulled into the module every other settings write goes
- * through.
+ * decisions/025-custom-avatar.md
  */
 
 export type SaveAvatarResult =

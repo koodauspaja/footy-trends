@@ -4,7 +4,11 @@ import { WOMENS_TEAM } from "@/lib/national-team";
 
 export const dynamic = "force-dynamic";
 
-/** `/maajoukkueet/helmarit/ottelu/:id` — TASO's `maajp*` buckets. */
+/**
+ * `/maajoukkueet/helmarit/ottelu/:id`: TASO's `maajp*` buckets.
+ *
+ * decisions/019-match-page.md
+ */
 const ROUTE = {
   source: { kind: "taso", bucket: "national" },
   basePath: "/maajoukkueet/helmarit",

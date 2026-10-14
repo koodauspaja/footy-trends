@@ -1,5 +1,12 @@
+import { createRequire } from "node:module";
+import path from "node:path";
 import pino, { type Logger, type LoggerOptions } from "pino";
 
+/**
+ * The Axiom transport, where both its variables are set and this is not a test.
+ *
+ * decisions/574-pino-transport-target.md
+ */
 function createTransport() {
   const token = process.env.AXIOM_TOKEN;
   const dataset = process.env.AXIOM_DATASET;
@@ -9,7 +16,8 @@ function createTransport() {
   }
 
   return pino.transport({
-    target: "@axiomhq/pino",
+    // An absolute path: pino cannot resolve a bare name from inside Next's bundle.
+    target: createRequire(path.join(process.cwd(), "package.json")).resolve("@axiomhq/pino"),
     options: {
       dataset,
       token,
@@ -18,16 +26,10 @@ function createTransport() {
 }
 
 /**
- * Silent under test unless `LOG_LEVEL` says otherwise.
+ * The level when `LOG_LEVEL` does not set one: silent under test, `info` in
+ * production, `debug` otherwise.
  *
- * Application logs are not test output. A page test that renders a competition
- * page reaches `getViewerPreferences`, whose `headers()` call throws outside a
- * request scope — the graceful degradation working exactly as designed — and
- * every one of them printed a full stack trace, burying the results.
- *
- * `LOG_LEVEL` still wins, so `LOG_LEVEL=debug npm run test:unit` brings them
- * back when a test is actually being debugged. The Axiom transport above is
- * already disabled for tests; this is the stdout half of the same decision.
+ * decisions/278-quiet-test-logs.md
  */
 function defaultLevel(): string {
   if (process.env.NODE_ENV === "test") return "silent";

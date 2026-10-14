@@ -144,3 +144,99 @@ Checked against the running app, not only tests:
 
 Unit tests: **735 passing, 100% statements, branches, functions and lines.**
 Integration 21. Nine new Playwright specs pass locally.
+
+## Moved from comments, 2026-10-05
+
+Cut from `src/components/taso-standings-controls.tsx` at `55a14fc` by #531.
+
+- **The round select.** A cup's groups are all knockout rounds, so it would offer
+  only "Koko kausi"; `MatchesControls` guards the same way.
+
+Cut from `src/lib/cup-bracket.ts` at `55a14fc` by #531.
+
+- **`BracketSourceMatch.declaredWinner`.** A level Finnish cup tie is settled on
+  penalties TASO never itemises, so the score alone would read as a draw.
+- **`TieDecision`.** "(rp)" on `declared` would assert a shootout the data does
+  not record; the winner is in bold instead.
+- **`orderRoundsForTree`.** In kickoff order a team can win the top
+  quarter-final and appear in the bottom semi-final, as the real MSC 2025 bracket
+  does. It works back from the last round, and is presentation only, so
+  `buildBracket` stays chronological for the round lists.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/taso.ts` at `a86c1cb` by #531.
+
+- **`NormalizedTasoMatch.winner`.** Verified live: `MSC` 2025 returns `Home` or
+  `Away` for all 419 matches including the 55 level ones, while `VL` 2025
+  returns `Tie` for exactly its 40 level matches.
+
+Cut from `src/db/schema.ts` at `a86c1cb` by #531.
+
+- **`taso_matches.winner`.** The score cannot answer who went through, and the
+  bracket has nothing else to go on. Typed as the union and not plain text,
+  so a selected row keeps satisfying `NormalizedTasoMatch` structurally.
+
+Cut from `src/lib/cup-rounds.ts` at `a86c1cb` by #531.
+
+- **`ROUND_NAME_OVERRIDES`.** Counted over every MSC and NSC season 2015-2026.
+  `Kierros N` (63) against `N. Kierros` (23): the common form wins.
+  `Loppuottelu` (9) against `Finaali` (11): the less common form wins, because
+  that split is by era and not popularity (`Finaali` 2015-2019, `Loppuottelu`
+  from 2020); the count favours `Finaali` only because the older era has more
+  seasons in range. A substring replace would mangle `Pikkufinaali`, the
+  third-place match, and `Finaali-Kakkonen`, a separate Kakkonen-cup round.
+  Every other group name (`Juuson kierros`, `Tasaus`, `Superkierros`,
+  `Kierros 1B` and some 50 more) is TASO's own and already Finnish.
+- **`CupRoundGroup.teamCount`.** Not the provider's row count, which is one
+  row per bracket slot: the reason those groups have no standings table.
+- **`selectBracketRounds`.** It stops at 8: a round of sixteen is eight ties
+  wide and no tree survives that on a phone. Neither names nor team counts
+  work alone, and all three counter-examples are real (verified live
+  2026-08-26). MSC 2018's `Kierros 1` has 8 teams and is the first round:
+  rejected because `Puolivälierät` is a later 8-team group and claims the
+  slot. NSC 2015's `Pikkufinaali` (2 teams) sits before `Finaali`: rejected
+  because `Finaali` is later, so it falls out of the chain and renders as a
+  list. MSC 2021 has six 4-team groups that keep tables and no knockout:
+  rejected because the caller passes only table-less groups.
+- **`CupKnockoutMatch`.** The adapter fills the breakdown in as null so that
+  not every caller has to. A cup tie decided on penalties shows its score as
+  it stands, unlike football-data's `fullTime`, which folds the shoot-out in.
+- **`buildCupBracket`.** The normalised name is what `BracketTree` shows as
+  the column heading. Selection picks at most one group per size, so two
+  chosen rounds sharing a name is not reachable in practice; were it to
+  happen the two would merge into one column, which is visible.
+
+Cut from `src/lib/domestic-competitions.ts` at `a86c1cb` by #531.
+
+- **`DomesticCompetition.competitionIdPrefix`.** Almost every Finnish
+  competition is a category within the umbrella. Ykkösliigacup is not: it is
+  its own competition, published as `M1LCUP{YY}`.
+- **`DomesticCompetition.format`.** Omitted means a league, so no existing
+  entry changed behaviour when cups were added.
+- **Where the cups sit in `DOMESTIC_COMPETITIONS`.** At the end, not in the
+  tier order.
+- **`competitionIdForSeason`.** The two-digit year is shared, so only the
+  prefix varies. The umbrella is what every competition used before
+  Ykkösliigacup existed, so a bad `kilpailu` value cannot reach a competition
+  id nothing validates.
+- **`isDomesticCup`.** The league rendering is the one that has always
+  existed, so a bad `kilpailu` value cannot route into the newer path.
+
+Cut from `src/app/domestic/standings/page.tsx` at `ef7eb13` by #531.
+
+- **`normaliseRoundName` in `displayGroupName`.** Safe to apply to every
+  group, because a league group name is never one of the two cup names.
+- **The `Kierros` column.** In a cup it would repeat the same value down
+  every row.
+- **`CupRoundSection`.** A cup season stacks up to ten rounds on one page and
+  the opening round can be 248 teams, nearly 30,000px tall on a phone.
+  `<details>` lets a reader fold one away without any client-side state, and
+  every round starts open so nothing is hidden by default.
+
+Cut from `src/components/cup-bracket.tsx` at `dc74e3e` by #531.
+
+- **`BracketTree` exported.** The Finnish cups' page already lists every
+  round below, so it needs the drawing without `CupBracket`'s
+  listed-vs-drawn split, which keys on football-data stage names those rounds
+  do not have.

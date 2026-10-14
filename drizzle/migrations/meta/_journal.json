@@ -134,6 +134,13 @@
       "when": 1790801029756,
       "tag": "0018_create_predictions",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791899395443,
+      "tag": "0019_create_taso_group_zones",
+      "breakpoints": true
     }
   ]
 }

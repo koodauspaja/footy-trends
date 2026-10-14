@@ -10,8 +10,10 @@ import {
 import type { OpponentsSeries } from "@/lib/head-to-head";
 
 /**
- * The `Vaikeimmat vastustajat` panel (specs/045). Which opponents qualify and in
- * what order is `head-to-head.test.ts`'s; this file owns what the panel shows.
+ * The `Vaikeimmat vastustajat` panel. Which opponents qualify, and in what
+ * order, is `head-to-head.test.ts`'s; this file owns what the panel shows.
+ *
+ * decisions/045-bogey-teams.md
  */
 
 const WINDOW = "Perustuu kaudesta 2015 alkaen tallennettuihin otteluihin.";
@@ -50,7 +52,7 @@ function renderPanel(series: OpponentsSeries) {
 }
 
 describe("opponentsPanel", () => {
-  it("is no panel at all where it does not apply (S5)", () => {
+  it("is no panel at all where it does not apply", () => {
     expect(opponentsPanel({ status: "unavailable" })).toBeNull();
   });
 

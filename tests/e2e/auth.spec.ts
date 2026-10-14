@@ -2,21 +2,18 @@ import { expect, type Page, test } from "@playwright/test";
 import { openAccountMenu, signedInAs } from "./session";
 
 /**
- * The sign-in control, from specs/023-google-oauth-login.md.
+ * The sign-in control, up to the handover: it renders on every page, the four
+ * prerendered ones included, and clicking it asks Google for the right thing.
+ * No test completes a real sign-in, because Google blocks automated browsers.
  *
- * **No test here completes a real Google sign-in.** It would need live
- * test-user credentials, and Google blocks automated browsers outright. What
- * can be proved end to end is everything up to the handover: the control
- * renders on every page including the four prerendered ones, and clicking it
- * asks Google for the right thing. The signed-in header is covered by
- * tests/unit/components/auth-controls.test.tsx and by the manual check the
- * spec's acceptance criteria call for.
+ * decisions/023-google-oauth-login.md
+ * decisions/266-spent-sign-in-error.md
  */
 
-/** The four pages `tests/unit/app/rendering-mode.test.ts` keeps prerendered. */
+// The four pages `tests/unit/app/rendering-mode.test.ts` keeps prerendered.
 const PRERENDERED = ["/", "/kotimaa", "/ulkomaat", "/maajoukkueet"];
 
-/** One data-backed page per region, which are server-rendered on demand. */
+// One data-backed page per region, which are server-rendered on demand.
 const DYNAMIC = [
   "/kotimaa/sarjataulukko?kilpailu=VL&kausi=2026",
   "/ulkomaat/sarjataulukko?kilpailu=PL",
@@ -103,21 +100,14 @@ test.describe("Signed-out pages are unchanged", () => {
   });
 });
 
-/**
- * A signed-in header, without signing in.
- *
- * The session is read by the browser from `/api/auth/get-session`, so
- * intercepting that one response renders the signed-in header for real — layout
- * included. This tests **our component**, not Google's flow: nothing here
- * proves a real sign-in works, and the acceptance criteria still call for a
- * human to confirm that.
- */
+// A signed-in header without signing in: the browser reads the session from
+// `/api/auth/get-session`, so intercepting that one response renders the header
+// for real, layout included. It tests our component, not Google's flow.
 const WIDTH = 320;
 
 test.describe("Narrow viewports", () => {
   // jsdom has no layout, so this overflow is only observable in a real browser.
-  // The header used to be one non-wrapping row: a long display name pushed
-  // `Kirjaudu ulos` off a phone screen entirely.
+  // A long display name must not push `Kirjaudu ulos` off a phone screen.
   test.use({ viewport: { width: WIDTH, height: 640 } });
 
   test("keeps sign-out on screen next to a long display name", async ({ page }) => {
@@ -174,14 +164,9 @@ test.describe("A signed-in header", () => {
   });
 });
 
-/**
- * #266: after a cancelled sign-in the reader sits on `?error=auth`, and the
- * callback URL we handed Google carried that error along — so a successful
- * sign-in returned them to their own failure message.
- *
- * Asserted on the request we send, which is where the bug actually lived. The
- * round trip through Google cannot be automated, but what we ask for can.
- */
+// After a cancelled sign-in the reader sits on `?error=auth`, and the callback
+// URL must not carry that error along. Asserted on the request we send: the
+// round trip through Google cannot be automated, but what we ask for can.
 test.describe("A spent sign-in error", () => {
   async function callbackUrlFor(page: Page, path: string): Promise<string | undefined> {
     let body: { callbackURL?: string } | undefined;
@@ -218,11 +203,9 @@ test.describe("A spent sign-in error", () => {
   });
 
   test("leaves no notice at the end of the issue's repro steps", async ({ page }) => {
-    // Step 5, assembled from the two halves rather than asserted at a
-    // hardcoded URL: where we actually ask Google to return the reader, then
-    // that page as a signed-in reader. Navigating to a fixed "/" would pass
-    // whether or not the callback still carried the error, which is the whole
-    // thing under test.
+    // Step 5, assembled from the two halves: where we ask Google to return the
+    // reader, then that page as a signed-in reader. Navigating to a fixed "/"
+    // would pass whether or not the callback still carried the error.
     const callbackURL = await callbackUrlFor(page, "/?error=auth");
     await signedInAs(page, "Matti Meikäläinen");
     await page.goto(callbackURL ?? "/");

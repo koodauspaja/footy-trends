@@ -10,23 +10,16 @@ in the dashboard, and verify it works with a dummy PR.
 
 1. Go to https://sourcery.ai
 2. Sign in with GitHub
-3. Click **Add a repository** and select `footy-trends`
+3. Click **Add a repository** and select yours (this project: `footy-trends`)
 4. Sourcery will install itself as a GitHub App on the repo
 
 ---
 
-## Step 2 — Create `.sourcery.yaml`
+## Step 2 — `.sourcery.yaml`
 
-Create file: `.sourcery.yaml` in the repo root.
-
-```yaml
-rule_settings:
-  enable:
-    - default
-```
-
-That's all that goes here. Path restrictions and review rules are configured
-in the dashboard, not in this file.
+It arrives with the clone and only enables Sourcery's default rules. Path
+restrictions and review rules are configured in the dashboard, not in this
+file.
 
 ---
 
@@ -77,41 +70,21 @@ request leaves alone.
 - Identifiers, comments, headings, documentation, prose, configuration files and tooling settings must be English, in every file this pull request changes. Finnish is expected as data: user-facing UI copy, and that same copy asserted in a test or quoted in a spec, is not a violation. Flag Finnish used as the language of a comment, a test name, a heading or an explanation.
 ```
 
+**Block 7** — path: `src/**/*.ts,src/**/*.tsx,scripts/**/*.ts,tests/**/*.ts,tests/**/*.tsx`
+```
+- A new or changed comment says what the code beside it is for, in one to three lines, or a constraint the code cannot show, followed by the paths of the decision records behind it. The paths go on the doc comment of a declaration (a function, a type, a constant) or on the file's header comment; the comment on a field, and a comment inside a function, need none and are covered by the declaration they sit in or by the file's header. Flag a changed comment that narrates history (how the code used to work, which pull request or review found something, how a number was measured) or that describes something other than the code it sits on. That history belongs in a decision record under decisions/.
+```
+
 Each block's paths are chosen to cover every file its rules ask about.
 `REVIEW_RULES.md` records why each one is there, and which requirements are
 deliberately not Sourcery rules.
 
 ---
 
-## Step 4 — Commit the config file
+## Step 4 — Test with a pull request
 
-```bash
-git add .sourcery.yaml
-git commit -m "chore: add Sourcery config"
-git push origin main
-```
-
----
-
-## Step 5 — Test with a dummy PR
-
-Create a throwaway branch to confirm Sourcery fires and posts a review comment:
-
-```bash
-git checkout -b test/sourcery-check
-echo "// test file" > src/test-sourcery.ts
-git add src/test-sourcery.ts
-git commit -m "test: dummy file to trigger Sourcery review"
-git push origin test/sourcery-check
-```
-
-Open a PR from this branch to main on GitHub. Within a few minutes Sourcery
-should add a review comment. Confirm:
-
-- [ ] Comment appears on the PR
-- [ ] PR template loaded correctly
-
-Delete the branch and close the PR without merging once confirmed.
+Open a pull request with any small change to a file under `docs/`. Within a few
+minutes Sourcery posts a review. Close it without merging.
 
 ---
 
@@ -142,13 +115,28 @@ deliberately lighter: they re-check existing comments, resolve threads the
 new code addressed, and re-run security scans. They do **not** regenerate
 the summary, the reviewer's guide, or the full set of inline comments.
 
-A consequence worth knowing: a light reaction creates no new review object,
-so the latest review's `commit_id` keeps pointing at the first reviewed
-commit even though later commits were seen. Never treat that value as
-"the last commit Sourcery looked at".
+Such a reaction does create a review object. Observed on the reviews API on
+2026-10-05 (#552 `f4e9a2d`, #557 `09874a2`, #558 `304d479`): its state is
+`APPROVED` until a later push dismisses it, its `commit_id` is the new head,
+and its whole body is
 
-To get a complete review of the final state — worth doing after substantive
-fix commits — comment `@sourcery-ai review` on the PR.
+```
+### Sourcery assessment
+
+**Approved.**
+```
+
+A full review's body starts `Hey - I've reviewed your changes` or
+`Hey - I've found N issues`. Nothing else tells the two apart: a full review
+that found nothing has the same state, and the `commit_id` and the check-run
+read the same for both. So `APPROVED` on the head does not say which of the
+two it is; only the body does. A push can also get a green check-run and
+nothing on the reviews API (#558 `c67b89c`).
+
+`npm run check:sourcery -- <PR>` reads the first line and says which the head
+has (`skills/open-pr.md` step 7), and step 9 says when a full review is
+required. To get one of the final state, comment
+`@sourcery-ai review` on the PR, with nothing else in the comment.
 
 ### Three separate things cause a skip
 
@@ -208,10 +196,9 @@ gh api "repos/:owner/:repo/commits/$HEAD/check-runs" \
 
 ## Done when
 - [ ] Sourcery installed on repo
-- [ ] `.sourcery.yaml` committed
 - [ ] Review rules added in the dashboard
 - [ ] Every rule's path patterns include the files that rule asks about
-- [ ] Dummy PR confirmed Sourcery fires
+- [ ] Sourcery reviewed a test pull request
 
 ## Next
-→ `005-railway-setup.md`
+→ `010-renovate-setup.md`

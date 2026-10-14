@@ -2,7 +2,11 @@ import { ChartPanel } from "@/components/charts/chart-panel";
 import { PositionChart } from "@/components/charts/position-chart";
 import type { PositionSeries } from "@/lib/position-series";
 
-/** The strings agreed in specs/030, each where the spec places it. */
+/**
+ * The panel's strings.
+ *
+ * decisions/030-league-position-by-matchday.md
+ */
 export const POSITION_HEADING = "Sijoitus kierroksittain";
 export const NO_ROUNDS_MESSAGE = "Kaudella ei ole vielä pelattuja kierroksia.";
 export const POSITION_ERROR_MESSAGE = "Sijoitusta ei voitu laskea. Yritä myöhemmin uudelleen.";
@@ -12,12 +16,11 @@ const HEADING_ID = "league-position-by-round";
 
 /**
  * The league-position chart's panel in the `Analyysit` section, in every state
- * it can be in (specs/030). The sign-in gate is the section's, not this
- * panel's (specs/031, Q5).
+ * it can be in. A plain function, not a component: `null` means no panel, a
+ * league season with no per-round table. The sign-in gate is the section's.
  *
- * A plain function rather than a component, so the section can tell an absent
- * panel from a present one: `null` means no panel — a league season with no
- * per-round table.
+ * decisions/030-league-position-by-matchday.md
+ * decisions/031-rolling-form-trend.md
  */
 export function positionPanel(series: PositionSeries) {
   if (series.status === "unavailable") return null;

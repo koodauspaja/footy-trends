@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_TRACES_SAMPLE_RATE, flagFrom, sampleRateFrom } from "@/lib/sentry-config";
 
+/**
+ * How the Sentry settings are read from the environment: a sample rate and a
+ * flag.
+ *
+ * decisions/140-sentry-production-configuration.md
+ */
+
 describe("sampleRateFrom", () => {
   it("reads a rate the operator set", () => {
     expect(sampleRateFrom("0.1")).toBe(0.1);

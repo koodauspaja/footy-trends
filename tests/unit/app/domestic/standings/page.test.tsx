@@ -5,13 +5,24 @@ import type { GroupStandingsResult, SeasonStandingsResult } from "@/lib/taso-sta
 import { warmModules } from "../../../../support/warm-module";
 
 /**
- * The favourite star inside this tree calls `useSession`. The real client opens
- * a broadcast channel whose nanostores cleanup runs a second *after* the last
- * unsubscribe — by which time this file's jsdom is gone, so it throws
- * `window is not defined` as an uncaught exception inside whichever file
- * happens to be running then. Signed out is what these tests already assumed;
- * this just says so without starting a timer (specs/026-favourites.md).
+ * A Finnish competition's standings page: league tables, split groups, the
+ * cups' rounds and bracket, and where the competition's Analyysit sits.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/010-playoff-group-match-list.md
+ * decisions/013-more-finnish-competitions.md
+ * decisions/015-finnish-cups.md
+ * decisions/026-favourites.md
+ * decisions/043-liigacup.md
+ * decisions/048-league-goals-per-game-trend.md
+ * decisions/063-competition-zones.md
+ * decisions/299-unit-suite-independent-of-order.md
+ * decisions/419-shared-fold-marker.md
  */
+
+// The favourite star in this tree calls `useSession`, and the real client must
+// not load in a unit test: its cleanup timer outlives the file's jsdom. Signed
+// out is what these tests assume.
 vi.mock("@/lib/auth-client", () => ({
   useSession: () => ({ data: null, refetch: vi.fn() }),
 }));
@@ -20,11 +31,9 @@ const listSeasonRoundsMock = vi.fn<() => Promise<number[]>>();
 const getSeasonCategoryNameMock = vi.fn<() => Promise<string | null>>();
 const getSeasonStandingsMock = vi.fn<() => Promise<SeasonStandingsResult>>();
 
-/**
- * Season discovery is mocked so these page tests stay pure unit tests: the
- * real `resolveTasoSeasonContext` queries `taso_matches` for its fallback,
- * which would make them depend on a live database.
- */
+// Season discovery is mocked so these stay unit tests: the real
+// `resolveTasoSeasonContext` queries `taso_matches` for its fallback, which
+// would need a live database.
 const resolveTasoSeasonContextMock = vi.hoisted(() =>
   vi.fn().mockResolvedValue({ currentSeason: 2026, defaultSeason: 2026 })
 );
@@ -44,12 +53,9 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
-/**
- * The competition's Analyysit (specs/048) stands in here with a marker: its
- * panel, its gate and which competitions have it are
- * `competition-analytics.test.tsx`'s. What this file owns is the page's side —
- * what it asks the section for, and where the section sits.
- */
+// The competition's Analyysit stands in here with a marker: its panel, its gate
+// and which competitions have it are `competition-analytics.test.tsx`'s. This
+// file owns what the page asks the section for, and where the section sits.
 const competitionAnalyticsMock = vi.fn(
   async (_props: {
     kind: string;
@@ -119,20 +125,18 @@ async function getMetadata(searchParams: Record<string, string | string[] | unde
   return generateMetadata({ searchParams: Promise.resolve(searchParams) });
 }
 
-/**
- * At file level, not inside the first `describe`.
- *
- * Mock implementations live on the module, not on the block that set them, so
- * the two `describe`s below this one used to inherit whatever the last test of
- * the first one happened to leave — and passed only because they are declared
- * in that order. Every test now starts from the same arrangement wherever it
- * sits.
- */
+// At file level, not inside the first `describe`: mock implementations live on
+// the module, not on the block that set them, so every test starts from the
+// same arrangement wherever it sits.
 beforeEach(() => {
   vi.clearAllMocks();
   listSeasonRoundsMock.mockResolvedValue([1, 2]);
   getSeasonCategoryNameMock.mockResolvedValue(null);
-  getSeasonStandingsMock.mockResolvedValue({ status: "ok", groups: [ownCalculatedGroup] });
+  getSeasonStandingsMock.mockResolvedValue({
+    status: "ok",
+    levels: [],
+    groups: [ownCalculatedGroup],
+  });
 });
 
 warmModules(() => import("@/app/domestic/standings/page"));
@@ -147,7 +151,7 @@ describe("Domestic standings page", () => {
     expect(screen.getByText("Runkosarja")).toBeInTheDocument();
   });
 
-  it("asks for the competition's Analyysit, a season named by its year (specs/048)", async () => {
+  it("asks for the competition's Analyysit, a season named by its year", async () => {
     await renderStandings({ kilpailu: "VL", kausi: "2025" });
 
     expect(competitionAnalyticsMock).toHaveBeenCalledTimes(1);
@@ -161,7 +165,7 @@ describe("Domestic standings page", () => {
     expect(props?.seasonLabel(2025)).toBe("2025");
   });
 
-  it("places the Analyysit under the tables and their legend (specs/048)", async () => {
+  it("places the Analyysit under the tables and their legend", async () => {
     await renderStandings();
 
     const section = screen.getByText("competition analytics placeholder");
@@ -192,6 +196,7 @@ describe("Domestic standings page", () => {
   it("renders every group TASO returns, in the order the service already sorted them", async () => {
     getSeasonStandingsMock.mockResolvedValue({
       status: "ok",
+      levels: [],
       groups: [
         ownCalculatedGroup,
         { ...ownCalculatedGroup, groupId: 2, groupName: "Mestaruussarja" },
@@ -207,6 +212,7 @@ describe("Domestic standings page", () => {
   it('displays the 2015/2018 fallback group_name "1" as "Runkosarja"', async () => {
     getSeasonStandingsMock.mockResolvedValue({
       status: "ok",
+      levels: [],
       groups: [{ ...ownCalculatedGroup, groupName: "1" }],
     });
 
@@ -218,6 +224,7 @@ describe("Domestic standings page", () => {
   it('renders a pass-through group\'s null stat fields as "–" instead of crashing or printing null', async () => {
     getSeasonStandingsMock.mockResolvedValue({
       status: "ok",
+      levels: [],
       groups: [
         {
           kind: "pass-through",
@@ -260,6 +267,7 @@ describe("Domestic standings page", () => {
   it("does not link a pass-through team's name to a team page (teamProviderId defaults to 0)", async () => {
     getSeasonStandingsMock.mockResolvedValue({
       status: "ok",
+      levels: [],
       groups: [
         {
           kind: "pass-through",
@@ -294,6 +302,7 @@ describe("Domestic standings page", () => {
   it("renders a playoff group as a match list, with no standings table", async () => {
     getSeasonStandingsMock.mockResolvedValue({
       status: "ok",
+      levels: [],
       groups: [
         ownCalculatedGroup,
         {
@@ -374,6 +383,7 @@ describe("Domestic standings page", () => {
   it("shows the no-matches message for a playoff group with no stored matches", async () => {
     getSeasonStandingsMock.mockResolvedValue({
       status: "ok",
+      levels: [],
       groups: [{ kind: "match-list", groupId: 4, groupName: "Eurolopputurnaus", matches: [] }],
     });
 
@@ -488,7 +498,7 @@ describe("Domestic standings page competition naming", () => {
 });
 
 describe("Domestic standings page, cup competitions", () => {
-  /** One knockout match, TASO-shaped. */
+  // One knockout match, TASO-shaped.
   function cupMatch(
     id: number,
     home: [number, string],
@@ -527,7 +537,7 @@ describe("Domestic standings page, cup competitions", () => {
     };
   }
 
-  /** The closing rounds of MSC 2025. */
+  // The closing rounds of MSC 2025.
   const closingRounds = [
     knockoutGroup(2, "Puolivälierät", [
       cupMatch(1, [1, "HJK Klubi 04"], [2, "HJK"], [0, 4], "away", 11),
@@ -549,7 +559,7 @@ describe("Domestic standings page, cup competitions", () => {
   });
 
   it("draws the bracket above the round lists", async () => {
-    getSeasonStandingsMock.mockResolvedValue({ status: "ok", groups: closingRounds });
+    getSeasonStandingsMock.mockResolvedValue({ status: "ok", levels: [], groups: closingRounds });
 
     await renderStandings({ kilpailu: "MSC", kausi: "2025" });
 
@@ -560,8 +570,8 @@ describe("Domestic standings page, cup competitions", () => {
     expect(headings).toContain("Loppuottelu");
   });
 
-  it("marks each cup round's summary as something to press (#419)", async () => {
-    getSeasonStandingsMock.mockResolvedValue({ status: "ok", groups: closingRounds });
+  it("marks each cup round's summary as something to press", async () => {
+    getSeasonStandingsMock.mockResolvedValue({ status: "ok", levels: [], groups: closingRounds });
 
     await renderStandings({ kilpailu: "MSC", kausi: "2025" });
     const rounds = document.querySelectorAll("details");
@@ -574,7 +584,7 @@ describe("Domestic standings page, cup competitions", () => {
   });
 
   it("normalises Finaali to Loppuottelu in both the tree and the list", async () => {
-    getSeasonStandingsMock.mockResolvedValue({ status: "ok", groups: closingRounds });
+    getSeasonStandingsMock.mockResolvedValue({ status: "ok", levels: [], groups: closingRounds });
 
     await renderStandings({ kilpailu: "MSC", kausi: "2025" });
 
@@ -583,7 +593,7 @@ describe("Domestic standings page, cup competitions", () => {
   });
 
   it("marks the winner of a level tie that TASO settled", async () => {
-    getSeasonStandingsMock.mockResolvedValue({ status: "ok", groups: closingRounds });
+    getSeasonStandingsMock.mockResolvedValue({ status: "ok", levels: [], groups: closingRounds });
 
     await renderStandings({ kilpailu: "MSC", kausi: "2025" });
 
@@ -596,6 +606,7 @@ describe("Domestic standings page, cup competitions", () => {
     // MSC 2021: a wide knockout group and nothing that halves down to a final.
     getSeasonStandingsMock.mockResolvedValue({
       status: "ok",
+      levels: [],
       groups: [
         knockoutGroup(
           1,
@@ -621,18 +632,23 @@ describe("Domestic standings page, cup competitions", () => {
   });
 
   it("shows no Pudotuspelit section for a league competition", async () => {
-    getSeasonStandingsMock.mockResolvedValue({ status: "ok", groups: [ownCalculatedGroup] });
+    getSeasonStandingsMock.mockResolvedValue({
+      status: "ok",
+      levels: [],
+      groups: [ownCalculatedGroup],
+    });
 
     await renderStandings();
 
     expect(screen.queryByRole("heading", { name: "Pudotuspelit" })).not.toBeInTheDocument();
   });
 
-  it("keeps Suomen Cup's layout for a season that had a group stage (specs/043)", async () => {
+  it("keeps Suomen Cup's layout for a season that had a group stage", async () => {
     // MSC 2018: groups, then knockout rounds. Still bracket first and every
     // group a collapsible round — the Liigacup layout never reaches it.
     getSeasonStandingsMock.mockResolvedValue({
       status: "ok",
+      levels: [],
       groups: [
         knockoutGroup(1, "Lohko A", [
           cupMatch(10, [1, "HJK Klubi 04"], [2, "HJK"], [0, 4], "away", 1),
@@ -649,8 +665,9 @@ describe("Domestic standings page, cup competitions", () => {
     expect(document.querySelectorAll("details")).toHaveLength(4);
   });
 
-  describe("a cup of groups then a playoff (specs/043)", () => {
-    /** Two tabled groups and the `1-4` playoff: A1 v B2, B1 v A2, then the winners. */
+  describe("a cup of groups then a playoff", () => {
+    // Two tabled groups and the `1-4` playoff: A1 v B2, B1 v A2, then the
+    // winners.
     function liigacupSeason(final = cupMatch(33, [1, "HJK"], [3, "KuPS"], [2, 1], "home", 22)) {
       return [
         { ...ownCalculatedGroup, groupId: 1, groupName: "Lohko A" },
@@ -664,7 +681,11 @@ describe("Domestic standings page, cup competitions", () => {
     }
 
     it("puts the group tables first and Pudotuspelit below them", async () => {
-      getSeasonStandingsMock.mockResolvedValue({ status: "ok", groups: liigacupSeason() });
+      getSeasonStandingsMock.mockResolvedValue({
+        status: "ok",
+        levels: [],
+        groups: liigacupSeason(),
+      });
 
       await renderStandings({ kilpailu: "LC", kausi: "2026" });
 
@@ -674,7 +695,11 @@ describe("Domestic standings page, cup competitions", () => {
     });
 
     it("draws the semi-finals feeding the final, and does not list 1-4 as well", async () => {
-      getSeasonStandingsMock.mockResolvedValue({ status: "ok", groups: liigacupSeason() });
+      getSeasonStandingsMock.mockResolvedValue({
+        status: "ok",
+        levels: [],
+        groups: liigacupSeason(),
+      });
 
       await renderStandings({ kilpailu: "LC", kausi: "2026" });
 
@@ -692,7 +717,11 @@ describe("Domestic standings page, cup competitions", () => {
         awayGoals: null,
         winner: null,
       };
-      getSeasonStandingsMock.mockResolvedValue({ status: "ok", groups: liigacupSeason(unplayed) });
+      getSeasonStandingsMock.mockResolvedValue({
+        status: "ok",
+        levels: [],
+        groups: liigacupSeason(unplayed),
+      });
 
       await renderStandings({ kilpailu: "LC", kausi: "2026" });
 
@@ -701,7 +730,11 @@ describe("Domestic standings page, cup competitions", () => {
     });
 
     it("lays Ykkösliigacup out the same way", async () => {
-      getSeasonStandingsMock.mockResolvedValue({ status: "ok", groups: liigacupSeason() });
+      getSeasonStandingsMock.mockResolvedValue({
+        status: "ok",
+        levels: [],
+        groups: liigacupSeason(),
+      });
 
       await renderStandings({ kilpailu: "M1LCUP", kausi: "2026" });
 
@@ -712,6 +745,7 @@ describe("Domestic standings page, cup competitions", () => {
     it("shows no Pudotuspelit while the playoff has no matches yet", async () => {
       getSeasonStandingsMock.mockResolvedValue({
         status: "ok",
+        levels: [],
         groups: liigacupSeason().slice(0, 2),
       });
 
@@ -719,5 +753,252 @@ describe("Domestic standings page, cup competitions", () => {
 
       expect(screen.queryByRole("heading", { name: "Pudotuspelit" })).not.toBeInTheDocument();
     });
+  });
+});
+
+describe("what the positions of a league table lead to", () => {
+  const SOURCE_LINE = "Sijoitusten merkitykset ovat Palloliiton tulospalvelusta.";
+
+  function tableOf(groupId: number, groupName: string, teams: number): GroupStandingsResult {
+    const [row] = ownCalculatedGroup.kind === "own-calculated" ? ownCalculatedGroup.standings : [];
+    if (row === undefined) throw new Error("Expected the fixture group to have a row");
+    return {
+      kind: "own-calculated",
+      groupId,
+      groupName,
+      standings: Array.from({ length: teams }, (_unused, index) => ({
+        ...row,
+        position: index + 1,
+        teamProviderId: groupId * 100 + index + 1,
+        teamName: `${groupName} ${index + 1}`,
+      })),
+    };
+  }
+
+  function levelsOf(groupId: number, levels: Array<[number, number, string | null]>) {
+    return levels.map(([level, teamCount, label]) => ({ groupId, level, teamCount, label }));
+  }
+
+  function sectionOf(groupName: string): HTMLElement {
+    const section = screen.getByRole("heading", { level: 2, name: groupName }).closest("section");
+    if (!section) throw new Error(`Expected a section for ${groupName}`);
+    return section;
+  }
+
+  function linesUnder(groupName: string): string[] {
+    return within(sectionOf(groupName))
+      .queryAllByRole("listitem")
+      .map((item) => item.textContent ?? "");
+  }
+
+  // The places, counted from 1, whose row carries the heavier rule.
+  function rulesIn(groupName: string): number[] {
+    return within(sectionOf(groupName))
+      .getAllByRole("row")
+      .slice(1)
+      .flatMap((row, index) => (row.classList.contains("border-b-2") ? [index + 1] : []));
+  }
+
+  const YKKOSLIIGA_LEVELS = levelsOf(1, [
+    [1, 1, "Nousee Veikkausliigaan"],
+    [2, 1, "Jatkaa liigakarsintaan"],
+    [3, 6, "Säilyy Ykkösliigassa"],
+    [5, 1, "Karsii paikastaan Ykkösliigassa"],
+    [6, 1, "Putoaa Ykköseen"],
+  ]);
+
+  const VEIKKAUSLIIGA = {
+    status: "ok" as const,
+    groups: [
+      tableOf(1, "Runkosarja", 12),
+      tableOf(2, "Mestaruussarja", 6),
+      tableOf(3, "Karsintasarja", 6),
+    ],
+    levels: [
+      ...levelsOf(1, [
+        [1, 6, "Mestaruussarjaan"],
+        [2, 6, "Karsintasarjaan"],
+      ]),
+      ...levelsOf(2, [
+        [1, 1, "Kultaa"],
+        [2, 1, "Hopeaa"],
+        [3, 1, "Pronssia"],
+        [4, 3, null],
+      ]),
+      ...levelsOf(3, [
+        [4, 4, null],
+        [5, 1, "Liigakarsintaan"],
+        [6, 1, "Ykkösliigaan"],
+      ]),
+    ],
+  };
+
+  it("lists each labelled level under the table and rules the levels off in it", async () => {
+    getSeasonStandingsMock.mockResolvedValue({
+      status: "ok",
+      groups: [tableOf(1, "Ykkösliiga", 10)],
+      levels: YKKOSLIIGA_LEVELS,
+    });
+
+    await renderStandings({ kilpailu: "M1L", kausi: "2026" });
+
+    expect(linesUnder("Ykkösliiga")).toEqual([
+      "Sija 1: Nousee Veikkausliigaan",
+      "Sija 2: Jatkaa liigakarsintaan",
+      "Sijat 3–8: Säilyy Ykkösliigassa",
+      "Sija 9: Karsii paikastaan Ykkösliigassa",
+      "Sija 10: Putoaa Ykköseen",
+    ]);
+    expect(rulesIn("Ykkösliiga")).toEqual([1, 2, 8, 9]);
+  });
+
+  it("puts the list after the table, inside the group's own section", async () => {
+    getSeasonStandingsMock.mockResolvedValue({
+      status: "ok",
+      groups: [tableOf(1, "Ykkösliiga", 10)],
+      levels: YKKOSLIIGA_LEVELS,
+    });
+
+    await renderStandings({ kilpailu: "M1L", kausi: "2026" });
+
+    const section = sectionOf("Ykkösliiga");
+    const table = within(section).getByRole("table");
+    const list = within(section).getByRole("list");
+    expect(table.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("gives each group of a split season its own levels", async () => {
+    getSeasonStandingsMock.mockResolvedValue(VEIKKAUSLIIGA);
+
+    await renderStandings();
+
+    expect(linesUnder("Runkosarja")).toEqual([
+      "Sijat 1–6: Mestaruussarjaan",
+      "Sijat 7–12: Karsintasarjaan",
+    ]);
+    expect(rulesIn("Runkosarja")).toEqual([6]);
+    expect(linesUnder("Mestaruussarja")).toEqual([
+      "Sija 1: Kultaa",
+      "Sija 2: Hopeaa",
+      "Sija 3: Pronssia",
+    ]);
+    expect(rulesIn("Mestaruussarja")).toEqual([1, 2, 3]);
+  });
+
+  it("names no line for a level without a label, and still counts its places", async () => {
+    getSeasonStandingsMock.mockResolvedValue(VEIKKAUSLIIGA);
+
+    await renderStandings();
+
+    expect(linesUnder("Karsintasarja")).toEqual([
+      "Sija 5: Liigakarsintaan",
+      "Sija 6: Ykkösliigaan",
+    ]);
+    expect(rulesIn("Karsintasarja")).toEqual([4, 5]);
+  });
+
+  it("names the source once, under the last group that has a list", async () => {
+    getSeasonStandingsMock.mockResolvedValue({
+      ...VEIKKAUSLIIGA,
+      groups: [...VEIKKAUSLIIGA.groups, tableOf(4, "Liigakarsinta", 2)],
+      // A group whose only level leads nowhere has no list of its own.
+      levels: [...VEIKKAUSLIIGA.levels, ...levelsOf(4, [[1, 1, null]])],
+    });
+
+    await renderStandings();
+
+    expect(screen.getAllByText(SOURCE_LINE)).toHaveLength(1);
+    expect(within(sectionOf("Karsintasarja")).getByText(SOURCE_LINE)).toBeInTheDocument();
+    const list = within(sectionOf("Karsintasarja")).getByRole("list");
+    expect(
+      list.compareDocumentPosition(screen.getByText(SOURCE_LINE)) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(linesUnder("Liigakarsinta")).toEqual([]);
+    expect(rulesIn("Liigakarsinta")).toEqual([]);
+  });
+
+  it("renders a season with no stored level as before: no list, no rule, no source line", async () => {
+    getSeasonStandingsMock.mockResolvedValue({
+      status: "ok",
+      groups: [tableOf(1, "Ykkösliiga", 10)],
+      levels: [],
+    });
+
+    await renderStandings({ kilpailu: "M1L", kausi: "2026" });
+
+    expect(linesUnder("Ykkösliiga")).toEqual([]);
+    expect(screen.queryByText(SOURCE_LINE)).not.toBeInTheDocument();
+    expect(rulesIn("Ykkösliiga")).toEqual([]);
+  });
+
+  it("uses only a group's own levels", async () => {
+    getSeasonStandingsMock.mockResolvedValue({
+      status: "ok",
+      groups: [tableOf(1, "Runkosarja", 4), tableOf(2, "Mestaruussarja", 4)],
+      levels: levelsOf(2, [[1, 1, "Kultaa"]]),
+    });
+
+    await renderStandings();
+
+    expect(linesUnder("Runkosarja")).toEqual([]);
+    expect(rulesIn("Runkosarja")).toEqual([]);
+    expect(linesUnder("Mestaruussarja")).toEqual(["Sija 1: Kultaa"]);
+  });
+
+  it("draws the zones of a group shown from TASO's own numbers, on TASO's order", async () => {
+    const table = tableOf(1, "Ykkösliiga", 3);
+    if (table.kind !== "own-calculated") throw new Error("Expected a table");
+    getSeasonStandingsMock.mockResolvedValue({
+      status: "ok",
+      groups: [
+        {
+          kind: "pass-through",
+          groupId: 1,
+          groupName: "Ykkösliiga",
+          standings: table.standings.map((row) => ({ ...row, form: [] as [] })),
+        },
+      ],
+      levels: levelsOf(1, [
+        [1, 1, "Nousee"],
+        [2, 2, "Säilyy"],
+      ]),
+    });
+
+    await renderStandings({ kilpailu: "M1L", kausi: "2026" });
+
+    expect(linesUnder("Ykkösliiga")).toEqual(["Sija 1: Nousee", "Sijat 2–3: Säilyy"]);
+    expect(rulesIn("Ykkösliiga")).toEqual([1]);
+  });
+
+  it("shows nothing for a group drawn as a match list, whatever is stored for it", async () => {
+    getSeasonStandingsMock.mockResolvedValue({
+      status: "ok",
+      groups: [
+        tableOf(1, "Runkosarja", 4),
+        { kind: "match-list", groupId: 2, groupName: "Liigakarsinta", matches: [buildMatch()] },
+      ],
+      levels: levelsOf(2, [[1, 1, "Nousee"]]),
+    });
+
+    await renderStandings();
+
+    expect(linesUnder("Liigakarsinta")).toEqual([]);
+    expect(linesUnder("Runkosarja")).toEqual([]);
+    expect(screen.queryByText(SOURCE_LINE)).not.toBeInTheDocument();
+  });
+
+  it("shows nothing on a cup, in either cup layout", async () => {
+    const levels = [...levelsOf(1, [[1, 1, "Jatkoon"]]), ...levelsOf(2, [[1, 1, "Jatkoon"]])];
+    getSeasonStandingsMock.mockResolvedValue({
+      status: "ok",
+      groups: [tableOf(1, "Lohko A", 4), tableOf(2, "Lohko B", 4)],
+      levels,
+    });
+
+    await renderStandings({ kilpailu: "LC", kausi: "2026" });
+
+    expect(screen.queryByText("Sija 1: Jatkoon")).not.toBeInTheDocument();
+    expect(screen.queryByText(SOURCE_LINE)).not.toBeInTheDocument();
+    expect(rulesIn("Lohko A")).toEqual([]);
   });
 });

@@ -3,13 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../../support/warm-module";
 
 /**
- * The admin route itself, from specs/028-admin-tools-and-roles.md.
+ * The admin route itself. A route file nothing imports is absent from the
+ * coverage report, so it has a test of its own.
  *
- * Without this file the page has no test, which vitest scores as 100% — it
- * only measures files a test imports — while Sonar correctly reports 0%. The
- * same reason `tests/unit/app/settings/page.test.tsx` exists, and the trap this
- * component nearly shipped in.
+ * decisions/028-admin-tools-and-roles.md
  */
+
 const { requireAdmin, listUsers, notFound, logger } = vi.hoisted(() => ({
   requireAdmin: vi.fn(),
   listUsers: vi.fn(),

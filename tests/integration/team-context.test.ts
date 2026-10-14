@@ -7,8 +7,11 @@ import { getTeamContext } from "@/lib/team-context";
 /**
  * The resolution query against a real Postgres: which stored match decides a
  * team page's competition and season, and which rows a route may not resolve
- * from. See specs/020-context-free-team-page.md.
+ * from.
+ *
+ * decisions/020-context-free-team-page.md
  */
+
 const TEAM = 992101;
 const OTHER = 992102;
 

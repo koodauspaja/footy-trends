@@ -9,9 +9,15 @@ import {
   startDockerDaemon,
 } from "../../../scripts/docker";
 
+/**
+ * The docker commands the local scripts run, as argument lists.
+ *
+ * decisions/399-local-commands-start-the-database.md
+ */
+
 const BINARY = "/opt/homebrew/bin/docker";
 
-/** Records what was asked of the process runner, and answers with `status`. */
+// Records what was asked of the process runner, and answers with `status`.
 function runner(status: number | null) {
   const calls: { command: string; args: readonly string[]; inherit: boolean }[] = [];
   return {
@@ -95,11 +101,9 @@ describe("destroyContainers", () => {
     const { calls, run } = runner(0);
 
     expect(destroyContainers({ find: found, run })).toBe(true);
-    /**
-     * Pinned deliberately. Without `--volumes` this is a restart that silently
-     * keeps the data, `db:reset` would report a fresh database it had not made,
-     * and nothing else in the repository would notice.
-     */
+    // Pinned deliberately. Without `--volumes` this is a restart that silently
+    // keeps the data: `db:reset` would report a fresh database it had not made,
+    // and nothing else in the repository would notice.
     expect(calls).toEqual([
       { command: BINARY, args: ["compose", "down", "--volumes"], inherit: true },
     ]);

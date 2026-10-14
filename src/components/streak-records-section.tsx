@@ -8,36 +8,45 @@ import {
 import type { AnalyticsAxis } from "@/lib/analytics-axis";
 import { hasAnyRecord, type StreakRecord, type StreakRecordsSeries } from "@/lib/streak-records";
 
-/** The strings agreed in specs/039, each where the spec places it. */
+/**
+ * The panel's strings.
+ *
+ * decisions/039-streak-records.md
+ */
 export const RECORDS_HEADING = "Ennätykset";
 export const NO_RECORDS_MESSAGE = "Ei vielä ennätyksiä.";
 export const RECORDS_ERROR_MESSAGE = "Ennätyksiä ei voitu laskea. Yritä myöhemmin uudelleen.";
 
 const HEADING_ID = "streak-records";
 
-/** `1 voitto` / `3 voittoa`: Finnish counts one thing differently, as `Putket` does. */
+/**
+ * `1 voitto` / `3 voittoa`: Finnish counts one thing differently, as `Putket` does.
+ *
+ * decisions/039-streak-records.md
+ */
 function count(length: number, one: string, many: string): string {
   return `${length} ${length === 1 ? one : many}`;
 }
 
 /**
  * When a record was set: `Kausi 2024`, or `Kaudet 2024–2025` for one that
- * crossed a boundary — and `Vuosi` / `Vuodet` on a page whose periods are
- * calendar years (specs/041, S11).
+ * crossed a boundary, and `Vuosi` / `Vuodet` on a page whose periods are
+ * calendar years. Named by period, never by match number.
  *
- * Named by period and never by match number (specs/039, S8) — match 37 of a run
- * spanning two seasons is not something a reader can find. `Putket` keeps
- * `Ottelut 5–9` for the season it shows: the two panels answer different
- * questions, so a different unit for "when" is honest rather than inconsistent.
+ * decisions/039-streak-records.md
+ * decisions/041-national-team-analytics.md
  */
 export function seasonSpanText(record: StreakRecord, axis: AnalyticsAxis): string {
   return axis.recordSpan(record.from, record.to);
 }
 
 /**
- * The records panel in `Analyysit` (specs/039): four figures, not a chart. A
+ * The records panel in `Analyysit`: four figures, not a chart. A
  * record is one number, and four numbers do not need an axis. `null` means no
  * panel: this club has no stored league season at all.
+ *
+ * decisions/039-streak-records.md
+ * decisions/040-cup-analytics.md
  */
 export function streakRecordsPanel(series: StreakRecordsSeries, axis: AnalyticsAxis) {
   if (series.status === "unavailable") return null;
@@ -55,10 +64,6 @@ function bodyFor(
 ) {
   if (series.status === "error") return <p>{RECORDS_ERROR_MESSAGE}</p>;
   if (!hasAnyRecord(series.records)) return <p>{NO_RECORDS_MESSAGE}</p>;
-
-  // What these records cover (specs/040 S9, specs/041 S12). The panel never
-  // said, on any page: a reader on a club's cup page could otherwise take its
-  // records for the club's own. No period count — each record names its own.
 
   const figures = [
     [LONGEST_WINS_LABEL, series.records.wins, "voitto", "voittoa"],
@@ -79,6 +84,9 @@ function bodyFor(
 
   return (
     <div>
+      {/* What these records cover: a reader on a club's cup page could otherwise
+          take its records for the club's own. No period count: each record
+          names its own. */}
       <p className="mb-2 text-muted text-sm">{series.scope}</p>
       <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
         {figures.map(([label, record, one, many]) => (

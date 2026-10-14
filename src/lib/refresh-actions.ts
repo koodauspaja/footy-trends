@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin-guard";
 import { applyRefresh, listSeasonsFor, previewRefresh } from "@/lib/force-refresh";
+import { logger } from "@/lib/logger";
 import { isKnownCompetition } from "@/lib/refresh-competitions";
 import {
   type ApplyResult,
@@ -12,31 +13,26 @@ import {
 } from "@/lib/refresh-view";
 
 /**
- * The `"use server"` boundary for the forced season refresh, from
- * specs/029-forced-season-refresh.md.
+ * The `"use server"` boundary for the forced season refresh. `requireAdmin()`
+ * runs first in every action, before the arguments are looked at, and the
+ * acting user's id comes from that gate, never from the caller.
  *
- * **`requireAdmin()` runs first in every one of these, before the arguments are
- * looked at.** A server action is a public network endpoint whether or not
- * anything renders a control for it, so neither the missing link nor the page's
- * not-found response keeps a caller out — only the gate does. The same rule
- * `admin-actions.ts` and `favourite-actions.ts` follow.
- *
- * None of these takes an acting-user id: it comes from the gate, never from the
- * caller.
- *
- * The competition arrives as the `<select>`'s own encoded value, which is a
- * string from the browser like any other. `decodeChoice` checks its shape and
- * `isKnownCompetition` checks it against the registries; a value failing either
- * is refused here rather than carried into the engine.
+ * decisions/029-forced-season-refresh.md
  */
 
 /**
  * Both spellings of the page, so the run list refreshes whichever URL is open —
  * the same pair `admin-actions.ts` revalidates for the user table.
+ *
+ * decisions/029-forced-season-refresh.md
  */
 const REFRESH_PATHS = ["/yllapito/data", "/admin/data"] as const;
 
-/** Refusals that never reached the engine, so they carry no other detail. */
+/**
+ * Refusals that never reached the engine, so they carry no other detail.
+ *
+ * decisions/029-forced-season-refresh.md
+ */
 const REFUSED_SEASONS: SeasonsResult = { ok: false, reason: "input" };
 const REFUSED_PREVIEW: PreviewResult = { ok: false, reason: "input" };
 const REFUSED_APPLY: ApplyResult = { ok: false, reason: "input" };
@@ -69,11 +65,11 @@ export async function previewRefreshAction(
 }
 
 /**
- * The only action that writes.
+ * The only action that writes. `snapshotHash` is the fingerprint of the diff
+ * the admin approved, and is not trusted as data: the engine recomputes it.
  *
- * `snapshotHash` is the fingerprint of the diff the admin approved. It is not
- * trusted as data — the engine recomputes the diff and compares — it only
- * answers "is this still the thing you were shown".
+ * decisions/029-forced-season-refresh.md
+ * decisions/603-server-side-records.md
  */
 export async function applyRefreshAction(
   competition: string,
@@ -87,15 +83,13 @@ export async function applyRefreshAction(
   if (choice === null) return REFUSED_APPLY;
 
   const result = await applyRefresh(choice, seasonId, snapshotHash, adminId);
+  logger.info(
+    { ...choice, seasonId, adminId, outcome: result.ok ? "ok" : result.reason },
+    "An admin asked to apply a forced refresh"
+  );
 
-  /**
-   * Only on success, and only here.
-   *
-   * The run list is server-rendered, so without this the row just written stays
-   * invisible until the admin reloads — an audit log that does not show the
-   * thing that was audited. A refusal wrote no row, so revalidating for one
-   * would re-render the page to prove nothing changed.
-   */
+  // Only on success, and only here: the run list is server-rendered, and a
+  // refusal wrote no row.
   if (result.ok) {
     for (const path of REFRESH_PATHS) revalidatePath(path);
   }

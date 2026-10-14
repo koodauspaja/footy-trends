@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { displayNameFor } from "@/lib/auth-profile";
 
+/**
+ * The display name shown for an account.
+ *
+ * decisions/023-google-oauth-login.md
+ */
+
 describe("displayNameFor", () => {
   it("uses the name Google returned", () => {
     expect(displayNameFor({ name: "Matti Meikäläinen", email: "matti@example.com" })).toBe(

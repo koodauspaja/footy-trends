@@ -2,9 +2,11 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 
 /**
- * The team page's two goals charts (specs/032), end to end. Signed in the way
+ * The team page's two goals charts, end to end. Signed in the way
  * league-position.spec.ts explains: the override header, honoured only by this
  * `_test`-database server.
+ *
+ * decisions/032-goals-scored-vs-conceded.md
  */
 
 const ROLLING = "Maalit otteluittain";
@@ -18,14 +20,14 @@ async function signedIn(page: Page): Promise<void> {
   await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
 }
 
-/** A standings row's `O`, `TM` and `PM` — Sija, Joukkue, O, V, T, H, TM, PM. */
+// A standings row's `O`, `TM` and `PM`: Sija, Joukkue, O, V, T, H, TM, PM.
 async function tableFigures(row: Locator): Promise<[number, number, number]> {
   const cell = async (column: number) =>
     Number(await row.locator(`td:nth-child(${column})`).textContent());
   return [await cell(3), await cell(7), await cell(8)];
 }
 
-/** The last running-total row, as [match, scored, conceded]. */
+// The last running-total row, as [match, scored, conceded].
 async function lastTotals(page: Page): Promise<number[]> {
   await expect(page.getByRole("img", { name: TOTALS })).toBeVisible();
   const rows = await page.getByText(TOTAL_ROW).allTextContents();
@@ -50,9 +52,10 @@ test.describe("Goals charts, signed in", () => {
   });
 
   test("end at the TM and PM the table shows — across a Veikkausliiga split", async ({ page }) => {
-    // KuPS, 2026: the Mestaruussarja table counts the regular season too, as
-    // the running totals do. Read from the page, so it holds as the season goes on.
-    await page.goto("/kotimaa/sarjataulukko?kilpailu=VL&kausi=2026");
+    // KuPS, 2022: the Mestaruussarja table counts the regular season too, as
+    // the running totals do. Read from the page, not hardcoded. A season long
+    // over: while one is being played, the provider's table trails its results.
+    await page.goto("/kotimaa/sarjataulukko?kilpailu=VL&kausi=2022");
     const row = page
       .getByRole("heading", { name: "Mestaruussarja", level: 2 })
       .locator("xpath=following::table[1]")
@@ -104,6 +107,7 @@ test.describe("Goals charts, signed in", () => {
       "Kääntyneet ottelut",
       "Tämä kausi verrattuna",
       "Ennätykset",
+      "Joukkueen vahvuus (Elo)",
       "Vaikeimmat vastustajat",
     ]);
   });

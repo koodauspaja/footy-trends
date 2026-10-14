@@ -1,39 +1,17 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 /**
- * The invariant behind `src/lib/current-user.ts`.
+ * Importing a server action module must not construct better-auth. Production never notices, as
+ * Next stubs a `"use server"` import, and a local `.env` hides it, so these tests delete the
+ * variables the way CI's unit job has none. Mocking `@/lib/auth` would hide the failure.
  *
- * `@/lib/auth` constructs better-auth at module scope and throws without
- * `BETTER_AUTH_SECRET`. A `"use server"` module is imported by name from client
- * components — Next replaces it with a network stub, so production never
- * evaluates the chain in a browser and never notices. Anything without that
- * transform does, and **the CI unit job has no environment at all**,
- * deliberately (#158).
- *
- * This is not hypothetical. specs/026's toggle renders inside `standings-table`
- * and the region picker, so a static `import { auth }` in the actions module put
- * better-auth into the import graph of eight test files that have nothing to do
- * with authentication: 114 tests failed in CI while passing locally, where a
- * `.env` happens to exist. This test is what makes that visible without CI.
- *
- * Deliberately **not** mocking `@/lib/auth`: mocking it is what would hide the
- * failure. The real module has to be reachable and simply never constructed.
+ * decisions/026-favourites.md
+ * decisions/316-heaviest-import-timeout.md
  */
-/**
- * Every test here imports a **real** module graph — that is the point of the
- * file, and mocking `@/lib/auth` is what would hide what it protects.
- *
- * That graph is the largest in the repository: better-auth, its Drizzle adapter,
- * and the schema. Transforming it cold costs 500-640 ms on an idle machine and
- * was measured between 588 and 1266 ms while the other 111 files were running —
- * a 2.5x spread across three runs. Vitest's 5 s default left no room for the
- * tail of that distribution, and the file failed roughly once in ten full runs
- * with `Test timed out in 5000ms`, never in isolation (#316).
- *
- * These tests assert a guard, not a latency. Thirty seconds is far past any
- * contention this machine produces, and still fails fast if the import ever
- * genuinely hangs.
- */
+
+// Every test here imports a real module graph, the largest in the repository: better-auth,
+// its Drizzle adapter and the schema. These tests assert a guard, not a latency: thirty
+// seconds is far past any contention, and still fails fast if the import ever hangs.
 vi.setConfig({ testTimeout: 30_000 });
 
 const ACTION_MODULES = {

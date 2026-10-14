@@ -13,28 +13,22 @@ type TeamSeasonSelectorProps = {
   seasons: SeasonOption[];
   selectedSeasonId: number;
   /**
-   * Season → the competition the club played that season, where it differs
-   * from the one being shown.
-   *
-   * Promotion and relegation mean a club's seasons are spread across tiers, so
-   * picking a season on its Veikkausliiga page should land on the Ykkösliiga
-   * page it actually played — not on an empty one. Omitted on pages that are
-   * not a club's, where the competition never changes.
-   *
-   * Navigation only: a typed URL still renders the competition it names, and
-   * the plain GET fallback below keeps carrying the current one, which lands on
-   * a page that explains itself. See specs/022-teams-between-tiers.md.
+   * Season → the competition the club played that season, where it differs from
+   * the one being shown. Navigation only; omitted on pages that are not a
+   * club's.
    */
   seasonCompetitions?: Readonly<Record<number, string>>;
 };
 
 /**
- * Season-only selector for the team page. Targets the public `/ulkomaat/joukkue/:id`
- * URL (not the `/foreign/team/:id` App Router folder — see the rewrite in
- * next.config.ts) so navigation never leaks the internal English route name.
- * Carries `kilpailu` forward via a hidden field — there's no competition
- * selector on this page (see specs/006-other-competitions.md), so it must
- * survive both the JS-driven navigation and the plain GET form fallback.
+ * Season-only selector for the team page. Targets the public
+ * `/ulkomaat/joukkue/:id` URL, and carries `kilpailu` forward in a hidden
+ * field.
+ *
+ * decisions/004-listing-matches-for-selected-team.md
+ * decisions/006-other-competitions.md
+ * decisions/012-finnish-urls-english-code.md
+ * decisions/022-teams-between-tiers.md
  */
 export function TeamSeasonSelector({
   basePath,

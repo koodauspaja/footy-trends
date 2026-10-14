@@ -1,12 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * The three head-to-head routes (specs/042), which differ only in the source
- * they resolve ids against and the prefix their rows link back into.
+ * The head-to-head routes, which differ only in the source they resolve ids against and
+ * the prefix their rows link back into. Getting one wrong resolves a TASO id against
+ * football-data's table. What the page does is `head-to-head-page.test.tsx`'s.
  *
- * What the page *does* is `head-to-head-page.test.tsx`'s. What each route owns
- * is those two constants — and getting one wrong would resolve a TASO id
- * against football-data's table, which finds either nothing or the wrong team.
+ * decisions/042-head-to-head-view.md
  */
 
 const { HeadToHeadPage, headToHeadMetadata } = vi.hoisted(() => ({
@@ -53,12 +52,9 @@ const ROUTES = [
   },
 ] as const;
 
-/**
- * Every match route builds its link as `${basePath}/kohtaamiset/...`, so a
- * prefix with no head-to-head route behind it is a link to nothing. The two
- * national-team team routes are exactly that case, and are why this list has
- * five entries rather than the three specs/042 first named.
- */
+// Every match route builds its link as `${basePath}/kohtaamiset/...`, so a prefix
+// with no head-to-head route behind it is a link to nothing. The two national-team
+// team routes are that case, which is why this list has five entries.
 
 describe.each(ROUTES)("$name", ({ module, source, basePath }) => {
   const params = Promise.resolve({ a: "1", b: "2" });

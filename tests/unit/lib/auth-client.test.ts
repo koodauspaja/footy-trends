@@ -2,10 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../support/warm-module";
 
 /**
- * Every other test mocks `@/lib/auth-client`, so without this file the real
- * module is never imported: vitest reports 100% because it only measures files
- * a test touches, while Sonar reports 0% on a file nothing exercised.
+ * The real `@/lib/auth-client`, which every other test mocks. A file nothing
+ * imports is absent from the coverage report, so it has a test of its own.
+ *
+ * decisions/023-google-oauth-login.md
+ * decisions/288-vitest-5.md
+ * decisions/384-a-dom-only-where-a-test-needs-one.md
  */
+
 const { createAuthClient, client } = vi.hoisted(() => {
   const client = {
     signIn: { social: vi.fn() },
@@ -21,11 +25,9 @@ warmModules(() => import("@/lib/auth-client"));
 
 describe("auth client", () => {
   it("takes its base URL from the origin it is served from", async () => {
-    // Instantiated here rather than relying on `warmModules`' import: vitest 5
-    // clears mock calls before each test (`clearMocks` defaults to true there,
-    // and did not in 4), so a call made in `beforeAll` is gone by now.
-    // `resetModules` drops module instances, not Vite's transform cache, so the
-    // warm hook still pays that cost once — which is what #384 was for.
+    // Instantiated here, not left to `warmModules`' import: vitest clears mock calls before
+    // each test, so a call made in `beforeAll` is gone by now. `resetModules` drops module
+    // instances, not Vite's transform cache, so the warm hook still pays that cost once.
     vi.resetModules();
     await import("@/lib/auth-client");
 

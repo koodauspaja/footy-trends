@@ -2,6 +2,13 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { TeamMatchesOutcome, type TeamOutcome } from "@/components/team-matches-outcome";
 
+/**
+ * What a team page says when it has no matches to show: an unknown club, or one
+ * that played elsewhere.
+ *
+ * decisions/022-teams-between-tiers.md
+ */
+
 const base: TeamOutcome = {
   result: "not_found",
   seasons: "ok",

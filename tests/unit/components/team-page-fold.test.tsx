@@ -2,6 +2,12 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { MATCHES_HEADING, TeamPageFold } from "@/components/team-page-fold";
 
+/**
+ * One fold of the team page: a native `<details>` that starts open.
+ *
+ * decisions/416-team-page-folds.md
+ */
+
 function renderFold(props: Partial<Parameters<typeof TeamPageFold>[0]> = {}) {
   return render(
     <TeamPageFold heading="Ottelut" headingId="team-matches" {...props}>
@@ -59,7 +65,7 @@ describe("TeamPageFold", () => {
     );
   });
 
-  it("names the match list as agreed on #416", () => {
+  it('names the match list "Ottelut"', () => {
     expect(MATCHES_HEADING).toBe("Ottelut");
   });
 });

@@ -1,14 +1,18 @@
 /**
- * A team's goals scored and conceded across a season — the data behind the team
- * page's `Maalit otteluittain` and `Maalit yhteensä` charts (specs/032).
+ * A team's goals scored and conceded across a season: the data behind the team
+ * page's `Maalit otteluittain` and `Maalit yhteensä` charts. Counted over the
+ * matches the form chart counts, in its order. Pure.
  *
- * Counted over exactly the matches the form chart counts, in exactly its order
- * (`teamMatchesInOrder`), so the three charts agree on which match is which.
- * Pure: the services decide which matches count, and pass them in.
+ * decisions/032-goals-scored-vs-conceded.md
+ * decisions/031-rolling-form-trend.md
  */
 import { FORM_WINDOW, goalsFor, type ResultMatch, teamMatchesInOrder } from "./form-series";
 
-/** Scored and conceded after the team's `match`-th match. */
+/**
+ * Scored and conceded after the team's `match`-th match.
+ *
+ * decisions/032-goals-scored-vs-conceded.md
+ */
 export type GoalsPoint = { match: number; scored: number; conceded: number };
 
 export type GoalsSeries =
@@ -22,7 +26,7 @@ export type GoalsSeries =
       /** Running totals from the first match. Empty before the first. */
       totals: GoalsPoint[];
     }
-  /** No league table for this team's season, so no panels (specs/031, Q2). */
+  /** No league table for this team's season, so no panels. */
   | { status: "unavailable" }
   | { status: "error" };
 
@@ -30,6 +34,8 @@ export type GoalsSeries =
  * Both series from this team's finished league matches. `finished` may hold
  * every team's matches; only this team's count, read from its own side of each
  * fixture.
+ *
+ * decisions/032-goals-scored-vs-conceded.md
  */
 export function goalsSeries(
   finished: readonly ResultMatch[],

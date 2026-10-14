@@ -12,7 +12,22 @@ import {
   getDomesticCompetitionName,
   isDomesticCup,
   parseDomesticCompetitionParam,
+  publishesZones,
+  ZONE_COMPETITION_CODES,
 } from "@/lib/domestic-competitions";
+
+/**
+ * The Finnish competitions: the default one and how the `kilpailu` parameter is
+ * read, their categories and competition ids by season, their earliest seasons,
+ * the cups and their formats, and which competition a season pair belongs to.
+ *
+ * decisions/012-finnish-urls-english-code.md
+ * decisions/013-more-finnish-competitions.md
+ * decisions/015-finnish-cups.md
+ * decisions/043-liigacup.md
+ * decisions/051-home-win-baseline.md
+ * decisions/063-competition-zones.md
+ */
 
 describe("domestic competitions", () => {
   it("defaults to Veikkausliiga", () => {
@@ -278,5 +293,28 @@ describe("competitionForSeasonPair", () => {
     expect(competitionForSeasonPair(codes, "spljp25", "VL", 2026)).toBeNull();
     // A competition that is not among the codes asked about.
     expect(competitionForSeasonPair(codes, "spljp26", "M1", 2026)).toBeNull();
+  });
+});
+
+describe("publishesZones", () => {
+  it("covers the men's top three tiers and the women's top two", () => {
+    expect(ZONE_COMPETITION_CODES).toEqual(["VL", "M1L", "M1", "NL", "N1"]);
+    for (const categoryId of ["VL", "M1L", "M1", "NL", "N1"]) {
+      expect(publishesZones(categoryId)).toBe(true);
+    }
+  });
+
+  it("leaves out Miesten Kakkonen, the junior competitions in every era, and the cups", () => {
+    const others = DOMESTIC_COMPETITIONS.filter(
+      (competition) => !ZONE_COMPETITION_CODES.includes(competition.code)
+    ).flatMap((competition) => categoryIdsFor(competition.code));
+
+    expect(others).toContain("M2");
+    expect(others).toContain("P20SM");
+    expect(others.filter(publishesZones)).toEqual([]);
+  });
+
+  it("answers no for a category the registry does not hold", () => {
+    expect(publishesZones("XX")).toBe(false);
   });
 });

@@ -5,21 +5,12 @@ import { refreshRuns, tasoGroupTeams, tasoMatches, user } from "@/db/schema";
 import type { NormalizedTasoGroupTeam, NormalizedTasoMatch } from "@/lib/taso";
 
 /**
- * The forced refresh against a real Postgres, from
- * specs/029-forced-season-refresh.md.
+ * The forced refresh against a real Postgres. One rule: a provider that goes
+ * silent must never cost us data. Only the provider's HTTP layer, Redis and
+ * season discovery are stubbed.
  *
- * Everything here exists to prove one rule, and the rule is about deletion:
- *
- * > A provider that goes silent must never cost us data.
- *
- * The unit suite can show that a writer was not *called*. Only a real database
- * can show that the rows are still *there* — which is the claim that matters,
- * and the one that breaks if anyone later swaps the writer or widens the
- * delete's predicate. A mocked `where` cannot tell a delete scoped to two ids
- * from a delete scoped to a whole season.
- *
- * Only the provider's HTTP layer, Redis and season discovery are stubbed. The
- * writers, the transaction and the log are the real ones.
+ * decisions/028-admin-tools-and-roles.md
+ * decisions/029-forced-season-refresh.md
  */
 
 const SEASON = 2016;
@@ -73,12 +64,8 @@ vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
   return {
     ...actual,
     // Fixed, so the season range does not depend on TASO being reachable. The
-    // writers below are deliberately *not* stubbed.
-    //
-    // The *ceiling* resolver is the read-only one. `resolveTasoSeasonContext`
-    // probes by synchronizing the current season — it writes — so it is stubbed
-    // separately and asserted never to be called: reaching for it would mean a
-    // preview mutated rows before anyone approved anything.
+    // writers below are not stubbed; the resolver that writes is, and is asserted
+    // never to be called.
     resolveTasoSeasonCeiling: vi.fn(async () => ({
       currentSeason: 2026,
       newestStored: 2026,
@@ -184,10 +171,8 @@ beforeEach(async () => {
   state.groupWriteThrows = false;
   probingResolver.calls = 0;
   await clearFixtures();
-  // Deliberately left at the default role. `run_by` is a foreign key and
-  // nothing here reads a role — `requireAdmin()` guards the action layer, not
-  // this one — and seeding a second admin would change the global admin count
-  // that `admin.test.ts`'s last-admin guard is asserting on.
+  // Left at the default role: nothing here reads one, and a second admin would
+  // change the count `admin.test.ts`'s last-admin guard asserts on.
   await db.insert(user).values({
     id: ADMIN_ID,
     name: "Refresh Admin",
@@ -272,10 +257,7 @@ describe("a provider that goes silent", () => {
   });
 
   it("keeps the stored standings when TASO returns matches but no groups", async () => {
-    // The asymmetric case review found. The earlier version of this guard was
-    // an `&&` across both tables, so this answer walked past it and
-    // `synchronizeGroupTeams` — which deletes before inserting — destroyed the
-    // season's standings while the run reported success.
+    // One table answers and the other is silent: the guard has to hold for each.
     await seed([buildMatch()], [buildGroupTeam(), buildGroupTeam({ teamProviderId: 96002 })]);
     state.providerMatches = [buildMatch({ homeGoals: 9 })];
     state.providerGroupTeams = [];
@@ -422,9 +404,8 @@ describe("an applied refresh", () => {
 
 describe("one transaction", () => {
   it("rolls the match write back when the group write fails", async () => {
-    // Proves the writers actually join the transaction `writeSnapshot` opens.
-    // They used to take the module-level `db`, so the match upsert committed on
-    // its own connection and this assertion would have found homeGoals 9.
+    // Proves the writers join the transaction `writeSnapshot` opens: a match
+    // upsert on its own connection would leave homeGoals 9 here.
     await seed([buildMatch()], [buildGroupTeam()]);
     state.providerMatches = [buildMatch({ homeGoals: 9 })];
     state.providerGroupTeams = [buildGroupTeam({ startingPoints: -6 })];
@@ -510,11 +491,8 @@ describe("seasons the app does not hold", () => {
 
 describe("the season ceiling", () => {
   it("sees a season held only as group standings", async () => {
-    // The ceiling falls back to what we hold when TASO discovery is
-    // unavailable. Reading only `taso_matches` made a competition held purely
-    // as standings look unstored, and its own season then fell outside the
-    // range the tool offers — so the one season with a deduction to correct was
-    // the one that could not be selected.
+    // The ceiling falls back to what we hold when TASO discovery is unavailable,
+    // so a competition held purely as standings must count as held.
     await seed([], [buildGroupTeam()]);
 
     const { storedTasoSeasons } = await import("@/lib/taso-standings-service");
@@ -534,7 +512,7 @@ describe("the season ceiling", () => {
 describe("the run log", () => {
   it("outlives the admin who ran it, without naming them", async () => {
     // `run_by` is `on delete set null`, the one deliberate exception to the
-    // cascade that `decisions/028-admin-tools-and-roles.md` relies on.
+    // cascade every other user reference has.
     await seed([buildMatch()], []);
     state.providerMatches = [buildMatch({ homeGoals: 4 })];
 

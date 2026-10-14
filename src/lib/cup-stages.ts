@@ -1,18 +1,24 @@
 /**
  * A cup competition's phases: which stages a season has, what to call them in
- * Finnish, and which of them are knockout rounds rather than table-producing
- * ones. See specs/014-champions-league.md.
+ * Finnish, and which of them are knockout rounds.
+ *
+ * decisions/014-champions-league.md
+ * decisions/016-world-cup-and-euro.md
+ * decisions/019-match-page.md
  */
 
-/** A match, as far as anything in this module cares. */
+/**
+ * A match, as far as anything in this module cares.
+ *
+ * decisions/014-champions-league.md
+ */
 type StagedMatch = { stage: string | null };
 
 /**
- * football-data's marker for "this is an ordinary league season" — 13,184
- * stored rows across nine competitions carry it.
+ * football-data's marker for an ordinary league season. Not in `STAGE_NAMES`:
+ * it is not a phase a reader needs named.
  *
- * Deliberately absent from `STAGE_NAMES`: it is not a phase a reader needs
- * named, and the competition and round already say everything it would.
+ * decisions/019-match-page.md
  */
 export const REGULAR_SEASON = "REGULAR_SEASON";
 
@@ -20,17 +26,11 @@ export const LEAGUE_STAGE = "LEAGUE_STAGE";
 export const GROUP_STAGE = "GROUP_STAGE";
 
 /**
- * Provider stage → Finnish. Finnish names knockout rounds by fraction, so the
- * round of 16 is `Neljännesvälierät` (a quarter of a quarter-final), not a
- * transliteration of "last 16".
+ * Provider stage to Finnish. Knockout rounds are named by fraction: the round
+ * of 16 is `Neljännesvälierät`. Every stage the provider is known to emit
+ * belongs here.
  *
- * `LAST_32` and `THIRD_PLACE` occur in no Champions League season but are named
- * here anyway: the World Cup has both, and leaving them out would put a raw
- * `THIRD_PLACE` in front of a Finnish reader the moment #165 lands. Naming them
- * now costs two lines; discovering them untranslated in production does not.
- *
- * The passthrough in `getStageName` is the last resort for a stage no one has
- * seen yet. Every stage the provider is known to emit belongs in this map.
+ * decisions/014-champions-league.md
  */
 const STAGE_NAMES: Record<string, string> = {
   LEAGUE_STAGE: "Liigavaihe",
@@ -45,9 +45,10 @@ const STAGE_NAMES: Record<string, string> = {
 };
 
 /**
- * The order stages are presented in, independent of the order the provider
- * happens to return matches in. A stage missing from this list sorts last,
- * keeping an unrecognised stage visible rather than dropping it.
+ * The order stages are presented in. A stage missing from the list sorts last,
+ * so an unrecognised one stays visible.
+ *
+ * decisions/014-champions-league.md
  */
 const STAGE_ORDER = [
   LEAGUE_STAGE,
@@ -62,29 +63,34 @@ const STAGE_ORDER = [
 ];
 
 /**
- * The rounds drawn as a tree, in order. Stops at the quarter-finals because
- * that is the widest round a tree can show and still be read on a phone:
- * `LAST_16` is eight ties across, `LAST_32` sixteen.
+ * The rounds drawn as a tree, in order: from the quarter-finals, the widest
+ * round a tree can show on a phone.
+ *
+ * decisions/014-champions-league.md
  */
 export const BRACKET_STAGES = ["QUARTER_FINALS", "SEMI_FINALS", "FINAL"];
 
-/** Whether a round is drawn into the tree rather than listed above it. */
+/**
+ * Whether a round is drawn into the tree, not listed above it.
+ *
+ * decisions/014-champions-league.md
+ */
 export function isDrawnStage(stage: string): boolean {
   return BRACKET_STAGES.includes(stage);
 }
 
-/** The stages that produce a standings table rather than knockout ties. */
+/**
+ * The stages that produce a standings table, not knockout ties.
+ *
+ * decisions/014-champions-league.md
+ */
 const TABLE_PHASE_STAGES = new Set([LEAGUE_STAGE, GROUP_STAGE]);
 
 /**
- * The season's knockout rounds, in progression order — **derived from the
- * data**, as everything a knockout round is defined by: not a table phase.
+ * The season's knockout rounds, in progression order, derived from the data:
+ * every stage that is not a table phase.
  *
- * Deliberately not a hardcoded list of stage names. `listSeasonStages` already
- * derives the match list's `Vaihe` options from the season's own matches, so a
- * fixed list here would let a stage the provider adds appear in the dropdown
- * and vanish from the standings page — which is precisely how
- * `Pudotuspelikarsinta` came to be invisible in the first version.
+ * decisions/014-champions-league.md
  */
 export function listKnockoutStages(matches: StagedMatch[]): string[] {
   return listSeasonStages(matches).filter((stage) => !TABLE_PHASE_STAGES.has(stage));
@@ -92,23 +98,19 @@ export function listKnockoutStages(matches: StagedMatch[]): string[] {
 
 /**
  * The Finnish name for a stage. An unmapped stage falls through to its raw
- * provider value: a format change stays visible rather than rendering blank or
- * under a wrong Finnish label. Add any newly observed stage to `STAGE_NAMES`
- * rather than relying on this.
+ * provider value, so a format change stays visible.
+ *
+ * decisions/014-champions-league.md
  */
 export function getStageName(stage: string): string {
   return STAGE_NAMES[stage] ?? stage;
 }
 
 /**
- * `GROUP_A` → `Lohko A`.
+ * `GROUP_A` becomes `Lohko A`. An unrecognised value keeps the Finnish word
+ * with the raw identifier as its label: `Lohko 1`.
  *
- * A group is always a *lohko* whatever the provider calls it, so an
- * unrecognised value keeps the Finnish word and carries the raw identifier as
- * its label — `Lohko 1`, not a bare `1`. Unlike `getStageName`, there is
- * nothing to translate here beyond the noun itself, so no value ever reaches a
- * heading without it: a raw provider token alone would be a user-facing string
- * that is not Finnish.
+ * decisions/014-champions-league.md
  */
 export function getGroupName(group: string): string {
   const match = /^GROUP_(.+)$/.exec(group);
@@ -121,13 +123,10 @@ function stageRank(stage: string): number {
 }
 
 /**
- * Every stage present in the season's matches, in **progression** order.
+ * Every stage present in the season's matches, in progression order, not the
+ * provider's own.
  *
- * Deliberately not the provider's own array order. The two coincide in every
- * response checked, so relying on the provider buys nothing and costs
- * determinism: a reordered response would silently reshuffle the `Vaihe`
- * selector. `STAGE_ORDER` states the progression once, and an unrecognised
- * stage sorts last rather than disappearing. See decisions/014-champions-league.md.
+ * decisions/014-champions-league.md
  */
 export function listSeasonStages(matches: StagedMatch[]): string[] {
   const stages = new Set<string>();
@@ -140,11 +139,10 @@ export function listSeasonStages(matches: StagedMatch[]): string[] {
 }
 
 /**
- * Which standings shape the season uses, decided from the data rather than
- * from the season number. Champions League ran eight groups in 2023/24 and a
- * single 36-team league phase from 2024/25, and the format has changed twice
- * in three seasons — a hardcoded cutoff would need editing the next time it
- * changes, and would be wrong until someone noticed.
+ * Which standings shape the season uses, decided from the data and not from
+ * the season number.
+ *
+ * decisions/014-champions-league.md
  */
 export type PhaseShape = "single" | "grouped" | "none";
 
@@ -161,9 +159,9 @@ export type StageParamResult =
   | { kind: "invalid" };
 
 /**
- * Validates the `vaihe` query parameter against the stages this season
- * actually has. An unvalidated value must never reach a cache key or a query —
- * the same rule `parseCompetitionParam` and `parseSeasonParam` enforce.
+ * The `vaihe` query parameter, accepted only when this season has that stage.
+ *
+ * decisions/014-champions-league.md
  */
 export function parseStageParam(
   rawValue: string | string[] | undefined,
@@ -180,10 +178,10 @@ type StageCandidate = { stage: string | null; status: string; kickoffAt: Date };
 const FINISHED_STATUS = "FINISHED";
 
 /**
- * The stage to show by default: the one holding the earliest not-yet-finished
- * match, or the season's last stage once everything is finished. The cup
- * analogue of `resolveCurrentRound`, and deliberately separate from it — a
- * cup's `matchday` is a leg number, so the round logic cannot be reused.
+ * The stage to show by default: the one holding the earliest unfinished match,
+ * or the season's last once everything is finished.
+ *
+ * decisions/014-champions-league.md
  */
 export function resolveCurrentStage(
   matches: StageCandidate[],
@@ -202,11 +200,7 @@ export function resolveCurrentStage(
  * Whether a round's matches are two-legged ties, decided from the data: some
  * team pair plays twice.
  *
- * `matchday` cannot answer this. Champions League numbers its legs 1 and 2,
- * the World Cup leaves knockout `matchday` null, and the European Championship
- * continues the group-stage counter — its quarter-finals are matchday 5, which
- * is neither a leg nor a round. Printing that under `Osaottelu` claims a
- * second leg that was never played. See specs/016-world-cup-and-euro.md.
+ * decisions/016-world-cup-and-euro.md
  */
 export function isTwoLeggedRound(
   matches: Array<{ homeTeamProviderId: number; awayTeamProviderId: number }>

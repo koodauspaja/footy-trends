@@ -4,9 +4,27 @@ import {
   getSeasonCategoryNames,
   getSeasonGroups,
   getSeasonMatches,
+  normalizeGroupLevels,
   normalizeGroupTeams,
   normalizeTasoMatch,
 } from "@/lib/taso";
+
+/**
+ * The TASO client: what it asks the provider, how a response is normalised and
+ * validated, and how the current season is discovered.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/011-current-season-discovery.md
+ * decisions/013-more-finnish-competitions.md
+ * decisions/015-finnish-cups.md
+ * decisions/036-halftime-comebacks.md
+ * decisions/182-national-team-pages-not-prerendered.md
+ * decisions/200-taso-read-cache.md
+ * decisions/272-group-standings-endpoint.md
+ * decisions/284-provider-id-validation.md
+ * decisions/363-render-timeouts.md
+ * decisions/063-competition-zones.md
+ */
 
 const { loggerInfoMock, loggerErrorMock, loggerWarnMock, getCachedMock } = vi.hoisted(() => ({
   loggerInfoMock: vi.fn(),
@@ -81,7 +99,7 @@ describe("taso mapping", () => {
     });
   });
 
-  it("tells no half-time score from a goalless first half (specs/036)", () => {
+  it("tells no half-time score from a goalless first half", () => {
     // TASO sends `""` for a match it has no half-time score for — 1 of 132 in
     // Ykkönen 2025 — and "0" for one that really was goalless at the break.
     const played = (halfTime: string) => ({
@@ -222,14 +240,9 @@ describe("taso mapping", () => {
   });
 
   describe("a match whose id is not an id", () => {
-    /**
-     * Every one of these four columns is `integer NOT NULL`. `Number` alone
-     * answered for all of them: `""` and `"  "` became 0, `"2abc"` became NaN,
-     * and a long digit string became a rounded value. The first three fail the
-     * insert — taking the whole season's sync with them, not just this row —
-     * and the fourth is worse, because it succeeds under a group or team that
-     * exists and is not this one.
-     */
+    // Each of these four columns is `integer NOT NULL`, and `Number` alone would answer for them
+    // all: an empty or blank string as 0, `"2abc"` as NaN, a long digit string rounded. The first
+    // three would fail the season's insert; the fourth would land under the wrong group or team.
     const field = (name: string, value: unknown) => ({
       match_id: "1",
       status: "Played",
@@ -287,9 +300,8 @@ describe("taso mapping", () => {
     });
 
     it("costs an unusable score the score rather than the match", () => {
-      // Scores had their own copy of this parse until #285 folded it into the
-      // shared one, and `Number("2abc")` is NaN — a value the `integer` column
-      // rejects, taking the season's insert with it.
+      // `Number("2abc")` is NaN, a value the `integer` column rejects, taking
+      // the season's insert with it.
       expect(normalizeTasoMatch(field("fs_A", "2abc"), "spljp26", "VL", 2026)).toMatchObject({
         providerMatchId: 1,
         homeGoals: null,
@@ -444,8 +456,7 @@ describe("taso mapping", () => {
 
   // Each of these matches the kickoff regexes but is not a real instant.
   // `Date.UTC` normalizes them all into valid-but-wrong dates, so without an
-  // explicit range check the match would be stored at a kickoff it never had
-  // instead of being skipped.
+  // explicit range check the match would be stored at a kickoff it never had.
   it.each([
     ["an out-of-range month", "2026-99-15", "18:00:00", "+0300"],
     ["a day that does not exist in its month", "2026-02-31", "18:00:00", "+0300"],
@@ -575,9 +586,9 @@ describe("taso mapping", () => {
           Origin: "https://tulospalvelu.palloliitto.fi",
           "User-Agent": expect.any(String),
         },
-        // Every TASO request carries a per-attempt bound since #363. The exact
-        // signal is not assertable — it is an `AbortSignal.any` of the bound
-        // and whatever the caller passed — but its presence is the guarantee.
+        // Every TASO request carries a per-attempt bound. The exact signal is
+        // not assertable, being an `AbortSignal.any` of the bound and whatever
+        // the caller passed, but its presence is the guarantee.
         signal: expect.any(AbortSignal),
       }
     );
@@ -642,7 +653,7 @@ describe("taso mapping", () => {
     const groups = await getSeasonGroups("spljp26", "VL");
 
     expect(fetchMock).toHaveBeenCalledWith(
-      // `getCategory`, not `getGroups`: TASO refuses the latter outright (#272).
+      // `getCategory`, not `getGroups`: TASO refuses the latter outright.
       "https://spl.torneopal.net/taso/rest/getCategory?competition_id=spljp26&category_id=VL",
       expect.any(Object)
     );
@@ -651,7 +662,7 @@ describe("taso mapping", () => {
 
   it("does not read a top-level groups field, which is the old endpoint's shape", async () => {
     // Guards the switch itself: reading `groups` again would silently return
-    // nothing from `getCategory`, which is the failure this bug was (#272).
+    // nothing from `getCategory`.
     vi.stubEnv("TASO_API_KEY", "test-api-key");
     vi.stubGlobal(
       "fetch",
@@ -691,17 +702,9 @@ describe("getCurrentSeason", () => {
     vi.stubEnv("TASO_API_KEY", "test-api-key");
   });
 
-  /**
-   * `/api/health?providers=1` bounds this call, because a health endpoint that
-   * hangs until the platform probe times out is worse than one reporting a
-   * provider as unreachable. See #182.
-   *
-   * The caller's signal no longer reaches `fetch` by identity: since #363 every
-   * TASO request also carries a per-attempt bound, and the two are combined
-   * with `AbortSignal.any`. So this asserts what the caller actually depends on
-   * — that aborting theirs aborts the request — rather than which object
-   * arrived, which was only ever a proxy for it.
-   */
+  // `/api/health?providers=1` bounds this call. The caller's signal does not reach `fetch`
+  // by identity: it is combined with the per-attempt bound by `AbortSignal.any`, so this
+  // asserts what the caller depends on, that aborting theirs aborts the request.
   it("aborts the request when the caller's signal aborts", async () => {
     vi.stubGlobal(
       "fetch",
@@ -721,9 +724,8 @@ describe("getCurrentSeason", () => {
   });
 
   it("bounds a page request even though it passes no signal of its own", async () => {
-    // The inverse of what this asserted before #363. A page render passing no
-    // signal used to mean an unbounded request, which is how a stalled TASO
-    // held 41 e2e specs until Playwright's own 30 s fired.
+    // A page render passing no signal must still be bounded: an unbounded
+    // request is how one stalled provider holds every page that asks it.
     const fetchMock = mockCompetitions([]);
 
     await getCurrentSeason();
@@ -752,10 +754,9 @@ describe("getCurrentSeason", () => {
     await expect(getCurrentSeason()).resolves.toBe(2027);
   });
 
-  // The regression guard for this feature's sharpest edge: spljphhl26 is a
-  // different competition that shares the prefix, the status AND the season,
-  // so only the exact id shape separates them. A prefix test would pass every
-  // other assertion here.
+  // The sharpest edge: spljphhl26 is a different competition that shares the
+  // prefix, the status and the season, so only the exact id shape separates
+  // them. A prefix test would pass every other assertion here.
   it("never picks spljphhl26, which shares the prefix, status and season_id", async () => {
     mockCompetitions([
       { competition_id: "spljphhl27", competition_status: "published", season_id: 2027 },
@@ -900,14 +901,9 @@ describe("normalizeGroupTeams", () => {
     expect(rows).toEqual([]);
   });
 
-  /**
-   * These are the ids the standings service also refuses to report on. The
-   * two must agree: a group it says nothing about because the id is unusable
-   * must not then be stored under that same unusable id — which is what
-   * happened while only the diagnostic checked (#285). Each case carries a
-   * team, because a group with no teams contributes no rows anyway and would
-   * pass this test with the validation removed.
-   */
+  // These are the ids the standings service also refuses to report on, and the two must
+  // agree: an unusable id must not be stored. Each case carries a team, because a group
+  // with no teams contributes no rows and would pass with the validation removed.
   const UNUSABLE_IDS = [
     ["is empty", ""],
     ["is whitespace", "  "],
@@ -1152,9 +1148,9 @@ describe("taso caching", () => {
   });
 
   it("caches a season's matches per competition and category", async () => {
-    // An empty answer stores no rows, so without a cache `getSyncedSeasonMatches`
-    // cannot tell "never fetched" from "fetched, nothing there" and re-asks on
-    // every request — 18 times for one pair in a single test run. See #200.
+    // An empty answer stores no rows, so without a cache
+    // `getSyncedSeasonMatches` cannot tell "never fetched" from
+    // "fetched, nothing there", and re-asks on every request.
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => new Response(JSON.stringify({ matches: [] }), { status: 200 }))
@@ -1195,5 +1191,168 @@ describe("taso caching", () => {
 
     expect(result).toEqual([]);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("normalizeGroupLevels", () => {
+  beforeEach(() => {
+    loggerWarnMock.mockReset();
+  });
+
+  const TEXTS = [
+    "Nousee Veikkausliigaan",
+    "Jatkaa liigakarsintaan",
+    "Säilyy Ykkösliigassa",
+    "",
+    "Karsii paikastaan Ykkösliigassa",
+    "Putoaa Ykköseen",
+    "",
+    "",
+    "",
+    "",
+  ];
+
+  function levelsOf(group: Record<string, unknown>) {
+    return normalizeGroupLevels([{ group_id: "7", ...group }], "M1L", "spljp26", 2026);
+  }
+
+  it("stores one row per level with a count, under TASO's own level number", () => {
+    const rows = levelsOf({
+      next_stage_levels: "1,1,6,0,1,1,0,0,0,0",
+      next_stage_level_texts: TEXTS,
+    });
+
+    expect(rows).toEqual(
+      [
+        { level: 1, teamCount: 1, label: "Nousee Veikkausliigaan" },
+        { level: 2, teamCount: 1, label: "Jatkaa liigakarsintaan" },
+        { level: 3, teamCount: 6, label: "Säilyy Ykkösliigassa" },
+        { level: 5, teamCount: 1, label: "Karsii paikastaan Ykkösliigassa" },
+        { level: 6, teamCount: 1, label: "Putoaa Ykköseen" },
+      ].map((row) => ({
+        categoryId: "M1L",
+        competitionCode: "spljp26",
+        seasonId: 2026,
+        groupId: 7,
+        ...row,
+      }))
+    );
+    expect(loggerWarnMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps a level with a count and no label, as a null label", () => {
+    const rows = levelsOf({
+      next_stage_levels: "0,0,0,4,1,1,0,0,0,0",
+      next_stage_level_texts: ["", "", "", "", "Liigakarsintaan", "Ykkösliigaan", "", "", "", ""],
+    });
+
+    expect(rows.map((row) => [row.level, row.teamCount, row.label])).toEqual([
+      [4, 4, null],
+      [5, 1, "Liigakarsintaan"],
+      [6, 1, "Ykkösliigaan"],
+    ]);
+  });
+
+  it("trims a label, and takes one that is only whitespace as none", () => {
+    const rows = levelsOf({
+      next_stage_levels: "1,1,0,0,0,0,0,0,0,0",
+      next_stage_level_texts: ["  Kultaa ", "   ", "", "", "", "", "", "", "", ""],
+    });
+
+    expect(rows.map((row) => row.label)).toEqual(["Kultaa", null]);
+  });
+
+  it("takes a missing label, or one that is not text, as none", () => {
+    expect(levelsOf({ next_stage_levels: "2,0,0,0,0,0,0,0,0,0" }).map((row) => row.label)).toEqual([
+      null,
+    ]);
+    expect(
+      levelsOf({ next_stage_levels: "2,1,0,0,0,0,0,0,0,0", next_stage_level_texts: [7] }).map(
+        (row) => row.label
+      )
+    ).toEqual([null, null]);
+    expect(
+      levelsOf({ next_stage_levels: "2,0,0,0,0,0,0,0,0,0", next_stage_level_texts: "Kultaa" }).map(
+        (row) => row.label
+      )
+    ).toEqual([null]);
+  });
+
+  it.each([
+    ["a count that is not a number", "1,1,x,0,0,0,0,0,0,0"],
+    ["a count with a fraction", "1,1.5,0,0,0,0,0,0,0,0"],
+    ["a negative count", "1,-1,0,0,0,0,0,0,0,0"],
+    ["a count with a space", "1, 1,0,0,0,0,0,0,0,0"],
+    ["a count no column holds", "1,99999999999,0,0,0,0,0,0,0,0"],
+    ["fewer than ten counts", "1,1,6,0,1,1"],
+    ["more than ten counts", "1,1,6,0,1,1,0,0,0,0,0"],
+  ])("stores no level of a group with %s, and logs it once", (_case, levels) => {
+    expect(levelsOf({ next_stage_levels: levels, next_stage_level_texts: TEXTS })).toEqual([]);
+    expect(loggerWarnMock).toHaveBeenCalledTimes(1);
+    expect(loggerWarnMock).toHaveBeenCalledWith(
+      { categoryId: "M1L", competitionId: "spljp26", groupId: 7 },
+      "Unreadable TASO zone levels"
+    );
+  });
+
+  it("reads an empty count as a level with none, as older seasons send it", () => {
+    // Veikkausliiga 2022's Runkosarja.
+    const rows = levelsOf({
+      next_stage_levels: "6,6,0,0,0,0,,,,",
+      next_stage_level_texts: ["Mestaruussarja", "Haastajasarja", "", "", "", "", "", "", "", ""],
+    });
+
+    expect(rows.map((row) => [row.level, row.teamCount, row.label])).toEqual([
+      [1, 6, "Mestaruussarja"],
+      [2, 6, "Haastajasarja"],
+    ]);
+    expect(levelsOf({ next_stage_levels: ",2,,,,,,,," }).map((row) => row.level)).toEqual([2]);
+    expect(loggerWarnMock).not.toHaveBeenCalled();
+  });
+
+  it("still takes a string of only commas that is not ten parts as unreadable", () => {
+    expect(levelsOf({ next_stage_levels: ",,," })).toEqual([]);
+    expect(loggerWarnMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("logs counts that are not a string as unreadable", () => {
+    expect(levelsOf({ next_stage_levels: [1, 1, 6] })).toEqual([]);
+    expect(loggerWarnMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("stores nothing, silently, for a group that publishes no counts", () => {
+    expect(levelsOf({})).toEqual([]);
+    expect(levelsOf({ next_stage_levels: "" })).toEqual([]);
+    expect(loggerWarnMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps the readable groups beside an unreadable one", () => {
+    const rows = normalizeGroupLevels(
+      [
+        { group_id: "1", next_stage_levels: "broken" },
+        {
+          group_id: "2",
+          next_stage_levels: "3,0,0,0,0,0,0,0,0,0",
+          next_stage_level_texts: ["Nousee"],
+        },
+      ],
+      "VL",
+      "spljp26",
+      2026
+    );
+
+    expect(rows.map((row) => [row.groupId, row.level, row.label])).toEqual([[2, 1, "Nousee"]]);
+  });
+
+  it("skips a group whose id is not an id, without a log line", () => {
+    expect(
+      normalizeGroupLevels(
+        [{ group_id: "abc", next_stage_levels: "broken" }],
+        "VL",
+        "spljp26",
+        2026
+      )
+    ).toEqual([]);
+    expect(loggerWarnMock).not.toHaveBeenCalled();
   });
 });

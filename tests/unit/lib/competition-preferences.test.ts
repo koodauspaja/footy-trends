@@ -7,6 +7,13 @@ import {
 } from "@/lib/competition-preferences";
 import { NO_PREFERENCES, type Preferences } from "@/lib/regions";
 
+/**
+ * A reader's preferred competition per region: which one applies, the
+ * fallbacks, and the options offered.
+ *
+ * decisions/024-account-settings.md
+ */
+
 function withPreferences(overrides: Partial<Preferences>): Preferences {
   return { ...NO_PREFERENCES, ...overrides };
 }

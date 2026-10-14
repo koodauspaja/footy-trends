@@ -8,7 +8,7 @@ so every feature starts with a consistent structure.
 
 ## Step 1 — Create the GitHub Project
 
-1. Go to https://github.com/orgs/koodauspaja/projects
+1. Go to `https://github.com/orgs/<your-org>/projects` (this project: `koodauspaja`)
 2. Click **New project**
 3. Choose **Board** view
 4. Name it: `Footy Trends`
@@ -46,92 +46,27 @@ place.
 
 ---
 
-## Step 2 — Create issue templates
+## Step 2 — Confirm the issue templates
 
-Create the following files in `.github/ISSUE_TEMPLATE/`:
+Three templates arrive with the clone, in `.github/ISSUE_TEMPLATE/`: `feature.md`
+(label `enhancement`), `chore.md` (label `chore`) and `bug.md` (label `bug`).
 
-### Feature template
-File: `.github/ISSUE_TEMPLATE/feature.md`
+1. Repository → **Issues** → **New issue**: all three are offered
+2. Create one test issue from the feature template
 
-```markdown
----
-name: Feature
-about: A new feature or user-facing change
-title: "[FEATURE] "
-labels: feature
-assignees: ''
----
+## Step 3 — Create the labels and Issue Types
 
-## Summary
-<!-- One sentence: what does this feature do for the user? -->
+1. Create the label `chore`, and the domain labels of Step 5. `enhancement` and
+   `bug` exist by default
+2. Organisation → **Settings** → **Issue types**: `Feature`, `Task` and `Bug`
+   exist by default; confirm they are enabled
 
-## Spec file
-<!-- Link to the spec file once created, e.g. specs/001-standings-form-table.md -->
-`specs/NNN-feature-name.md`
-
-## Acceptance criteria
-<!-- How do we know this is done? -->
-- [ ]
-- [ ]
-- [ ]
-
-## Out of scope
-<!-- What are we explicitly NOT doing in this feature? -->
--
-
-## Notes
-<!-- Anything else relevant — API limits, Finnish UI copy, edge cases -->
-```
-
-### Bug template
-File: `.github/ISSUE_TEMPLATE/bug.md`
-
-```markdown
----
-name: Bug
-about: Something is not working as the spec describes
-title: "[BUG] "
-labels: bug
-assignees: ''
----
-
-## What happened
-<!-- Describe the problem -->
-
-## What should happen
-<!-- Reference the relevant spec if applicable -->
-Spec: `specs/NNN-feature-name.md`
-
-## Steps to reproduce
-1.
-2.
-3.
-
-## Notes
-```
+Each issue's kind label pairs with its Issue Type (CLAUDE.md): `enhancement` →
+Feature, `chore` → Task, `bug` → Bug.
 
 ---
 
-## Step 3 — Commit the templates
-
-```bash
-git add .github/ISSUE_TEMPLATE/
-git commit -m "chore: add issue templates"
-git push origin main
-```
-
----
-
-## Step 4 — Test it
-
-1. Go to your repo → Issues → New issue
-2. Confirm both templates appear as options
-3. Create one test feature issue using the feature template
-4. Add it to the Project board and move it to `Backlog`
-
----
-
-## Step 5 — Add every new issue to the board manually
+## Step 4 — Add every new issue to the board manually
 
 This project has **no GitHub-native "auto-add to project" workflow**
 configured — confirmed via `gh api graphql` against the project's
@@ -167,10 +102,10 @@ gh project item-edit \
   --single-select-option-id f75ad846
 ```
 
-(`PVT_kwDOB7brSc4BZbi_` is this project's ID, `PVTSSF_lADOB7brSc4BZbi_zhUaPJM`
-the Status field ID, and `f75ad846` the `Backlog` option ID — re-verify
-with `gh project field-list 2 --owner koodauspaja` if any of these ever
-stop working, since the board could be restructured.)
+**Those three IDs, the project number `2` and the owner `koodauspaja` are this
+project's own.** Yours differ: read the project's ID with `gh project list
+--owner <your-org> --format json`, and the field and option IDs with the
+command at the end of Step 6.
 
 An alternative to configuring this by hand every time is enabling a real
 "auto-add to project" workflow from the project's own Workflows settings
@@ -181,7 +116,7 @@ mandatory.
 
 ---
 
-## Step 6 — Label an issue with the part of the app it touches
+## Step 5 — Label an issue with the part of the app it touches
 
 Every issue carries **two kinds of label**, and they answer different
 questions.
@@ -240,7 +175,7 @@ description rather than by typo:
 gh label create <name> --description "<what it covers>" --color RRGGBB
 ```
 
-## Step 7 — The release pull request goes on the board too
+## Step 6 — The release pull request goes on the board too
 
 `npm run release:pr` adds it and sets it to `In Progress` — opening the pull
 request is the work starting. It reaches `Done` on its own: the project's
@@ -260,8 +195,8 @@ for something else.
 `Backlog` and `Ready` are skipped: they describe work being planned, and a
 release pull request is created already complete.
 
-**Read the status option ids rather than remembering them.** They are not
-listed anywhere in this document on purpose — a wrong one fails with `The
+**Read the status option ids rather than remembering them.** Only `Backlog`'s is
+written in this document, in Step 4 — a wrong one fails with `The
 single select option Id does not belong to the field`, and a command whose
 stderr is hidden leaves the card where it was while appearing to succeed. The
 command that prints them:
@@ -273,7 +208,8 @@ gh project field-list 2 --owner koodauspaja --format json |
 
 ## Done when
 - [ ] GitHub Project board exists with correct columns
-- [ ] Feature and bug issue templates work
+- [ ] The feature, chore and bug templates are offered on a new issue
+- [ ] The `chore` label and the domain labels exist
 - [ ] Test issue created and visible on the board
 - [ ] Every issue type (feature, bug, chore) is confirmed to land on the
       board in `Backlog` immediately after creation, not just at

@@ -1,26 +1,32 @@
 /**
  * Spacing provider requests to a rate. Shared by the backfill and the hourly
- * predictions run (specs/052), which spend the same football-data.org key.
+ * predictions run, which spend the same football-data.org key.
+ *
+ * decisions/052-predictions-log.md
  */
 
 /**
  * 90% of football-data.org's documented 10 a minute (docs/setup/007). The key
  * is shared by staging, production and every reader's page view, so a batch
  * job never takes the whole limit.
+ *
+ * decisions/052-predictions-log.md
  */
 export const FOOTBALL_DATA_PER_MINUTE = 9;
 
 /**
  * TASO publishes no limit, so there is no maximum to take a percentage of;
  * one a second is well under what the domestic pages' views already ask of it.
+ *
+ * decisions/052-predictions-log.md
  */
 export const TASO_PER_MINUTE = 60;
 
 /**
  * Milliseconds to wait before the next request so that requests are spaced at
- * least `minIntervalMs` apart. Zero when enough time has already passed —
- * database writes between requests are not free, and charging for time already
- * spent would make a 344-request run considerably longer than it needs to be.
+ * least `minIntervalMs` apart. Zero when enough time has already passed.
+ *
+ * decisions/052-predictions-log.md
  */
 export function delayBefore(
   lastRequestAt: number | null,
@@ -31,7 +37,11 @@ export function delayBefore(
   return Math.max(0, minIntervalMs - (now - lastRequestAt));
 }
 
-/** Requests per minute -> the gap to leave between them. */
+/**
+ * Requests per minute -> the gap to leave between them.
+ *
+ * decisions/052-predictions-log.md
+ */
 export function intervalForRatePerMinute(perMinute: number): number {
   if (perMinute <= 0) throw new Error(`Rate must be positive, got ${perMinute}`);
   return Math.ceil(60_000 / perMinute);
@@ -44,9 +54,10 @@ const defaultSleep = (ms: number): Promise<void> =>
 
 /**
  * Spaces one provider's requests, independently of the other's. Safe to call
- * concurrently: each call waits its turn behind the previous one, so requests
- * started together are still spaced out. The clock and the sleep are
- * parameters so a test can run it without waiting.
+ * concurrently: each call waits its turn behind the previous one. The clock
+ * and the sleep are parameters.
+ *
+ * decisions/052-predictions-log.md
  */
 export function createPacer(
   perMinute: number,

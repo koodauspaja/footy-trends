@@ -2,12 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../support/warm-module";
 
 /**
- * The size warning from specs/025-custom-avatar.md.
+ * The size warning. Reads and writes run against a real database in
+ * `tests/integration/avatar.test.ts`: a mocked query builder proves nothing about SQL. Here it
+ * is the diagnostic: when it speaks, when it stays quiet, that it cannot take an upload down.
  *
- * The reads and writes themselves are covered against a real database in
- * `tests/integration/avatar.test.ts` — a mocked query builder would prove
- * nothing about SQL. What is worth testing here is the diagnostic: when it
- * speaks, when it stays quiet, and that it cannot take an upload down with it.
+ * decisions/025-custom-avatar.md
  */
 
 const { execute, insert, onConflictDoUpdate, rows, deleteWhere, logger } = vi.hoisted(() => {
@@ -44,7 +43,7 @@ vi.mock("@/lib/logger", () => ({ logger }));
 
 const { deleteAvatar, getAvatar, saveAvatar } = await import("@/lib/avatar");
 
-/** 10 % of 8 GB, the point the warning is written against. */
+// 10 % of 8 GB, the point the warning is written against.
 const THRESHOLD = (8 * 1024 * 1024 * 1024) / 10;
 
 const BYTES = Buffer.from([1, 2, 3]);
@@ -105,11 +104,9 @@ describe("saveAvatar", () => {
   });
 
   it("mints a new version on every write", async () => {
-    /**
-     * The version is the whole cache key of a URL shared by every reader, so
-     * two writes — by one reader or by two — must never produce the same one.
-     * Randomness removes the collision rather than making it unlikely.
-     */
+    // The version is the whole cache key of a URL shared by every reader, so
+    // two writes — by one reader or by two — must never produce the same one.
+    // Randomness removes the collision rather than making it unlikely.
     const first = await saveAvatar("user-1", BYTES, "image/webp");
     const second = await saveAvatar("user-1", BYTES, "image/webp");
 
@@ -119,11 +116,9 @@ describe("saveAvatar", () => {
   });
 
   it("keeps the upload when the measurement itself fails", async () => {
-    /**
-     * The avatar is already written by the time this runs. A diagnostic that
-     * can break the thing it watches is worse than no diagnostic — so the
-     * failure is logged and the version still comes back.
-     */
+    // The avatar is already written by the time this runs. A diagnostic that
+    // can break the thing it watches is worse than no diagnostic — so the
+    // failure is logged and the version still comes back.
     execute.mockRejectedValue(new Error("permission denied for pg_total_relation_size"));
 
     await expect(saveAvatar("user-1", BYTES, "image/webp")).resolves.toEqual(expect.any(String));

@@ -2,9 +2,7 @@
  * What `with-test-db.ts` decides before it touches a database: which command to
  * run, and which executable actually runs it.
  *
- * Split out in #403 so those decisions are tested. The runner itself creates and
- * migrates a database, which is a reason to keep it out of a unit suite that
- * survives the question — but the argument handling never needed one.
+ * decisions/403-coverage-exclusions-that-earn-it.md
  */
 
 export type Invocation =
@@ -16,10 +14,10 @@ export function usageMessage(): string {
 }
 
 /**
- * The command and its arguments, from `process.argv.slice(2)`.
+ * The command and its arguments, from `process.argv.slice(2)`. A missing
+ * command is refused, not defaulted.
  *
- * A missing command is refused rather than defaulted: this wrapper exists to run
- * something against the test database, and "nothing" is not something.
+ * decisions/403-coverage-exclusions-that-earn-it.md
  */
 export function parseInvocation(argv: readonly string[]): Invocation {
   const [command, ...args] = argv;
@@ -30,19 +28,20 @@ export function parseInvocation(argv: readonly string[]): Invocation {
 }
 
 /**
- * The executable to spawn for a command.
+ * The executable to spawn for a command. `node` means this Node, so a package
+ * binary runs on the runtime that started the wrapper.
  *
- * **`node` means *this* Node**, so a package binary runs on the runtime that
- * started the wrapper rather than whatever `PATH` finds. npm exposes those
- * binaries as `.cmd` shims on Windows, which `spawn` cannot execute without a
- * shell — the same trap `scripts/executable.ts` documents — and handing the
- * runtime an `.mjs` entry sidesteps shims and `PATH` lookup together.
+ * decisions/403-coverage-exclusions-that-earn-it.md
  */
 export function executableFor(command: string, execPath: string): string {
   return command === "node" ? execPath : command;
 }
 
-/** The exit code to report for a child that exited with `code`. */
+/**
+ * The exit code to report for a child that exited with `code`.
+ *
+ * decisions/403-coverage-exclusions-that-earn-it.md
+ */
 export function exitCodeFor(code: number | null): number {
   // A signalled child has no exit code. Reporting 1 keeps the failure visible
   // rather than letting it read as success — the same choice `services-run.ts`

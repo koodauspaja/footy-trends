@@ -1,5 +1,15 @@
 import { expect, test } from "@playwright/test";
 
+/**
+ * The season-wide match list, end to end.
+ *
+ * decisions/005-listing-matches-for-selected-season.md
+ * decisions/006-other-competitions.md
+ * decisions/007-back-navigation.md
+ * decisions/019-match-page.md
+ * decisions/189-same-route-links.md
+ */
+
 test.describe("Season-wide match list", () => {
   test("shows the current round and navigates between rounds", async ({ page }) => {
     await page.goto("/ulkomaat/ottelut");
@@ -13,10 +23,9 @@ test.describe("Season-wide match list", () => {
     const nextLink = page.getByRole("link", { name: "Seuraava kierros ▶" });
     const prevLink = page.getByRole("link", { name: "◀ Edellinen kierros" });
 
-    // Asserted rather than assumed: without this the test clicks nothing when
-    // neither link is present and then fails on the unchanged heading, which
-    // reads as a navigation bug rather than as a page with no rounds to step
-    // between. That ambiguity cost real time diagnosing #189.
+    // Asserted, not assumed: with neither link present the test would click
+    // nothing and fail on the unchanged heading, which reads as a navigation
+    // bug and not as a page with no rounds to step between.
     const stepped = (await nextLink.count()) + (await prevLink.count());
     expect(stepped, "expected at least one round-navigation link").toBeGreaterThan(0);
 
@@ -26,16 +35,16 @@ test.describe("Season-wide match list", () => {
       await prevLink.click();
     }
 
-    // Regression guard for #189: this passed against `next dev` while the
-    // production build changed the URL and left the page as it was.
+    // The page must change, not just the URL. `next dev` cannot fail this: only
+    // a production build can leave the page as it was.
     await expect(heading).not.toHaveText(before ?? "");
   });
 
   test("links a team name from the match list to its team page", async ({ page }) => {
     await page.goto("/ulkomaat/ottelut");
 
-    // The `Ottelu` cell, not the row: the `Pvm` cell now links to the match
-    // page (specs/019), so the row's first link is no longer a team.
+    // The `Ottelu` cell, not the row: the `Pvm` cell links to the match page,
+    // so the row's first link is not a team.
     const firstTeamLink = page
       .locator("table tbody tr")
       .first()

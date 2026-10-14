@@ -2,19 +2,17 @@ import { createHash } from "node:crypto";
 import type { DeductionChange, RemovedMatch, RowCounts } from "./refresh-view";
 
 /**
- * The pure half of the forced refresh, from specs/029-forced-season-refresh.md:
- * what would change if this provider answer were applied to these stored rows.
+ * The pure half of the forced refresh: what would change if this provider
+ * answer were applied to these stored rows. It takes rows and returns counts.
  *
- * Pure on purpose, and separate from `force-refresh.ts`, because this is the
- * part the confirmation dialog shows an admin *and* the part the run log
- * records. Computing it once means what was approved and what is recorded are
- * the same numbers by construction rather than by two pieces of code agreeing.
- *
- * Nothing here reads a database or a provider. It takes rows and returns
- * counts.
+ * decisions/029-forced-season-refresh.md
  */
 
-/** The stored-match fields this module needs to name a removal. */
+/**
+ * The stored-match fields this module needs to name a removal.
+ *
+ * decisions/029-forced-season-refresh.md
+ */
 export type DiffableStoredMatch = {
   providerMatchId: number;
   kickoffAt: Date;
@@ -26,7 +24,11 @@ export type DiffableProviderMatch = {
   providerMatchId: number;
 };
 
-/** The group-team fields the identity and the deduction are read from. */
+/**
+ * The group-team fields the identity and the deduction are read from.
+ *
+ * decisions/029-forced-season-refresh.md
+ */
 export type DiffableGroupTeam = {
   groupId: number;
   teamProviderId: number;
@@ -46,11 +48,9 @@ export type GroupDiff = {
 };
 
 /**
- * Whether two stored values differ.
+ * Whether two stored values differ. Two `Date`s for the same instant do not.
  *
- * `Date` needs its own case: two `Date` objects for the same instant are never
- * `===`, so without this every match would read as changed on every run and the
- * confirmation dialog would be worthless.
+ * decisions/029-forced-season-refresh.md
  */
 function valuesDiffer(left: unknown, right: unknown): boolean {
   if (left instanceof Date && right instanceof Date) return left.getTime() !== right.getTime();
@@ -59,14 +59,10 @@ function valuesDiffer(left: unknown, right: unknown): boolean {
 }
 
 /**
- * Whether applying `provider` to `stored` would change anything.
+ * Whether applying `provider` to `stored` would change anything, compared
+ * over the provider row's own keys.
  *
- * Driven by the provider row's own keys rather than a hand-written column list.
- * Both normalized provider types mirror their table's columns exactly — that is
- * stated in `schema.ts` and is what lets a selected row satisfy the provider
- * type structurally — so the provider row's keys *are* the columns the upsert
- * writes. A hand-written list would be a second thing to keep true, and the
- * column it silently missed would be a change the admin was never shown.
+ * decisions/029-forced-season-refresh.md
  */
 function rowChanged(stored: object, provider: object): boolean {
   const storedValues = stored as Record<string, unknown>;
@@ -77,8 +73,10 @@ function rowChanged(stored: object, provider: object): boolean {
 }
 
 /**
- * Matches are keyed by `providerMatchId`, which is the unique index on both
- * match tables.
+ * The match diff, keyed by `providerMatchId`: the unique index on both match
+ * tables.
+ *
+ * decisions/029-forced-season-refresh.md
  */
 export function diffMatches<S extends DiffableStoredMatch, P extends DiffableProviderMatch>(
   stored: readonly S[],
@@ -112,11 +110,10 @@ export function diffMatches<S extends DiffableStoredMatch, P extends DiffablePro
 }
 
 /**
- * A group team's identity, matching `taso_group_teams_identity_idx`: the group
- * and the team together, since there is no provider-side row id to key on.
+ * A group team's identity: the group and the team together, as
+ * `taso_group_teams_identity_idx` has it. Both sides are one season's.
  *
- * Scoped per season already — both sides are read for one season — so the
- * category, competition and season are not repeated here.
+ * decisions/029-forced-season-refresh.md
  */
 function groupTeamKey(row: DiffableGroupTeam): string {
   return `${row.groupId}:${row.teamProviderId}`;
@@ -157,19 +154,10 @@ export function diffGroupTeams<S extends DiffableGroupTeam, P extends DiffableGr
 }
 
 /**
- * Byte-order comparison, and deliberately **not** `localeCompare`.
+ * Byte-order comparison, not `localeCompare`: the sorts below canonicalise
+ * input for a hash, which must come out the same on every machine.
  *
- * Both sorts below exist to canonicalise input for a hash, not to present
- * anything to a reader. `localeCompare` answers by the runtime's locale data,
- * so two machines — or one machine after an ICU upgrade — could order the same
- * keys differently and hash the same rows to different digests. The apply would
- * then refuse a diff nobody had changed, as `"stale"`, and re-previewing would
- * not help.
- *
- * Code-unit order is boring and identical everywhere, which is the whole
- * requirement here. Where this repository sorts for *display* it uses
- * `localeCompare` with a locale, as `favorites/page.tsx` and
- * `taso-standings-service.ts` do.
+ * decisions/029-forced-season-refresh.md
  */
 function byCodeUnit(left: string, right: string): number {
   if (left < right) return -1;
@@ -179,6 +167,8 @@ function byCodeUnit(left: string, right: string): number {
 /**
  * Orders object keys and renders dates, so two structurally equal rows hash
  * the same however they were built.
+ *
+ * decisions/029-forced-season-refresh.md
  */
 function canonical(value: unknown): unknown {
   if (value instanceof Date) return value.toISOString();
@@ -195,16 +185,10 @@ function canonical(value: unknown): unknown {
 }
 
 /**
- * A fingerprint of the provider rows a preview was built from.
+ * A fingerprint of the provider rows a preview was built from. Row order does
+ * not affect it; any changed value does.
  *
- * The apply recomputes this and refuses when it no longer matches, so an admin
- * can never approve one diff and have another applied — the provider answering
- * differently between the two steps stops the write instead of silently
- * changing it.
- *
- * Row order does not affect it (the provider is under no obligation to keep
- * one) but any changed value does. Each group is length-prefixed and hashed
- * separately, so matches and group teams cannot be swapped for each other.
+ * decisions/029-forced-season-refresh.md
  */
 export function snapshotHash(rowGroups: readonly (readonly object[])[]): string {
   const hash = createHash("sha256");

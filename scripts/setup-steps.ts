@@ -1,14 +1,9 @@
 /**
- * What `npm run setup` *does*, in order — once `scripts/setup` has found Node
- * and a `docker compose` runtime and installed the dependencies.
+ * What `npm run setup` does, in order, once `scripts/setup` has found Node and
+ * a `docker compose` runtime and installed the dependencies. Every action is
+ * injected. The containers and migrations are not done here.
  *
- * Separate from `setup.ts` so that it can be tested: every action is injected,
- * so a test drives the whole sequence without a terminal, a file or a container.
- * The shape `preflight.ts` has.
- *
- * **The containers and migrations are not done here.** `npm run db:migrate`
- * already starts what it needs through #399's preflight, and a second copy of
- * that logic would be the one that drifts.
+ * decisions/400-one-command-setup.md
  */
 import {
   exportedOverrideMessage,
@@ -42,11 +37,7 @@ export type SetupActions = {
   exported: NodeJS.Dict<string>;
   /** `packageManager` from package.json. */
   packageManager: string;
-  /**
-   * Tightens `.env` to owner-only, for the run where nothing needed writing.
-   * A file that already had every value keeps its permissions otherwise, and
-   * `cp .env.example .env` makes a world-readable one. Raised in review on #409.
-   */
+  /** Tightens `.env` to owner-only, for the run where nothing needed writing. */
   secureEnv: () => void;
   /** Runs an npm script with its output shown, resolving its exit code. */
   runScript: (name: string) => Promise<number>;
@@ -54,7 +45,11 @@ export type SetupActions = {
   err: (line: string) => void;
 };
 
-/** The process exit code. */
+/**
+ * The process exit code.
+ *
+ * decisions/400-one-command-setup.md
+ */
 export async function runSetup(actions: SetupActions): Promise<number> {
   const prepared = writeEnvFile(actions);
   if (prepared === null) return 1;
@@ -80,12 +75,11 @@ export async function runSetup(actions: SetupActions): Promise<number> {
 }
 
 /**
- * The `.env`, written if it needed anything — or `null` when setup cannot go on,
- * having said why.
+ * The `.env`, written if it needed anything, or `null` when setup cannot go
+ * on, having said why. Everything that can be known is reported before
+ * anything is asked or written.
  *
- * **Everything that can be known is reported before anything is asked or
- * written.** Nobody should answer two key prompts and only then be told that the
- * `.env` they already had cannot be used.
+ * decisions/400-one-command-setup.md
  */
 function writeEnvFile(actions: SetupActions): string | null {
   const npmWarning = npmVersionWarning(actions.userAgent, actions.packageManager);
@@ -115,10 +109,9 @@ function writeEnvFile(actions: SetupActions): string | null {
 
 /**
  * Whether an exported variable would make the file that was just written a lie.
+ * Checked after writing and before anything is run or asked.
  *
- * Checked after writing and before anything is run or asked: the `.env` is
- * correct and worth keeping, and the next run finds it complete once the export
- * is gone.
+ * decisions/400-one-command-setup.md
  */
 function exportWins(actions: SetupActions, text: string): boolean {
   const conflict = exportedOverrideMessage(actions.exported, text);
@@ -129,9 +122,9 @@ function exportWins(actions: SetupActions, text: string): boolean {
 }
 
 /**
- * A warning, not a stop. The browser is needed by `npm run test:e2e` alone, and
- * a failed download — offline, a proxy — should not keep someone from the dev
- * server they came for.
+ * Installs the e2e browser. A failure is a warning, not a stop.
+ *
+ * decisions/400-one-command-setup.md
  */
 async function installBrowser(actions: SetupActions): Promise<void> {
   actions.out("");
@@ -143,7 +136,11 @@ async function installBrowser(actions: SetupActions): Promise<void> {
   }
 }
 
-/** What is still unset, and what that costs — said at the end, where it is read. */
+/**
+ * What is still unset, and what that costs: said at the end, where it is read.
+ *
+ * decisions/400-one-command-setup.md
+ */
 function reportWhatIsMissing(actions: SetupActions, text: string): void {
   actions.out("");
 
@@ -157,11 +154,8 @@ function reportWhatIsMissing(actions: SetupActions, text: string): void {
 }
 
 async function startServer(actions: SetupActions, inputEnded: boolean): Promise<number> {
-  /**
-   * `inputEnded` is not the same as "not interactive": there is a terminal, but
-   * whoever was at it pressed Ctrl-D. Asking one more question into a stream
-   * that has ended would get the same answer, which is no answer at all.
-   */
+  // `inputEnded` is not the same as "not interactive": there is a terminal, but
+  // whoever was at it pressed Ctrl-D, and another question would get no answer.
   if (!actions.interactive || inputEnded) {
     actions.out("Start the app with `npm run dev`, then open http://localhost:3000.");
     return 0;
@@ -175,12 +169,18 @@ async function startServer(actions: SetupActions, inputEnded: boolean): Promise<
   return actions.runScript("dev");
 }
 
-/** The `.env` after the prompts, and whether input ended part-way through them. */
+/**
+ * The `.env` after the prompts, and whether input ended part-way through them.
+ *
+ * decisions/400-one-command-setup.md
+ */
 type KeyAnswers = { text: string; inputEnded: boolean };
 
 /**
  * Asks for each blank key and writes each answer as it is given, so an
  * interrupted run keeps what was already typed.
+ *
+ * decisions/400-one-command-setup.md
  */
 async function askForKeys(actions: SetupActions, initial: string): Promise<KeyAnswers> {
   const missing = missingApiKeys(initial);
@@ -200,10 +200,8 @@ async function askForKeys(actions: SetupActions, initial: string): Promise<KeyAn
     for (;;) {
       const typed = await actions.ask(`${key.name}: `);
 
-      /**
-       * End of input: not an answer to this question, and not to the next one
-       * either. Asking again would prompt into a stream that has ended.
-       */
+      // End of input: not an answer to this question, and not to the next one
+      // either.
       if (typed === null) return { text, inputEnded: true };
 
       const answer = readKeyInput(typed);

@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { goalsPerGameSeries, halfStepAxis, hasGoalsPerGame } from "@/lib/goals-per-game";
 
-describe("hasGoalsPerGame (S5)", () => {
+/**
+ * Goals per game across a competition's seasons: which competitions have it,
+ * the axis and the series.
+ *
+ * decisions/048-league-goals-per-game-trend.md
+ */
+
+describe("hasGoalsPerGame", () => {
   it.each([
     ["football-data", "PL"],
     ["football-data", "BSA"],
@@ -26,7 +33,7 @@ describe("hasGoalsPerGame (S5)", () => {
   });
 });
 
-describe("halfStepAxis (S13)", () => {
+describe("halfStepAxis", () => {
   it("zooms to the nearest 0,5 either side of the data", () => {
     // Veikkausliiga's production range, the widest of the three measured.
     expect(halfStepAxis([2.26, 3.29])).toEqual({ domain: [2, 3.5], ticks: [2, 2.5, 3, 3.5] });
@@ -69,7 +76,7 @@ describe("goalsPerGameSeries", () => {
     });
   });
 
-  it("leaves out a season under five matches and names it, but not one with none (S8, S14)", () => {
+  it("leaves out a season under five matches and names it, but not one with none", () => {
     const series = goalsPerGameSeries(
       [
         { seasonId: 2027, matches: 0, goals: 0 },
@@ -97,7 +104,7 @@ describe("goalsPerGameSeries", () => {
         { seasonId: 2025, matches: 4, goals: 9 },
       ],
     ],
-  ])("is too few to draw with %s (S10)", (_name, seasons) => {
+  ])("is too few to draw with %s", (_name, seasons) => {
     expect(goalsPerGameSeries(seasons, 2025)).toEqual({ status: "too-few" });
   });
 });

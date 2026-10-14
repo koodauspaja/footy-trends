@@ -7,16 +7,11 @@ const HEADING = "Tietosuojaseloste";
 export const metadata: Metadata = { title: HEADING };
 
 /**
- * `/tietosuoja`, from #302.
+ * `/tietosuoja`. Public and static: it must be reachable without signing in,
+ * so nothing here may read a session. Every claim below describes what the
+ * code stores and sends.
  *
- * Public and static. Google requires a reachable privacy policy before an OAuth
- * consent screen can leave Testing, and "reachable" means without signing in —
- * so nothing here may read a session.
- *
- * **Every claim below was checked against the code**, not written from memory:
- * the tables are what `src/db/schema.ts` stores, and the third-party section is
- * what the Sentry configuration and `logger.ts` actually send. A policy that
- * describes something else is worse than none, because it reads as deliberate.
+ * decisions/302-privacy-policy-and-footer.md
  */
 const SECTION = "mb-8";
 const HEADING_2 = "mb-3 font-semibold text-xl";

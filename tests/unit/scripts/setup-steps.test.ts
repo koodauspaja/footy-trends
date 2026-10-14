@@ -3,9 +3,16 @@ import { parseEnv } from "node:util";
 import { describe, expect, it } from "vitest";
 import { runSetup, type SetupActions } from "../../../scripts/setup-steps";
 
+/**
+ * The sequence of `npm run setup`, with every action injected: the order things
+ * happen in, what is asked, and what is said.
+ *
+ * decisions/400-one-command-setup.md
+ */
+
 const EXAMPLE = readFileSync(".env.example", "utf8");
 
-/** A `.env` needing nothing, so a test can vary one thing about it. */
+// A `.env` needing nothing, so a test can vary one thing about it.
 const COMPLETE = [
   "DATABASE_URL=postgresql://postgres:pw@localhost:5432/footy-trends",
   "FOOTY_POSTGRES_PASSWORD=pw",
@@ -18,10 +25,8 @@ const COMPLETE = [
   "",
 ].join("\n");
 
-/**
- * Everything recorded, nothing real: `steps` is the order things happened in,
- * which is most of what this module is, and `written` is the last `.env` text.
- */
+// Everything recorded, nothing real: `steps` is the order things happened in,
+// which is most of what this module is, and `written` is the last `.env` text.
 function actions(overrides: Partial<SetupActions> = {}) {
   const steps: string[] = [];
   const answers: string[] = [];
@@ -57,7 +62,7 @@ function actions(overrides: Partial<SetupActions> = {}) {
   return { ...base, ...overrides, steps, answers, state };
 }
 
-/** The steps, as one string, for the assertions that are about wording. */
+// The steps, as one string, for the assertions that are about wording.
 const said = (a: { steps: string[] }) => a.steps.join("\n");
 
 describe("runSetup", () => {
@@ -98,11 +103,8 @@ describe("runSetup", () => {
   });
 
   it("stops when an exported variable would beat the .env it just wrote", async () => {
-    /**
-     * An export wins over `.env` for every command setup hands off to, so
-     * migrations would go to one database while the file described another.
-     * Raised in review on #409.
-     */
+    // An export wins over `.env` for every command setup hands off to, so
+    // migrations would go to one database while the file described another.
     const a = actions({
       readEnv: () => null,
       exported: { DATABASE_URL: "postgresql://postgres:other@localhost:5432/somewhere-else" },
@@ -186,7 +188,8 @@ describe("runSetup", () => {
 });
 
 describe("runSetup, with a terminal", () => {
-  /** Interactive, and answering the dev-server prompt with "n" unless told otherwise. */
+  // Interactive, and answering the dev-server prompt with "n" unless told
+  // otherwise.
   function interactive(answers: string[], overrides: Partial<SetupActions> = {}) {
     const a = actions({ interactive: true, ...overrides });
     a.answers.push(...answers);
@@ -251,11 +254,9 @@ describe("runSetup, with a terminal", () => {
   });
 
   it("stops asking, and starts nothing, when input ends at a prompt", async () => {
-    /**
-     * Ctrl-D, or a piped run. Node's readline rejects the pending question, and
-     * an uncaught rejection ended setup with a stack trace where the prompt had
-     * just said "press Enter to skip" — found by running it.
-     */
+    // Ctrl-D, or a piped run. Node's readline rejects the pending question, and
+    // an uncaught rejection would end setup with a stack trace where the prompt
+    // had just said "press Enter to skip".
     const a = actions({
       interactive: true,
       // Both keys blank, so "the second was never asked" is visible: input has
@@ -272,10 +273,8 @@ describe("runSetup, with a terminal", () => {
     });
 
     expect(await runSetup(a)).toBe(0);
-    // One question per key at most, and the dev-server one — never a re-ask
-    // into a stream that has ended.
     // One question, and no more: input has ended for the dev-server prompt too,
-    // which this asserted the wrong way round until review on #409.
+    // so nothing is re-asked into a stream that has ended.
     expect(a.steps.filter((step) => step.startsWith("ask:"))).toEqual([
       "ask:FOOTBALL_DATA_API_KEY: ",
     ]);

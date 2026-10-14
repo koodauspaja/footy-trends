@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../support/warm-module";
 
+/**
+ * A reader's stored preferences, and the extras the session carries.
+ *
+ * decisions/024-account-settings.md
+ * decisions/025-custom-avatar.md
+ * decisions/028-admin-tools-and-roles.md
+ */
+
 const { rows, limit, logger } = vi.hoisted(() => {
   const rows = { current: [] as unknown[], throws: false };
   const limit = vi.fn(async () => {
@@ -136,9 +144,9 @@ describe("getSessionExtrasFor", () => {
   });
 
   it("carries an admin's role, so the account menu can offer the link", async () => {
-    // Added in specs/028-admin-tools-and-roles.md, and free: the query already
-    // selects from `user`, so this is one more column on a row being read
-    // anyway — unlike the favourites, it costs no round trip.
+    // Free: the query already selects from `user`, so the role is one more
+    // column on a row being read anyway. Unlike the favourites, it costs no
+    // round trip.
     rows.current = [{ defaultRegion: null, avatarVersion: null, role: "admin" }];
     const { getSessionExtrasFor } = await import("@/lib/preferences");
 

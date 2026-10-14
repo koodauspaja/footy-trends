@@ -2,12 +2,12 @@ import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 
 /**
- * `Analyysit` on a national-team page (specs/041), end to end. Signed in the
- * way league-position.spec.ts explains.
+ * `Analyysit` on a national-team page, end to end. Signed in the way league-position.spec.ts
+ * explains. What unit tests cannot prove: it renders with no season and no selector, on both
+ * teams, above the year list, and every string names the period this page has.
  *
- * What this proves that the unit tests cannot: the section renders on a page
- * with no season and no selector, on both teams, above the year list — and
- * that every string on it names the period this page actually has.
+ * decisions/041-national-team-analytics.md
+ * decisions/046-comebacks-half-time-coverage.md
  */
 
 const HUUHKAJAT = "/maajoukkueet/huuhkajat";
@@ -49,8 +49,8 @@ test.describe("National-team analytics, signed in", () => {
     await analytics(page).waitFor();
     const groups = await analytics(page).getByRole("heading", { level: 3 }).allTextContents();
 
-    // specs/041, S13: the middle group covers every match since 2018, so
-    // `Kausi kokonaisuutena` would claim something untrue of it.
+    // The middle group covers every match since 2018, so `Kausi kokonaisuutena`
+    // would claim something untrue of it.
     expect(groups).toContain("Koko historia");
     expect(groups).toContain("Muut vuodet");
     expect(groups).not.toContain("Kausi kokonaisuutena");
@@ -62,9 +62,9 @@ test.describe("National-team analytics, signed in", () => {
     const comparison = page.getByRole("region", { name: "Tämä vuosi verrattuna" });
     await comparison.waitFor();
 
-    // The baseline is the team's other calendar years (specs/041, S4 and S11).
+    // The baseline is the team's other calendar years.
     await expect(comparison.getByText(/Verrattuna \d+ muuhun vuoteen:/)).toBeVisible();
-    // A page with no table can never fill this row, so it is dropped (S7).
+    // A page with no table can never fill this row, so it is dropped.
     await expect(comparison.locator("[data-part=row]", { hasText: "Sijoitus" })).toHaveCount(0);
     await expect(comparison.locator("[data-part=row]")).not.toHaveCount(0);
   });
@@ -75,7 +75,7 @@ test.describe("National-team analytics, signed in", () => {
     await records.waitFor();
 
     // A span of years, not a list of competitions: the records cross every
-    // competition deliberately (specs/041, S12).
+    // competition deliberately.
     await expect(records.getByText(/^\d{4}(–\d{4})?$/)).toBeVisible();
   });
 
@@ -93,14 +93,10 @@ test.describe("National-team analytics, signed in", () => {
     ["Huuhkajat", HUUHKAJAT],
     ["Helmarit", HELMARIT],
   ] as const) {
-    test(`shows ${team}'s comebacks as the note or the figures, never both (specs/046)`, async ({
-      page,
-    }) => {
+    test(`shows ${team}'s comebacks as the note or the figures, never both`, async ({ page }) => {
       // Which one depends on how many half-time scores TASO holds for these
-      // internationals, and that is not this test's to know: a database
-      // stored before migration 0017 has none, one freshly synced has most
-      // (#485). The 40 % rule itself is pinned by the unit tests; what this
-      // proves end to end is that the page shows one outcome of it, whole.
+      // internationals, which is not this test's to know. The 40 % rule is pinned
+      // by the unit tests; this proves the page shows one outcome of it, whole.
       await page.goto(path);
       const panel = analytics(page).getByRole("region", { name: "Kääntyneet ottelut" });
       await panel.waitFor();
@@ -126,7 +122,7 @@ test.describe("National-team analytics, signed in", () => {
       );
 
       if (note > 0) {
-        // The note replaces the figures entirely (specs/046, S2).
+        // The note replaces the figures entirely.
         expect(note).toBe(1);
         expect(shown).toEqual([0, 0]);
       } else {

@@ -77,3 +77,17 @@ for this — it was a one-time manual check.
 - 8 integration tests passing against real Postgres/Redis, unaffected by
   the round changes (all pre-existing calls omit `round`).
 - Manual browser verification as described above.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/rounds.ts` at `48ebab4` by #531.
+
+- **Rounds have no configured range.** Unlike seasons, there is no
+  independent floor or ceiling: the selectable rounds are the matchdays with
+  at least one stored match.
+
+Cut from `src/components/standings-controls.tsx` at `48ebab4` by #531.
+
+- **`StandingsControls`.** A plain GET form so all three selections work
+  without JavaScript; with scripting each change handler navigates
+  immediately, which is why the button is hidden then.

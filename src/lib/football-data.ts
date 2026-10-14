@@ -1,3 +1,14 @@
+/**
+ * football-data.org as this app reads it: a competition's seasons, a season's
+ * matches, and their rows normalised for storage.
+ *
+ * decisions/001-premier-league-match-based-standings.md
+ * decisions/002-season-selector-and-backfill.md
+ * decisions/014-champions-league.md
+ * decisions/016-world-cup-and-euro.md
+ * decisions/036-halftime-comebacks.md
+ */
+
 import { cache } from "react";
 import { getCached } from "./cache";
 import { earliestSeasonFor } from "./competitions";
@@ -9,12 +20,9 @@ export const COMPETITION_CACHE_TTL_SECONDS = 60 * 60;
 export const MATCHES_CACHE_TTL_SECONDS = 15 * 60;
 
 /**
- * The Redis key a season's matches cache under.
+ * The Redis key a season's matches are cached under.
  *
- * Exported for the same reason as its TASO counterpart: `force-refresh.ts`
- * deletes exactly this key to reach the provider, and a key spelled out in two
- * places would let a change here silently stop that — see
- * specs/029-forced-season-refresh.md.
+ * decisions/029-forced-season-refresh.md
  */
 export function footballDataMatchesCacheKey(competitionCode: string, seasonId: number): string {
   return `football-data:matches:${competitionCode}:${seasonId}`;
@@ -37,13 +45,10 @@ export type ProviderMatch = {
   awayTeam?: ProviderTeam;
   score?: {
     fullTime?: ProviderScoreLine;
-    /** The score at the break, given for league matches too (specs/036). */
+    /** The score at the break, given for league matches too. */
     halfTime?: ProviderScoreLine;
-    // `fullTime` INCLUDES a penalty shootout: Liverpool "1-5" PSG (LAST_16,
-    // 2024/25) is really 0-1 with penalties 1-4. Anything aggregating a
-    // two-legged tie must use `regularTime` + `extraTime` instead, which is
-    // why the breakdown is carried through rather than dropped here. See
-    // specs/014-champions-league.md.
+    // `fullTime` includes a penalty shoot-out, so a two-legged tie is aggregated
+    // from `regularTime` and `extraTime`.
     regularTime?: ProviderScoreLine;
     extraTime?: ProviderScoreLine;
     penalties?: ProviderScoreLine;
@@ -61,22 +66,10 @@ function apiKey(): string {
 }
 
 /**
- * How long a page render waits for football-data before giving up on it.
+ * How long one football-data request waits before a page render gives up on
+ * it. It bounds one attempt, not the wait after a 429.
  *
- * Unbounded before #363, for the same reason TASO was — `fetchProviderJson`
- * took an optional signal and the render path never passed one. Nothing has
- * been observed stalling here; the bound exists because "we have not seen it
- * yet" is not a limit, and a render with no deadline has none.
- *
- * Separate from TASO's bound on purpose: TASO is self-hosted and is the one
- * observed stalling, so the two should be tunable without moving each other.
- * Eight seconds rather than TASO's ten because nothing here fans out the way
- * the national-team page does — the pages that read football-data issue few
- * enough requests that no cold render has been seen near this.
- *
- * This bounds one attempt, not the call, so it does not cut short the wait
- * `fetchProviderJson` does after a 429 — that stays governed by the response's
- * own `Retry-After`.
+ * decisions/363-render-timeouts.md
  */
 const RENDER_TIMEOUT_MS = 8000;
 
@@ -100,24 +93,17 @@ export type SeasonContext = {
   selectableSeasons: SeasonOption[];
   /**
    * Whether a season runs across two calendar years, read from the provider's
-   * own dates rather than assumed. A league does; a tournament played inside
-   * one summer does not, and labelling the 2026 World Cup "2026/27" would
-   * claim a season it never had.
+   * own dates.
    */
   spansCalendarYears: boolean;
 };
 
 /**
- * Resolves the active season and the seasons the user may select, from a single
- * cached competition response.
+ * The active season and the seasons a reader may select, from one cached
+ * competition response. `cache()`d, so a page and its metadata share the call.
  *
- * The provider's `seasons[]` array is deliberately not used to build the
- * selectable list: it advertises seasons back to 1888 that the API plan rejects
- * with 403. See specs/002-season-selector-and-backfill.md.
- *
- * Wrapped in React's `cache()` so a page's `generateMetadata` and its default
- * export — both of which resolve the same competition's season context —
- * share one call per request instead of hitting Redis/the provider twice.
+ * decisions/001-premier-league-match-based-standings.md
+ * decisions/002-season-selector-and-backfill.md
  */
 export const getSeasonContext = cache(async (competitionCode: string): Promise<SeasonContext> => {
   const competition = await getCached<CompetitionResponse>(
@@ -129,9 +115,8 @@ export const getSeasonContext = cache(async (competitionCode: string): Promise<S
   const activeSeason = selectActiveSeason(competition, now);
   const startDate = activeSeason?.startDate;
   if (startDate === undefined) throw new Error("Football data response has no current season");
-  // The matches endpoint's `season` query parameter is the season's start year
-  // (e.g. 2025), not the season object's `id` field (e.g. 2403) — confirmed
-  // against the live API, which 404s when passed the `id`.
+  // The matches endpoint's `season` parameter is the season's start year, not the
+  // season object's `id`.
   const activeSeasonId = new Date(startDate).getUTCFullYear();
   const earliestSeason = earliestSeasonFor(
     competitionCode,
@@ -157,8 +142,9 @@ export const getSeasonContext = cache(async (competitionCode: string): Promise<S
 
 /**
  * Whether the season's own dates cross a calendar-year boundary. A season with
- * no end date is treated as spanning, which is what every league does and what
- * the app assumed before tournaments existed.
+ * no end date is treated as spanning, as every league does.
+ *
+ * decisions/016-world-cup-and-euro.md
  */
 export function seasonSpansCalendarYears(season: ProviderSeason | undefined): boolean {
   if (season?.startDate === undefined || season.endDate === undefined) return true;
@@ -183,9 +169,10 @@ export function selectActiveSeason(
 }
 
 /**
- * The provider's next season by `startDate`, once it has one already listed
- * — even before it starts. Unlike `selectActiveSeason`, an undated season is
- * never "upcoming" (there is nothing to compare against `now`).
+ * The provider's next season by `startDate`, once it is listed, even before
+ * it starts. An undated season is never upcoming.
+ *
+ * decisions/005-listing-matches-for-selected-season.md
  */
 export function selectUpcomingSeason(
   competition: { currentSeason?: ProviderSeason; seasons?: ProviderSeason[] },
@@ -200,7 +187,11 @@ export function selectUpcomingSeason(
   )[0];
 }
 
-/** Returns every match for the season regardless of status — played and upcoming alike. */
+/**
+ * Every match for the season regardless of status: played and upcoming alike.
+ *
+ * decisions/004-listing-matches-for-selected-team.md
+ */
 export async function getSeasonMatches(
   competitionCode: string,
   seasonId: number
@@ -241,16 +232,13 @@ export type NormalizedProviderMatch = {
   /** Null outside a group stage — including every match of a LEAGUE_STAGE season. */
   groupName: string | null;
   /**
-   * The half-time score, null when the provider reports none (specs/036).
-   * Unlike the breakdown below, it is given for league matches too — but not
-   * for a season outside the plan's window, which is refused entirely.
+   * The half-time score, null when the provider reports none. Given for league
+   * matches too, but not for a season outside the plan's window.
    */
   halfTimeHome: number | null;
   halfTimeAway: number | null;
-  // The score breakdown, null whenever the provider omits it (every league
-  // match, and any cup match decided in normal time). Stored rather than
-  // recomputed so the bracket still renders from the database when the
-  // provider is unreachable.
+  // The score breakdown, null whenever the provider omits it. Stored, so the
+  // bracket still renders from the database when the provider is unreachable.
   regularTimeHome: number | null;
   regularTimeAway: number | null;
   extraTimeHome: number | null;

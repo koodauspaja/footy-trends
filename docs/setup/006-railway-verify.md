@@ -1,73 +1,37 @@
-# 006 — Railway verification
+# 006 — Verify staging
 
 ## Goal
-Confirm that auto-deploy works correctly and that the PostgreSQL database
-persists data across deploys — no 30-day wipe, no data loss between coding sessions.
+
+Confirm that a push deploys, and that the database keeps its data.
 
 ---
 
-## Step 1 — Verify auto-deploy is wired up
+## Step 1 — A push deploys
 
-After the test push from `005-railway-setup.md`:
+1. Merge any change under `src/` to `main`
+2. Railway → `staging` → web service → **Deployments**: a deployment starts for
+   that commit, and ends in success
 
-1. Go to Railway → project → app service → **Deployments** tab
-2. Confirm the latest deployment was triggered by your commit
-3. Check the deploy log — it should complete without errors
-   (a failed build is fine at this stage, but the trigger itself should fire)
+A change that touches only documents deploys nothing, by design
+(`.railway/railway.ts`, the watch paths).
 
----
+## Step 2 — The database persists
 
-## Step 2 — Verify database persistence
+1. Railway → `staging` → Postgres → its data view: the application's tables exist,
+   created by the deploy's migrations
+2. After the next deploy, they still hold their rows
 
-Railway PostgreSQL volumes persist indefinitely on the Hobby plan — there is no
-automatic wipe. To confirm this is working correctly:
+## Step 3 — Usage
 
-1. Go to Railway → project → PostgreSQL service
-2. Click **Connect** → open the **Query** tab (Railway has a built-in SQL editor)
-3. Run:
-```sql
-CREATE TABLE IF NOT EXISTS persistence_test (
-  id SERIAL PRIMARY KEY,
-  created_at TIMESTAMP DEFAULT NOW(),
-  note TEXT
-);
-
-INSERT INTO persistence_test (note) VALUES ('setup verification');
-
-SELECT * FROM persistence_test;
-```
-4. You should see one row returned
-5. Return to this table the next day or after a re-deploy — the row should still be there
-
----
-
-## Step 3 — Verify environment variables are available
-
-In the Railway app service → Variables tab, confirm:
-
-- [ ] `DATABASE_URL` is present (added as a reference variable to Postgres)
-- [ ] Any other variables you have added are listed
-
-To confirm they reach the app at runtime, you can temporarily add a health check
-endpoint once the app exists that returns the DB connection status.
-
----
-
-## Step 4 — Check Railway usage
-
-Railway charges based on resource usage within the $5/month credit:
-
-1. Go to Account → Usage
-2. Confirm the project is listed
-3. At idle (no traffic), a small app + Postgres should consume well under $5/month
+**Account** → **Usage**: the project is listed. Check it again after a week.
 
 ---
 
 ## Done when
-- [ ] Auto-deploy triggered correctly from a GitHub push
-- [ ] PostgreSQL persistence confirmed via query
-- [ ] `DATABASE_URL` visible in app service variables
-- [ ] Usage dashboard accessible and showing expected low consumption
+
+- [ ] A push to `main` produced a successful deployment
+- [ ] The tables exist, and survive a redeploy
 
 ## Next
-→ `007-football-data-api.md`
+
+→ `018-health-check.md`

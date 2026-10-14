@@ -1,11 +1,9 @@
+import { parseWholeNumber } from "./provider-ids";
 /**
- * Season identifiers are the season's start year (e.g. 2025 for 2025/26), which
- * is what the football-data.org `season` query parameter expects.
+ * The earliest selectable season. A season's id is its start year (2025 for
+ * 2025/26), which is what football-data.org's `season` parameter expects.
  *
- * The provider's `seasons[]` array advertises every season back to 1888, but
- * only the seasons inside the current API plan return 200 — the rest return
- * 403. The selectable range is therefore bounded by configuration rather than
- * by the provider's list. See specs/002-season-selector-and-backfill.md.
+ * decisions/002-season-selector-and-backfill.md
  */
 export const DEFAULT_EARLIEST_SEASON = 2023;
 
@@ -19,18 +17,13 @@ export type SeasonParamResult =
   | { kind: "valid"; seasonId: number }
   | { kind: "invalid" };
 
-const POSITIVE_INTEGER = /^\d+$/;
-
 /**
- * Formats a season start year as `2024/25`, zero-padding a century rollover —
+ * Formats a season start year as `2024/25`, zero-padding a century rollover,
  * or as plain `2026` for a competition whose season does not span two calendar
  * years.
  *
- * A league runs autumn to spring; a tournament is played inside one summer.
- * Verified against the provider's own dates: the World Cup runs
- * 2026-06-11 → 2026-07-19 and the Euro 2024-06-14 → 2024-07-14, while
- * Champions League runs 2025-09-16 → 2026-05-30. Labelling a World Cup
- * "2026/27" claims a season it never had. See specs/016-world-cup-and-euro.md.
+ * decisions/002-season-selector-and-backfill.md
+ * decisions/016-world-cup-and-euro.md
  */
 export function formatSeasonLabel(seasonId: number, spansCalendarYears = true): string {
   if (!spansCalendarYears) return String(seasonId);
@@ -38,17 +31,25 @@ export function formatSeasonLabel(seasonId: number, spansCalendarYears = true): 
   return `${seasonId}/${nextYear}`;
 }
 
-/** Reads the configured floor, falling back to the default for any unusable value. */
+/**
+ * Reads the configured floor, falling back to the default for any unusable value.
+ *
+ * decisions/002-season-selector-and-backfill.md
+ */
 export function resolveEarliestSeason(rawValue: string | undefined): number {
-  if (rawValue === undefined || !POSITIVE_INTEGER.test(rawValue)) return DEFAULT_EARLIEST_SEASON;
-  const parsed = Number(rawValue);
-  return parsed > 0 ? parsed : DEFAULT_EARLIEST_SEASON;
+  // An environment variable, not a URL, but the same rule fits: a year is a
+  // whole number our columns hold, and anything else is no floor at all.
+  const parsed = parseWholeNumber(rawValue);
+  return parsed !== null && parsed > 0 ? parsed : DEFAULT_EARLIEST_SEASON;
 }
 
 /**
  * Every season from the active season down to the floor, newest first. When
  * the provider has already published an upcoming season's fixtures (even
  * before it starts), `upcomingSeasonId` prepends it ahead of the active one.
+ *
+ * decisions/002-season-selector-and-backfill.md
+ * decisions/005-listing-matches-for-selected-season.md
  */
 export function listSelectableSeasons(
   activeSeasonId: number,
@@ -73,15 +74,17 @@ export function listSelectableSeasons(
 /**
  * Validates the `kausi` query parameter against the selectable seasons. An
  * unvalidated value must never reach the provider URL, a cache key, or a query.
+ *
+ * decisions/002-season-selector-and-backfill.md
  */
 export function parseSeasonParam(
   rawValue: string | string[] | undefined,
   selectable: SeasonOption[]
 ): SeasonParamResult {
   if (rawValue === undefined) return { kind: "absent" };
-  if (typeof rawValue !== "string" || !POSITIVE_INTEGER.test(rawValue)) return { kind: "invalid" };
+  const seasonId = parseWholeNumber(rawValue);
+  if (seasonId === null) return { kind: "invalid" };
 
-  const seasonId = Number(rawValue);
   return selectable.some((option) => option.seasonId === seasonId)
     ? { kind: "valid", seasonId }
     : { kind: "invalid" };

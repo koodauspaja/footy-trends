@@ -303,3 +303,242 @@ specific session, and data export.
 **Not verifiable without a human:** the settings page signed in, the device list
 against real sessions, and account deletion end to end. A real Google sign-in
 cannot be automated, which is the gap 023 documented and this feature inherits.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/auth.ts` at `a86c1cb` by #531.
+
+- **`user.deleteUser`.** Off by default in better-auth. The email round trip
+  would add friction without safety: the session already proves the account,
+  and the page requires typing `POISTA` before the button enables.
+- **`customSession`.** `/` is prerendered and applies the region preference
+  client-side, so it needs the value in the browser. Enriching
+  `/api/auth/get-session` costs no extra round trip, where a second client
+  fetch would. Only what the client acts on is sent: the settings page reads
+  the rest server-side, so shipping it would be payload on every page load.
+- **`nextCookies`.** Last in the plugin list because it writes better-auth's
+  `Set-Cookie` headers through Next's cookie API, which is what makes a
+  server action or route handler persist the session.
+
+Cut from `src/db/schema.ts` at `a86c1cb` by #531.
+
+- **`userPreferences`.** Created on first save and not at sign-in: an untouched
+  settings page writes nothing, so a row's existence means someone chose
+  something. Null is "no preference", which is not "prefers what the default
+  happens to be today": if the domestic fallback ever moves off Veikkausliiga,
+  a reader who never chose follows the change and one who chose Veikkausliiga
+  does not. It is also what makes every setting unsettable.
+- **Three competition columns, not a `(user, region, code)` join table.** The
+  three regions are fixed by the URL structure, and the code has no single
+  type spanning them: `CompetitionRegion` covers `foreign` and
+  `national-teams`, while Kotimaa's competitions come from TASO with their own
+  default. The column names say which registry each value belongs to.
+
+Cut from `src/components/auth-controls.tsx` at `a86c1cb` by #531.
+
+- **The account menu in `AuthButtons`.** Three controls in the header row is
+  what overflowed a 320px viewport.
+- **`onSignOut`'s terminal `catch`.** A throw inside `clearError` only means
+  the URL was not rewritten and the notice stays put: worth swallowing, not
+  worth mislabelling as a failed sign-out.
+
+Cut from `src/components/settings-page.tsx` at `a86c1cb` by #531.
+
+- **`RegionOptions`.** `domestic-competitions.ts` reaches ioredis, which cannot
+  be bundled for the browser: see `src/lib/competition-preferences.ts`.
+- **The save handlers in `settings-page.tsx`.** The actions return
+  `{ ok: false }` for their own failures, but a dropped connection or a
+  server-action transport error never reaches their `try`; uncaught, the
+  reader gets a dead control and an unhandled rejection.
+- **The session refetch after a save.** The mounted `useSession()` store does
+  not know the start region just changed. Without the refetch the header's
+  `Etusivu` link and the front page keep acting on the previous value until a
+  full reload, so a reader who saves `Kotimaa` and clicks through would see
+  the setting do nothing. A rejected refetch must not escape the transition:
+  the save did succeed, and saying it takes effect on reload is more use than
+  a silent stale header.
+
+Cut from `src/components/account-menu.tsx` at `94397a8` by #531.
+
+- **`AccountMenu`.** `Kirjaudu ulos` moved in from beside the name: three
+  controls in the header row is what overflowed a 320px viewport, and account
+  actions are where a reader looks for them. Click, not hover: a hover menu is
+  unreachable on a phone.
+- **Focus when the menu closes.** A keyboard reader who tabs into the menu and
+  then clicks empty space leaves focus on an element about to unmount, and it
+  falls to `<body>`. Forcing focus back on every outside click would fight a
+  reader who clicked a different control: the click is itself a focus
+  request. Asking afterwards needs no "was focus inside" bookkeeping and no
+  guard for a ref that cannot be null while the menu is open. A timeout and
+  not a microtask, because the browser moves focus as part of the click's
+  default action, which has not happened when the handler runs.
+- **A disclosure, not `role="menu"`.** Real menu semantics promise arrow-key
+  navigation and typeahead that this does not implement, and claiming them is
+  worse for a screen reader than not claiming them. The label contains the
+  visible name in the text branch, which is what WCAG 2.5.3 (Label in Name)
+  asks for.
+
+Cut from `src/lib/preferences.ts` at `ef7eb13` by #531.
+
+- **`getPreferencesFor`.** Next calls `generateMetadata` and the page
+  component separately, and both resolve the same page context, so without
+  `cache()` the same lookup would repeat.
+
+Cut from `src/lib/page-context.ts` at `dc74e3e` by #531.
+
+- **Precedence in `resolveBasePageContext`.** A signed-out reader stops at
+  the region's default. An explicit `?kilpailu=` beats a preference: a shared
+  link must render what it says, and a stored default is a weaker statement
+  than a typed URL.
+- **`seasonFallback`.** Optional-chained on both sides, then `??`. Reading
+  `defaults.seasonId` directly inside the true branch does not typecheck,
+  because TypeScript does not narrow `defaults` from the comparison above,
+  and spelling out `defaults !== undefined` trades that for a lint finding.
+
+Cut from `src/lib/domestic-page-context.ts` at `dc74e3e` by #531.
+
+- **`seasonFallback`.** The same comment, word for word, as in
+  `page-context.ts` above: optional-chained on both sides, then `??`, because
+  TypeScript does not narrow `defaults` from the comparison and
+  `defaults !== undefined` trades that for a lint finding.
+
+Cut from `src/components/site-header.tsx` at `dc74e3e` by #531.
+
+- **`Etusivu` and a start page.** Without the suppressing parameter the
+  crumb would return such a reader to the region they are already in and look
+  broken. No setting may make a page unreachable by clicking.
+
+Cut from `src/lib/user-agent.ts` at `dc74e3e` by #531.
+
+- **`user-agent.ts`.** It exists so someone can tell "my laptop" from "not my
+  laptop" when deciding whether to sign other devices out. It is not
+  analytics: a wrong guess costs nothing, while a parsing library would be a
+  supply-chain dependency bought for one line of a settings page. An earlier
+  version rendered `Chrome · macOS`, which put two English product names in a
+  Finnish UI to say what one already says. Agreed with Miikka: the browser
+  alone identifies a device well enough, and the cost, two Chrome sessions on
+  different machines reading alike, is accepted. The label is a Finnish
+  compound around the product name, `Chrome-selain` and not a bare `Chrome`:
+  the brand cannot be translated but the word around it can, and it matches
+  the `Tuntematon selain` of the fallback.
+- **`BROWSERS`.** Matching in this order is what stops every browser
+  reporting as Safari.
+- **`describeDevice`.** The row exists to be recognised at a glance, and 200
+  characters of `Mozilla/5.0 (…)` is not that. `user_agent` is nullable:
+  behind some proxies the header never arrives at all.
+- **`describeLastUsed`.** Computed in Europe/Helsinki like every other
+  user-facing date in the app (`match-list-table.tsx`, `match-detail.ts`,
+  `national-team.ts`). It runs on the server, so the alternative was not the
+  reader's timezone but Railway's, UTC, which for a Finnish reader gets
+  `tänään` and `eilen` wrong for the two or three hours after midnight.
+  "Yesterday" means the previous date, not 24 hours ago, so a session used at
+  23:50 does not still read `tänään` at 00:10.
+
+Cut from `src/lib/viewer.ts` at `dc74e3e` by #531.
+
+- **`hasSessionCookie`.** An unrelated cookie whose value happened to
+  contain the name would otherwise be read as an authenticated request,
+  constructing better-auth and querying preferences for a signed-out reader.
+  Both spellings count because the name is prefixed `__Secure-` over HTTPS,
+  which is every production request.
+- **`getViewerPreferences`.** The four pages
+  `tests/unit/app/rendering-mode.test.ts` names `STATIC_BY_DESIGN` (`/`,
+  `/kotimaa`, `/ulkomaat`, `/maajoukkueet`) would lose their prerender by
+  reading headers, the constraint the sign-in was shaped around; the region
+  preference is applied in the browser for that reason. Signed-out readers
+  pay nothing: with no session cookie this returns before touching
+  better-auth or Postgres, and they are the overwhelming majority of traffic.
+  Preferences decide which competition a page opens on, and a database blip
+  must degrade that to the hardcoded default and not turn every standings
+  page into an error page.
+- **The deferred import of `auth.ts`.** A top-level import made dozens of
+  unrelated page tests fail in the CI unit job, which deliberately has no
+  environment at all. Deferring it past the cookie check also means a
+  signed-out request constructs neither the auth instance nor the database
+  client.
+
+Cut from `src/lib/competition-preferences.ts` at `dc74e3e` by #531.
+
+- **`competition-preferences.ts`.** `domestic-competitions.ts` transitively
+  reaches ioredis, so a client component importing any of this fails the
+  build on `dns`, `net` and `tls`. The settings form receives its option
+  lists as props from the server page.
+- **`footballDataRegionFor`.** `CompetitionRegion` only spans the two
+  football-data regions, and pretending otherwise would make the callers
+  silently check the wrong registry. Total and not a `Partial<Record<…>>`
+  lookup: every caller already returns early for Kotimaa, so TypeScript
+  narrows the argument and there is no "missing entry" case left to guard. A
+  guard for an unreachable state is a second source of truth and an
+  untestable branch.
+- **`isStillValid`.** A stored preference and a `?kilpailu=` value have to
+  agree about what exists, and two implementations of "is this a real
+  competition" would eventually disagree.
+- **`preferredCompetitionFor`.** Null lets each caller keep its own hardcoded
+  fallback, so this module need not know what that is. A competition can be
+  retired long after someone chose it, and stranding a reader on a dead page
+  is worse than ignoring their preference.
+
+Cut from `src/app/settings/page.tsx` at `dc74e3e` by #531.
+
+- **The settings page reads its session on the server.** Everything it shows
+  is server data, and one render beats a client endpoint per section.
+- **The session lookup's guard.** It reads request headers and hits the
+  database, and an unhandled failure rejects the whole route: an error page
+  where the reader expected their settings. Prompting them to sign in would
+  be a claim we cannot make, and they may already be signed in.
+- **A failed preferences lookup.** Rendering defaults would show a reader
+  their settings apparently reset, and a save would lose the real ones
+  because a query briefly failed.
+- **A failed device list.** Reporting an empty list would tell the reader
+  nothing else is signed in, a claim about their account security that we
+  cannot back, and one that hides the very sessions the section exists to
+  reveal.
+
+Cut from `src/lib/regions.ts` at `ef99862` by #531.
+
+- **`regions.ts`.** Both exclusions are load-bearing. `@/db` pulls in the
+  Postgres driver, and `domestic-competitions.ts` reaches `taso.ts`,
+  `cache.ts` and `redis.ts` and so pulls in ioredis; either one in a browser
+  bundle fails the build on `dns`, `net` and `tls`. Database access lives in
+  `preferences.ts` and registry-aware helpers in
+  `competition-preferences.ts`, and neither is reachable from the header,
+  the front page or the settings form.
+- **`resolveRegion`.** The column is plain text, and a value that no longer
+  means anything must leave the reader on the picker and not redirect them
+  somewhere that does not exist.
+
+Cut from `src/lib/settings-actions.ts` at `ef99862` by #531.
+
+- **`currentPreferencesRow`.** Collapsing `null` and `"error"` would show a
+  reader their preferences reset to defaults and let them overwrite the real
+  ones with a save, losing settings because a query briefly failed.
+
+Cut from `src/components/start-redirect.tsx` at `ef99862` by #531.
+
+- **`SHOW_PICKER_PARAM`.** It is what makes the redirect safe to have at
+  all. Without it a reader with a default region could reach `/` only by
+  having no preference: the picker would be unreachable by clicking, and the
+  `Etusivu` crumb would bounce them straight back where they came from. No
+  setting may make a page unreachable.
+- **`StartRedirect` runs in the browser.** `/` is one of the four pages
+  `tests/unit/app/rendering-mode.test.ts` names `STATIC_BY_DESIGN`. The
+  constraint shaped the sign-in feature, where a prerendered page baked a
+  build-time database error into static output. So the page ships static and
+  the redirect happens after hydration. The competition defaults are
+  resolved server-side, because those pages are already `force-dynamic` and
+  lose nothing by it.
+
+Cut from `src/components/sign-in-prompt.tsx` at `48ebab4` by #531.
+
+- **A failed sign-in from `SignInPrompt`.** One mechanism, one source. An
+  earlier version swallowed the failure and claimed the header would report
+  it; the header only reports its own sign-in call, so the reader was left
+  with a button that appeared to do nothing.
+
+## Moved from comments, 2026-10-07
+
+Cut from `tests/e2e/settings.spec.ts` at `0fe724f` by #531.
+
+- **Why `settings.spec.ts` forges no cookie.** Forging a signed session
+  cookie is possible but would encode better-auth's cookie-signing internals
+  into the suite.

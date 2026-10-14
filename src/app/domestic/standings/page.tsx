@@ -9,10 +9,12 @@ import { PageShell } from "@/components/page-shell";
 import { RenamedNotice } from "@/components/renamed-notice";
 import { StandingsLegend, StandingsTable } from "@/components/standings-table";
 import { TasoStandingsControls } from "@/components/taso-standings-controls";
+import { type GroupZones, groupZones, zoneLine } from "@/lib/competition-zones";
 import { buildCupBracket, buildPlayoffBracket, normaliseRoundName } from "@/lib/cup-rounds";
 import { cupFormatFor, isDomesticCup } from "@/lib/domestic-competitions";
 import { resolveDomesticPageContext } from "@/lib/domestic-page-context";
 import {
+  type GroupLevel,
   type GroupStandingsResult,
   getSeasonStandings,
   listSeasonRounds,
@@ -27,58 +29,74 @@ const INVALID_ROUND_MESSAGE = "Kierrosta ei löytynyt. Näytetään koko kausi."
 const NO_MATCHES_MESSAGE = "Otteluita ei ole saatavilla.";
 /**
  * Shown under a group whose own-calculated table did not reproduce TASO's
- * published points, so TASO's numbers are rendered instead. Naming
- * Palloliitto rather than "TASO" because that is the name a reader knows.
+ * published points, so TASO's numbers are rendered instead.
+ *
+ * decisions/013-more-finnish-competitions.md
  */
 const TASO_FALLBACK_MESSAGE =
   "Näytetään Palloliiton omat pisteet: ne poikkeavat otteluista lasketuista. " +
   "Kierrosvalitsin ei ole käytössä tässä ryhmässä.";
+
+/**
+ * Under the last group's list of what its positions lead to: whose words the
+ * labels are.
+ *
+ * decisions/063-competition-zones.md
+ */
+const ZONE_SOURCE_MESSAGE = "Sijoitusten merkitykset ovat Palloliiton tulospalvelusta.";
 
 type DomesticStandingsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
 /**
- * TASO's own `group_name` for 2015/2018's single (pre-split) group is
- * literally the string `"1"` — displayed as "Runkosarja" per domain
- * knowledge, since that was the era's name for the season's only phase.
- * See specs/009-veikkausliiga.md's Edge Cases.
+ * A group's name as the page shows it. TASO's `group_name` for the single
+ * pre-split group of 2015 and 2018 is the string `"1"`, shown as `Runkosarja`.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/015-finnish-cups.md
  */
 function displayGroupName(groupName: string): string {
   if (groupName === "1") return "Runkosarja";
-  // Cup rounds additionally normalise the two names TASO spells differently
-  // across eras — see specs/015-finnish-cups.md. A league group name is never
-  // one of them, so this is safe to apply to every group.
+  // Cup rounds also normalise the two names TASO spells differently across
+  // eras. A league group name is never one of them.
   return normaliseRoundName(groupName);
 }
 
 const KNOCKOUT_HEADING = "Pudotuspelit";
 
 /**
- * One group's body. A group with no table renders as its matches — a knockout
- * group, where TASO returns one row per bracket slot so an advancing team
- * would repeat itself down the rows (specs/010-playoff-group-match-list.md),
- * or a group TASO lists with no teams at all.
+ * One group's body. A group with no table renders as its matches; a
+ * pass-through group also carries a notice that its numbers are TASO's.
  *
- * A pass-through group additionally carries a notice: its numbers are TASO's,
- * not ours, because the two disagreed. See
- * specs/013-more-finnish-competitions.md.
+ * decisions/010-playoff-group-match-list.md
+ * decisions/013-more-finnish-competitions.md
+ * decisions/015-finnish-cups.md
+ * decisions/063-competition-zones.md
  */
 function GroupBody({
   group,
   teamHref,
   isCup,
+  ruleAfter = [],
 }: Readonly<{
   group: GroupStandingsResult;
   teamHref: (teamProviderId: number) => string;
   /** A cup round drops the `Kierros` column — see the render below. */
   isCup: boolean;
+  /** The places of this group's table a heavier rule follows. Omitted means none. */
+  ruleAfter?: readonly number[];
 }>) {
   if (group.kind !== "match-list") {
     return (
       <>
         {group.kind === "pass-through" && <Notice>{TASO_FALLBACK_MESSAGE}</Notice>}
-        <StandingsTable favouriteSource="taso" standings={group.standings} teamHref={teamHref} />
+        <StandingsTable
+          favouriteSource="taso"
+          ruleAfter={ruleAfter}
+          standings={group.standings}
+          teamHref={teamHref}
+        />
       </>
     );
   }
@@ -87,10 +105,8 @@ function GroupBody({
     return <p>{NO_MATCHES_MESSAGE}</p>;
   }
 
-  // A cup round is one round by definition, and the heading directly above
-  // already names it — a `Kierros` column would repeat the same value down
-  // every row. A league's playoff group can span rounds, so it keeps the
-  // column (specs/010-playoff-group-match-list.md).
+  // A cup round is one round, and the heading above already names it, so no
+  // `Kierros` column. A league's playoff group can span rounds and keeps it.
   if (isCup) {
     return (
       <MatchListTable
@@ -112,13 +128,59 @@ function GroupBody({
 }
 
 /**
- * One round, collapsible.
+ * A group's zones on its table as drawn, or none for a group with no table.
  *
- * A cup season stacks up to ten rounds on one page and the opening round can
- * be 248 teams — nearly 30,000px tall on a phone. `<details>` lets a reader
- * fold one away without any client-side state, and every round starts open so
- * nothing is hidden by default. The summary shows the `FoldMarker` every fold
- * shares (#419).
+ * decisions/063-competition-zones.md
+ */
+function zonesOf(group: GroupStandingsResult, levels: readonly GroupLevel[]): GroupZones {
+  if (group.kind === "match-list") return { zones: [], ruleAfter: [] };
+  return groupZones(
+    levels.filter((level) => level.groupId === group.groupId),
+    group.standings.length
+  );
+}
+
+/**
+ * A league's groups, each table with the list of what its positions lead to
+ * under it, and the source of the labels once, under the last list.
+ *
+ * decisions/063-competition-zones.md
+ */
+function LeagueGroups({
+  groups,
+  levels,
+  teamHref,
+}: Readonly<{
+  groups: GroupStandingsResult[];
+  levels: readonly GroupLevel[];
+  teamHref: (teamProviderId: number) => string;
+}>) {
+  const zoned = groups.map((group) => ({ group, ...zonesOf(group, levels) }));
+  const lastWithList = zoned.findLast(({ zones }) => zones.length > 0)?.group.groupId;
+
+  return zoned.map(({ group, zones, ruleAfter }) => (
+    <section className="mb-10" key={group.groupId}>
+      <h2 className="mb-3 font-semibold text-xl">{displayGroupName(group.groupName)}</h2>
+      <GroupBody group={group} isCup={false} ruleAfter={ruleAfter} teamHref={teamHref} />
+      {zones.length > 0 && (
+        <ul className="mt-3 text-sm">
+          {zones.map((zone) => (
+            <li key={zone.from}>{zoneLine(zone)}</li>
+          ))}
+        </ul>
+      )}
+      {group.groupId === lastWithList && (
+        <p className="mt-2 text-sm text-muted">{ZONE_SOURCE_MESSAGE}</p>
+      )}
+    </section>
+  ));
+}
+
+/**
+ * One round, collapsible with `<details>`, and open to begin with.
+ *
+ * decisions/015-finnish-cups.md
+ * decisions/419-shared-fold-marker.md
  */
 function CupRoundSection({
   group,
@@ -142,15 +204,11 @@ function CupRoundSection({
 }
 
 /**
- * A `groups-and-playoff` cup's season — Liigacup, Ykkösliigacup — laid out as
- * Champions League is (specs/043-liigacup.md): the group tables first, then
- * `Pudotuspelit` below them.
+ * A `groups-and-playoff` cup's season: the group tables first, then
+ * `Pudotuspelit`, where any knockout group the tree does not draw is listed
+ * before the tree. Suomen Cup never comes here.
  *
- * Under that heading, any knockout group the tree does not draw is listed
- * first, then the tree. A drawn group is not listed as well, as in Champions
- * League: for Liigacup the `1-4` group's three matches *are* the tree.
- *
- * Suomen Cup never comes here — it keeps specs/015's layout below.
+ * decisions/043-liigacup.md
  */
 function GroupsAndPlayoff({
   groups,
@@ -197,6 +255,16 @@ export async function generateMetadata({
   return { title: `${resolved.seasonCompetitionName} ${resolved.seasonLabel}` };
 }
 
+/**
+ * A domestic competition's standings: tables for a league, rounds and a
+ * bracket for a cup.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/015-finnish-cups.md
+ * decisions/043-liigacup.md
+ * decisions/048-league-goals-per-game-trend.md
+ * decisions/063-competition-zones.md
+ */
 export default async function DomesticStandingsPage({
   searchParams,
 }: Readonly<DomesticStandingsPageProps>) {
@@ -233,7 +301,8 @@ export default async function DomesticStandingsPage({
     selectedRound
   );
 
-  // specs/048: under the tables, on the leagues it names; `null` elsewhere.
+  // Under the tables, on the leagues `CompetitionAnalyticsSection` covers;
+  // `null` elsewhere.
   const analytics = await CompetitionAnalyticsSection({
     kind: "taso",
     competitionCode,
@@ -247,11 +316,8 @@ export default async function DomesticStandingsPage({
   const teamHref = (teamProviderId: number) =>
     `/kotimaa/joukkue/${teamProviderId}?kilpailu=${competitionCode}&kausi=${seasonId}`;
 
-  // Above the rounds, not below them as Champions League does: a knockout cup
-  // page has no standings table to lead with, so burying the bracket under as
-  // many as ten round lists — one of them 248 teams wide — would hide the most
-  // useful part of the page. Each drawn round still keeps its own list below.
-  // A `groups-and-playoff` cup does have tables, and draws its own bracket.
+  // Above the rounds, not below them as Champions League does. A
+  // `groups-and-playoff` cup draws its own bracket.
   const bracket =
     result.status === "ok" && !isGroupsAndPlayoff
       ? buildCupBracket(
@@ -301,16 +367,13 @@ export default async function DomesticStandingsPage({
       )}
       {result.status === "ok" &&
         !isGroupsAndPlayoff &&
-        result.groups.map((group) =>
-          isCup ? (
-            <CupRoundSection group={group} key={group.groupId} teamHref={teamHref} />
-          ) : (
-            <section className="mb-10" key={group.groupId}>
-              <h2 className="mb-3 font-semibold text-xl">{displayGroupName(group.groupName)}</h2>
-              <GroupBody group={group} isCup={false} teamHref={teamHref} />
-            </section>
-          )
-        )}
+        isCup &&
+        result.groups.map((group) => (
+          <CupRoundSection group={group} key={group.groupId} teamHref={teamHref} />
+        ))}
+      {result.status === "ok" && !isGroupsAndPlayoff && !isCup && (
+        <LeagueGroups groups={result.groups} levels={result.levels} teamHref={teamHref} />
+      )}
       {!isGroupsAndPlayoff && <StandingsLegend />}
       {analytics}
     </PageShell>

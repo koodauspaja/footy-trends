@@ -4,13 +4,12 @@ import { db } from "@/db";
 import { account, session, user } from "@/db/schema";
 
 /**
- * The auth tables against a real Postgres: the constraints
- * specs/023-google-oauth-login.md relies on are enforced by the database, not
- * only by better-auth continuing to behave.
+ * The auth tables against a real Postgres: the constraints the sign-in relies
+ * on are enforced by the database. Ids are strings, as better-auth generates them.
  *
- * Ids are strings here because better-auth generates its own — see the comment
- * on these tables in src/db/schema.ts.
+ * decisions/023-google-oauth-login.md
  */
+
 const USER_ID = "itest-user-995101";
 const OTHER_USER_ID = "itest-user-995102";
 const USER_IDS = [USER_ID, OTHER_USER_ID];

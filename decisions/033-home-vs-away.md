@@ -53,3 +53,53 @@ is safe because each side is off by less than 0,005 × 19.
   below `sm` instead — the text is inside the `viewBox`, so a breakpoint reaches
   it even though `MARGIN` is JavaScript and cannot follow. `BarChart` keeps the
   400 units decided here.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/components/charts/line-chart.tsx` at `a86c1cb` by #531.
+
+- **`formatDecimal`.** One decimal is exact for averages over five matches,
+  which move in fifths; a season's average takes two (`2,11`). `toFixed` also
+  hides floating point: `0.2 × 3` is `0.6000000000000001`.
+- **`MARGIN`.** `bottom` and `left` carry the axis labels: 56 keeps the x-tick
+  row clear of the axis caption, and 72 fits a three-digit y tick (the
+  clean-sheet share axis runs to 100) beside the rotated caption. `MARGIN` is
+  JavaScript, so it cannot answer the breakpoint the way the font does; both
+  gutters are sized for the larger text and cost a few units of plot at every
+  width.
+- **`AXIS_TEXT`.** `text-xs` is 12 user units, not 12 screen pixels, and SVG
+  has no non-scaling equivalent for text. At 640 units shown on a 375-px
+  phone the drawing is about 0,54x, so 12 units reached the reader at roughly
+  6 px. Enlarging the font below `sm` fixes that without narrowing the
+  drawing, which would have cost the desktop canvas.
+
+Cut from `src/components/charts/bar-chart.tsx` at `ef7eb13` by #531.
+
+- **`bar-chart.tsx`.** Built beside `LineChart` and in the same way: no
+  client JavaScript, geometry in exported functions tested directly, theme
+  tokens only. A row is a measure and measures do not share units (points
+  per match, goals per match, a percentage), so each bar sits on a faint
+  track the length of its row's scale, which makes the scale visible. Its
+  value is printed just past the track, in one column for every bar: easier
+  to scan than text at each bar's own end, and never over the track's faint
+  fill, so the chart reads exactly without an axis. Filled or outlined, both
+  in the foreground colour, with `BarLegend` to name them.
+- **`WIDTH`.** Narrower than `LineChart`'s 640, and shown no wider than
+  `max-w-md`: the text is most of the content, and it scales with the
+  drawing. At 400 units a phone's width shows it at about 0,86× and a desktop
+  at about 1,1×; at 640 a phone would show it at about half size. `LineChart`
+  reached the same end differently: its text is the axis and not the
+  content, so it kept its width and enlarges the font below `sm`.
+- **`barLength`.** A value past the scale fills the track and no more, and
+  its printed text still states the true number. A negative value cannot
+  occur in these measures.
+
+Cut from `src/lib/home-away.ts` at `48ebab4` by #531.
+
+- **`home-away.ts`.** Counted over exactly the matches the form and goals
+  charts count; the services pass them in.
+
+Cut from `src/components/charts/home-away-chart.tsx` at `48ebab4` by #531.
+
+- **The goals scale in `MEASURES`.** No stored top-tier side reached 4 goals a
+  match over a season; 3,12 was the most.

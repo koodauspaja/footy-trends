@@ -2,30 +2,21 @@ import { isAdmin } from "@/lib/admin-role";
 import { isRegionSegment, type RegionSegment } from "@/lib/regions";
 
 /**
- * Reading the fields `customSession` adds to the session response, from
- * specs/024-account-settings.md and specs/025-custom-avatar.md.
+ * Reading the fields `customSession` adds to the session response, narrowed
+ * from `unknown`. No `@/db` and no `@/lib/auth`: every caller is a client
+ * component.
  *
- * **Why a cast is needed at all.** better-auth's browser client is not typed
- * for server-side plugins, so `defaultRegion` and `avatarVersion` arrive as
- * `unknown` however the server declares them. That is worth narrowing rather
- * than asserting: a region retired from the app must not redirect anyone, and a
- * version that is not a string or is empty must not become a URL.
- *
- * **Why here rather than at each call site.** The cast was written twice
- * already — in `site-header.tsx` and `start-redirect.tsx` — and this spec adds
- * a third field-reader. Three copies of a narrowing rule is how one of them
- * ends up narrower than the others.
- *
- * No `@/db` and no `@/lib/auth`: every caller is a client component.
+ * decisions/024-account-settings.md
+ * decisions/025-custom-avatar.md
+ * decisions/026-favourites.md
+ * decisions/028-admin-tools-and-roles.md
  */
 
 /**
- * Every reader below takes `unknown` rather than a shape.
+ * One named field of the session, or undefined. Takes `unknown`, as every
+ * reader below does: these fields arrive untyped.
  *
- * better-auth's own session type declares none of these fields, so a parameter
- * typed as "an object that might have them" has no overlap with what callers
- * hold and TypeScript rejects the call outright. `unknown` says the true thing:
- * these arrive untyped, and the narrowing here is the whole job.
+ * decisions/025-custom-avatar.md
  */
 function fieldOf(
   session: unknown,
@@ -35,7 +26,12 @@ function fieldOf(
   return (session as Record<string, unknown>)[name];
 }
 
-/** The reader's start-page preference, or null when they have none we recognise. */
+/**
+ * The reader's start-page preference, or null when they have none we recognise.
+ *
+ * decisions/024-account-settings.md
+ * decisions/025-custom-avatar.md
+ */
 export function defaultRegionOf(session: unknown): RegionSegment | null {
   const region = fieldOf(session, "defaultRegion");
   return isRegionSegment(region) ? region : null;
@@ -43,13 +39,10 @@ export function defaultRegionOf(session: unknown): RegionSegment | null {
 
 /**
  * The picture to render: the reader's own, else whatever Google gave us, else
- * null for the name.
+ * null for the name. The version is in the URL: the path is the same for every
+ * reader, so the token is all that keeps one reader's picture from another.
  *
- * The version is *in* the URL rather than beside it. The image is served
- * `private, immutable` for a year on a path that is the same for every reader,
- * so the token is doing two jobs: a new upload has to be a new URL, and one
- * reader's cached picture must never be reachable at another's URL. See
- * `src/app/api/avatar/me/route.ts`.
+ * decisions/025-custom-avatar.md
  */
 export function avatarSourceOf(session: unknown, googleImage: string | null): string | null {
   const version = fieldOf(session, "avatarVersion");
@@ -63,15 +56,11 @@ export function avatarSourceOf(session: unknown, googleImage: string | null): st
 }
 
 /**
- * The reader's favourite keys of one kind, from the session payload.
+ * The reader's favourite keys of one kind, from the session payload. The single
+ * place anything reads favourites from the session. An unusable payload is an
+ * empty list.
  *
- * **The single place anything reads favourites from the session**, which is
- * what keeps that choice reversible: specs/026 sends the whole list because it
- * rides free on a request the browser already makes, and if it measures heavy
- * at the cap, this function fetches instead and no caller changes.
- *
- * An unusable payload is an empty list rather than an error — a missing star is
- * a smaller loss than a page that will not render.
+ * decisions/026-favourites.md
  */
 export function favouriteKeysOf(session: unknown, kind: "team" | "competition"): string[] {
   const field = fieldOf(session, kind === "team" ? "favoriteTeams" : "favoriteCompetitions");
@@ -80,20 +69,10 @@ export function favouriteKeysOf(session: unknown, kind: "team" | "competition"):
 }
 
 /**
- * Whether to offer the reader the `Ylläpito` link, from
- * specs/028-admin-tools-and-roles.md.
+ * Whether to offer the reader the `Ylläpito` link. Not an authorisation, and
+ * must never become one: the session's role can be stale.
  *
- * **This is not an authorisation and must never become one.** It reads a value
- * the session was issued with, so it is stale from the moment a role changes
- * until that session is refreshed. `requireAdmin()` reads the column from the
- * database on every request and is what actually refuses — a demoted admin
- * following a link they can still see gets a 404, which is the correct
- * outcome and the reason hiding the link is a convenience rather than a
- * control.
- *
- * `isAdmin` takes `unknown` and answers false for anything that is not exactly
- * the admin role, which is what makes an unusable payload render no link rather
- * than throwing.
+ * decisions/028-admin-tools-and-roles.md
  */
 export function isAdminSession(session: unknown): boolean {
   return isAdmin(fieldOf(session, "role"));

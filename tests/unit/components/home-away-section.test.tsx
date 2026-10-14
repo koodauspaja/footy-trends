@@ -8,6 +8,12 @@ import {
 } from "@/components/home-away-section";
 import type { HomeAwaySeries, SideStats } from "@/lib/home-away";
 
+/**
+ * The `Koti- ja vierastilastot` panel.
+ *
+ * decisions/033-home-vs-away.md
+ */
+
 const side: SideStats = { matches: 2, won: 1, drawn: 1, lost: 0, scored: 3, conceded: 1 };
 const none: SideStats = { matches: 0, won: 0, drawn: 0, lost: 0, scored: 0, conceded: 0 };
 

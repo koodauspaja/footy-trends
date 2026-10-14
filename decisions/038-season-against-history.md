@@ -124,3 +124,82 @@ Two mutations earned their place by failing first:
   other panels. If measurement later says it hurts, a single `inArray` query is
   the cheaper fix than a cache that would need an invalidation story for the
   active season.
+
+## Moved from comments, 2026-10-05
+
+Cut from `src/lib/standings-service.ts` at `55a14fc` by #531.
+
+- **`getTeamSeasonComparison`.** A past season makes no provider request:
+  `needsRefresh` is `false` for any stored season but the active one.
+- **`isLeagueCompetition`.** An unknown code would add its matches to every
+  pooled rate and name itself `PL` in the Finnish `Verrattuna` line.
+- **`readSeasonFor`.** Erroring on stale rows here alone would make this panel
+  disagree with the eight beside it, from the same read.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
+
+- **`readTasoSeason`.** The club's matches come from `teamPanelMatches`, so a
+  comparison can never rest on matches the season's charts do not. The
+  fixture list comes from the same cached classification, and is the
+  denominator of the share the comparison matches on.
+
+Cut from `src/lib/season-comparison.ts` at `a86c1cb` by #531.
+
+- **Two averaging rules, deliberately different.** A rate (points, goals or
+  clean sheets per match) is what the club does on average, so the other
+  seasons' matches are pooled and the measure computed once over the pool: a
+  three-match season contributes three matches' worth and no more, with no
+  threshold to justify. A position is where the club stood at a moment, so it
+  is read at the same share of the season completed in each other season, and
+  those are averaged. Pooling positions is not a computation that exists.
+- **`ComparisonRow.position`.** A share of the table, 0 to 1, smaller is
+  better: 3rd of 12 is 0,25. A share is the only form of a rank that survives
+  different league sizes and tiers.
+- **`summariseSeason`.** `position` is passed in, not computed: a table is the
+  caller's to rank, as `position-series.ts` takes its ranking from the caller,
+  so a value here can never disagree with the standings page.
+- **`seasonLength`.** Scheduled, not played, is what makes a share mean "how
+  far through the season": a club 10 rounds into a 27-round season reads as
+  0,37 and not as finished.
+- **`positionAtShare`.** Matching a share and not a raw matchday is what lets
+  seasons of different lengths be compared: 3rd after 20 of 22 matches is
+  nearly final, 3rd after 20 of 27 is not. The share is turned back into that
+  season's own round and the club's last position at or before it is taken,
+  since a position cannot have moved in a round the club had not reached.
+- **`SeasonReadResult`.** A read that failed and a season the app holds nothing
+  for must not collapse into one value. Collapsed, a failed baseline read
+  shrank the comparison silently while the panel still said how many seasons
+  it covered.
+- **`compareSeasons`.** The providers differ in how a season is found and
+  ranked, not in what is done with it, so the reading stays in the services
+  and the arithmetic is tested once without a database. Every other season is
+  read at the selected season's share of completion, so a club a third of the
+  way through compares against where it stood a third of the way through each
+  other season, not against their final tables.
+- **`otherLeagueSeasons`.** `isLeague` is the caller's because the two
+  providers answer it from different registries: a foreign competition carries
+  its format, a domestic one is tested against the cup list. Excluding the
+  selected season is the part that must not differ.
+- **`readSeasons`, `comparisonFor`.** Any failed read fails the comparison: a
+  baseline computed over the seasons that happened to read is a plausible
+  wrong answer, and the panel's `Verrattuna {n} muuhun kauteen` line would
+  state the wrong `n`. One orchestrator for both providers: written twice at
+  first, it cost two branches no test could take.
+
+Cut from `src/components/charts/season-comparison-chart.tsx` at `ef99862` by #531.
+
+- **`MEASURES`.** The scales are `Koti- ja vierastilastot`'s, so the same
+  measure is drawn the same length in both panels. A short bar is a high
+  finish, which is how `Päästetyt maalit` already reads on the page;
+  inverting only the position row would make one of the two rules wrong.
+- **`measureText`.** A `0` would read as a real zero. An average of other
+  seasons is a place no one finished in, which is why it keeps its decimal.
+  Without a table to put it in, a share is not a place.
+
+Cut from `src/components/season-comparison-section.tsx` at `48ebab4` by #531.
+
+- **`seasonComparisonPanel` with nothing to compare.** The page must not
+  change shape as a club's history grows, and this is exactly where a reader
+  asks whether a season is normal.

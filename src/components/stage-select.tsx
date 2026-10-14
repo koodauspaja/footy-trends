@@ -7,12 +7,11 @@ type StageSelectProps = {
 };
 
 /**
- * The `Vaihe` label + `<select>` for a cup's match list — the counterpart to
- * `RoundSelect`, which cannot be reused: a cup's `matchday` is a leg number
- * (1 or 2, and 0 for a final), not a round, so there is no 1..n range to list.
+ * The `Vaihe` label and `<select>` for a cup's match list. Controlled via
+ * `value`, as `RoundSelect` is: the stage can also change through links
+ * elsewhere on the page.
  *
- * Controlled via `value` for the same reason `RoundSelect` is: the stage can
- * also change through links elsewhere on the page.
+ * decisions/014-champions-league.md
  */
 export function StageSelect({
   availableStages,

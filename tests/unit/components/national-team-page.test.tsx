@@ -3,12 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NationalTeamMatch, NationalTeamResult } from "@/lib/national-team-service";
 
 /**
- * The national-team page's side of `Analyysit` (specs/041): whether the section
- * is asked for at all, where it sits, and on which axis.
+ * The national-team page's side of `Analyysit`: whether the section is asked for, where it
+ * sits, and on which axis. The panels are `analytics-section.test.tsx`'s and the arithmetic
+ * `national-team-analytics.test.ts`'s, so the section stands in with a marker.
  *
- * The panels themselves are `analytics-section.test.tsx`'s, and the arithmetic
- * is `national-team-analytics.test.ts`'s — this file owns only the wiring, so
- * the section stands in with a marker.
+ * decisions/041-national-team-analytics.md
  */
 
 const getNationalTeamYearsMock = vi.fn<() => Promise<NationalTeamResult>>();
@@ -104,7 +103,7 @@ describe("NationalTeamPage analytics", () => {
 
     const props = analyticsSectionMock.mock.calls[0]?.[0] as Record<string, unknown>;
     // Loaders, not values: the sign-in gate inside the section decides whether
-    // any analytics value is computed at all (specs/041).
+    // any analytics value is computed at all.
     for (const [name, value] of Object.entries(props)) {
       if (name === "axis") continue;
       expect(typeof value, name).toBe("function");
@@ -121,7 +120,7 @@ describe("NationalTeamPage analytics", () => {
     await renderPage();
 
     // A partial history is still a history, and the notice above already says
-    // it may be short — the same trade #180 made for the list itself.
+    // it may be short: the same trade the year list makes.
     expect(analyticsSectionMock).toHaveBeenCalledTimes(1);
     expect(screen.getByText(/Kaikkia otteluita ei voitu ladata/)).toBeInTheDocument();
   });

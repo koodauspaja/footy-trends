@@ -105,3 +105,27 @@ wrong for half the seasons.
 So the issue's repro is also an e2e test against the live API, confirmed to
 fail without the fix with the exact numbers from the issue — 10 played at
 "Kierros 5", and a selector capped at 22.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/taso-standings-service.ts` at `a86c1cb` by #531.
+
+- **`CARRY_OVER_CONFIG`, Veikkausliiga 2019.** It restarts its split-group
+  round numbering at 1; `withContinuedRoundNumbering` handles that, which is
+  what unblocked its entry.
+- **`withContinuedRoundNumbering`.** TASO numbers a split group's rounds
+  inconsistently: 2021, 2024 and 2025 continue the season's numbering
+  (Runkosarja 1–22, then 23 onward), while 2019, 2022 and 2023 restart at 1.
+  The round filter takes `matchday <= round` across a carry-over group's
+  combined matches, so a child round 5 is indistinguishable from Runkosarja's.
+  On 2022, "Kierros 5" showed every Mestaruussarja team with 10 matches played
+  and the selector offered nothing above 22. Derived from the data, not a
+  per-season constant, so it corrects itself if TASO changes its numbering.
+  An overlapping range starting at 20 would land on 42, not 23, if shifted by
+  the parent's last round alone.
+- **`getSyncedSeasonMatches`.** The single funnel every `/kotimaa` page reads
+  through, so the renumbering applies to the standings, the season match list
+  and a team's match list alike. Wrapped in `cache()` because the standings
+  page needs the matches twice, and Next.js runs `generateMetadata` and the
+  page separately: without it a stale current season re-fetches TASO's roughly
+  1 MB response and re-upserts every row twice.

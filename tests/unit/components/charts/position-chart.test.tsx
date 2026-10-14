@@ -8,6 +8,13 @@ import {
 } from "@/components/charts/position-chart";
 import type { PositionPoint } from "@/lib/position-series";
 
+/**
+ * The league-position chart and its text alternative.
+ *
+ * decisions/030-league-position-by-matchday.md
+ * decisions/413-rounds-a-team-sat-out.md
+ */
+
 const TOP = MARGIN.top;
 const BOTTOM = CHART.height - MARGIN.bottom;
 

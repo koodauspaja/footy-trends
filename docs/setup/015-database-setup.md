@@ -1,222 +1,39 @@
-# 015 — Database setup (Drizzle ORM)
+# 015 — The database, locally
 
 ## Goal
-Add Drizzle ORM and a migration workflow so every schema change is versioned,
-repeatable, and runs automatically on Railway deploy. Also sets up a local
-Postgres instance via Docker for development.
+
+Know how the schema changes. The local Postgres is started by `./scripts/setup`
+(012); Railway's is created in 005.
 
 ---
 
-## Why Drizzle
-
-Drizzle schemas are TypeScript files — the same language as the rest of the
-project. Claude Code reads and writes them natively without translating from a
-separate DSL. This aligns with the heavily typed mandate and means schema
-changes show up in normal TypeScript type checking.
-
----
-
-## Step 1 — Set up local Postgres with Docker
-
-Create `docker-compose.yml` in the repo root:
-
-```yaml
-services:
-  postgres:
-    image: postgres:17-alpine
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${FOOTY_POSTGRES_PASSWORD:?set FOOTY_POSTGRES_PASSWORD in .env, see .env.example}
-      POSTGRES_DB: footy-trends
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-
-volumes:
-  postgres-data:
-```
-
-Start the database:
-
-```bash
-docker compose up -d
-```
-
-Update your local `.env`:
-
-```
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/footy-trends
-FOOTY_POSTGRES_PASSWORD=postgres
-```
-
----
-
-## Step 2 — Install packages
-
-```bash
-npm install drizzle-orm postgres
-npm install --save-dev drizzle-kit tsx
-```
-
-`postgres` is the modern Node.js Postgres client Drizzle recommends. Do not
-install `pg` — mixing clients causes confusion.
-
----
-
-## Step 3 — Create the database client
-
-Create file: `src/db/index.ts`
-
-```typescript
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
-import * as schema from "./schema";
-
-// biome-ignore lint/style/noNonNullAssertion: app must not start without DATABASE_URL
-const client = postgres(process.env.DATABASE_URL!);
-
-export const db = drizzle(client, { schema });
-```
-
----
-
-## Step 4 — Create the schema file
-
-Create file: `src/db/schema.ts`
-
-```typescript
-// Schema is empty until the first feature is implemented.
-// Each feature spec that needs a table will add to this file.
-```
-
----
-
-## Step 5 — Configure Drizzle Kit
-
-Create file: `drizzle.config.ts` in the repo root.
-
-```typescript
-import { defineConfig } from "drizzle-kit";
-
-export default defineConfig({
-  schema: "./src/db/schema.ts",
-  out: "./drizzle/migrations",
-  dialect: "postgresql",
-  dbCredentials: {
-    // biome-ignore lint/style/noNonNullAssertion: required at build time
-    url: process.env.DATABASE_URL!,
-  },
-});
-```
-
----
-
-## Step 6 — Create the migration runner
-
-This script runs pending migrations at deploy time.
-
-Create file: `src/db/migrate.ts`
-
-```typescript
-import { access } from "node:fs/promises";
-import { drizzle } from "drizzle-orm/postgres-js";
-import { migrate } from "drizzle-orm/postgres-js/migrator";
-import postgres from "postgres";
-
-// biome-ignore lint/style/noNonNullAssertion: required for migrations
-const client = postgres(process.env.DATABASE_URL!, { max: 1 });
-const db = drizzle(client);
-const migrationJournalPath = "./drizzle/migrations/meta/_journal.json";
-
-async function runMigrations() {
-  try {
-    try {
-      await access(migrationJournalPath);
-    } catch {
-      // No generated migrations yet; skip cleanly.
-      return;
-    }
-
-    await migrate(db, { migrationsFolder: "./drizzle/migrations" });
-  } finally {
-    await client.end();
-  }
-}
-
-void runMigrations();
-```
-
----
-
-## Step 7 — Add scripts to package.json
-
-Add to the `scripts` section:
-
-```json
-"db:generate": "tsx scripts/generate-migration.ts",
-"db:migrate": "tsx src/db/migrate.ts",
-"db:studio": "drizzle-kit studio",
-"db:push": "drizzle-kit push"
-```
-
-| Script | When to use |
-|--------|-------------|
-| `db:generate` | After changing `schema.ts` — creates a new migration file. Requires `--name`. |
-| `db:migrate` | Applies pending migrations to the database |
-| `db:studio` | Opens Drizzle Studio, a local DB browser |
-| `db:push` | Pushes schema directly without a migration file — local dev only, never production |
-
-`db:generate` goes through `scripts/generate-migration.ts` rather than calling
-`drizzle-kit` directly, and it **refuses to run without `--name`**:
+## Step 1 — Change the schema through a named migration
 
 ```bash
 npm run db:generate -- --name=add_match_status_column
-```
-
-The name must be `<verb>_<what>`, where the verb is one of `add`, `create`,
-`alter`, `drop`, `rename` or `backfill`. Either form works —
-`--name=add_thing` or `--name add_thing` — and everything else on the command
-line is passed straight through to `drizzle-kit`.
-
-The wrapper exists because this instruction used to be advice, and advice was
-not enough: `drizzle-kit` invents a whimsical name when given none (e.g.
-`0016_young_meteorite.sql`), and seven such migrations reached `main` while this
-very document said to pass `--name`. `tests/unit/db/migrations.test.ts` is the
-second line, failing if such a name appears by any other route.
-
----
-
-## Step 8 — Create the migrations folder and commit
-
-```bash
-mkdir -p drizzle/migrations
-touch drizzle/migrations/.gitkeep
-git add drizzle/ src/db/ drizzle.config.ts package.json package-lock.json docker-compose.yml
-git commit -m "chore: set up Drizzle ORM and migration workflow"
-git push origin main
-```
-
----
-
-## Step 9 — Verify locally
-
-```bash
 npm run db:migrate
 ```
 
-Should output `Migrations complete` with no errors. On an empty schema this is
-a no-op with no error output — that is expected.
+`db:generate` refuses to run without `--name`, and the name is `<verb>_<what>`.
+`INSTALL.md` (Database workflows) has the verbs and the other database scripts;
+`CLAUDE.md` has the two rules about migrations.
+
+| | File |
+|---|---|
+| The schema | `src/db/schema.ts` |
+| Migrations | `drizzle/` |
+| The client, and the runner a deploy uses | `src/db/index.ts`, `src/db/migrate.ts` |
+| Local Postgres and Redis | `docker-compose.yml` |
+
+The suites use their own database, `<name>_test`, created for them
+(`tests/integration/README.md`).
 
 ---
 
 ## Done when
-- [ ] Docker Compose running local Postgres on port 5432
-- [ ] `DATABASE_URL` set in local `.env`
-- [ ] `drizzle-orm`, `postgres`, `drizzle-kit`, and `tsx` installed
-- [ ] `src/db/index.ts`, `src/db/schema.ts`, and `src/db/migrate.ts` created
-- [ ] `drizzle.config.ts` committed
-- [ ] `npm run db:migrate` runs cleanly locally
+
+- [ ] `npm run db:migrate` completes on a fresh local database
 
 ## Next
-→ `016-redis-cache-setup.md`
+
+→ `005-railway-setup.md`

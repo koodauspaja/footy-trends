@@ -9,13 +9,22 @@ export const metadata: Metadata = {
   title: HEADING,
 };
 
+/**
+ * What the front page offers: the three regions, and the predictions' track
+ * record.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/016-world-cup-and-euro.md
+ * decisions/054-prediction-quality.md
+ */
 const REGIONS = [
   { href: "/kotimaa", label: "Kotimaa", description: "Suomalaiset sarjat" },
   { href: "/ulkomaat", label: "Ulkomaat", description: "Kansainväliset sarjat" },
   // One word, like the two above, and accurate for everything this region
-  // holds: the World Cup and the Euro are competitions between national teams,
-  // and #166/#167 add Finland's own. See specs/016-world-cup-and-euro.md.
+  // holds: tournaments between national teams, and Finland's own.
   { href: "/maajoukkueet", label: "Maajoukkueet", description: "Arvokisat ja maaottelut" },
+  // Not a region but the models' track record.
+  { href: "/ennusteet", label: "Ennusteet", description: "Ennusteiden osuvuus" },
 ] as const;
 
 export default function Home() {

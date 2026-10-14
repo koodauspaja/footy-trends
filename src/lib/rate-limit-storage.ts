@@ -2,38 +2,17 @@ import { logger } from "@/lib/logger";
 import { redis } from "@/lib/redis";
 
 /**
- * Where better-auth counts requests for rate limiting, from #318.
+ * Where better-auth counts requests for rate limiting: in Redis, and in this
+ * process's memory while Redis is unreachable.
  *
- * **Why not `secondaryStorage`.** That is the option better-auth documents for
- * this, and it does more than it says: with a secondary storage configured,
- * *sessions* move into it too — "reads are always done from the secondary
- * storage", and rows are deleted from the database. Sign-in would then depend on
- * Redis being up. `rateLimit.customStorage` is consulted before any of that
- * (`getRateLimitStorage` returns it on the first line), so only the counters
- * move and sessions stay in Postgres where #023 put them.
- *
- * **Why not the default.** better-auth falls back to an in-process `Map`, which
- * resets on every deploy and, more seriously, would become one limiter per
- * instance the moment the service ran two — with nothing reporting that the
- * limit had quietly multiplied.
- *
- * **What happens when Redis is down.** The count continues in memory rather
- * than being abandoned, so an outage degrades this to exactly that default
- * instead of removing the limit. See `consumeInMemory`.
+ * decisions/318-rate-limit-storage.md
  */
 
 /**
- * One request counted, atomically, in a single round trip.
+ * One request counted, atomically, in one round trip. The expiry is set on the
+ * first call only, and the `TTL` comes back with the count.
  *
- * `INCR` creates the key at 1, and the expiry is set only on that first call —
- * so the window runs a fixed `window` seconds from the first request rather than
- * being extended by later ones. That is better-auth's own documented semantics
- * for `increment`, and it is why `EXPIRE` is guarded by `count == 1` instead of
- * being set every time.
- *
- * The `TTL` comes back in the same script so `retryAfter` can be the time
- * actually remaining. better-auth's own secondary-storage path reports the whole
- * window instead, which over-states the wait for anyone refused late in one.
+ * decisions/318-rate-limit-storage.md
  */
 const CONSUME = `
 local count = redis.call('INCR', KEYS[1])
@@ -44,52 +23,41 @@ return {count, redis.call('TTL', KEYS[1])}
 `;
 
 /**
- * Whether the last attempt failed, so an outage logs once rather than once per
- * request. Rate limiting runs on every auth request; a Redis outage would
- * otherwise write a line per request to Axiom for as long as it lasted.
+ * Whether the last attempt failed, so an outage logs once and not per request.
+ *
+ * decisions/318-rate-limit-storage.md
  */
 let degraded = false;
 
 /**
- * The counters used while Redis is unreachable — one process's own, which is
- * exactly what better-auth does by default.
+ * The counters used while Redis is unreachable: one process's own.
  *
- * **Why not simply allow the request.** Failing fully open would make an outage
- * remove the limit altogether, and that is a protection this change would then
- * have *taken away*: an in-process `Map` cannot have an outage, so before this
- * module there was nothing to lose. Falling back here means a Redis failure
- * degrades a shared limiter into a per-instance one — no worse than the state
- * this replaces, in any scenario.
+ * decisions/318-rate-limit-storage.md
  */
 const fallback = new Map<string, { count: number; expiresAt: number }>();
 
 /**
- * How many keys the fallback will hold before it sweeps expired ones.
+ * How many keys the fallback holds before it sweeps the expired ones.
  *
- * Windows here are ten to sixty seconds, so in a long outage almost everything
- * in the map is already dead. Sweeping on a threshold rather than on a timer
- * keeps this to one pass when it is actually needed, and stops a long outage
- * from growing the map without bound.
+ * decisions/318-rate-limit-storage.md
  */
 const FALLBACK_SWEEP_AT = 10_000;
 
 /**
- * How long to tell a refused client to wait, from Redis's `TTL`.
+ * How long to tell a refused client to wait, from Redis's `TTL`: at least a
+ * second, and the whole window when the key has no expiry or is gone.
  *
- * `TTL` answers in **whole seconds, rounded to nearest**, so a key with 400 ms
- * left reports `0`. Reporting that verbatim invites an immediate retry that is
- * refused again; a second is both honest and the smallest useful answer, and it
- * matches what the in-memory path produces from `Math.ceil`.
- *
- * `-1` means the key somehow has no expiry and `-2` that it went between the
- * `INCR` and the `TTL`. The configured window is the honest answer for both,
- * rather than a negative `retryAfter`.
+ * decisions/318-rate-limit-storage.md
  */
 function retryAfterFrom(ttl: number, rule: { window: number }): number {
   return ttl >= 0 ? Math.max(ttl, 1) : rule.window;
 }
 
-/** How many keys the fallback is holding. Exported for the sweep test only. */
+/**
+ * How many keys the fallback is holding. Exported for the sweep test only.
+ *
+ * decisions/318-rate-limit-storage.md
+ */
 export function fallbackSize(): number {
   return fallback.size;
 }
@@ -119,14 +87,9 @@ function consumeInMemory(
 }
 
 /**
- * better-auth's `rateLimit.customStorage` shape, declared here rather than
- * imported.
+ * better-auth's `rateLimit.customStorage` shape, declared here and not imported.
  *
- * The interface lives in `@better-auth/core`, which is a **transitive**
- * dependency — not in `package.json`, and free to move or vanish on a
- * better-auth bump. Passing this object to `betterAuth()` in `auth.ts` checks it
- * structurally against the real type, so a changed contract still fails the
- * build, without depending on a package this project never declared.
+ * decisions/318-rate-limit-storage.md
  */
 type RateLimitStorage = {
   consume: (
@@ -141,13 +104,8 @@ export function redisRateLimitStorage(): RateLimitStorage {
       try {
         const reply = await redis.eval(CONSUME, 1, key, rule.window);
 
-        /**
-         * Validated rather than cast. `as [number, number]` on an unexpected
-         * reply left `count` as `undefined`, and `undefined <= rule.max` is
-         * false — so a malformed answer would have **refused every request**
-         * rather than falling back. A shape that is not two numbers is a
-         * failure like any other.
-         */
+        // Validated, not cast: a reply that is not two numbers is a failure like any
+        // other.
         if (!Array.isArray(reply) || typeof reply[0] !== "number" || typeof reply[1] !== "number") {
           throw new TypeError("Rate limit script returned an unexpected shape");
         }
@@ -163,19 +121,8 @@ export function redisRateLimitStorage(): RateLimitStorage {
             ? { allowed: true, retryAfter: null }
             : { allowed: false, retryAfter: retryAfterFrom(ttl, rule) };
 
-        /**
-         * A window counted in memory keeps being enforced until it closes.
-         *
-         * Recovery cleared the flag above, and switching straight back to Redis
-         * would hand a client that had just spent its allowance in memory a
-         * **second** one: its Redis key expired or was never written during the
-         * outage, so `INCR` starts it at 1 inside a window it has already used
-         * up. Both allowances would be spendable back to back.
-         *
-         * So while the in-memory entry is still live, the stricter of the two
-         * answers wins. Redis keeps counting underneath, and takes over on its
-         * own once the entry lapses.
-         */
+        // A window counted in memory is enforced until it closes: while its entry is
+        // live, the stricter of the two answers wins.
         const held = fallback.get(key);
         if (held !== undefined) {
           if (Date.now() < held.expiresAt) {
@@ -190,21 +137,8 @@ export function redisRateLimitStorage(): RateLimitStorage {
 
         return decision;
       } catch (error) {
-        /**
-         * **Degrade, do not disable.** Refusing every sign-in because a cache
-         * is down would take authentication with it — the call `/api/health`
-         * already makes, where Redis is non-fatal. But allowing everything
-         * would mean this module had *removed* a protection that an in-process
-         * `Map` was providing perfectly well, since a `Map` cannot have an
-         * outage.
-         *
-         * So the count continues in memory: shared limiter becomes
-         * per-instance limiter, which is what better-auth does by default and
-         * what this repository ran until now.
-         *
-         * Logged at error rather than warn because the guarantee is weaker for
-         * as long as this lasts, even though nothing is broken for a reader.
-         */
+        // Degrade, do not disable: the count continues in memory. Logged once, at
+        // error.
         if (!degraded) {
           degraded = true;
           logger.error(

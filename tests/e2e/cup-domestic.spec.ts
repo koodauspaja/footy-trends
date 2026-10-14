@@ -1,25 +1,18 @@
 import { expect, type Page, test } from "@playwright/test";
 
 /**
- * Opens the cup season and waits for its rounds to be on the page.
+ * The Finnish cups, end to end: the picker, each cup's rounds and bracket,
+ * Liigacup's and Ykkösliigacup's group tables, and the page's geometry on a
+ * phone.
  *
- * `page.goto` resolves on `load`, but the standings are streamed by a React
- * Server Component and arrive afterwards, so a measurement taken straight
- * after it can read an empty document. Both geometry tests below did, and both
- * were wrong for it — in opposite directions.
- *
- * The fold test failed intermittently: `scrollHeight` was 812, exactly the
- * viewport, so `closed < open / 5` compared 812 against 162.
- *
- * The horizontal-overflow test **passed** in the same state, because an empty
- * document does not overflow. It was not flaky; it was silently vacuous, which
- * is worse — it would have reported no horizontal scroll on a page that had
- * rendered nothing at all.
- *
- * Reproduced deterministically with `waitUntil: "commit"`, which returns as
- * soon as the response begins: `{ scrollHeight: 812, overflows: false,
- * details: 0 }`. See #178.
+ * decisions/015-finnish-cups.md
+ * decisions/043-liigacup.md
+ * decisions/178-cup-page-measured-after-its-rounds.md
  */
+
+// Opens the cup season and waits for its rounds. `page.goto` resolves on
+// `load`, but the standings are streamed and arrive afterwards, so a
+// measurement taken straight after it can read an empty document.
 async function openCupSeason(page: Page) {
   await page.goto("/kotimaa/sarjataulukko?kilpailu=MSC&kausi=2025");
 
@@ -89,18 +82,17 @@ test.describe("Finnish cups", () => {
   test("renders Ykkösliigacup's groups as tables, its playoff below them", async ({ page }) => {
     await page.goto("/kotimaa/sarjataulukko?kilpailu=M1LCUP&kausi=2026");
 
-    // Tables, not merely headings: this test only checked headings before, and
-    // so passed through the whole time #272 had turned these tables into lists.
+    // Tables, not merely headings: headings alone would pass with these tables
+    // turned into lists.
     for (const name of ["Lohko A", "Lohko B"]) {
       const section = page.locator("section").filter({
         has: page.getByRole("heading", { level: 2, name, exact: true }),
       });
       await expect(section.getByRole("table")).toBeVisible();
     }
-    // specs/043 draws `1-4` only if it is two semi-finals and their winners'
-    // final, and lists it otherwise. TASO's 2026 season has that shape (checked
-    // 2026-09-29: KTP and KäPa won the semi-finals and met in the final), so it
-    // is drawn, and not listed as well.
+    // `1-4` is drawn only if it is two semi-finals and their winners' final,
+    // and listed otherwise. TASO's 2026 season has that shape, so it is drawn,
+    // and not listed as well.
     await expect(page.getByRole("heading", { level: 2, name: "Pudotuspelit" })).toBeVisible();
     await expect(
       page.getByRole("heading", { level: 3, name: "Välierät", exact: true })

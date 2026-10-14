@@ -20,23 +20,23 @@ const HEADING = "Suosikit";
 export const metadata: Metadata = { title: HEADING };
 
 /**
- * `/suosikit`, from specs/026-favourites.md.
+ * Per-reader, so it can never be prerendered.
  *
- * Per-reader by definition, so it can never be prerendered — the same as
- * `/asetukset`, and read on the server for the same reason: everything it shows
- * is server data, and one render beats a client endpoint per section.
+ * decisions/026-favourites.md
  */
 export const dynamic = "force-dynamic";
 
+/**
+ * `/suosikit`: the reader's favourite teams and competitions, read on the
+ * server as `/asetukset` is.
+ *
+ * decisions/026-favourites.md
+ * decisions/325-taso-finland-links.md
+ */
 export default async function Favourites() {
   const requestHeaders = await headers();
 
-  /**
-   * Its own guard, like the settings page: reading the session hits the
-   * database, and an unhandled failure here would render an error page where
-   * the reader expected their list. A failure is also not "signed out" — that
-   * would be a claim we cannot make.
-   */
+  // Its own guard, like the settings page: a failure is not "signed out".
   let session: Awaited<ReturnType<typeof auth.api.getSession>> = null;
   try {
     session = await auth.api.getSession({ headers: requestHeaders });
@@ -66,11 +66,8 @@ export default async function Favourites() {
       .map(parseTeamKey)
       .filter((parsed): parsed is NonNullable<typeof parsed> => parsed !== null);
 
-    /**
-     * Alphabetically, as the spec promises — and by the Finnish collation, so
-     * Ä sorts after Z rather than beside A. A team we could not name has no
-     * place in that order, so it goes last rather than sorting as "".
-     */
+    // Alphabetically, by the Finnish collation, so Ä sorts after Z and not
+    // beside A. A team we could not name goes last.
     const named = (await resolveTeamNames(parsedTeams)).toSorted((left, right) => {
       if (left.name === null || right.name === null) {
         return Number(left.name === null) - Number(right.name === null);
@@ -81,22 +78,16 @@ export default async function Favourites() {
     teams = named.map((team) => ({
       ...team,
       // Built by `resolveTeamNames`, so Finland's national sides reach their own
-      // pages rather than an id route that has none (#325).
+      // pages and not an id route that has none.
       href: team.name === null ? null : team.href,
     }));
 
     competitions = keys.competitions
       .map(parseCompetitionKey)
       .filter((parsed): parsed is NonNullable<typeof parsed> => parsed !== null)
-      /**
-       * Registry order, as the spec promises: within a region the order the
-       * registry itself lists them, and the regions in the order the app shows
-       * them. Insertion order would mean the page rearranges itself as the
-       * reader adds favourites, and query order is not even that stable.
-       *
-       * A code the registry no longer has sorts last, with the rest of its
-       * region — it still has a row and still has to be removable.
-       */
+      // Registry order: within a region the order the registry lists them, and the
+      // regions in the order the app shows them. A code the registry no longer has
+      // sorts last, with the rest of its region.
       .toSorted((left, right) => {
         const byRegion =
           REGION_SEGMENTS.indexOf(left.region) - REGION_SEGMENTS.indexOf(right.region);

@@ -1,24 +1,36 @@
 import type { FormPoint } from "@/lib/form-series";
 import { formatDecimal, LineChart, ticksFor } from "./line-chart";
 
-/** About this many labelled matches on the x-axis — enough to read a value, few enough to fit. */
+/**
+ * About this many labelled matches on the x-axis: enough to read a value, few
+ * enough to fit.
+ *
+ * decisions/031-rolling-form-trend.md
+ */
 const TICK_COUNT = 7;
 
-/** Points per match runs from none to a win every time. */
+/**
+ * Points per match runs from none to a win every time.
+ *
+ * decisions/031-rolling-form-trend.md
+ */
 const MAX_FORM = 3;
 
-/** One row of the text alternative, per match (specs/031, Q3). */
+/**
+ * One row of the text alternative, per match.
+ *
+ * decisions/031-rolling-form-trend.md
+ */
 export function formSentence(point: FormPoint): string {
   return `Vire ${point.match}. ottelun jälkeen: ${formatDecimal(point.form)} pistettä ottelua kohden.`;
 }
 
 /**
  * A team's form after each of its matches: points per match over the last
- * five, 3 at the top and 0 at the bottom — more points is higher, the other way
- * up from the position chart beside it.
+ * five, 3 at the top and 0 at the bottom. Every point is also text, which the
+ * chart points at with `aria-describedby`.
  *
- * **Every point is also text**, as on the position chart: a list for a screen
- * reader, which the chart points at with `aria-describedby`.
+ * decisions/031-rolling-form-trend.md
  */
 export function FormChart({
   title,

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { describeDevice, describeLastUsed } from "@/lib/user-agent";
 
+/**
+ * How a session's device and last use are described to the reader.
+ *
+ * decisions/024-account-settings.md
+ */
+
 const CHROME_MAC =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
 const SAFARI_MAC =
@@ -85,10 +91,9 @@ describe("describeLastUsed", () => {
   });
 
   it.each([
-    // 00:30 Helsinki on the 7th is 21:30 UTC on the 6th, and noon Helsinki the
-    // same day is 09:00 UTC on the 7th. In Helsinki that is one date; in UTC —
-    // which is what Railway runs — it straddles two, so a server computing in
-    // its own timezone reports "eilen" to a reader for whom it is plainly today.
+    // 00:30 Helsinki on the 7th is 21:30 UTC on the 6th, and noon Helsinki the same day
+    // is 09:00 UTC on the 7th: one date in Helsinki, two in UTC, which is what Railway
+    // runs, so a server computing in its own timezone would say "eilen" for today.
     ["a small-hours session later the same day", "2026-09-06T21:30:00Z", "2026-09-07T09:00:00Z"],
     // And the mirror: 23:30 and 23:45 Helsinki on the 6th are 20:30 and 20:45
     // UTC the same day — one evening, one date, in both timezones.

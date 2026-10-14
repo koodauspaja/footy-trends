@@ -2,6 +2,12 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TasoSeasonOnlyControls } from "@/components/taso-season-only-controls";
 
+/**
+ * The season-only controls of a Finnish competition's pages.
+ *
+ * decisions/009-veikkausliiga.md
+ */
+
 const pushMock = vi.fn();
 
 vi.mock("next/navigation", () => ({

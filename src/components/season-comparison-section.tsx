@@ -5,11 +5,11 @@ import type { AnalyticsAxis } from "@/lib/analytics-axis";
 import type { SeasonComparisonSeries } from "@/lib/season-comparison";
 
 /**
- * The strings agreed in specs/038, each where the spec places it.
+ * The panel's strings that name no period. The heading, the baseline line and
+ * the no-others message come from the page's axis.
  *
- * The heading, the baseline line and the no-others message all name a period,
- * so they come from the page's axis rather than from here — a season on a club
- * page, a calendar year on a national-team page (specs/041, S11).
+ * decisions/038-season-against-history.md
+ * decisions/041-national-team-analytics.md
  */
 export const COMPARISON_ERROR_MESSAGE =
   "Kausivertailua ei voitu laskea. Yritä myöhemmin uudelleen.";
@@ -17,13 +17,12 @@ export const COMPARISON_ERROR_MESSAGE =
 const HEADING_ID = "season-comparison";
 
 /**
- * The comparison panel in `Analyysit` (specs/038). `null` means no panel: no
- * league table for this team's season.
+ * The comparison panel in `Analyysit`. `null` means no panel: no league table
+ * for this team's season. A club with no other stored league season still
+ * gets the panel, with a line saying why.
  *
- * A club with no other stored league season still gets the panel, with a line
- * saying why there is nothing to compare against — the page must not change
- * shape as a club's history grows, and this is exactly where a reader asks
- * whether a season is normal.
+ * decisions/038-season-against-history.md
+ * decisions/032-goals-scored-vs-conceded.md
  */
 export function seasonComparisonPanel(series: SeasonComparisonSeries, axis: AnalyticsAxis) {
   if (series.status === "unavailable") return null;
@@ -40,7 +39,7 @@ function bodyFor(
   axis: AnalyticsAxis
 ) {
   if (series.status === "error") return <p>{COMPARISON_ERROR_MESSAGE}</p>;
-  // specs/032's string: the league exists, it has no finished match yet.
+  // The goals charts' string: the league exists, it has no finished match yet.
   if (series.rows.every((row) => row.selected === null)) return <p>{NO_MATCHES_MESSAGE}</p>;
 
   // A club with no other season still sees its own values; the baseline column

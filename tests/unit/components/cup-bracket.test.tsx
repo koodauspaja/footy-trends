@@ -3,6 +3,13 @@ import { describe, expect, it } from "vitest";
 import { CupBracket } from "@/components/cup-bracket";
 import type { BracketRound, BracketTie } from "@/lib/cup-bracket";
 
+/**
+ * The cup bracket: drawn ties, listed rounds and two-legged aggregates.
+ *
+ * decisions/014-champions-league.md
+ * decisions/016-world-cup-and-euro.md
+ */
+
 function tie(overrides: Partial<BracketTie> = {}): BracketTie {
   return {
     key: "FINAL:1-2:100",
@@ -34,7 +41,7 @@ function tie(overrides: Partial<BracketTie> = {}): BracketTie {
   };
 }
 
-/** A listed round whose tie has two legs. */
+// A listed round whose tie has two legs.
 function twoLeggedRound(stage = "LAST_16"): BracketRound {
   const base = tie({ key: `${stage}:1-2:1`, stage });
   const [leg] = base.legs;
@@ -50,7 +57,7 @@ function twoLeggedRound(stage = "LAST_16"): BracketRound {
   };
 }
 
-/** A round that is listed rather than drawn. */
+// A round that is listed, not drawn.
 function listedRound(stage = "LAST_16"): BracketRound {
   return {
     stage,

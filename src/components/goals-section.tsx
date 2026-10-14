@@ -10,7 +10,11 @@ import {
 import { ticksFor } from "@/components/charts/line-chart";
 import type { GoalsSeries } from "@/lib/goals-series";
 
-/** The strings agreed in specs/032, each where the spec places it. */
+/**
+ * The panels' strings.
+ *
+ * decisions/032-goals-scored-vs-conceded.md
+ */
 export const ROLLING_HEADING = "Maalit otteluittain";
 export const TOTALS_HEADING = "Maalit yhteensä";
 export const ROLLING_TOO_FEW_MESSAGE =
@@ -22,9 +26,11 @@ const ROLLING_ID = "goals-by-match";
 const TOTALS_ID = "goals-in-total";
 
 /**
- * The rolling goals chart's panel in `Analyysit` (specs/032): per match over the
+ * The rolling goals chart's panel in `Analyysit`: per match over the
  * last five, from the fifth match, on a fixed 0–5 axis. `null` means no panel —
  * no league table for this team's season.
+ *
+ * decisions/032-goals-scored-vs-conceded.md
  */
 export function rollingGoalsPanel(series: GoalsSeries) {
   if (series.status === "unavailable") return null;
@@ -37,8 +43,10 @@ export function rollingGoalsPanel(series: GoalsSeries) {
 }
 
 /**
- * The running-total goals chart's panel in `Analyysit` (specs/032): from the
+ * The running-total goals chart's panel in `Analyysit`: from the
  * first match, the last point being the table's `TM` and `PM`.
+ *
+ * decisions/032-goals-scored-vs-conceded.md
  */
 export function totalGoalsPanel(series: GoalsSeries) {
   if (series.status === "unavailable") return null;

@@ -1,8 +1,7 @@
 /**
  * The header's second crumb: which region the reader is inside, if any.
  *
- * Kept apart from `SiteHeader` so the path-to-region mapping is unit-testable
- * without rendering, and so the component itself stays a few lines of markup.
+ * decisions/207-region-breadcrumb.md
  */
 
 export type RegionCrumb = {
@@ -12,9 +11,10 @@ export type RegionCrumb = {
 };
 
 /**
- * The three region roots, as the browser sees them. `next.config.ts` rewrites
- * these Finnish paths to English folders internally, but `usePathname()`
- * reports the public URL, which is what these match.
+ * The three region roots, as the browser sees them: `usePathname()` reports
+ * the public Finnish URL, not the English folder it is rewritten to.
+ *
+ * decisions/207-region-breadcrumb.md
  */
 const REGIONS: readonly RegionCrumb[] = [
   { href: "/kotimaa", label: "Kotimaa" },
@@ -23,18 +23,15 @@ const REGIONS: readonly RegionCrumb[] = [
 ];
 
 /**
- * The region crumb for a path, or `null` where there should not be one.
+ * The region crumb for a path, or `null` where there should not be one: the
+ * front page, a path outside the three regions, and a region's own picker.
  *
- * `null` on the front page, on any path outside the three regions, and on a
- * region's own picker page — a crumb there would link to the page already
- * being shown.
+ * decisions/207-region-breadcrumb.md
  */
 export function regionCrumbFor(pathname: string): RegionCrumb | null {
-  // A trailing slash is the same page, and `//` is not a different region.
-  //
-  // A loop rather than `/\/+$/`: that pattern backtracks over a run of slashes,
-  // retrying from each one, which is quadratic on a path made of them. This is
-  // linear and needs no regex engine at all.
+  // A trailing slash is the same page, and `//` is not a different region. A
+  // loop, not `/\/+$/`: that pattern backtracks over a run of slashes, which
+  // is quadratic on a path made of them.
   let normalised = pathname;
   while (normalised.endsWith("/")) normalised = normalised.slice(0, -1);
   if (normalised === "") return null;

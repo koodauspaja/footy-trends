@@ -2,10 +2,15 @@ import { describe, expect, it } from "vitest";
 import { comebacksOf, type HalfTimeMatch } from "@/lib/comebacks";
 
 /**
- * Team 1's match on `day`, written from its own side: `half` and `full` are
- * `[own, other]`. `half` is `null` when the provider gave no half-time score.
- * Sides alternate, so a mirror-reading shows up.
+ * Comebacks and leads given away, counted from half-time scores.
+ *
+ * decisions/036-halftime-comebacks.md
+ * decisions/037-blown-leads.md
  */
+
+// Team 1's match on `day`, written from its own side: `half` and `full` are
+// `[own, other]`. `half` is `null` when the provider gave no half-time score.
+// Sides alternate, so a mirror-reading shows up.
 function match(day: number, half: [number, number] | null, full: [number, number]): HalfTimeMatch {
   const home = day % 2 === 0;
   const [ownHalf, otherHalf] = half ?? [null, null];
@@ -42,7 +47,7 @@ describe("comebacksOf", () => {
     });
   });
 
-  it("counts what became of the matches it led at half-time (specs/037)", () => {
+  it("counts what became of the matches it led at half-time", () => {
     const season = [
       match(1, [1, 0], [1, 1]), // ahead, drew — a lead given away
       match(2, [2, 0], [2, 3]), // ahead, lost — a lead given away

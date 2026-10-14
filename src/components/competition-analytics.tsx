@@ -2,6 +2,9 @@ import { ANALYTICS_HEADING, SIGNED_OUT_MESSAGE } from "@/components/analytics-se
 import { ChartPanel } from "@/components/charts/chart-panel";
 import { formatDecimal, LineChart, percentText } from "@/components/charts/line-chart";
 import { DataTable, type DataTableColumn } from "@/components/data-table";
+import { FoldMarker } from "@/components/fold-marker";
+import { FORECAST_HEADING, SeasonForecastBody } from "@/components/season-forecast";
+import { SeasonSurprisesBody, SURPRISES_HEADING } from "@/components/season-surprises";
 import { SignInPrompt } from "@/components/sign-in-prompt";
 import { canSeeAnalytics } from "@/lib/analytics-access";
 import {
@@ -17,7 +20,10 @@ import {
   roundedAdvantage,
   type SeasonRange,
 } from "@/lib/outcome-shares";
+import { qualityHref } from "@/lib/prediction-quality";
+import { getSeasonForecast } from "@/lib/season-simulation-service";
 import { formatSeasonLabel } from "@/lib/seasons";
+import { getSeasonSurprises } from "@/lib/surprise-service";
 import {
   hasTableVolatility,
   type TableVolatilitySeries,
@@ -25,8 +31,18 @@ import {
 } from "@/lib/table-volatility";
 import { getTableVolatility } from "@/lib/table-volatility-service";
 
-/** The strings agreed in specs/048, each where the spec places it. */
+/**
+ * The section's strings.
+ *
+ * decisions/048-league-goals-per-game-trend.md
+ */
 export const SEASON_BY_SEASON_HEADING = "Kausi kaudelta";
+/**
+ * The group of the selected season's own panels, first in the section.
+ *
+ * decisions/057-surprise-index.md
+ */
+export const THIS_SEASON_HEADING = "Tämä kausi";
 export const GOALS_PER_GAME_HEADING = "Maaleja ottelua kohden";
 export const TOO_FEW_SEASONS_MESSAGE =
   "Maaleja ottelua kohden kausittain näytetään, kun kilpailusta on tallennettu vähintään kaksi kautta.";
@@ -48,39 +64,75 @@ export const ROUNDING_NOTE =
   "Osuudet on pyöristetty, joten niiden summa voi poiketa 100 prosentista.";
 
 const SECTION_ID = "competition-analytics";
+const THIS_SEASON_ID = "competition-analytics-this-season";
+const FORECAST_ID = "season-forecast";
+const SURPRISES_ID = "season-surprises";
 const GROUP_ID = "competition-analytics-by-season";
 const PANEL_ID = "goals-per-game";
 const VOLATILITY_ID = "table-volatility";
 const SIDE_BY_SIDE_ID = "competition-analytics-side-by-side";
 const HOME_ADVANTAGE_ID = "home-advantage";
 
-/** How the page names a season: `2024` or `2024/25`, as its own selector does. */
+/**
+ * How the page names a season: `2024` or `2024/25`, as its own selector does.
+ *
+ * decisions/048-league-goals-per-game-trend.md
+ */
 type SeasonLabel = (seasonId: number) => string;
 
-/** A season left out by the five-match minimum, named under the chart (S14). */
+/**
+ * The line naming the season in progress above its surprises.
+ *
+ * decisions/057-surprise-index.md
+ */
+export function inProgressSeasonLine(label: string): string {
+  return `Kausi ${label} ${IN_PROGRESS_NOTE}`;
+}
+
+/**
+ * A season left out by the five-match minimum, named under the chart.
+ *
+ * decisions/048-league-goals-per-game-trend.md
+ */
 export function leftOutSentence(label: string): string {
   return `Kausi ${label} näytetään, kun siitä on pelattu vähintään viisi ottelua.`;
 }
 
-/** One row of the text alternative (specs/048, UX). */
+/**
+ * One row of the text alternative.
+ *
+ * decisions/048-league-goals-per-game-trend.md
+ */
 export function seasonSentence(point: GoalsPerGamePoint, label: string): string {
   const season = point.inProgress ? `${label} ${IN_PROGRESS_NOTE}` : label;
   return `Kausi ${season}: ${formatDecimal(point.perGame)} maalia ottelua kohden, ${point.matches} ottelua.`;
 }
 
-/** One row of the movement chart's text alternative (specs/050, S15). */
+/**
+ * One row of the movement chart's text alternative.
+ *
+ * decisions/050-table-volatility.md
+ */
 export function volatilitySentence(point: VolatilityPoint, label: string): string {
   return `Kausi ${label}: sijoitus muuttui kauden puolivälistä loppuun keskimäärin ${formatDecimal(point.change)} sijaa (${point.teams} joukkuetta).`;
 }
 
-/** The completed seasons with no point, counted (specs/050, S9, S15). */
+/**
+ * The completed seasons with no point, counted.
+ *
+ * decisions/050-table-volatility.md
+ */
 export function seasonsLeftOutSentence(count: number): string {
   return count === 1
     ? "1 kausi puuttuu, koska sen kierroskohtaisia taulukoita ei voida laskea."
     : `${count} kautta puuttuu, koska niiden kierroskohtaisia taulukoita ei voida laskea.`;
 }
 
-/** `Kotietu` as printed: signed, with a real minus (specs/049, S5). */
+/**
+ * `Kotietu` as printed: signed, with a real minus.
+ *
+ * decisions/049-home-advantage-and-draw-rate.md
+ */
 export function advantageText(advantage: number): string {
   const points = roundedAdvantage(advantage);
   if (points > 0) return `+${points}`;
@@ -95,7 +147,9 @@ function rangeText(range: SeasonRange, spansCalendarYears: boolean): string {
 
 /**
  * The seasons the table covers, of both kinds, from the data rather than
- * literals (S18) — or nothing when it has no row at all.
+ * literals — or nothing when it has no row at all.
+ *
+ * decisions/049-home-advantage-and-draw-rate.md
  */
 export function windowSentence(
   calendarYears: SeasonRange | null,
@@ -148,17 +202,16 @@ const OUTCOME_COLUMNS: ReadonlyArray<DataTableColumn<OutcomeRow>> = [
 ];
 
 /**
- * The competition standings page's `Analyysit` (specs/048): `Kausi kaudelta`,
- * holding goals per game and, on a league, table movement (specs/050), then
- * `Kilpailut rinnakkain`, holding home advantage and draws (specs/049, S12).
+ * The competition standings page's `Analyysit`: this season's forecast and
+ * surprises, then goals per game and table movement, then `Kilpailut
+ * rinnakkain`, folded. Gated before anything is read; awaited by the pages.
  *
- * **Its sign-in rules are the ones the team page's `Analyysit` follows**
- * (specs/048, S4): no section at all on a competition S5 does not name; the
- * gate is asked before anything is read, so a signed-out page carries no
- * value; one prompt, not one per panel.
- *
- * Awaited by the pages rather than rendered, as `AnalyticsSection` is: an
- * async component nested in JSX is not something every renderer can draw.
+ * decisions/048-league-goals-per-game-trend.md
+ * decisions/049-home-advantage-and-draw-rate.md
+ * decisions/050-table-volatility.md
+ * decisions/057-surprise-index.md
+ * decisions/061-season-simulation.md
+ * decisions/629-fold-side-by-side.md
  */
 export async function CompetitionAnalyticsSection({
   kind,
@@ -183,7 +236,9 @@ export async function CompetitionAnalyticsSection({
     );
   }
 
-  const [series, volatility, shares] = await Promise.all([
+  const [forecast, surprises, series, volatility, shares] = await Promise.all([
+    getSeasonForecast(kind, competitionCode, selectedSeasonId, activeSeasonId),
+    getSeasonSurprises(kind, competitionCode, selectedSeasonId, activeSeasonId),
     getGoalsPerGame(kind, competitionCode, activeSeasonId),
     hasTableVolatility(kind, competitionCode)
       ? getTableVolatility(kind, competitionCode, activeSeasonId)
@@ -192,6 +247,23 @@ export async function CompetitionAnalyticsSection({
   ]);
   return (
     <Section>
+      <Group heading={THIS_SEASON_HEADING} id={THIS_SEASON_ID}>
+        {forecast.status === "unavailable" ? null : (
+          <ChartPanel heading={FORECAST_HEADING} headingId={FORECAST_ID}>
+            <SeasonForecastBody
+              forecast={forecast}
+              qualityHref={qualityHref(kind, "backtest", competitionCode)}
+            />
+          </ChartPanel>
+        )}
+        <ChartPanel heading={SURPRISES_HEADING} headingId={SURPRISES_ID}>
+          <SeasonSurprisesBody
+            inProgressLine={inProgressSeasonLine(seasonLabel(selectedSeasonId))}
+            kind={kind}
+            surprises={surprises}
+          />
+        </ChartPanel>
+      </Group>
       <Group heading={SEASON_BY_SEASON_HEADING} id={GROUP_ID}>
         <ChartPanel heading={GOALS_PER_GAME_HEADING} headingId={PANEL_ID}>
           <GoalsPerGameBody
@@ -210,7 +282,7 @@ export async function CompetitionAnalyticsSection({
           </ChartPanel>
         )}
       </Group>
-      <Group heading={SIDE_BY_SIDE_HEADING} id={SIDE_BY_SIDE_ID}>
+      <Group folded heading={SIDE_BY_SIDE_HEADING} id={SIDE_BY_SIDE_ID}>
         <ChartPanel heading={HOME_ADVANTAGE_HEADING} headingId={HOME_ADVANTAGE_ID}>
           <HomeAdvantageBody competitionCode={competitionCode} kind={kind} shares={shares} />
         </ChartPanel>
@@ -219,25 +291,50 @@ export async function CompetitionAnalyticsSection({
   );
 }
 
+/**
+ * One group of `Analyysit` under its heading. `folded` makes it a `<details>`
+ * that starts closed on every load, its heading the thing to press.
+ *
+ * decisions/424-analytics-panel-groups.md
+ * decisions/629-fold-side-by-side.md
+ */
 function Group({
   heading,
   id,
+  folded = false,
   children,
-}: Readonly<{ heading: string; id: string; children: React.ReactNode }>) {
+}: Readonly<{ heading: string; id: string; folded?: boolean; children: React.ReactNode }>) {
+  const title = (
+    <h3 className="font-medium text-muted text-sm uppercase tracking-wide" id={id}>
+      {heading}
+    </h3>
+  );
   return (
     <section aria-labelledby={id} className="mt-4">
-      <h3 className="font-medium text-muted text-sm uppercase tracking-wide" id={id}>
-        {heading}
-      </h3>
-      {children}
+      {folded ? (
+        <details className="group">
+          <summary className="flex cursor-pointer list-none items-baseline gap-2">
+            <FoldMarker />
+            {title}
+          </summary>
+          {children}
+        </details>
+      ) : (
+        <>
+          {title}
+          {children}
+        </>
+      )}
     </section>
   );
 }
 
 /**
- * The table of every compared competition, this one's row marked (S4). Without
+ * The table of every compared competition, this one's row marked. Without
  * a row of its own it still compares the others, and says why this one is
- * absent (S16).
+ * absent.
+ *
+ * decisions/049-home-advantage-and-draw-rate.md
  */
 function HomeAdvantageBody({
   shares,
@@ -283,7 +380,7 @@ function GoalsPerGameBody({
   if (series.status === "too-few") return <p>{TOO_FEW_SEASONS_MESSAGE}</p>;
 
   const textId = `${PANEL_ID}-text`;
-  // An `ok` series has at least two points (S10), so both ends exist.
+  // An `ok` series has at least two points, so both ends exist.
   const seasons = series.points.map((point) => point.seasonId);
   const first = Math.min(...seasons);
   const last = Math.max(...seasons);
@@ -334,9 +431,11 @@ function GoalsPerGameBody({
 }
 
 /**
- * How far the table moved after mid-season in each completed season (specs/050):
- * a line from 0, the page's own season ringed when it has a point (S13), what
- * mid-season means, and how many seasons have none (S9).
+ * How far the table moved after mid-season in each completed season:
+ * a line from 0, the page's own season ringed when it has a point, what
+ * mid-season means, and how many seasons have none.
+ *
+ * decisions/050-table-volatility.md
  */
 function VolatilityBody({
   series,
@@ -351,7 +450,7 @@ function VolatilityBody({
   if (series.status === "too-few") return <p>{VOLATILITY_TOO_FEW_MESSAGE}</p>;
 
   const textId = `${VOLATILITY_ID}-text`;
-  // An `ok` series has at least two points (S11), so both ends exist.
+  // An `ok` series has at least two points, so both ends exist.
   const seasons = series.points.map((point) => point.seasonId);
   return (
     <div>

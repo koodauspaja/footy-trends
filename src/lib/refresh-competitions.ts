@@ -11,16 +11,17 @@ import {
 import { type CompetitionChoice, type CompetitionOption, encodeChoice } from "@/lib/refresh-view";
 
 /**
- * Which competitions the forced refresh offers, and what they are called, from
- * specs/029-forced-season-refresh.md.
+ * Which competitions the forced refresh offers, and what they are called. It
+ * touches no database and no provider.
  *
- * Its own module because both `force-refresh.ts` and `refresh-runs.ts` need it
- * — the engine to validate a submission, the log to name a competition in a row
- * written months ago — and having the log import the engine would be a cycle.
- * It touches no database and no provider.
+ * decisions/029-forced-season-refresh.md
  */
 
-/** Every competition the tool offers, in the order the `<select>` renders them. */
+/**
+ * Every competition the tool offers, in the order the `<select>` renders them.
+ *
+ * decisions/029-forced-season-refresh.md
+ */
 export function listCompetitionOptions(): {
   domestic: CompetitionOption[];
   foreign: CompetitionOption[];
@@ -40,11 +41,10 @@ export function listCompetitionOptions(): {
 }
 
 /**
- * Whether a choice names a competition this app actually has, checked against
- * the registries rather than against the shape of the string.
+ * Whether a choice names a competition this app has, checked against the
+ * registries and not against the shape of the string.
  *
- * `decodeChoice` in `refresh-view.ts` validates the shape and stays
- * client-safe; this is the half that needs the registries.
+ * decisions/029-forced-season-refresh.md
  */
 export function isKnownCompetition(choice: CompetitionChoice): boolean {
   if (choice.source === "taso") {

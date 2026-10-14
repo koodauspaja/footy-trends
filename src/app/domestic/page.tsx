@@ -10,6 +10,13 @@ export const metadata: Metadata = {
   title: HEADING,
 };
 
+/**
+ * The `/kotimaa` picker: every Finnish competition, each with its favourite
+ * toggle beside its link.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/026-favourites.md
+ */
 export default function Domestic() {
   return (
     <PageShell heading={HEADING}>
@@ -25,8 +32,8 @@ export default function Domestic() {
               </span>
               {competition.name}
             </Link>
-            {/* Beside the link rather than inside it: a button in an anchor is
-                invalid, and the click would navigate (specs/026-favourites.md). */}
+            {/* Beside the link, not inside it: a button in an anchor is invalid,
+                and the click would navigate. */}
             <FavouriteToggle
               code={competition.code}
               kind="competition"

@@ -2,12 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../support/warm-module";
 
 /**
- * `requireAdmin`, from specs/028-admin-tools-and-roles.md.
+ * `requireAdmin`, the only authorisation check in the app, so the tests are
+ * about the direction it fails in: every case that is not a signed-in user
+ * holding the `admin` role in the database must answer `null`.
  *
- * This is the only authorisation check in the app, so the tests are about the
- * direction it fails in. Every case that is not a signed-in user holding the
- * `admin` role in the **database** must answer `null`.
+ * decisions/028-admin-tools-and-roles.md
  */
+
 const { currentUserId, state, logger } = vi.hoisted(() => ({
   currentUserId: vi.fn(),
   state: { rows: [] as { role: unknown }[], throws: false },
@@ -102,9 +103,8 @@ describe("requireAdmin", () => {
 
   it("refuses when the session itself cannot be read", async () => {
     // `currentUserId` goes through better-auth to Postgres, so it fails for the
-    // same reasons the role lookup does. It sat outside the try/catch until
-    // review caught it, which made a session-read failure a 500 rather than a
-    // refusal — the opposite of what this function promises.
+    // same reasons the role lookup does, and sits inside the same try/catch: a
+    // session-read failure must be a refusal, not a 500.
     currentUserId.mockRejectedValue(new Error("session store unreachable"));
     const { requireAdmin } = await import("@/lib/admin-guard");
 

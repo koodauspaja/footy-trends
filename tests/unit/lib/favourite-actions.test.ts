@@ -2,16 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../support/warm-module";
 
 /**
- * The four server actions behind the star, from specs/026-favourites.md.
+ * The four server actions behind the star, at their boundary: the arguments arrive from a
+ * client that may send anything, and the user id never does. It comes from the session,
+ * which makes "favourite something for someone else" impossible, not merely checked for.
  *
- * Nothing here may touch a real database or construct better-auth: the CI unit
- * job has no service containers and no environment at all, deliberately (#158).
- *
- * What these tests are actually about is the boundary. The arguments arrive
- * over the wire from a client that may send anything, and the user id never
- * does — it comes from the session, which is what makes "favourite something
- * for someone else" impossible rather than merely checked for.
+ * decisions/026-favourites.md
  */
+
+// Nothing here touches a database or constructs better-auth: the CI unit job has
+// no service containers and no environment.
 const {
   getSession,
   toggleFavouriteTeam,
@@ -58,11 +57,9 @@ vi.mock("@/lib/favourites", () => ({
   removeFavouriteCompetition,
 }));
 
-/**
- * Both spellings: the route is defined at `/favorites` and read at `/suosikit`,
- * and revalidating only one would leave a stale client-router entry under the
- * other.
- */
+// Both spellings: the route is defined at `/favorites` and read at `/suosikit`,
+// and revalidating only one would leave a stale client-router entry under the
+// other.
 function expectRevalidated() {
   expect(revalidatePath.mock.calls.flat()).toEqual(["/suosikit", "/favorites"]);
 }

@@ -3,6 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CupStandingsControls } from "@/components/cup-standings-controls";
 import type { Competition } from "@/lib/competitions";
 
+/**
+ * The controls above a cup's standings.
+ *
+ * decisions/014-champions-league.md
+ * decisions/016-world-cup-and-euro.md
+ */
+
 const pushMock = vi.fn();
 
 vi.mock("next/navigation", () => ({

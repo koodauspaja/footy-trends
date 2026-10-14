@@ -2,6 +2,12 @@ import { render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { StartRedirect } from "@/components/start-redirect";
 
+/**
+ * The redirect from the front page to a reader's stored start page.
+ *
+ * decisions/024-account-settings.md
+ */
+
 const { sessionState, searchParams, replace } = vi.hoisted(() => ({
   sessionState: { current: { data: null as unknown, isPending: false } },
   searchParams: { current: new URLSearchParams() },

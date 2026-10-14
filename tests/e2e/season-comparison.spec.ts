@@ -2,28 +2,27 @@ import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 
 /**
- * The team page's `Tämä kausi verrattuna` panel (specs/038), end to end. Signed
- * in the way league-position.spec.ts explains.
+ * The team page's `Tämä kausi verrattuna` panel, end to end. Signed in the way
+ * league-position.spec.ts explains. The season's own column is the season, so it has to agree
+ * with the standings page for the same team; the baseline is arithmetic the unit tests own.
  *
- * The property worth checking here is the one the panel rests on: **the
- * season's own column is the season**, so it has to agree with the standings
- * page for the same team and season. The baseline is arithmetic over seasons
- * the unit tests own; what end to end can prove is that the column a reader
- * compares against is not quietly something else.
+ * decisions/038-season-against-history.md
+ * decisions/045-bogey-teams.md
+ * decisions/424-analytics-panel-groups.md
  */
 
 const HEADING = "Tämä kausi verrattuna";
 const TEAM = "/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024";
 const STANDINGS = "/ulkomaat/sarjataulukko?kilpailu=PL&kausi=2024";
 
-/** `Pisteitä / ottelu: tämä kausi 2,05, tavallisesti 1,71.` */
+// `Pisteitä / ottelu: tämä kausi 2,05, tavallisesti 1,71.`
 const POINTS_ROW = /^Pisteitä \/ ottelu: tämä kausi ([\d,]+), tavallisesti (.+)\.$/;
 
 async function signedIn(page: Page): Promise<void> {
   await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
 }
 
-/** Finnish writes a decimal comma; the tests compare numbers. */
+// Finnish writes a decimal comma; the tests compare numbers.
 function toNumber(text: string): number {
   return Number(text.replace(",", "."));
 }
@@ -69,17 +68,15 @@ test.describe("Season comparison, signed in", () => {
     await page.goto(TEAM);
     const panel = page.getByRole("region", { name: HEADING });
 
-    // The competition is pinned and the count is required to be at least one;
-    // the count itself is not, because the e2e database gains seasons as other
-    // specs sync them, and an exact number here fails for a reason that has
-    // nothing to do with this panel. "Verrattuna 0 muuhun kauteen" would still
-    // be caught, which is the claim that would mislead a reader.
+    // The competition is pinned and the count only required to be at least one: the e2e
+    // database gains seasons as other specs sync them. "Verrattuna 0 muuhun kauteen"
+    // would still be caught, which is the claim that would mislead.
     await expect(panel.getByText(/^Verrattuna [1-9]\d* muuhun kauteen: Valioliiga$/)).toBeVisible();
   });
 
   test("comes first in Muut kaudet, before the records", async ({ page }) => {
-    // Placed within its #424 group, not counted from the end of Analyysit,
-    // which a later group moves (specs/045).
+    // Placed within its group, not counted from the end of Analyysit, which a
+    // later group moves.
     await page.goto(TEAM);
     const headings = page
       .getByRole("region", { name: "Muut kaudet", exact: true })

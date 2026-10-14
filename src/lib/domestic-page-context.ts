@@ -9,18 +9,17 @@ import {
   getDomesticCompetitionName,
   parseDomesticCompetitionParam,
 } from "./domestic-competitions";
+import { parseWholeNumber } from "./provider-ids";
 import type { SeasonOption, SeasonParamResult } from "./seasons";
 import { getSeasonCategoryName, resolveTasoSeasonContext } from "./taso-standings-service";
 import type { TeamContext } from "./team-context";
 
 /**
- * A Finnish season is a single calendar year, not a year-spanning one like the
- * foreign leagues — the label is just the year. Descending, newest first, same
- * convention as `listSelectableSeasons`.
+ * The seasons a Finnish competition offers, as calendar years, newest first.
+ * The floor is per competition, not provider-wide.
  *
- * The floor is per competition rather than provider-wide: Ykkösliiga did not
- * exist before 2024, and offering its 2015 would render an empty page. See
- * specs/013-more-finnish-competitions.md.
+ * decisions/009-veikkausliiga.md
+ * decisions/013-more-finnish-competitions.md
  */
 export function listSelectableTasoSeasons(
   currentSeason: number,
@@ -34,18 +33,20 @@ export function listSelectableTasoSeasons(
 }
 
 /**
- * Validates the `kausi` query parameter against the selectable range. The
- * range's upper end is discovered rather than fixed, so a season that was
- * invalid last year becomes valid without a deploy.
+ * Validates the `kausi` query parameter against the selectable range, whose
+ * upper end is discovered, not fixed.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/011-current-season-discovery.md
  */
 export function parseTasoSeasonParam(
   rawValue: string | string[] | undefined,
   selectable: SeasonOption[]
 ): SeasonParamResult {
   if (rawValue === undefined) return { kind: "absent" };
-  if (typeof rawValue !== "string" || !/^\d+$/.test(rawValue)) return { kind: "invalid" };
+  const seasonId = parseWholeNumber(rawValue);
+  if (seasonId === null) return { kind: "invalid" };
 
-  const seasonId = Number(rawValue);
   return selectable.some((option) => option.seasonId === seasonId)
     ? { kind: "valid", seasonId }
     : { kind: "invalid" };
@@ -79,21 +80,19 @@ export type DomesticPageContext = {
 
 /**
  * Resolves the competition and season context shared by every `/kotimaa`
- * page's `generateMetadata` and page component — the `kilpailu`/`kausi`-param
- * analogue of `resolveBasePageContext`.
+ * page's `generateMetadata` and page component. There is no `"error"` status:
+ * a failed discovery falls back inside `resolveTasoSeasonContext`.
  *
- * Async because the season ceiling now comes from TASO rather than a
- * constant, but there is still no `"error"` status to handle: discovery
- * failure falls back inside `resolveTasoSeasonContext` rather than
- * surfacing here.
+ * decisions/009-veikkausliiga.md
+ * decisions/011-current-season-discovery.md
+ * decisions/020-context-free-team-page.md
+ * decisions/024-account-settings.md
  */
 export async function resolveDomesticPageContext(
   params: Record<string, string | string[] | undefined>,
   /**
-   * What to use where the URL says nothing — a team's own newest stored
-   * context, on the pages that have one. Omitted everywhere else, which leaves
-   * the region's defaults exactly as they were. See
-   * specs/020-context-free-team-page.md.
+   * What to use where the URL says nothing: a team's own newest stored context,
+   * on the pages that have one. Omitted everywhere else.
    */
   defaults?: TeamContext
 ): Promise<DomesticPageContext> {
@@ -113,14 +112,9 @@ export async function resolveDomesticPageContext(
     earliestSeasonFor(competitionCode)
   );
   const season = parseTasoSeasonParam(params.kausi, selectableSeasons);
-  // A team's own season stands in wherever `kausi` does not decide — absent or
-  // invalid alike. An invalid one still gets its notice; what it falls back to
-  // is the team's own season when the resolved competition is the one being
-  // shown, and the competition's default otherwise.
-  // Optional-chained on both sides, then `??` for the fallback. Reading
-  // `defaults.seasonId` directly inside the true branch does not typecheck —
-  // TypeScript does not narrow `defaults` from the comparison above — and
-  // spelling out `defaults !== undefined` trades that for a lint finding.
+  // A team's own season stands in wherever `kausi` does not decide. An invalid
+  // one still gets its notice, and falls back to the team's season only when
+  // the resolved competition is the one being shown.
   const seasonFallback =
     (defaults?.competitionCode === competitionCode ? defaults?.seasonId : undefined) ??
     defaultSeason;

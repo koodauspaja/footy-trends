@@ -17,34 +17,24 @@ import type { Preferences, RegionSegment } from "@/lib/regions";
  * Preference helpers that need a competition registry, and therefore may only
  * be imported on the server.
  *
- * `domestic-competitions.ts` transitively reaches ioredis, so a client
- * component importing any of this fails the build on `dns`, `net` and `tls`.
- * The settings form receives its option lists as props from the server page
- * instead of reaching for them. See specs/024-account-settings.md.
+ * decisions/024-account-settings.md
  */
 
 /**
- * Kotimaa is deliberately absent from the parameter type. Its competitions come
- * from TASO and live in `domestic-competitions.ts`; `CompetitionRegion` only
- * spans the two football-data regions, and pretending otherwise is what would
- * make the callers below silently check the wrong registry.
+ * The football-data registry a region's competitions are in. Kotimaa is absent
+ * from the parameter type: its competitions come from TASO.
  *
- * Total rather than a `Partial<Record<…>>` lookup: every caller already returns
- * early for Kotimaa, so TypeScript narrows the argument here and there is no
- * "missing entry" case left to guard. A guard for an unreachable state is a
- * second source of truth and an untestable branch.
+ * decisions/024-account-settings.md
  */
 function footballDataRegionFor(region: Exclude<RegionSegment, "kotimaa">): CompetitionRegion {
   return region === "ulkomaat" ? "foreign" : "national-teams";
 }
 
 /**
- * Whether a stored code still names a competition in its own registry.
+ * Whether a stored code still names a competition in its own registry, by the
+ * same validators a `?kilpailu=` value goes through.
  *
- * Reuses the two `parse…Param` validators rather than re-deriving membership: a
- * stored preference and a `?kilpailu=` value have to agree about what exists,
- * and two implementations of "is this a real competition" would eventually
- * disagree.
+ * decisions/024-account-settings.md
  */
 function isStillValid(code: string, region: RegionSegment): boolean {
   if (region === "kotimaa") return parseDomesticCompetitionParam(code).kind === "valid";
@@ -59,13 +49,10 @@ function storedCodeFor(region: RegionSegment, preferences: Preferences): string 
 }
 
 /**
- * The competition a region should open, given what the reader chose.
+ * The competition a region should open, given what the reader chose. Null when
+ * there is no usable preference, or the code has since left the registry.
  *
- * Null when there is no usable preference, so each caller keeps its own
- * hardcoded fallback instead of this module having to know what that is. A code
- * that has since left the registry is null too: a competition can be retired
- * long after someone chose it, and stranding a reader on a dead page is worse
- * than ignoring their preference.
+ * decisions/024-account-settings.md
  */
 export function preferredCompetitionFor(
   region: RegionSegment,
@@ -78,14 +65,22 @@ export function preferredCompetitionFor(
   return stored;
 }
 
-/** The code a region falls back to when the reader has expressed no preference. */
+/**
+ * The code a region falls back to when the reader has expressed no preference.
+ *
+ * decisions/024-account-settings.md
+ */
 export function fallbackCompetitionFor(region: RegionSegment): string {
   if (region === "kotimaa") return DEFAULT_DOMESTIC_COMPETITION_CODE;
   if (region === "ulkomaat") return DEFAULT_COMPETITION_CODE;
   return "WC";
 }
 
-/** A competition's Finnish name, from whichever registry owns that region. */
+/**
+ * A competition's Finnish name, from whichever registry owns that region.
+ *
+ * decisions/024-account-settings.md
+ */
 export function competitionNameFor(region: RegionSegment, code: string): string {
   return region === "kotimaa" ? getDomesticCompetitionName(code) : getCompetitionName(code);
 }
@@ -94,6 +89,8 @@ export function competitionNameFor(region: RegionSegment, code: string): string 
  * What the settings page shows as a region's "no preference" option, e.g.
  * `Oletus (Veikkausliiga)`. Built from the same fallback the resolver uses, so
  * the label and the behaviour cannot drift apart.
+ *
+ * decisions/024-account-settings.md
  */
 export function fallbackLabelFor(region: RegionSegment): string {
   return `Oletus (${competitionNameFor(region, fallbackCompetitionFor(region))})`;
@@ -104,6 +101,8 @@ export type CompetitionOption = { code: string; name: string };
 /**
  * A region's selectable competitions, built on the server and handed to the
  * settings form as a prop.
+ *
+ * decisions/024-account-settings.md
  */
 export function competitionOptionsFor(region: RegionSegment): CompetitionOption[] {
   if (region === "kotimaa") return DOMESTIC_COMPETITIONS.map(({ code, name }) => ({ code, name }));

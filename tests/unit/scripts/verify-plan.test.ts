@@ -15,6 +15,13 @@ import {
   workflowScripts,
 } from "../../../scripts/verify-plan";
 
+/**
+ * The stages of `npm run verify`, and that they cover every npm script the
+ * workflows run.
+ *
+ * decisions/401-one-command-for-the-gate.md
+ */
+
 const WORKFLOWS = "./.github/workflows";
 
 function everyWorkflowScript(): string[] {
@@ -24,13 +31,9 @@ function everyWorkflowScript(): string[] {
 }
 
 describe("VERIFY_STAGES", () => {
-  /**
-   * #401's own warning, as a mechanism: a command that can disagree with the
-   * workflows is worse than no command, because it reports green for a state CI
-   * rejects. The list is duplicated rather than derived — a workflow parsed at
-   * runtime would make an edit there break the local command — so this fails the
-   * moment the two drift.
-   */
+  // A command that can disagree with the workflows is worse than no command: it reports green
+  // for a state CI rejects. The list is duplicated, not derived, because a workflow parsed at
+  // runtime would make an edit there break the local command, so this fails when the two drift.
   it("covers every npm script the workflows run", () => {
     expect(stagesMissingFrom(everyWorkflowScript())).toEqual([]);
   });
@@ -90,8 +93,9 @@ describe("workflowScripts", () => {
   });
 
   it("reads a script name made of characters a narrower pattern would drop", () => {
-    // `[\w:-]+` read these as no script at all, so a workflow could gain a
-    // stage while the audit stayed quiet. Raised in review on #410.
+    // A script name can hold a dot or an `@`. If such a name were read as no
+    // script at all, a workflow could gain a stage while the audit stayed
+    // quiet.
     expect(workflowScripts("run: npm run lint.fix")).toEqual(["lint.fix"]);
     expect(workflowScripts("run: npm run deploy@staging")).toEqual(["deploy@staging"]);
   });

@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveBasePageContext } from "@/lib/page-context";
 
+/**
+ * Which competition and season a page resolves: the URL, then the team's
+ * context, then the reader's stored default, then the region's own.
+ *
+ * decisions/024-account-settings.md
+ * decisions/012-finnish-urls-english-code.md
+ */
+
 const { getSeasonContext, getViewerPreferences } = vi.hoisted(() => ({
   getSeasonContext: vi.fn(),
   getViewerPreferences: vi.fn<() => Promise<unknown>>(async () => null),
@@ -35,13 +43,9 @@ beforeEach(() => {
 });
 
 describe("a reader's stored competition default", () => {
-  /**
-   * One shape — stored preferences plus a URL, resolved for a region — so the
-   * precedence rules read as a table instead of six near-identical tests.
-   *
-   * URL > team context > preference > the region's hardcoded default. The team
-   * context rung has its own test below, because it takes a third argument.
-   */
+  // One shape, stored preferences plus a URL resolved for a region, so the precedence reads as a
+  // table and not six near-identical tests: URL > team context > preference > the region's
+  // hardcoded default. The team context rung has its own test below, as it takes a third argument.
   it.each([
     [
       "the foreign competition they chose",
@@ -66,8 +70,8 @@ describe("a reader's stored competition default", () => {
       "foreign",
       "PL",
     ],
-    // A shared link must render what it says (specs/012), and a stored default
-    // is a weaker statement than a typed URL.
+    // A shared link must render what it says, and a stored default is a weaker
+    // statement than a typed URL.
     [
       "the URL, over any preference",
       { defaultCompetitionForeign: "BL1" },
@@ -135,12 +139,9 @@ describe("a reader's stored competition default", () => {
   });
 
   it("falls back to the preference on an invalid kilpailu, and names it in the notice", async () => {
-    // The spec first said this must fall back to the *hardcoded* default,
-    // reasoning that the notice would otherwise name a competition the reader
-    // never asked for. That was wrong on both counts: `ContextNotices` renders
-    // `resolved.competitionName`, so it names whatever is actually shown, and a
-    // stored preference is something the reader explicitly chose. The spec was
-    // corrected to match.
+    // The stored preference, not the hardcoded default: `ContextNotices`
+    // renders `resolved.competitionName`, so the notice names what is shown,
+    // and a stored preference is something the reader chose.
     getViewerPreferences.mockResolvedValue(preferences({ defaultCompetitionForeign: "BL1" }));
 
     const context = await resolveBasePageContext({ kilpailu: "NOPE" }, "foreign");

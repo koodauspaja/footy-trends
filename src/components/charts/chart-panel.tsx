@@ -1,11 +1,10 @@
 /**
- * One chart inside the team page's `Analyysit` section (specs/031, A): a region
- * named by its own subheading, so a screen reader can move between the charts.
+ * One chart inside the team page's `Analyysit` section: a region named by its
+ * own subheading, so a screen reader can move between the charts. The heading
+ * is an `h4`, as every panel sits inside a group.
  *
- * **`h4`, because every panel sits inside a group** (#424): `Analyysit` is the
- * `h2`, a group is the `h3`, and a panel is below both. Every use of this
- * component is a panel in a group, so the level is fixed here rather than
- * passed in by ten callers that would all pass the same thing.
+ * decisions/031-rolling-form-trend.md
+ * decisions/424-analytics-panel-groups.md
  */
 export function ChartPanel({
   headingId,

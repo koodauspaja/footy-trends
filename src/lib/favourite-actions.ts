@@ -13,10 +13,10 @@ import { logger } from "@/lib/logger";
 import { isRegionSegment } from "@/lib/regions";
 
 /**
- * Writing favourites, from specs/026-favourites.md.
+ * What a favourite write answers. `ok: false` carries a reason, because the
+ * reader's next move differs.
  *
- * `ok: false` carries a reason because the reader's next move differs: at the
- * cap they must remove something, and on a failure they should try again.
+ * decisions/026-favourites.md
  */
 export type ToggleResult =
   | { ok: true; favorite: boolean }
@@ -25,13 +25,10 @@ export type ToggleResult =
 export type ActionResult = { ok: true } | { ok: false };
 
 /**
- * Both spellings of the favourites page.
+ * Both spellings of the favourites page: the route is defined at `/favorites`
+ * and read at `/suosikit`, and both are revalidated.
  *
- * The route is defined at `/favorites` and read at `/suosikit` — CLAUDE.md's
- * split, joined by the rewrite in `next.config.ts`. #292 established that the
- * reader's URL is the one that matters; the folder path is revalidated beside it
- * because the extra call costs nothing and this cannot be exercised end to end —
- * the action needs a real session, which the e2e suite cannot forge.
+ * decisions/026-favourites.md
  */
 const FAVOURITES_PATHS = ["/suosikit", "/favorites"] as const;
 

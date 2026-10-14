@@ -10,13 +10,14 @@ import {
 } from "../../../scripts/release-pr-plan";
 
 /**
- * The decisions behind opening the release pull request, from #361.
+ * The decisions behind opening the release pull request. `selectStatusOption`
+ * earns its tests: a remembered status option id fails silently, so the ids are
+ * read, and reading them must survive a payload shaped unlike the happy one.
  *
- * `selectStatusOption` earns its tests: a remembered status option id is what
- * silently failed to move several cards while this feature was being built,
- * with the command's stderr hidden. Reading the ids removes that, and these
- * assert that reading them survives a payload shaped unlike the happy one.
+ * decisions/361-release-domains-on-the-pr.md
+ * decisions/357-release-domains.md
  */
+
 const board = (options: { id?: unknown; name?: unknown }[]) => ({
   fields: [
     { id: "PVTF_title", name: "Title" },
@@ -114,20 +115,9 @@ describe("pullNumberFrom", () => {
   });
 });
 
-/**
- * The `gh` argument lists.
- *
- * These are asserted rather than excluded because each one has a way of being
- * wrong that is silent in production: a `pr create` missing `--base` opens
- * against the default branch, a label sent as one comma-joined value makes
- * GitHub create a single label named after all of them rather than refusing,
- * and a `project` call without `--format json` answers text that `JSON.parse`
- * then rejects a line later.
- *
- * Each test names the flag it protects, so a mutation to that flag fails a
- * test that says why — the counter to the "proves nothing" class in
- * skills/self-review.md.
- */
+// The `gh` argument lists, asserted and not excluded, as each fails silently: `pr create`
+// without `--base` opens against the default branch, comma-joined labels become one label,
+// and without `--format json` `JSON.parse` fails a line later. Each test names its flag.
 describe("the gh argument lists", () => {
   it("opens the release against release from main, with the notes on stdin", () => {
     const args = gh.createPullRequest("v1.4.0");
@@ -194,14 +184,9 @@ describe("the gh argument lists", () => {
   });
 });
 
-/**
- * `parseReleasePlan`.
- *
- * This is JSON out of a subprocess, so every case here is a shape the runner
- * could actually be handed. The one that matters most is a missing `version`:
- * cast rather than checked, it becomes `gh pr create --title "release:
- * undefined"`, which GitHub accepts.
- */
+// `parseReleasePlan` reads JSON out of a subprocess, so every case is a shape the runner
+// could be handed. The one that matters most is a missing `version`: cast and not checked,
+// it becomes a pull request titled "release: undefined", which GitHub accepts.
 describe("parseReleasePlan", () => {
   const valid = JSON.stringify({
     version: "v1.4.0",
@@ -218,7 +203,7 @@ describe("parseReleasePlan", () => {
   });
 
   it("accepts a release that touches nothing resolvable", () => {
-    // No labels is a real outcome, not a failure: #357 asked for it explicitly.
+    // No labels is a real outcome, not a failure.
     const plan = parseReleasePlan(
       JSON.stringify({ version: "v1.4.0", notes: "notes", domains: [] })
     );

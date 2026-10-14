@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../support/warm-module";
 
+/**
+ * The Redis singleton: its address and its settings.
+ *
+ * decisions/009-veikkausliiga.md
+ */
+
 const RedisMock = vi.fn();
 vi.mock("ioredis", () => ({ default: RedisMock }));
 
@@ -31,10 +37,9 @@ describe("redis singleton", () => {
 
   it("falls back to localhost when REDIS_URL is not set", async () => {
     vi.stubEnv("NODE_ENV", "development");
-    // vi.unstubAllEnvs() restores REDIS_URL to whatever vitest.config.ts's
-    // real .env load set it to (not necessarily unset) — delete it
-    // explicitly so this test exercises the `??` fallback itself, not a
-    // same-value coincidence.
+    // `vi.unstubAllEnvs()` restores REDIS_URL to whatever the real `.env` load
+    // set it to, not necessarily unset, so it is deleted explicitly: this test
+    // must exercise the `??` fallback itself, not a same-value coincidence.
     delete process.env.REDIS_URL;
 
     await import("@/lib/redis");

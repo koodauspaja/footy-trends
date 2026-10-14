@@ -1,24 +1,12 @@
 /**
  * Reads the commits a release would contain and reports the version they
- * imply. All the judgement lives in `next-version.ts`, which is unit tested;
- * this file only talks to git and to GitHub, and formats output.
+ * imply. The judgement is in `next-version.ts`; this talks to git and GitHub
+ * and formats output. Only `--print=json` touches the network.
  *
- * **Only `--print=json` touches the network**, and it makes two lookups:
- * `domainsForRelease` reads the labels off the issues the commits reference,
- * and `labelsThatExist` reads the repository's own label list to filter them.
- * It needs `GH_TOKEN`, and it deliberately fails rather than answering an empty
- * list, so a caller applying labels can tell a release that touches nothing
- * from a lookup that did not work.
- *
- * Every other mode reads git alone. `--print=notes` in particular makes no
- * request at all, so a release can always be cut.
- *
- *   npm run release:version                      # origin/release..origin/main
- *   npm run release:version -- A B               # any two refs
- *   npm run release:version -- --since-last-tag  # last tag..HEAD, for post-merge use
- *   npm run release:version -- --print=version   # just the number, for scripts
- *   npm run release:version -- --print=notes     # markdown release notes
- *   npm run release:version -- --print=json      # {version, notes, domains}, resolved once
+ * decisions/085-release-workflow.md
+ * decisions/292-sonar-zero-open-issues.md
+ * decisions/357-release-domains.md
+ * decisions/361-release-domains-on-the-pr.md
  */
 import { execFileSync } from "node:child_process";
 import { executablePath, overrideNameFor } from "./executable";
@@ -39,10 +27,8 @@ const RECORD = "\u001e";
 const FIELD = "\u001f";
 
 function git(args: string[]): string {
-  // Absolute, not resolved through `PATH` — see `executable.ts`. This script
-  // cuts a release, so it throws rather than degrading: a release built by
-  // whatever `git` happened to be first in someone's path is not a release
-  // anyone should trust.
+  // Absolute, not resolved through `PATH`: see `executable.ts`. This cuts a
+  // release, so a missing git throws.
   const binary = executablePath("git");
   if (binary === null) {
     throw new Error(
@@ -71,7 +57,11 @@ function tagsAtHead(): string[] {
   return git(["tag", "--points-at", "HEAD"]).split("\n").filter(Boolean);
 }
 
-/** The stable version already on HEAD, if this is a rerun of a release. */
+/**
+ * The stable version already on HEAD, if this is a rerun of a release.
+ *
+ * decisions/085-release-workflow.md
+ */
 function stableTagOnHead(): string | null {
   const onHead = new Set(tagsAtHead());
   return stableTags().find((tag) => onHead.has(tag)) ?? null;
@@ -83,10 +73,8 @@ function latestVersionTag(): string | null {
 
 function commitsBetween(from: string | null, to: string): Commit[] {
   const range = from ? `${from}..${to}` : to;
-  // `--no-merges` asks git for the topology rather than guessing from the
-  // subject line. A release produces a merge commit, and its subject can be
-  // edited to anything, so matching on "Merge pull request" is a heuristic
-  // where an authoritative answer is available.
+  // `--no-merges` asks git for the topology; a merge commit's subject can be
+  // edited to anything.
   const raw = git(["log", "--no-merges", range, `--format=%s${FIELD}%b${RECORD}`]);
   if (!raw) return [];
   return raw
@@ -101,15 +89,18 @@ function commitsBetween(from: string | null, to: string): Commit[] {
 
 const API = "https://api.github.com/repos/koodauspaja/footy-trends";
 
-/** Long enough for a slow answer, short enough that nobody waits on a release. */
+/**
+ * Long enough for a slow answer, short enough that nobody waits on a release.
+ *
+ * decisions/357-release-domains.md
+ */
 const LABEL_LOOKUP_TIMEOUT_MS = 5000;
 
 /**
- * The first **non-empty** of the two token variables.
+ * The first non-empty of the two token variables: `GH_TOKEN=""` must not
+ * shadow a good `GITHUB_TOKEN`.
  *
- * `??` falls back only for undefined and null, so `GH_TOKEN=""` — which CI can
- * set from an unpopulated secret — would otherwise shadow a perfectly good
- * `GITHUB_TOKEN`.
+ * decisions/361-release-domains-on-the-pr.md
  */
 function githubToken(): string | undefined {
   return [process.env.GH_TOKEN, process.env.GITHUB_TOKEN].find(
@@ -118,11 +109,10 @@ function githubToken(): string | undefined {
 }
 
 /**
- * Every label name on the repository, following pages until one comes up short.
+ * Every label name on the repository, following pages until one comes up
+ * short. Authenticated, like the issue lookups.
  *
- * Authenticated like the issue lookups: unauthenticated requests have their own
- * much smaller rate limit, so this one call could be refused while every other
- * succeeded.
+ * decisions/361-release-domains-on-the-pr.md
  */
 async function repositoryLabels(token: string | undefined): Promise<Set<string> | null> {
   const names = new Set<string>();
@@ -157,16 +147,10 @@ async function repositoryLabels(token: string | undefined): Promise<Set<string> 
 }
 
 /**
- * The subset that actually exists as a label on the repository.
+ * The subset that exists as a label on the repository. A domain with no label
+ * is reported on stderr.
  *
- * **GitHub creates a label it has never seen** when one is added to an issue —
- * verified against a real pull request, where a deliberately misspelled name
- * appeared in the repository's label list rather than being rejected. So a
- * domain the taxonomy has drifted away from would not fail loudly; it would
- * quietly mint a junk label for somebody to find later.
- *
- * A domain with no label is reported on stderr: the taxonomy has a gap, which
- * is worth noticing rather than papering over.
+ * decisions/361-release-domains-on-the-pr.md
  */
 async function labelsThatExist(domains: string[], token: string | undefined): Promise<string[]> {
   if (domains.length === 0) return [];
@@ -188,16 +172,11 @@ async function labelsThatExist(domains: string[], token: string | undefined): Pr
 }
 
 /**
- * The domain labels on every issue this release's commits reference.
+ * The domain labels on every issue this release's commits reference. It throws
+ * on failure, so "touches nothing" and "could not be read" stay apart.
  *
- * **It throws on failure**, and the modes that call it let that through: a
- * caller applying labels has to tell "this release touches nothing" from "the
- * labels could not be read" — the first is fine, the second would label a
- * release with silence. `--print=notes` never calls it, so the notes are
- * always printable and a release is always cuttable.
- *
- * `GH_TOKEN`/`GITHUB_TOKEN` is what CI already provides and what
- * `review-findings.ts` uses; locally, `GH_TOKEN=$(gh auth token)`.
+ * decisions/357-release-domains.md
+ * decisions/361-release-domains-on-the-pr.md
  */
 async function domainsForRelease(decision: ReturnType<typeof decideVersion>): Promise<string[]> {
   const refs = issueRefsIn(decision);
@@ -205,15 +184,7 @@ async function domainsForRelease(decision: ReturnType<typeof decideVersion>): Pr
   // issue genuinely touches no resolvable domain.
   if (refs.length === 0) return [];
 
-  /**
-   * A missing token is a failure, not an empty answer.
-   *
-   * These were one condition, which was right while `--print=notes` was the
-   * caller — notes without domains beat a release that cannot be cut. Only
-   * `--print=json` calls this now, and its contract is the opposite one: the
-   * caller applies labels, so "no token" answering the same as "no domains"
-   * would open an unlabelled release and call it done.
-   */
+  // A missing token is a failure, not an empty answer.
   const token = githubToken();
   if (token === undefined) {
     // Reported before it is thrown, like every other failure in here. The
@@ -238,15 +209,9 @@ async function domainsForRelease(decision: ReturnType<typeof decideVersion>): Pr
             "X-GitHub-Api-Version": "2022-11-28",
           },
         });
-        /**
-         * A **404** is one reference that is deleted or not ours, and is
-         * skipped. Anything else — 401 on a bad token, 403 on a rate limit — is
-         * the lookup failing rather than that issue being absent, and would
-         * otherwise report every release as touching nothing.
-         *
-         * A reference that is a *pull request* answers 200 here; the shape check
-         * in `labelsOfIssueResponse` is what excludes those.
-         */
+        // A 404 is one reference that is deleted or not ours, and is skipped. Anything
+        // else is the lookup failing. A pull request answers 200 here, and
+        // `labelsOfIssueResponse` excludes it.
         if (response.status === 404) return [];
         if (!response.ok) throw new Error(`GitHub answered ${response.status} for issue ${ref}`);
         return labelsOfIssueResponse(await response.json());
@@ -254,11 +219,8 @@ async function domainsForRelease(decision: ReturnType<typeof decideVersion>): Pr
     );
     return domainsFrom(labels.flat());
   } catch (error) {
-    /**
-     * Thrown on, not swallowed. An empty answer has to mean "this release
-     * touches nothing" and nothing else, so `--print=json` exits non-zero
-     * rather than let a caller apply no labels and call it done.
-     */
+    // Thrown on, not swallowed: an empty answer has to mean "this release
+    // touches nothing" and nothing else.
     err(`Could not read issue labels: ${String(error)}`);
     throw error;
   }
@@ -269,10 +231,8 @@ const printMode = args.find((a) => a.startsWith("--print="))?.split("=")[1] ?? "
 const sinceLastTag = args.includes("--since-last-tag");
 const positional = args.filter((a) => !a.startsWith("--"));
 
-// Under --since-last-tag the range is read from the release branch after the
-// merge, where a rerun may find HEAD already tagged. Skipping a tag that is on
-// HEAD reproduces the original range, so a rerun recomputes the same version
-// and can publish notes that failed to publish the first time.
+// Under --since-last-tag a rerun may find HEAD already tagged. Skipping a tag
+// that is on HEAD reproduces the original range, and so the same version.
 const previousTag = sinceLastTag
   ? selectPreviousTag(stableTags(), tagsAtHead())
   : latestVersionTag();
@@ -306,9 +266,7 @@ if (commits.length === 0) {
 }
 
 // Established before anything else consults the override: on a rerun the
-// version comes off the commit, so FIRST_RELEASE_VERSION is not read at all.
-// Validating it first would let a variable changed to something invalid *after*
-// the first release fail a rerun that was never going to use it.
+// version comes off the commit, and FIRST_RELEASE_VERSION is not read at all.
 const alreadyTagged = sinceLastTag ? stableTagOnHead() : null;
 
 let decision: ReturnType<typeof decideVersion>;
@@ -327,13 +285,8 @@ try {
 // a second answer here is how a rerun of the first release ends up disagreeing
 // with the tag sitting on the very commit it is about to publish notes for.
 if (alreadyTagged !== null) {
-  // The whole decision is replaced, not just the number. Leaving `previous`,
-  // `isFirstRelease` and the reasons describing a derivation that was discarded
-  // would have the report explain how it reached a version it is not using.
-  // Only the version and the explanation change. `isFirstRelease` stays as
-  // computed, because a rerun of the *first* release is still a first release —
-  // forcing it false made the notes say "Changes since v0.0.0." instead of
-  // "First release."
+  // The whole decision is replaced, not just the number. `isFirstRelease`
+  // stays as computed: a rerun of the first release is still a first release.
   decision = {
     ...decision,
     next: alreadyTagged,
@@ -341,33 +294,13 @@ if (alreadyTagged !== null) {
   };
 }
 
-/**
- * One chain, and no `process.exit`.
- *
- * `process.exit` does not wait for a backpressured stdout to flush, and
- * `skills/release.md` pipes this into a file — `--print=notes > /tmp/notes.md`.
- * Truncated release notes would be published without anything failing. Letting
- * the process end on its own is what flushes; the branches are exclusive so
- * nothing runs twice.
- */
+// One chain, and no `process.exit`, which does not wait for a backpressured
+// stdout to flush. The branches are exclusive.
 if (printMode === "version") {
   out(decision.next);
 } else if (printMode === "json") {
-  /**
-   * Version, notes and domains from **one** resolution, for `release-pr.ts`.
-   *
-   * Three separate spawns was the earlier shape, and it resolved the domains
-   * twice: once inside the notes and once for the labels. Nothing forced those
-   * two answers to agree — a label created or renamed between the calls would
-   * have answered two different sets. Asking once removes that rather than
-   * documenting it.
-   *
-   * It fails where `--print=notes` cannot: the caller
-   * applies labels, so a label lookup that failed must stop the release rather
-   * than open it with silence. Nothing is printed on that path, and the runner
-   * asks for this before creating the pull request, so a failure means no
-   * pull request exists to be mislabelled.
-   */
+  // Version, notes and domains from one resolution, for `release-pr.ts`. It
+  // fails where `--print=notes` cannot: the caller applies labels.
   domainsForRelease(decision)
     .then((resolved) => labelsThatExist(resolved, githubToken()))
     .then((domains) => {
@@ -383,11 +316,8 @@ if (printMode === "version") {
       process.exitCode = 1;
     });
 } else if (printMode === "notes") {
-  /**
-   * No network at all, and that is the point: the notes no longer name the
-   * domains — the pull request's labels do — so nothing here can fail, and a
-   * release is always cuttable.
-   */
+  // No network at all: the pull request's labels name the domains, so nothing
+  // here can fail and a release is always cuttable.
   out(formatReleaseNotes(decision));
 } else {
   printReport();

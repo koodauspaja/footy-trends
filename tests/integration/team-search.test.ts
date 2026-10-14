@@ -5,28 +5,21 @@ import { matches, tasoMatches } from "@/db/schema";
 import { MAX_RESULTS, searchTeams } from "@/lib/team-search";
 
 /**
- * Team search against a real Postgres, from specs/027-team-search.md.
+ * Team search against a real Postgres: Finnish letters fold in the database, a
+ * renamed club is found by its old name, the placeholder id and the empty name
+ * are excluded, and a typed `%` does not match everything.
  *
- * What only real rows can show: that `translate(...) like ...` really folds
- * Finnish letters in the database rather than only in TypeScript, that a
- * renamed club is found by a name it no longer carries, that the placeholder id
- * and the empty name are really excluded by the query, and that `%` typed by a
- * reader does not match everything.
+ * decisions/027-team-search.md
+ * decisions/325-taso-finland-links.md
  */
 
-/**
- * Every provider match id these fixtures use, as a **range** rather than a list.
- *
- * The cap test inserts twenty-five rows of its own. Listing ids separately meant
- * a failure before its manual cleanup left them in the shared database, to
- * contaminate every later test and every later run. A range cannot drift from
- * what the tests actually insert.
- */
+// Every provider match id these fixtures use, as a range, not a list: a range
+// cannot drift from what the tests insert.
 const TASO_ID_FLOOR = 993_000;
 const TASO_ID_CEILING = 993_999;
 const FD_IDS = [993101, 993102];
 
-/** Far outside anything real, so a fixture can never collide with stored data. */
+// Far outside anything real, so a fixture can never collide with stored data.
 const JARVENPAA = 970001;
 const HARMA = 970002;
 const RENAMED = 970003;
@@ -248,13 +241,9 @@ describe("searching real rows", () => {
   it.each([
     ["Miehet-A", "/maajoukkueet/huuhkajat"],
     ["Naiset-A", "/maajoukkueet/helmarit"],
-  ])("links Finland to its own page from the %s category (#325)", async (category, expected) => {
-    /**
-     * Finland is the one TASO national side with pages, and it has two. The
-     * A-friendlies category is what tells them apart from stored rows alone —
-     * the tournament ids cannot, since `WCQ` is the men's World Cup qualifiers
-     * despite the `W`.
-     */
+  ])("links Finland to its own page from the %s category", async (category, expected) => {
+    // Finland is the one TASO national side with pages, and it has two. The
+    // A-friendlies category tells them apart; the tournament ids cannot.
     await db.insert(tasoMatches).values(
       tasoRow({
         providerMatchId: 993400,
@@ -358,12 +347,8 @@ describe("searching real rows", () => {
   });
 
   it("keeps the newest teams when more match than the cap, and drops the oldest", async () => {
-    /**
-     * The cap is applied **in Postgres**, on a subquery ordered by date — so
-     * this is the only place the outer sort direction is observable. With more
-     * matches than the cap, ordering it ascending would keep the *oldest*
-     * twenty, and every assertion about lengths would still pass.
-     */
+    // The cap is applied in Postgres, on a subquery ordered by date, so this is
+    // the only place the outer sort direction is observable.
     const total = MAX_RESULTS + 5;
     await db.insert(tasoMatches).values(
       Array.from({ length: total }, (_, index) => ({

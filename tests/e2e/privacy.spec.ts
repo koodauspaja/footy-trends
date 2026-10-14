@@ -1,12 +1,13 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * The privacy policy, from #302.
- *
- * The requirement it exists for is *reachability*: Google will not let the OAuth
+ * The privacy policy. It exists to be reachable: Google will not let the OAuth
  * consent screen leave Testing without a policy anyone can open, so every
- * assertion here is made signed out.
+ * assertion is made signed out.
+ *
+ * decisions/302-privacy-policy-and-footer.md
  */
+
 test.describe("Privacy policy", () => {
   test("opens without signing in", async ({ page }) => {
     await page.goto("/tietosuoja");

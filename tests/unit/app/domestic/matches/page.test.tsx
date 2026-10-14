@@ -4,23 +4,24 @@ import type { NormalizedTasoMatch } from "@/lib/taso";
 import type { SeasonMatchesResult } from "@/lib/taso-standings-service";
 import { warmModules } from "../../../../support/warm-module";
 
+/**
+ * A Finnish competition's season-wide match list.
+ *
+ * decisions/009-veikkausliiga.md
+ */
+
 const getSeasonMatchListMock = vi.fn<() => Promise<SeasonMatchesResult>>();
 
-/**
- * Season discovery is mocked so these page tests stay pure unit tests: the
- * real `resolveTasoSeasonContext` queries `taso_matches` for its fallback,
- * which would make them depend on a live database.
- */
+// Season discovery is mocked so these stay unit tests: the real
+// `resolveTasoSeasonContext` queries `taso_matches` for its fallback, which
+// would need a live database.
 const resolveTasoSeasonContextMock = vi.hoisted(() =>
   vi.fn().mockResolvedValue({ currentSeason: 2026, defaultSeason: 2026 })
 );
 
-/**
- * Mocked for the same reason: the real one reads TASO's per-season category
- * names through Redis, which a unit test must not depend on. Returning null is
- * the "TASO could not be asked" path, so the page falls back to the configured
- * competition name — what these tests already assert.
- */
+// Mocked for the same reason: the real one reads TASO's category names through
+// Redis. Null is the "TASO could not be asked" path, so the page falls back to
+// the configured competition name.
 const getSeasonCategoryNameMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 
 vi.mock("@/lib/taso-standings-service", async (importOriginal) => {

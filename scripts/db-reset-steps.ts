@@ -1,11 +1,10 @@
 /**
- * The order of a database reset, and what stops it — separate from
- * `db-reset.ts` so that the sequence can be tested without destroying
- * anything. Every action is injected.
+ * The order of a database reset, and what stops it. Every action is injected,
+ * so the sequence can be tested without destroying anything.
  *
- * This is the one command in the repository that deletes data on purpose, so
- * the thing most worth a test is not the happy path: it is that each refusal
- * happens **before** anything is destroyed.
+ * decisions/399-local-commands-start-the-database.md
+ * decisions/404-reset-only-the-compose-database.md
+ * decisions/406-safe-and-destructive-resets.md
  */
 import {
   COMPOSE_DATABASE_NAME,
@@ -16,7 +15,11 @@ import {
   type WaitResult,
 } from "./services-plan";
 
-/** What the person said, or what the absence of a person means. */
+/**
+ * What the person said, or what the absence of a person means.
+ *
+ * decisions/406-safe-and-destructive-resets.md
+ */
 export type ConfirmationOutcome = "proceed" | "declined" | "refused";
 
 export type ResetActions = {
@@ -35,29 +38,20 @@ export type ResetActions = {
   err: (line: string) => void;
 };
 
-/** The process exit code. */
+/**
+ * The process exit code.
+ *
+ * decisions/399-local-commands-start-the-database.md
+ */
 export async function runReset(actions: ResetActions): Promise<number> {
-  /**
-   * The guard comes first, before Docker is even looked for.
-   *
-   * A refusal has to be the first thing that happens, not something reached
-   * after a probe that might itself fail and change the path — the point is
-   * that there is no sequence of events in which this deletes a volume it was
-   * not pointed at.
-   */
+  // The guard comes first, before Docker is even looked for.
   const refusal = resetRefusal(actions.url);
   if (refusal !== null) {
     actions.err(refusal);
     return 1;
   }
 
-  /**
-   * **Consent before Docker, for the same reason the guard comes first.**
-   *
-   * Asking after the containers had been looked for would still be safe, but it
-   * would mean the answer is sometimes never reached — and "it did not ask me"
-   * is indistinguishable from "it did not run" only until the volume is gone.
-   */
+  // Consent before Docker, for the same reason the guard comes first.
   const confirmation = actions.confirm === undefined ? "proceed" : await actions.confirm();
   if (confirmation === "refused") {
     actions.err(nonInteractiveRefusal());
@@ -81,20 +75,8 @@ export async function runReset(actions: ResetActions): Promise<number> {
     return 1;
   }
 
-  /**
-   * **Said the moment the volume is gone, not at the end.**
-   *
-   * Everything after this can fail — the containers may not come back, Postgres
-   * may not answer, the migrations may not apply — and the data is already gone
-   * in every one of those cases. A notice that only printed on success would be
-   * missing from exactly the runs where it mattered most. Raised in review on
-   * #405.
-   *
-   * It describes the **server**, not a named database: `TEST_DATABASE_URL` can
-   * point the suites somewhere else entirely, so claiming that a particular test
-   * database was destroyed would be a guess. What is certainly true is that
-   * everything in this volume has gone.
-   */
+  // Said the moment the volume is gone, not at the end, and about the server,
+  // not a named database.
   actions.out(
     `Everything on that server has gone, not only ${COMPOSE_DATABASE_NAME} — the next test run recreates whatever it needs.`
   );
@@ -136,12 +118,10 @@ export type TestResetActions = {
 };
 
 /**
- * Drops the suites' database and stops.
+ * Drops the suites' database and stops: no containers, no volume, no
+ * migrations.
  *
- * **No containers, no volume, no migrations.** `ensureTestDatabase` creates and
- * migrates it at the start of the next run, so rebuilding it here would be work
- * that the thing about to use it does anyway — and it is the difference between
- * a command that takes a second and one that takes half a minute.
+ * decisions/406-safe-and-destructive-resets.md
  */
 export async function runTestReset(actions: TestResetActions): Promise<number> {
   const refusal = testResetRefusal(actions.url);

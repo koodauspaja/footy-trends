@@ -9,6 +9,13 @@ import {
 } from "@/components/league-position-section";
 import type { PositionSeries } from "@/lib/position-series";
 
+/**
+ * The league-position panel.
+ *
+ * decisions/030-league-position-by-matchday.md
+ * decisions/031-rolling-form-trend.md
+ */
+
 const series: PositionSeries = {
   status: "ok",
   points: [

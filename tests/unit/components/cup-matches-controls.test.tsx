@@ -2,6 +2,12 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CupMatchesControls } from "@/components/cup-matches-controls";
 
+/**
+ * The controls above a cup's match list.
+ *
+ * decisions/014-champions-league.md
+ */
+
 const pushMock = vi.fn();
 
 vi.mock("next/navigation", () => ({

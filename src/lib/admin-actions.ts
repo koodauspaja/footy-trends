@@ -7,18 +7,18 @@ import type { AdminWriteResult } from "@/lib/admin-user-view";
 import { changeRole, deleteUser } from "@/lib/admin-users";
 
 /**
- * The `"use server"` boundary for administration, from
- * specs/028-admin-tools-and-roles.md.
+ * The `"use server"` boundary for administration. `requireAdmin()` runs first
+ * in every action, before the arguments are looked at, and the acting user's
+ * id comes from that gate, never from the caller.
  *
- * **`requireAdmin()` runs first in every one of these, before the arguments are
- * looked at.** A server action is a public network endpoint whether or not
- * anything renders a control for it, so neither the missing menu link nor the
- * page's 404 keeps a caller out — only the gate does. That is also why each of
- * these takes no acting-user id: it comes from the gate, never from the caller,
- * the same rule `favourite-actions.ts` follows.
+ * decisions/028-admin-tools-and-roles.md
  */
 
-/** Both spellings of the page, so the list refreshes whichever URL is open. */
+/**
+ * Both spellings of the page, so the list refreshes whichever URL is open.
+ *
+ * decisions/028-admin-tools-and-roles.md
+ */
 const ADMIN_PATHS = ["/yllapito", "/admin"] as const;
 
 function revalidateAdmin(): void {

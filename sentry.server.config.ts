@@ -6,13 +6,10 @@ import * as Sentry from "@sentry/nextjs";
 import { flagFrom, sampleRateFrom } from "@/lib/sentry-config";
 
 /**
- * Read from the environment so production can differ from staging. Defaults
- * preserve today's behaviour, so nothing changes until a variable is set.
+ * Read from the environment so production can differ from staging. Each
+ * default keeps what the runtime did before its variable existed.
  *
- * Sentry's own wizard ships development defaults — 100% tracing, PII on — and
- * those are the wrong thing to inherit for a public site. See
- * docs/setup/021-production-environment.md for the values production uses and
- * why.
+ * decisions/140-sentry-production-configuration.md
  */
 const tracesSampleRate = sampleRateFrom(process.env.SENTRY_TRACES_SAMPLE_RATE);
 const enableLogs = flagFrom(process.env.SENTRY_ENABLE_LOGS);
@@ -21,7 +18,7 @@ const sendDefaultPii = flagFrom(process.env.SENTRY_SEND_DEFAULT_PII);
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
 
-  // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
+  // How likely a trace is sampled.
   tracesSampleRate,
 
   // Enable logs to be sent to Sentry

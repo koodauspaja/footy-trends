@@ -11,11 +11,42 @@
 - **Features only:** every PR references its spec (`specs/NNN-feature-name.md`)
   and writes a decision record (`decisions/NNN-feature-name.md`), per
   `skills/open-pr.md`.
-- **Chores and bugs have neither**, by design. `skills/chore-workflow.md` and
-  `skills/bug-workflow.md` say so outright and forbid creating placeholder files
-  under `specs/` or `decisions/`; a bug writes a decision record only when the
-  fix involved a real tradeoff. Those two skills govern their own work types and
-  have their own numbered steps.
+- **Chores and bugs have no spec, and a decision record whenever they change
+  something meaningful**: `decisions/NNN-short-name.md`, numbered by the issue.
+  One with nothing to explain writes none, and neither creates placeholder files
+  under `specs/` or `decisions/`. `skills/chore-workflow.md` and
+  `skills/bug-workflow.md` govern their own work types and have their own
+  numbered steps.
+- **Decision records are added, not edited.** A later record says which earlier
+  one it overrides, and the earlier one stays as it was. The one addition an
+  existing record takes is a reason cut from a comment: it goes to the record of
+  the change that last wrote that comment, found with `git blame`, under a
+  dated heading naming the file and the commit it was cut at.
+- **A comment says what a thing is for**: one to three lines about the thing
+  itself, or a constraint the code cannot show. Then the decision records behind
+  it, the original feature's first and the later ones after it, oldest first:
+
+  ```ts
+  /**
+   * Turns a cup's knockout matches into ties, one row per pairing with the legs
+   * aggregated.
+   *
+   * decisions/014-champions-league.md
+   * decisions/015-finnish-cups.md
+   */
+  ```
+
+  The paths go on a declaration's doc comment or the file's header; a field's
+  comment and a comment inside a function are covered by the declaration they
+  sit in, or by the header. History (how it used to work, which pull request
+  found it, what a reviewer said) goes in the record, never the comment, and no comment cites an issue or
+  pull request number. `tests/unit/scripts/comment-rules.test.ts` fails on a new
+  citation, on a cited record that does not exist, on a doc comment stacked
+  on another, and on a test name that cites an issue, a spec or a spec section or is
+  not written as a string (`decisions/584-test-names-carry-no-citations.md`). Comments not yet in this shape are trimmed file by file, by the
+  next pull request that rewrites them or in batches of at most 150 000 diff
+  characters. A comment a pull request only moves, word for word, onto the
+  thing it describes is not rewritten, and waits for its batch. `decisions/531-comments-say-what-code-is-for.md` has the reasons.
 - **What does not vary by work type are the gates.** Feature, chore or bug, the
   same three points belong to a human: agreeing the work, authorising the start,
   and merging. Steps 2, 4 and 7 of the Required workflow below state them for
@@ -50,6 +81,11 @@
   `app/admin/page.tsx` in #370, `generate-migration.ts` in #376,
   `refresh-actions.ts` in #381. Server actions, route files and thin wrappers
   are the usual victims, because they feel too small to test.
+- **Unit coverage is 100%, and the thresholds that hold it there are not
+  lowered.** `vitest.config.ts` fails `npm run test:unit` below 100% of
+  statements, branches, functions or lines. An uncovered line gets a test, or
+  its file an exclusion with a reason in `sonar-project.properties`; a
+  threshold is never lowered or removed to get a change through.
 - **Every migration is named.** `npm run db:generate -- --name=<verb>_<what>`,
   with the verb one of `add`, `create`, `alter`, `drop`, `rename`, `backfill` —
   `--name=add_refresh_runs`, never the two random words `drizzle-kit` invents
@@ -146,9 +182,11 @@ here. Steps 4, 6 and 7 read the same for all three.
    work rather than showing it appearing in `In Progress` from nowhere.
 
 6. Implement autonomously within the spec: decision record in
-   `decisions/NNN-feature-name.md`, tests, the pass in `skills/self-review.md`,
-   then a PR per `skills/open-pr.md`, tick the issue's boxes, and move the card
-   to `In Review`. The target is **zero** Sourcery and Sonar findings — findings
+   `decisions/NNN-feature-name.md`, tests, then the author's own review
+   before the first push — the pass in `skills/self-review.md` and the
+   `code-review` skill, with what they find fixed — then a PR per
+   `skills/open-pr.md`, tick the issue's boxes, and move the card to
+   `In Review`. The target is **zero** Sourcery and Sonar findings — findings
    answered after the fact are not the same thing.
 
 7. The human checks the result and merges, **or tells Claude to merge**. However
@@ -159,17 +197,26 @@ does sits between them, never across one.
 
 ## Reference
 
-- Setup and infrastructure docs: `docs/setup/` (numbered, authoritative,
-  read in order — see `docs/setup/README.md`).
+- How the running system is set up **now**, and its constraints:
+  `docs/infrastructure.md`. Read it before deciding anything about hosting,
+  environments, variables, CI, the board or the review tools. **A change to
+  infrastructure updates it in the same pull request**, and a fact in it that
+  the live system contradicts is a bug to fix on sight.
+- Standing the infrastructure up from zero: `docs/setup/` (a procedure, in the
+  order `docs/setup/README.md` gives; not a description of the current state).
 - Spec checklist: `skills/write-spec.md`.
 - PR workflow: `skills/open-pr.md`.
-- Chore workflow (no spec, no decision record): `skills/chore-workflow.md`.
+- **Why code is the way it is.** Before changing code, read the decision records
+  its comments link to, then search `decisions/` and `specs/` for its file and
+  function names, then its history (`git log -L`, `git log -S`). This is a normal
+  step of every change, not a fallback.
+- Chore workflow (no spec; a decision record when it changes something
+  meaningful): `skills/chore-workflow.md`.
 - The pass to run **before** requesting a review: `skills/self-review.md` — the
   defect classes measured from this repository's own review history, with the
   counter to each. `npm run review:findings` re-measures them, and the list
   changes when it does.
 - Release workflow (promoting `main` to `release`): `skills/release.md`.
-- Bug workflow (no new spec; reference the existing one it violates;
-  decision record only if the fix involved a real tradeoff):
-  `skills/bug-workflow.md`.
+- Bug workflow (no new spec; reference the existing one it violates; a
+  decision record when it changes something meaningful): `skills/bug-workflow.md`.
 - Review rules (also enforced by Sourcery): `REVIEW_RULES.md`.

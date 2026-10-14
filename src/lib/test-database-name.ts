@@ -1,18 +1,27 @@
 /**
- * Whether a connection string names a test database — the one rule both the
- * e2e analytics override and the integration suite's guard apply (#479).
+ * Whether a connection string names a test database: the one rule both the
+ * e2e analytics override and the integration suite's guard apply. Imports
+ * nothing.
  *
- * Imports nothing, like `e2e-analytics.ts`, which reads it: Playwright and the
- * Vitest config both load this without a server around them.
+ * decisions/304-test-database.md
+ * decisions/479-integration-suite-database-guard.md
  */
 
-/** The suffix every test database carries, as `tests/support/test-database.ts` derives it (#304). */
+/**
+ * The suffix every test database carries, as `tests/support/test-database.ts` derives it.
+ *
+ * decisions/304-test-database.md
+ * decisions/479-integration-suite-database-guard.md
+ */
 const TEST_DATABASE_SUFFIX = "_test";
 
 /**
  * `postgres://…/footy-trends_test` is a test database; `…/footy-trends` is not,
- * and neither is a name that merely *contains* `_test`, a URL naming no
+ * and neither is a name that merely contains `_test`, a URL naming no
  * database, or one that cannot be parsed.
+ *
+ * decisions/030-league-position-by-matchday.md
+ * decisions/479-integration-suite-database-guard.md
  */
 export function namesTestDatabase(url: string | undefined): boolean {
   if (url === undefined) return false;
@@ -28,17 +37,11 @@ export function namesTestDatabase(url: string | undefined): boolean {
 
 /**
  * Why the integration suite must not run against this environment's database,
- * or `null` when it may (#479).
+ * or `null` when it may. A `DATABASE_URL` equal to `TEST_DATABASE_URL` is
+ * allowed.
  *
- * `npm run test:integration` goes through `scripts/with-test-db.ts`, which sets
- * `DATABASE_URL` to the test database; running Vitest on the suite directly
- * leaves `.env`'s development `DATABASE_URL` in place instead — which is how
- * the suite once wrote fixture rows into a developer's own database.
- *
- * `TEST_DATABASE_URL` is #304's documented override "where the derivation is
- * wrong", and such a database need not end in `_test`. Naming it explicitly is
- * a decision, not the accident this guards against, so a `DATABASE_URL` equal
- * to it is allowed.
+ * decisions/304-test-database.md
+ * decisions/479-integration-suite-database-guard.md
  */
 export function integrationDatabaseRefusal(env: NodeJS.Dict<string>): string | null {
   const url = env.DATABASE_URL;
@@ -54,7 +57,12 @@ export function integrationDatabaseRefusal(env: NodeJS.Dict<string>): string | n
   );
 }
 
-/** The database a URL names, without its credentials — enough to recognise, nothing to leak. */
+/**
+ * The database a URL names, without its credentials: enough to recognise,
+ * nothing to leak.
+ *
+ * decisions/479-integration-suite-database-guard.md
+ */
 function describe(url: string | undefined): string {
   if (url === undefined || url.trim() === "") return "no DATABASE_URL at all";
   try {

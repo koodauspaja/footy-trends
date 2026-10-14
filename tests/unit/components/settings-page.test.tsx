@@ -3,6 +3,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { type Device, type RegionOptions, SettingsPage } from "@/components/settings-page";
 import { NO_PREFERENCES, type Preferences } from "@/lib/regions";
 
+/**
+ * The settings page a signed-in reader sees: preferences, the picture, devices
+ * and account deletion.
+ *
+ * decisions/024-account-settings.md
+ * decisions/025-custom-avatar.md
+ * decisions/271-saved-value-in-settings-dropdowns.md
+ */
+
 const { refetch } = vi.hoisted(() => ({ refetch: vi.fn(async () => {}) }));
 
 const { saveSettings, signOutOtherDevices, deleteAccount } = vi.hoisted(() => ({
@@ -26,9 +35,19 @@ const { saveAvatarAction, removeAvatarAction } = vi.hoisted(() => ({
   removeAvatarAction: vi.fn<() => Promise<{ ok: boolean }>>(),
 }));
 
+const { reportClientError } = vi.hoisted(() => ({ reportClientError: vi.fn() }));
+
+vi.mock("@/lib/report-client-error", () => ({ reportClientError }));
+
+beforeEach(() => {
+  reportClientError.mockClear();
+});
+
 vi.mock("@/lib/settings-actions", () => ({ saveSettings, signOutOtherDevices, deleteAccount }));
 vi.mock("@/lib/avatar-actions", () => ({ saveAvatarAction, removeAvatarAction }));
-vi.mock("@/lib/auth-client", () => ({ useSession: () => ({ refetch }) }));
+// Wrapped, so the component gets a promise of its own: a mock handles the
+// rejection of the one it returns, which would hide one the component ignored.
+vi.mock("@/lib/auth-client", () => ({ useSession: () => ({ refetch: async () => refetch() }) }));
 
 const REGION_OPTIONS: RegionOptions[] = [
   {
@@ -155,7 +174,8 @@ describe("preferences", () => {
     // The save did succeed, so reporting a failure would be wrong. But the
     // start region will not take effect until the session is re-read, and a
     // silently stale header is worse than saying so.
-    refetch.mockRejectedValue(new Error("network"));
+    const failure = new Error("network");
+    refetch.mockRejectedValue(failure);
     renderPage();
 
     fireEvent.click(screen.getByRole("button", { name: "Tallenna" }));
@@ -165,6 +185,7 @@ describe("preferences", () => {
         "Asetukset tallennettu. Päivitä sivu, jotta muutokset tulevat voimaan."
       )
     ).toBeInTheDocument();
+    expect(reportClientError).toHaveBeenCalledWith(failure, "settings.save.refetch");
   });
 
   it("does not refresh the session when the save failed", async () => {
@@ -323,14 +344,14 @@ describe("deleting the account", () => {
 
 describe("a server action that rejects before returning anything", () => {
   // The actions return `{ ok: false }` for their own failures, but the
-  // invocation can reject on its own — a dropped connection never reaches
-  // their `try`. Uncaught, that leaves a dead control and an unhandled
-  // rejection.
+  // invocation can reject on its own: a dropped connection never reaches their
+  // `try`. Uncaught, that leaves a dead control and an unhandled rejection.
   const typeConfirmation = (value: string) =>
     fireEvent.change(screen.getByLabelText("Vahvistus"), { target: { value } });
 
   it("still reports a failed save", async () => {
-    saveSettings.mockRejectedValue(new Error("transport"));
+    const failure = new Error("transport");
+    saveSettings.mockRejectedValue(failure);
     renderPage();
 
     fireEvent.click(screen.getByRole("button", { name: "Tallenna" }));
@@ -338,10 +359,12 @@ describe("a server action that rejects before returning anything", () => {
     expect(
       await screen.findByText("Asetusten tallentaminen epäonnistui. Yritä uudelleen.")
     ).toBeInTheDocument();
+    expect(reportClientError).toHaveBeenCalledWith(failure, "settings.save");
   });
 
   it("still reports a failed sign-out of other devices", async () => {
-    signOutOtherDevices.mockRejectedValue(new Error("transport"));
+    const failure = new Error("transport");
+    signOutOtherDevices.mockRejectedValue(failure);
     renderPage(NO_PREFERENCES, [THIS_DEVICE, OTHER_DEVICE]);
 
     fireEvent.click(screen.getByRole("button", { name: "Kirjaa ulos muut laitteet" }));
@@ -349,12 +372,14 @@ describe("a server action that rejects before returning anything", () => {
     expect(
       await screen.findByText("Uloskirjaus epäonnistui. Yritä uudelleen.")
     ).toBeInTheDocument();
+    expect(reportClientError).toHaveBeenCalledWith(failure, "sessions.sign-out-others");
   });
 
   it("still reports a failed deletion, and does not navigate away", async () => {
     // Sending the reader to `/` as though the account were gone would be the
     // worst possible outcome here.
-    deleteAccount.mockRejectedValue(new Error("transport"));
+    const failure = new Error("transport");
+    deleteAccount.mockRejectedValue(failure);
     renderPage();
     typeConfirmation("POISTA");
 
@@ -363,16 +388,14 @@ describe("a server action that rejects before returning anything", () => {
     expect(
       await screen.findByText("Tilin poistaminen epäonnistui. Yritä uudelleen.")
     ).toBeInTheDocument();
+    expect(reportClientError).toHaveBeenCalledWith(failure, "account.delete");
   });
 });
 
 describe("a dropdown after the server sends the saved value back", () => {
-  /**
-   * #271: the selects were uncontrolled, so `defaultValue` applied on mount and
-   * was ignored on every later render. After a save the server revalidates and
-   * sends the stored preferences back as new props — and the dropdown kept
-   * showing the old value beside `Asetukset tallennettu.`
-   */
+  // After a save the server revalidates and sends the stored preferences back
+  // as new props, and the dropdown must show them: an uncontrolled select
+  // applies `defaultValue` on mount only.
   it("shows a newly saved competition", () => {
     const { rerender } = renderPage();
     expect(screen.getByLabelText("Kotimaan oletussarja")).toHaveValue("");
@@ -391,7 +414,7 @@ describe("a dropdown after the server sends the saved value back", () => {
   });
 
   it("shows a newly saved start region", () => {
-    // All four selects had the same defect, not only the one reported.
+    // All four selects show what was saved, not only the competition's.
     const { rerender } = renderPage();
 
     rerender(
@@ -434,14 +457,9 @@ describe("a dropdown after the server sends the saved value back", () => {
   });
 
   it("does not discard an edit the reader has not saved yet", () => {
-    // The other half of the fix: a re-render that does not change the *stored*
-    // value must leave a half-made choice alone. Otherwise picking a
-    // competition and then having the page re-render for any reason would
-    // silently undo it.
-    //
-    // `rerender`, not a second `renderPage()`. Mounting a second component
-    // would leave the first one untouched and assert on that — which passes
-    // whatever the component does on re-render, and so tests nothing.
+    // A re-render that does not change the stored value must leave a half-made
+    // choice alone. `rerender`, not a second `renderPage()`: mounting a second
+    // component would leave the first untouched and assert on that.
     const { rerender } = renderPage();
     fireEvent.change(screen.getByLabelText("Kotimaan oletussarja"), { target: { value: "M1L" } });
 
@@ -464,8 +482,9 @@ describe("a dropdown after the server sends the saved value back", () => {
 describe("Profiilikuva", () => {
   const GOOGLE = "https://lh3.googleusercontent.com/a/matti";
   const VERSION = "3f6c1a2e-9b40-4f5d-8a11-0d2c7e5b9a13";
+  const STALE_PICTURE = "Päivitä sivu, jotta muutos näkyy tilivalikossa.";
 
-  /** A file of a given size, whose bytes never matter — the server decodes. */
+  // A file of a given size, whose bytes never matter: the server decodes.
   function imageOf(bytes: number): File {
     return new File([new Uint8Array(bytes)], "kuva.png", { type: "image/png" });
   }
@@ -534,6 +553,7 @@ describe("Profiilikuva", () => {
     // The header reads the version off the session, so it only changes once
     // the session is refetched.
     expect(refetch).toHaveBeenCalled();
+    expect(screen.queryByText(STALE_PICTURE)).not.toBeInTheDocument();
   });
 
   it("clears a chosen file when the reader empties the input", async () => {
@@ -561,11 +581,9 @@ describe("Profiilikuva", () => {
   });
 
   it("refuses an oversized file in the browser, before the upload starts", async () => {
-    /**
-     * Not validation — the server decides what is stored. This exists so the
-     * reader is told *which* rule they hit: past Next's configured body limit
-     * the action is rejected before it runs, and a rejection carries no reason.
-     */
+    // Not validation: the server decides what is stored. This tells the reader
+    // which rule they hit, because past Next's configured body limit the action
+    // is rejected before it runs, and a rejection carries no reason.
     renderPicture(null);
     chooseFile(imageOf(9 * 1024 * 1024));
 
@@ -598,12 +616,9 @@ describe("Profiilikuva", () => {
     ["a dropped connection", new Error("Failed to fetch")],
     ["Next's body limit", new Error("Body exceeded 10mb limit.")],
   ])("reports %s as a save failure, not as a wrong diagnosis", async (_case, error) => {
-    /**
-     * A rejected invocation cannot be told apart from here — the message is
-     * redacted in production, so a dropped connection and a body limit arrive
-     * identically. Naming one of them would be wrong more often than right,
-     * and the size case is already caught before anything is sent.
-     */
+    // A rejected invocation cannot be told apart from here: the message is redacted in
+    // production, so a dropped connection and a body limit arrive identically. Naming one would
+    // be wrong more often than right, and the size case is caught before anything is sent.
     saveAvatarAction.mockRejectedValue(error);
     renderPicture(null);
     chooseFile(imageOf(1024));
@@ -618,6 +633,7 @@ describe("Profiilikuva", () => {
     expect(
       screen.queryByText("Kuva on liian suuri. Enimmäiskoko on 8 Mt.")
     ).not.toBeInTheDocument();
+    expect(reportClientError).toHaveBeenCalledWith(error, "avatar.save");
   });
 
   it("falls back to the Google picture when the reader removes their own", async () => {
@@ -629,6 +645,53 @@ describe("Profiilikuva", () => {
     expect(container.querySelector("img")).toHaveAttribute("src", GOOGLE);
     expect(screen.getByText("Käytössä Google-tilisi kuva.")).toBeInTheDocument();
     expect(refetch).toHaveBeenCalled();
+  });
+
+  // The save or removal stood, so a session that cannot be re-read is neither
+  // a failed write nor an error nobody handles: the reader is told to reload.
+  it.each([
+    ["saving a picture", null, "Tallenna kuva", "Profiilikuva päivitetty."],
+    ["removing one", VERSION, "Poista oma kuva", "Oma kuva poistettu."],
+  ])(
+    "reports %s as done and asks for a reload when the session refresh fails",
+    async (_case, current, button, notice) => {
+      const unhandled = vi.fn();
+      process.on("unhandledRejection", unhandled);
+      const failure = new Error("network");
+      refetch.mockRejectedValue(failure);
+      renderPicture(current);
+      if (current === null) chooseFile(imageOf(1024));
+
+      try {
+        fireEvent.click(screen.getByRole("button", { name: button }));
+
+        await waitFor(() => expect(screen.getByText(STALE_PICTURE)).toBeInTheDocument());
+        expect(screen.getByText(notice)).toBeInTheDocument();
+        expect(reportClientError).toHaveBeenCalledWith(
+          failure,
+          current === null ? "avatar.save.refetch" : "avatar.remove.refetch"
+        );
+        // Node reports a rejection nobody handled once the current tasks are done.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(unhandled).not.toHaveBeenCalled();
+      } finally {
+        process.off("unhandledRejection", unhandled);
+      }
+    }
+  );
+
+  it("asks for a reload only after a refresh failed, and no longer once one worked", async () => {
+    refetch.mockRejectedValueOnce(new Error("network"));
+    renderPicture(null);
+    expect(screen.queryByText(STALE_PICTURE)).not.toBeInTheDocument();
+    chooseFile(imageOf(1024));
+
+    fireEvent.click(screen.getByRole("button", { name: "Tallenna kuva" }));
+    await waitFor(() => expect(screen.getByText(STALE_PICTURE)).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "Tallenna kuva" }));
+    await waitFor(() => expect(screen.queryByText(STALE_PICTURE)).not.toBeInTheDocument());
+    expect(screen.getByText("Profiilikuva päivitetty.")).toBeInTheDocument();
   });
 
   it("keeps the picture when removal fails", async () => {
@@ -646,7 +709,8 @@ describe("Profiilikuva", () => {
   });
 
   it("reports a rejected removal too, rather than looking as if it worked", async () => {
-    removeAvatarAction.mockRejectedValue(new Error("network"));
+    const failure = new Error("network");
+    removeAvatarAction.mockRejectedValue(failure);
     renderPicture(VERSION);
 
     fireEvent.click(screen.getByRole("button", { name: "Poista oma kuva" }));
@@ -656,5 +720,6 @@ describe("Profiilikuva", () => {
         screen.getByText("Kuvan poistaminen epäonnistui. Yritä uudelleen.")
       ).toBeInTheDocument()
     );
+    expect(reportClientError).toHaveBeenCalledWith(failure, "avatar.remove");
   });
 });

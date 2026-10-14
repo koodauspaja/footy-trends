@@ -5,10 +5,12 @@ import { account, session, user, userPreferences } from "@/db/schema";
 import { getPreferencesFor } from "@/lib/preferences";
 
 /**
- * The preferences table against a real Postgres: the constraints
- * specs/024-account-settings.md relies on are enforced by the database, not
- * only by the code that writes it.
+ * The preferences table against a real Postgres: the constraints the settings
+ * rely on are enforced by the database, not only by the code that writes it.
+ *
+ * decisions/024-account-settings.md
  */
+
 const USER_ID = "itest-pref-user-1";
 const OTHER_USER_ID = "itest-pref-user-2";
 const USER_IDS = [USER_ID, OTHER_USER_ID];

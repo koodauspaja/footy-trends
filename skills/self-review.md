@@ -3,7 +3,8 @@
 Purpose
 Catch the defects this repository's reviews keep finding, before a reviewer has
 to. Not general advice — every class below is measured from the review history,
-and each has a counter that takes minutes. The table says which to weight
+bar section 11, which comes from an audit and says so, and each has a counter
+that takes minutes. The table says which to weight
 today; it is re-measured, not maintained by hand.
 
 When to use
@@ -65,7 +66,14 @@ made it a string. A rule's path patterns claiming a scope its wording does not
 have, and the reverse. A count in prose — "all four blocks" — written before a
 fifth existed.
 
-**The counter.** Any commit that changes behaviour searches for the old
+**The counter.** First, less to go stale: a comment says what the code beside
+it is for in one to three lines, then links the decision records behind it, and
+the history goes in the record (`CLAUDE.md`,
+`decisions/531-comments-say-what-code-is-for.md`).
+`tests/unit/scripts/comment-rules.test.ts` fails on a doc comment stacked on
+another, which is how a comment ends up on the wrong function.
+
+Then, any commit that changes behaviour searches for the old
 behaviour's *words*, not only its code — the value, the type, the mechanism —
 across `specs/`, `decisions/`, comments and tests. A stale sentence is a
 contract someone will follow. Prefer a table row to a sentence for anything
@@ -212,6 +220,43 @@ reader's URL. A per-user timestamp answers the first and not the second. If one
 value has to do both jobs, it has to be unguessable and unique — not merely
 fresh.
 
+## 10. A check that passes what it cannot classify
+
+Not in the table above, which counts merged pull requests. From #596, where
+two Sourcery reviews found sixteen things in one script and most were this.
+
+**What it looks like.** A rule that decides "this is only a comment" from how
+a line starts, so a multiplication carried onto a line beginning `* ` passes.
+A list of the comments tools read, so one not on the list passes. A file
+called documentation by its new name after a rename from source. One page of
+results read as all of them.
+
+**The counter.** For every check, gate or classifier, ask what it does with an
+input it does not recognise, and make that answer "fail". Name the things that
+pass, never the things that fail: an allowlist a reader can check, not a
+denylist someone has to keep complete. If the allowlist cannot be written
+down, the check is trying to judge something it should not.
+
+## 11. A failure or a write that leaves no record
+
+Not in the table above, and not from a review: from an audit on 2026-10-04 of
+every `catch` in `src/`. Failures on the server were nearly all logged. What
+left no line were the things nobody thinks of as failing: an admin changing a
+role, deleting a user or forcing a refresh, a sign-in being refused, and the
+hourly run's result. `npm run review:findings` does not count this class, so it
+stays until a human removes it.
+
+**What it looks like.** A new server action that writes and returns `{ ok: true
+}` with no log line. A refusal returned to the caller and recorded nowhere. A
+summary printed with `console` in a script, which reaches Railway's log and not
+Axiom. A log line carrying an email address because the object was to hand.
+
+**The counter.** For each new call that can fail, name the line it logs. For
+each new write to shared data, name the line that says who did it, to what, and
+the outcome, a refusal included. Then read each line's fields: ids only. Put
+the line where a test imports it, and run its mutation, so removing the line
+fails a test.
+
 ---
 
 ## The pass itself
@@ -221,8 +266,9 @@ fresh.
    fourth merge is often enough.
 2. Read the whole diff as if reviewing someone else's work.
 3. For every test added: run its mutation.
-4. For every call added that can fail: name its catcher and its reader-visible
-   outcome.
+4. For every call added that can fail: name its catcher, its reader-visible
+   outcome and the line it logs. For every write added to shared data: name the
+   line that records it.
 5. For every behaviour changed: search the repository for sentences describing
    the old one.
 6. **`npm run verify`** — lint, typecheck, `test:unit` (100% on all four

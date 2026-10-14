@@ -2,6 +2,9 @@
  * The pre-push hook's entry point: gather what the decision needs from the
  * filesystem, the environment and `docker`, then let `e2e-freshness-plan.ts`
  * decide. Exits non-zero only on a `block`.
+ *
+ * decisions/084-e2e-freshness-before-push.md
+ * decisions/242-freshness-compares-content.md
  */
 import { existsSync, readFileSync } from "node:fs";
 import { dockerIsRunning } from "./docker";
@@ -18,17 +21,11 @@ import {
 } from "./e2e-freshness-plan";
 
 /**
- * What the last passing run cannot vouch for, as `path (kind)` strings.
+ * What the last passing run cannot vouch for, as `path (kind)` strings: the
+ * fingerprint it recorded against the working tree's now.
  *
- * One comparison: the fingerprint the run recorded against the fingerprint of
- * the working tree now. A path present in one and not the other, or whose hash
- * differs, is `added`, `modified` or `deleted`.
- *
- * There is no second source and no commit history involved, which is why
- * committing, staging, amending, rebasing and switching branches are all
- * invisible — none of them change a byte. A `touch` with no content change
- * likewise counts as nothing, which is the right answer and was not the old
- * one.
+ * decisions/084-e2e-freshness-before-push.md
+ * decisions/242-freshness-compares-content.md
  */
 function changesSince(marker: Marker): string[] {
   const now = fingerprint();
@@ -43,7 +40,12 @@ function changesSince(marker: Marker): string[] {
   );
 }
 
-/** Same stdout/stderr helpers as the backfill scripts, which `noConsole` forbids. */
+/**
+ * Writes a line to stdout, as the backfill scripts do: `noConsole` forbids
+ * `console`.
+ *
+ * decisions/084-e2e-freshness-before-push.md
+ */
 function out(line = ""): void {
   process.stdout.write(`${line}\n`);
 }

@@ -4,6 +4,12 @@ import type { SeasonContext } from "@/lib/football-data";
 import type { FootballDataMatchRow, MatchPageData } from "@/lib/match-service";
 import { warmModules } from "../../../../../support/warm-module";
 
+/**
+ * A tournament match's page under Maajoukkueet, which football-data feeds.
+ *
+ * decisions/019-match-page.md
+ */
+
 const getMatchPageDataMock = vi.fn<() => Promise<MatchPageData>>();
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
 

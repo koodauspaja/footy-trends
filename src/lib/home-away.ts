@@ -1,14 +1,18 @@
 /**
- * A team's season split into its home and its away matches — the data behind
- * the team page's `Koti- ja vierastilastot` panel (specs/033).
+ * A team's season split into its home and its away matches: the data behind
+ * the team page's `Koti- ja vierastilastot` panel. Home and away are the
+ * fixture's own sides, so the two add up to the standings table's row.
  *
- * Counted over exactly the matches the form and goals charts count; the
- * services pass them in. Home and away are the fixture's own sides, so the two
- * add up to the standings table's row.
+ * decisions/033-home-vs-away.md
+ * decisions/031-rolling-form-trend.md
  */
 import { goalsFor, type ResultMatch } from "./form-series";
 
-/** One side's raw counts. Every measure the panel shows is derived from these. */
+/**
+ * One side's raw counts. Every measure the panel shows is derived from these.
+ *
+ * decisions/033-home-vs-away.md
+ */
 export type SideStats = {
   matches: number;
   won: number;
@@ -20,13 +24,17 @@ export type SideStats = {
 
 export type HomeAwaySeries =
   | { status: "ok"; home: SideStats; away: SideStats }
-  /** No league table for this team's season, so no panel (specs/031, Q2). */
+  /** No league table for this team's season, so no panel. */
   | { status: "unavailable" }
   | { status: "error" };
 
 const EMPTY: SideStats = { matches: 0, won: 0, drawn: 0, lost: 0, scored: 0, conceded: 0 };
 
-/** Both sides' counts from this team's finished league matches. */
+/**
+ * Both sides' counts from this team's finished league matches.
+ *
+ * decisions/033-home-vs-away.md
+ */
 export function homeAwayStats(
   finished: readonly ResultMatch[],
   teamId: number
@@ -49,7 +57,11 @@ export function homeAwayStats(
   return sides;
 }
 
-/** The side this match counts on, or `null` for another team's match. */
+/**
+ * The side this match counts on, or `null` for another team's match.
+ *
+ * decisions/033-home-vs-away.md
+ */
 function sideOf(
   match: ResultMatch,
   teamId: number,
@@ -62,7 +74,9 @@ function sideOf(
 
 /**
  * The four measures, each `null` for a side with no match yet — shown as `–`,
- * never as a 0 that would read as a real zero (specs/033, Q7).
+ * never as a 0 that would read as a real zero.
+ *
+ * decisions/033-home-vs-away.md
  */
 export function pointsPerMatch(side: SideStats): number | null {
   return perMatch(side, 3 * side.won + side.drawn);

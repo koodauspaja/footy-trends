@@ -4,13 +4,17 @@ import { COLUMN_WIDTHS } from "@/components/data-table";
 import { StandingsLegend, type StandingsRow, StandingsTable } from "@/components/standings-table";
 
 /**
- * The favourite star inside this tree calls `useSession`. The real client opens
- * a broadcast channel whose nanostores cleanup runs a second *after* the last
- * unsubscribe — by which time this file's jsdom is gone, so it throws
- * `window is not defined` as an uncaught exception inside whichever file
- * happens to be running then. Signed out is what these tests already assumed;
- * this just says so without starting a timer (specs/026-favourites.md).
+ * The standings table.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/021-table-consistency.md
+ * decisions/026-favourites.md
+ * decisions/063-competition-zones.md
  */
+
+// The favourite star in this tree calls `useSession`, and the real client must
+// not load in a unit test: its cleanup timer outlives the file's jsdom. Signed
+// out is what these tests assume.
 vi.mock("@/lib/auth-client", () => ({
   useSession: () => ({ data: null, refetch: vi.fn() }),
 }));
@@ -137,7 +141,7 @@ describe("StandingsLegend", () => {
 
   it("right-aligns the statistics and leaves Sija with the text columns", () => {
     // Digits line up by place value; the position reads as a label beside the
-    // team name. See specs/021-table-consistency.md.
+    // team name.
     render(<StandingsTable standings={[buildRow()]} teamHref={teamHref} />);
 
     for (const stat of ["O", "V", "T", "H", "TM", "PM", "ME", "P"]) {
@@ -158,5 +162,39 @@ describe("StandingsLegend", () => {
       ...Array(8).fill(`${COLUMN_WIDTHS.stat}px`),
       `${COLUMN_WIDTHS.form}px`,
     ]);
+  });
+});
+
+describe("StandingsTable rules between levels", () => {
+  const standings = [1, 2, 3].map((position) =>
+    buildRow({ position, teamProviderId: position, teamName: `Joukkue ${position}` })
+  );
+
+  function ruledRows() {
+    return screen
+      .getAllByRole("row")
+      .slice(1)
+      .map((row) => row.classList.contains("border-b-2"));
+  }
+
+  it("draws a heavier rule after the places it is given, counted from 1", () => {
+    render(<StandingsTable ruleAfter={[1]} standings={standings} teamHref={teamHref} />);
+
+    expect(ruledRows()).toEqual([true, false, false]);
+  });
+
+  it("counts the place in the table as drawn, not the position the row carries", () => {
+    // A pass-through table, or an earlier round, can carry positions that are
+    // not 1, 2, 3 in order.
+    const shared = standings.map((row) => ({ ...row, position: 1 }));
+    render(<StandingsTable ruleAfter={[2]} standings={shared} teamHref={teamHref} />);
+
+    expect(ruledRows()).toEqual([false, true, false]);
+  });
+
+  it("draws none unless asked", () => {
+    render(<StandingsTable standings={standings} teamHref={teamHref} />);
+
+    expect(ruledRows()).toEqual([false, false, false]);
   });
 });

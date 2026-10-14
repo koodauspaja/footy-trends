@@ -1,14 +1,9 @@
 /**
  * Everything `npm run setup` needs from the outside world: the secret, the
- * prompt, the files, and the decision about whether this process was started as
- * the setup script at all.
+ * prompt, the files, and whether this process was started as the setup script
+ * at all. Injected and tested here; `setup-main.ts` only starts it.
  *
- * **Why none of it is in `setup-main.ts`.** A runner that calls `main()` at
- * import cannot be imported by a test — the test would run it — so this
- * repository has a row of such files behind `sonar.coverage.exclusions`. #400
- * asked not to add another. So the work lives here, where it is injected and
- * tested, and `setup-main.ts` is two lines that `entry-point.ts` decides
- * whether to act on. Importing it from a test does nothing at all.
+ * decisions/400-one-command-setup.md
  */
 import { randomBytes } from "node:crypto";
 import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -18,31 +13,32 @@ import type { SetupActions } from "./setup-steps";
 import { runSetup } from "./setup-steps";
 
 /**
- * 32 bytes as hex: as strong as `openssl rand -base64 32`, which `.env.example`
- * suggests for the auth secret, and made only of characters that need no
- * escaping in a URL or an `.env` line.
+ * 32 bytes as hex: made only of characters that need no escaping in a URL or an
+ * `.env` line.
+ *
+ * decisions/400-one-command-setup.md
  */
 export function secret(): string {
   return randomBytes(32).toString("hex");
 }
 
-/** Just enough of `readline`'s interface for a prompt, so a test can stand in for one. */
+/**
+ * Just enough of `readline`'s interface for a prompt, so a test can stand in
+ * for one.
+ *
+ * decisions/400-one-command-setup.md
+ */
 export type Prompt = {
   question: (query: string) => Promise<string>;
   close: () => void;
 };
 
 /**
- * Asks one question, and reports `null` where there is no answer to be had.
+ * Asks one question, and reports `null` where there is no answer to be had:
+ * `question` rejects on end of input. A fresh interface per question, so none
+ * holds stdin while a child process runs.
  *
- * **`question` rejects on end of input** — `AbortError: Aborted with Ctrl+D` —
- * and an uncaught one ended setup with a stack trace where the prompt had just
- * said "press Enter to skip". Found by running it in a fresh clone, which is the
- * only place it appears: every prompt here is optional, so the honest reading of
- * "no more input" is that nothing more was chosen.
- *
- * A fresh interface per question, created by the caller, so that none is holding
- * stdin while a child process runs.
+ * decisions/400-one-command-setup.md
  */
 export function makeAsk(create: () => Prompt): (question: string) => Promise<string | null> {
   return async (question: string) => {
@@ -59,11 +55,10 @@ export function makeAsk(create: () => Prompt): (question: string) => Promise<str
 }
 
 /**
- * npm's own path, from the environment npm sets for the scripts it runs.
+ * npm's own path, from the environment npm sets for the scripts it runs, not
+ * `npm` resolved through `PATH`. `null` when this was started some other way.
  *
- * Used instead of `npm` resolved through `PATH` — the reasoning `executable.ts`
- * gives for git and docker. `null` when this was started some other way, which
- * is a different problem from npm being missing.
+ * decisions/400-one-command-setup.md
  */
 export function npmCliFrom(env: NodeJS.Dict<string>): string | null {
   const path = (env.npm_execpath ?? "").trim();
@@ -75,15 +70,21 @@ export function notRunByNpmMessage(): string {
 }
 
 /**
- * The `packageManager` pin, or `""` when there is none — the npm version check
- * treats that as nothing to compare against rather than as a mismatch.
+ * The `packageManager` pin, or `""` when there is none, which the npm version
+ * check treats as nothing to compare against.
+ *
+ * decisions/400-one-command-setup.md
  */
 export function packageManagerFrom(packageJson: string): string {
   const parsed = JSON.parse(packageJson) as { packageManager?: string };
   return parsed.packageManager ?? "";
 }
 
-/** The files setup reads and writes, relative to the repository root. */
+/**
+ * The files setup reads and writes, relative to the repository root.
+ *
+ * decisions/400-one-command-setup.md
+ */
 export const REPOSITORY_FILES = {
   env: ".env",
   example: ".env.example",
@@ -100,7 +101,11 @@ export type NodeActions = {
   createPrompt: () => Prompt;
 };
 
-/** The real filesystem, terminal and process, as the sequence's injected actions. */
+/**
+ * The real filesystem, terminal and process, as the sequence's injected actions.
+ *
+ * decisions/400-one-command-setup.md
+ */
 export function nodeSetupActions({
   files,
   npmCli,
@@ -111,16 +116,8 @@ export function nodeSetupActions({
   return {
     readEnv: () => (existsSync(files.env) ? readFileSync(files.env, "utf8") : null),
     readExample: () => readFileSync(files.example, "utf8"),
-    /**
-     * Owner-only, every time — it holds the database password and the auth
-     * secret.
-     *
-     * **The `mode` option applies only when the file is created**, so a `.env`
-     * that already existed kept whatever permissions it had while gaining
-     * secrets: `cp .env.example .env` makes an 0644 file under a normal umask,
-     * readable by every account on the machine. The explicit `chmod` is what
-     * covers the rerun. Raised in review on #409.
-     */
+    // Owner-only, every time: it holds the database password and the auth secret.
+    // The `mode` option applies only on creation, so the `chmod` covers a rerun.
     writeEnv: (text) => {
       writeFileSync(files.env, text, { mode: 0o600 });
       chmodSync(files.env, 0o600);
@@ -139,12 +136,20 @@ export function nodeSetupActions({
   };
 }
 
-/** A readline interface, which `makeAsk` closes as soon as it has its answer. */
+/**
+ * A readline interface, which `makeAsk` closes as soon as it has its answer.
+ *
+ * decisions/400-one-command-setup.md
+ */
 export function createNodePrompt(): Prompt {
   return createInterface({ input: process.stdin, output: process.stdout });
 }
 
-/** The whole of `npm run setup`, from the real world in. Returns the exit code. */
+/**
+ * The whole of `npm run setup`, from the real world in. Returns the exit code.
+ *
+ * decisions/400-one-command-setup.md
+ */
 export async function startSetup(): Promise<number> {
   const npmCli = npmCliFrom(process.env);
 

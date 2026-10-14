@@ -48,3 +48,35 @@ stored matches in the suite's database; the three wrap onto two lines at
 The spec placed the panel before `Keskinäiset ottelut`. The match page's
 section is `Aiemmat kohtaamiset`; the spec now says so, and the placement is
 unchanged.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/lib/match-service.ts` at `a86c1cb` by #531.
+
+- **`getHomeBaseline`.** Never `empty` on a failed read, which would say the
+  competition has no finished match. Unplayed matches count nowhere, since
+  only finished matches with both scores are counted.
+
+Cut from `src/lib/domestic-competitions.ts` at `a86c1cb` by #531.
+
+- **`competitionForSeasonPair`.** Stricter than `competitionCodeForCategory`:
+  a category id alone does not decide it, since a cup can publish under a
+  league's category (a `P20SM` row under `Liigacup25`) and a junior id can
+  outlive its era. The outcome counts and an upcoming match are filed by the
+  same rule, so a match and the history it is predicted from are the same
+  competition.
+
+Cut from `src/lib/home-baseline.ts` at `ef99862` by #531.
+
+- **`home-baseline.ts`.** The baseline is the answer every later model has
+  to beat. The counts are the ones the comparison of competitions reads, and
+  this decides which matches get a prediction and sums the counts into one.
+- **`baselineCompetition`.** The pair is the rule the history is counted by,
+  so the prediction and its history are the same competition. A
+  national-team match matches no pair and gets none.
+
+Cut from `src/components/match-prediction.tsx` at `ef99862` by #531.
+
+- **`MatchPrediction`'s gate.** A signed-out page carries no probability.
+  Awaited by the page and not rendered, as `CompetitionAnalyticsSection`
+  is.

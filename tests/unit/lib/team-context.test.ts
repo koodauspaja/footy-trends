@@ -3,10 +3,11 @@ import type { TeamPageSource } from "@/lib/team-context";
 import { warmModules } from "../../support/warm-module";
 
 /**
- * The query is exercised against a real Postgres in
- * `tests/integration/team-context.test.ts`. These cover the decisions made
- * around it: which rows a route is allowed to resolve from, the placeholder
- * short-circuit, and the error path.
+ * The decisions made around the team-context query: which rows a route is allowed to
+ * resolve from, the placeholder short-circuit, and the error path. The query itself is
+ * exercised against a real Postgres in `tests/integration/team-context.test.ts`.
+ *
+ * decisions/020-context-free-team-page.md
  */
 
 const rowsMock = vi.fn();

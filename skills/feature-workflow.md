@@ -55,10 +55,18 @@ Workflow
    - "From there" means from step 4's authorisation, never from step 2's
      confirmation. This sentence read as "do not wait" and was taken that way.
 6. AI implements the feature autonomously within the bounds of the spec.
+   - Before changing code, look up why it is the way it is: the decision
+     records its comments link to, then `decisions/` and `specs/` searched for
+     its file and function names, then its history (`git log -L`, `git log -S`).
+     A normal step of every change, not a fallback.
    - Use `skills/implement-feature.md` for the implementation, testing, and
      decision-record steps.
-7. AI writes or updates the decision record while implementing.
+   - Comments take the shape `CLAUDE.md` gives: what a thing is for, then the
+     decision records behind it.
+7. AI writes the feature's decision record while implementing.
    - The human should review it before final approval.
+   - An earlier record this one changes is not edited: this one says which
+     earlier record it overrides.
 8. AI runs the relevant verification checks and prepares the change for review.
    - This includes tests, linting, type checking, and any relevant local
      validation.

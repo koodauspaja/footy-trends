@@ -1,34 +1,29 @@
 /**
- * What became of a team's matches after half-time — the data behind the team
- * page's `Kääntyneet ottelut` panel (specs/036, specs/037).
+ * What became of a team's matches after half-time: the data behind the team
+ * page's `Kääntyneet ottelut` panel. A match with no half-time score is
+ * counted as missing, never as 0–0.
  *
- * Two directions, one question: the deficits it rescued, and the leads it gave
- * away. They are counted together because they come out of the same column and
- * the same matches, so a match missing a half-time score is missing from both.
- *
- * **A match with no half-time score is counted as missing, never as 0–0.**
- * Neither provider guarantees one: football-data refuses older seasons
- * outright, and TASO omitted it for 1 of Ykkönen 2025's 132 played matches. A
- * missing score and a goalless first half must not look the same, so the panel
- * says how many it could not read.
- *
- * Counted over exactly the matches the other result panels count; the services
- * pass them in.
+ * decisions/031-rolling-form-trend.md
+ * decisions/036-halftime-comebacks.md
+ * decisions/037-blown-leads.md
  */
 import { goalsFor, type ResultMatch, teamMatchesInOrder } from "./form-series";
 
-/** A finished match, with whatever half-time score the provider gave. */
+/**
+ * A finished match, with whatever half-time score the provider gave.
+ *
+ * decisions/036-halftime-comebacks.md
+ */
 export type HalfTimeMatch = ResultMatch & {
   halfTimeHome: number | null;
   halfTimeAway: number | null;
 };
 
 /**
- * One half-time position, and what became of the matches in it.
+ * One half-time position, and what became of the matches in it. All three
+ * outcomes are counted, so `won + drew + lost` equals `matches`.
  *
- * All three outcomes are counted although the panel shows only two per
- * direction (specs/037): the third is what makes `won + drew + lost` equal
- * `matches`, which is the check that the arithmetic did not lose a match.
+ * decisions/037-blown-leads.md
  */
 export type HalfTimeOutcomes = {
   /** Matches in this position at the break. */
@@ -41,7 +36,7 @@ export type HalfTimeOutcomes = {
 export type Comebacks = {
   /** Matches the team trailed at half-time, of those with a half-time score. */
   trailed: HalfTimeOutcomes;
-  /** Matches the team led at half-time (specs/037). */
+  /** Matches the team led at half-time. */
   led: HalfTimeOutcomes;
   /** Matches counted in neither direction, because no half-time score was stored. */
   missing: number;
@@ -55,7 +50,7 @@ export type Comebacks = {
 
 export type ComebacksSeries =
   | ({ status: "ok" } & Comebacks)
-  /** No league table for this team's season, so no panel (specs/031, Q2). */
+  /** No league table for this team's season, so no panel. */
   | { status: "unavailable" }
   | { status: "error" };
 
@@ -67,6 +62,9 @@ function noOutcomes(): HalfTimeOutcomes {
  * Both directions' figures from this team's finished matches. `finished` may
  * hold every team's matches; only this team's count, read from its own side of
  * each fixture at half time as well as at full time.
+ *
+ * decisions/036-halftime-comebacks.md
+ * decisions/037-blown-leads.md
  */
 export function comebacksOf(finished: readonly HalfTimeMatch[], teamId: number): Comebacks {
   const figures: Comebacks = { trailed: noOutcomes(), led: noOutcomes(), missing: 0, known: 0 };
@@ -80,7 +78,7 @@ export function comebacksOf(finished: readonly HalfTimeMatch[], teamId: number):
 
     figures.known += 1;
     const [own, other] = halfTime;
-    // Level at the break belongs to neither direction (specs/037).
+    // Level at the break belongs to neither direction.
     if (own === other) continue;
 
     record(own < other ? figures.trailed : figures.led, ...goalsFor(match, teamId));
@@ -89,7 +87,11 @@ export function comebacksOf(finished: readonly HalfTimeMatch[], teamId: number):
   return figures;
 }
 
-/** Adds one match's full-time outcome to the direction it was trailing or leading in. */
+/**
+ * Adds one match's full-time outcome to the direction it was trailing or leading in.
+ *
+ * decisions/037-blown-leads.md
+ */
 function record(outcomes: HalfTimeOutcomes, own: number, other: number): void {
   outcomes.matches += 1;
   if (own > other) outcomes.won += 1;
@@ -97,7 +99,11 @@ function record(outcomes: HalfTimeOutcomes, own: number, other: number): void {
   else outcomes.lost += 1;
 }
 
-/** `[own, other]` at half time, or `null` when the provider gave no half-time score. */
+/**
+ * `[own, other]` at half time, or `null` when the provider gave no half-time score.
+ *
+ * decisions/036-halftime-comebacks.md
+ */
 function halfTimeFor(match: HalfTimeMatch, teamId: number): [number, number] | null {
   const { halfTimeHome, halfTimeAway } = match;
   // Both or neither: a half-score with one side missing is not a score.

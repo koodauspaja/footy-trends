@@ -2,14 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../support/warm-module";
 
 /**
- * The `"use server"` boundary for administration, from
- * specs/028-admin-tools-and-roles.md.
+ * The `"use server"` boundary for administration. The gate is the point: a server action is
+ * a public endpoint whether or not anything renders a control for it, so the tests that
+ * matter assert that a refused caller performed no write, not merely that it was told no.
  *
- * The gate is the point of these. A server action is a public endpoint whether
- * or not anything renders a control for it, so neither the hidden menu link nor
- * the page's 404 keeps a caller out — and the tests that matter most assert
- * that a refused caller performed **no write**, not merely that it was told no.
+ * decisions/028-admin-tools-and-roles.md
  */
+
 const { requireAdmin, changeRole, deleteUser, revalidatePath } = vi.hoisted(() => ({
   requireAdmin: vi.fn(),
   changeRole: vi.fn(),

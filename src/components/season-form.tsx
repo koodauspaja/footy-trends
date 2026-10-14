@@ -7,12 +7,11 @@ type SeasonFormProps = {
 };
 
 /**
- * The `<form>`/hidden-`kilpailu`-field/no-JS-submit-button wrapper shared by
- * every selector control that has no visible `Kilpailu` select of its own
- * (`MatchesControls`, `TeamSeasonSelector`, `TasoStandingsControls`,
- * `TasoSeasonOnlyControls`) — a plain GET form so selections still work
- * without JavaScript. `StandingsControls` is the one exception: it shows
- * `Kilpailu` as a visible field, not a hidden one, so it doesn't use this.
+ * The `<form>`, hidden `kilpailu` field and no-JS submit button shared by every
+ * selector control with no visible `Kilpailu` select of its own. A plain GET
+ * form.
+ *
+ * decisions/009-veikkausliiga.md
  */
 export function SeasonForm({ actionPath, competitionCode, children }: Readonly<SeasonFormProps>) {
   return (

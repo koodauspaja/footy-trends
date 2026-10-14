@@ -14,14 +14,30 @@ vi.mock("@/lib/taso", async (importOriginal) => ({
   getSeasonMatches: vi.fn(async () => []),
 }));
 
+import { expectedHome } from "@/lib/elo";
+import {
+  fitPoisson,
+  type PoissonMatch,
+  type PoissonPrediction,
+  predictPoisson,
+  utcDay,
+} from "@/lib/poisson";
 import { runPredictionBacktest, runPredictionLog } from "@/lib/prediction-log-service";
 
 /**
- * The predictions log against a real Postgres (specs/052). The hourly run is
- * set in 2099 and the backtest in 1990, so each reads only this suite's rows
- * near its own dates. Every predictions row this suite causes is deleted
- * either side of each test.
+ * The predictions log against a real Postgres. The hourly run is set in 2099
+ * and the backtest in 1990, so the live rows and the rows asserted on are this
+ * suite's. Both also backtest every finished match stored, other suites'
+ * included, so every backtest row in the database is deleted either side of
+ * each test, with this suite's own rows.
+ *
+ * decisions/051-home-win-baseline.md
+ * decisions/052-predictions-log.md
+ * decisions/053-elo-ratings.md
+ * decisions/055-poisson-goal-model.md
+ * decisions/057-surprise-index.md
  */
+
 const IDS = Array.from({ length: 12 }, (_, index) => 985_001 + index);
 const NOW = new Date("2099-06-01T12:00:00Z");
 const HOUR = 60 * 60 * 1000;
@@ -83,20 +99,22 @@ async function clear() {
 beforeEach(clear);
 afterEach(clear);
 
-function rowsFor(id: number, kind: "live" | "backtest") {
+function rowsFor(id: number, kind: "live" | "backtest", model = "home-baseline-v1") {
   return db
     .select()
     .from(predictions)
-    .where(and(eq(predictions.providerMatchId, id), eq(predictions.kind, kind)));
+    .where(
+      and(
+        eq(predictions.providerMatchId, id),
+        eq(predictions.kind, kind),
+        eq(predictions.model, model)
+      )
+    );
 }
 
-describe("the hourly run (specs/052)", () => {
-  /**
-   * One finished match in each competition, well before the run and outside
-   * its 24-hour result window, so the baseline has history to predict from
-   * whatever else the database holds. CI's starts empty; a run with no
-   * history rightly writes nothing (specs/051 S9).
-   */
+describe("the hourly run", () => {
+  // One finished match in each competition, well before the run and outside its
+  // 24-hour result window, so the baseline has history whatever else is stored.
   beforeEach(async () => {
     await db.insert(matches).values(
       footballDataRow({
@@ -139,7 +157,56 @@ describe("the hourly run (specs/052)", () => {
     expect(sum).toBeCloseTo(1, 10);
   });
 
-  it("moves a rescheduled match's row to its new kickoff (S4)", async () => {
+  it("writes the backtest rows of a match that has finished, once", async () => {
+    // A second finished match in the competition: unlike the first, it has history.
+    await db.insert(matches).values(
+      footballDataRow({
+        providerMatchId: IDS[9] as number,
+        kickoffAt: at(-50),
+        status: "FINISHED",
+        homeGoals: 0,
+        awayGoals: 2,
+      })
+    );
+
+    // Logged before it kicked off, as every match is: a live row is not a backtest row.
+    await db.insert(predictions).values(
+      ["home-baseline-v1", "elo-v1", "poisson-v1"].map((model) => ({
+        source: "football-data",
+        providerMatchId: IDS[9] as number,
+        competitionCode: "DED",
+        model,
+        kind: "live",
+        homeProbability: 0.5,
+        drawProbability: 0.3,
+        awayProbability: 0.2,
+        predictedAt: at(-51),
+        kickoffAt: at(-50),
+      }))
+    );
+
+    const first = await runPredictionLog(() => NOW, immediate);
+    const second = await runPredictionLog(() => new Date(NOW.getTime() + HOUR), immediate);
+
+    for (const model of ["home-baseline-v1", "elo-v1", "poisson-v1"]) {
+      const rows = await rowsFor(IDS[9] as number, "backtest", model);
+      expect(rows).toHaveLength(1);
+      // Written by the first run and left by the second.
+      expect(rows[0]).toMatchObject({
+        source: "football-data",
+        competitionCode: "DED",
+        kickoffAt: at(-50),
+        predictedAt: NOW,
+      });
+    }
+    // The competition's first match has nothing before it.
+    expect(await rowsFor(IDS[10] as number, "backtest")).toEqual([]);
+    expect(first.backtested).toBeGreaterThanOrEqual(3);
+    expect(second.backtested).toBe(0);
+    expect(first.failures).toEqual([]);
+  });
+
+  it("moves a rescheduled match's row to its new kickoff", async () => {
     await db.insert(matches).values(footballDataRow());
     await runPredictionLog(() => NOW, immediate);
 
@@ -154,7 +221,38 @@ describe("the hourly run (specs/052)", () => {
     expect(rows[0]?.kickoffAt).toEqual(at(30));
   });
 
-  it("writes nothing for a passed kickoff, even one still marked scheduled (S5)", async () => {
+  it("logs elo-v1 beside the baseline, one row each", async () => {
+    await db.insert(matches).values(footballDataRow());
+
+    await runPredictionLog(() => NOW, immediate);
+    await runPredictionLog(() => NOW, immediate);
+
+    const [elo] = await rowsFor(IDS[0] as number, "live", "elo-v1");
+    expect(await rowsFor(IDS[0] as number, "live", "elo-v1")).toHaveLength(1);
+    const total =
+      (elo?.homeProbability ?? 0) + (elo?.drawProbability ?? 0) + (elo?.awayProbability ?? 0);
+    expect(total).toBeCloseTo(1, 10);
+  });
+
+  it("logs poisson-v1 beside them from the stored history, one row", async () => {
+    await db.insert(matches).values(footballDataRow());
+
+    await runPredictionLog(() => NOW, immediate);
+    await runPredictionLog(() => NOW, immediate);
+
+    const rows = await rowsFor(IDS[0] as number, "live", "poisson-v1");
+    expect(rows).toHaveLength(1);
+    const [poisson] = rows;
+    const total =
+      (poisson?.homeProbability ?? 0) +
+      (poisson?.drawProbability ?? 0) +
+      (poisson?.awayProbability ?? 0);
+    expect(total).toBeCloseTo(1, 10);
+    // The same pair met once, and the home side won: it is the favourite again.
+    expect(poisson?.homeProbability).toBeGreaterThan(poisson?.awayProbability ?? 1);
+  });
+
+  it("writes nothing for a passed kickoff, even one still marked scheduled", async () => {
     await db.insert(matches).values(footballDataRow({ kickoffAt: at(-1), status: "SCHEDULED" }));
 
     await runPredictionLog(() => NOW, immediate);
@@ -182,7 +280,7 @@ describe("the hourly run (specs/052)", () => {
   });
 });
 
-describe("the backtest (specs/052, S10, S14)", () => {
+describe("the backtest", () => {
   const kickoff = (day: number) => new Date(Date.UTC(1990, 4, day, 15));
 
   it("predicts each match from strictly earlier ones, a shoot-out draw a draw, and is idempotent", async () => {
@@ -224,6 +322,67 @@ describe("the backtest (specs/052, S10, S14)", () => {
     ]);
     expect(await rowsFor(IDS[2] as number, "backtest")).toEqual([
       expect.objectContaining({ homeProbability: 0.5, drawProbability: 0.5, awayProbability: 0 }),
+    ]);
+
+    // elo-v1: the same two teams every time, so the ratings can be followed by
+    // hand. The draw is the baseline's: none, then a half.
+    const first = 20 * (1 - expectedHome(1500, 1500));
+    const [home1, away1] = [1500 + first, 1500 - first];
+    const second = 20 * (0.5 - expectedHome(home1, away1));
+    const [home2, away2] = [home1 + second, away1 - second];
+    expect(await rowsFor(IDS[0] as number, "backtest", "elo-v1")).toHaveLength(0);
+    expect(await rowsFor(IDS[1] as number, "backtest", "elo-v1")).toEqual([
+      expect.objectContaining({
+        homeProbability: expect.closeTo(expectedHome(home1, away1), 12),
+        drawProbability: 0,
+      }),
+    ]);
+    expect(await rowsFor(IDS[2] as number, "backtest", "elo-v1")).toEqual([
+      expect.objectContaining({
+        homeProbability: expect.closeTo(0.5 * expectedHome(home2, away2), 12),
+        drawProbability: 0.5,
+      }),
+    ]);
+
+    // poisson-v1: each day from a fit of the days before it, the shoot-out a 1–1.
+    const stored = (day: number, homeGoals: number, awayGoals: number): PoissonMatch => ({
+      source: "football-data",
+      code: "DED",
+      seasonId: 1990,
+      providerMatchId: day,
+      kickoffAt: kickoff(day),
+      homeTeam: 985_101,
+      awayTeam: 985_102,
+      homeGoals,
+      awayGoals,
+    });
+    const predictionOn = (day: number, history: PoissonMatch[]) =>
+      (
+        predictPoisson(
+          fitPoisson(history, utcDay(kickoff(day))),
+          "DED",
+          985_101,
+          985_102
+        ) as PoissonPrediction
+      ).prediction;
+    const third = predictionOn(3, [stored(1, 2, 0), stored(2, 1, 1)]);
+    // Read as the 5–4 it is stored as, the fit would be another one.
+    const withShootOut = predictionOn(3, [stored(1, 2, 0), stored(2, 5, 4)]);
+    expect(Math.abs(third.away - withShootOut.away)).toBeGreaterThan(0.02);
+    expect(await rowsFor(IDS[0] as number, "backtest", "poisson-v1")).toHaveLength(0);
+    const afterOne = predictionOn(2, [stored(1, 2, 0)]);
+    expect(await rowsFor(IDS[1] as number, "backtest", "poisson-v1")).toEqual([
+      expect.objectContaining({
+        homeProbability: expect.closeTo(afterOne.home, 3),
+        drawProbability: expect.closeTo(afterOne.draw, 3),
+      }),
+    ]);
+    expect(await rowsFor(IDS[2] as number, "backtest", "poisson-v1")).toEqual([
+      expect.objectContaining({
+        homeProbability: expect.closeTo(third.home, 3),
+        drawProbability: expect.closeTo(third.draw, 3),
+        awayProbability: expect.closeTo(third.away, 3),
+      }),
     ]);
   });
 

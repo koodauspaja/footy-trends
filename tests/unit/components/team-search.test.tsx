@@ -1,18 +1,28 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TeamSearch } from "@/components/team-search";
 
 /**
- * The search field, from specs/027-team-search.md.
+ * The search field. `@/lib/auth-client` is mocked because the real client's
+ * cleanup runs after this file's jsdom is gone.
  *
- * `@/lib/auth-client` is mocked because the real client opens a broadcast
- * channel whose cleanup runs after this file's jsdom is gone — see the note in
- * `favourite-toggle.tsx`.
+ * decisions/027-team-search.md
+ * decisions/535-session-read-needs-no-hydration-wait.md
  */
+
 const { sessionState, searchTeamsAction } = vi.hoisted(() => ({
   sessionState: { current: { data: null as unknown } },
   searchTeamsAction: vi.fn(),
 }));
+
+const { reportClientError } = vi.hoisted(() => ({ reportClientError: vi.fn() }));
+
+vi.mock("@/lib/report-client-error", () => ({ reportClientError }));
+
+beforeEach(() => {
+  reportClientError.mockClear();
+});
 
 vi.mock("@/lib/auth-client", () => ({ useSession: () => sessionState.current }));
 vi.mock("@/lib/team-search-actions", () => ({ searchTeamsAction }));
@@ -32,8 +42,8 @@ function signedIn() {
   sessionState.current = { data: { user: { name: "Miikka" } } };
 }
 
-/** The form itself, not the field: submitting an input makes React build a
- * `FormData` from a non-form element, which throws. */
+// The form itself, not the field: submitting an input makes React build a
+// `FormData` from a non-form element, which throws.
 function formOf() {
   const form = screen.getByRole("searchbox").closest("form");
   if (form === null) throw new Error("the search field is not inside a form");
@@ -54,8 +64,8 @@ beforeEach(() => {
 
 describe("TeamSearch", () => {
   it("renders nothing at all for a signed-out reader", () => {
-    // Not an empty field, and not one that refuses on submit: #247 asks for the
-    // search not to be offered.
+    // Not an empty field, and not one that refuses on submit: the search is not
+    // offered at all.
     const { container } = render(<TeamSearch />);
 
     expect(container).toBeEmptyDOMElement();
@@ -67,6 +77,13 @@ describe("TeamSearch", () => {
     render(<TeamSearch />);
 
     expect(screen.getByRole("searchbox")).toBeInTheDocument();
+  });
+
+  it("offers the field on the first render, without waiting for an effect", () => {
+    // A render to a string runs no effects, so this is the first render alone.
+    signedIn();
+
+    expect(renderToStaticMarkup(<TeamSearch />)).toContain("Hae joukkuetta");
   });
 
   it("shows the Finnish empty state when nothing matched", async () => {
@@ -95,10 +112,12 @@ describe("TeamSearch", () => {
   it("says the search failed when the action itself rejects", async () => {
     // A refused invocation is the same as a failed one from here.
     signedIn();
-    searchTeamsAction.mockRejectedValue(new Error("network"));
+    const failure = new Error("network");
+    searchTeamsAction.mockRejectedValue(failure);
     await search();
 
     expect(await screen.findByText("Haku epäonnistui. Yritä uudelleen.")).toBeInTheDocument();
+    expect(reportClientError).toHaveBeenCalledWith(failure, "team-search");
   });
 
   it("tells an expired session to try again rather than showing nothing", async () => {
@@ -157,12 +176,8 @@ describe("TeamSearch", () => {
     ["only a season", { competitionName: null, seasonId: 2026 }],
     ["only a competition", { competitionName: "Veikkausliiga", seasonId: null }],
   ])("shows no second line at all with %s", async (_case, over) => {
-    /**
-     * Both or neither, per specs/027. A bare `2026` does not disambiguate two
-     * teams sharing a name, which is the one thing this line is for — and the
-     * first version of this test asserted the partial line, so it would have
-     * kept the drift green forever. Sourcery caught it.
-     */
+    // Both or neither: a bare `2026` does not disambiguate two teams sharing a
+    // name, which is the one thing this line is for.
     signedIn();
     searchTeamsAction.mockResolvedValue({ ok: true, teams: [team(over)] });
     await search();
@@ -174,11 +189,9 @@ describe("TeamSearch", () => {
   });
 
   it("ignores a slower earlier search that resolves after a later one", async () => {
-    /**
-     * Two searches in flight resolve in whatever order the network gives them.
-     * Without a guard the reader is left looking at results for a term they had
-     * already replaced — silently, and indistinguishable from a correct answer.
-     */
+    // Two searches in flight resolve in whatever order the network gives them.
+    // Without a guard the reader is left looking at results for a term they had
+    // already replaced, indistinguishable from a correct answer.
     signedIn();
     render(<TeamSearch />);
 

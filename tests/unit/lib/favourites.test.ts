@@ -2,6 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { favoriteCompetition, favoriteTeam, matches } from "@/db/schema";
 import { warmModules } from "../../support/warm-module";
 
+/**
+ * Favourites: the toggle under its lock and cap, and how a stored key becomes a
+ * name and a link, or a row with no link.
+ *
+ * decisions/026-favourites.md
+ * decisions/027-team-search.md
+ * decisions/325-taso-finland-links.md
+ */
+
 const { state, logger } = vi.hoisted(() => ({
   state: {
     rows: new Map<unknown, unknown[]>(),
@@ -19,12 +28,9 @@ const { state, logger } = vi.hoisted(() => ({
   logger: { error: vi.fn() },
 }));
 
-/**
- * No real database: the CI unit job has no service containers, deliberately.
- * The chain below answers the three shapes `favourites.ts` uses, and tells them
- * apart by shape rather than by table — `.limit()` is the bounded list read,
- * a bare `await` on `select` is the count, and `selectDistinct` is a name lookup.
- */
+// No real database: the CI unit job has no service containers. The chain below answers the
+// three shapes `favourites.ts` uses and tells them apart by shape: `.limit()` is the
+// bounded list read, a bare `await` on `select` the count, `selectDistinct` a name lookup.
 vi.mock("@/db", () => {
   const rowsFor = (table: unknown) => {
     if (state.throws) throw new Error("database down");
@@ -56,17 +62,9 @@ vi.mock("@/db", () => {
           ),
       }),
     }),
-    /**
-     * `distinct on` is per side — one query for home, one for away — so the
-     * mock keys rows by side too. Anything less could not tell "found the team
-     * playing away" from "found nothing", which is half of what these tests
-     * are about.
-     */
-    /**
-     * The Finland lookup from #325: one `selectDistinct(...).union(...)` over
-     * both sides, asked only when a candidate exists. Rows come from
-     * `state.nationalCategories`.
-     */
+    // The Finland lookup: one `selectDistinct(...).union(...)` over both sides,
+    // asked only when a candidate exists. Rows come from
+    // `state.nationalCategories`.
     selectDistinct: () => ({
       from: () => ({
         where: () => {
@@ -79,6 +77,9 @@ vi.mock("@/db", () => {
         },
       }),
     }),
+    // `distinct on` is per side, one query for home and one for away, so the
+    // mock keys rows by side too. Anything less could not tell
+    // "found the team playing away" from "found nothing".
     selectDistinctOn: (columns: { name: string }[]) => ({
       from: (table: unknown) => ({
         where: () => ({
@@ -210,12 +211,9 @@ describe("toggleFavouriteTeam", () => {
   });
 
   it("takes the reader's row lock before counting, so two tabs cannot both pass the cap", async () => {
-    /**
-     * Counting and then inserting is two statements: at forty-nine, two tabs
-     * both read forty-nine and both insert, and the unique index does not
-     * object because they are different favourites. The lock is the only thing
-     * that stops fifty-one.
-     */
+    // Counting and then inserting is two statements: at forty-nine, two tabs both read
+    // forty-nine and both insert, and the unique index does not object because they are
+    // different favourites. The lock is the only thing that stops fifty-one.
     const { toggleFavouriteTeam } = await import("@/lib/favourites");
     await toggleFavouriteTeam("user-1", "taso", 60731);
 
@@ -362,11 +360,9 @@ describe("resolveTeamNames", () => {
   });
 
   it("prefers the more recent of a team's two sides", async () => {
-    /**
-     * A club that renamed has matches stored under both names. The newer one is
-     * the current one, and picking it is the whole reason names are resolved on
-     * read rather than written onto the favourite.
-     */
+    // A club that renamed has matches stored under both names. The newer one is
+    // the current one, and picking it is the whole reason names are resolved on
+    // read and not written onto the favourite.
     state.sides.set("matches:home", [
       {
         id: 86,
@@ -493,12 +489,9 @@ describe("resolveTeamNames", () => {
   });
 
   it("sends a national side to its own region, not to the club pages", async () => {
-    /**
-     * `football-data` covers club competitions *and* national sides, and the
-     * same standings page renders both, so both can be favourited. Linking
-     * every football-data team to `/ulkomaat/joukkue/:id` sent Suomi to a club
-     * URL.
-     */
+    // `football-data` covers club competitions and national sides, and the same
+    // standings page renders both, so both can be favourited: a national side
+    // must not be linked to `/ulkomaat/joukkue/:id`, a club URL.
     state.sides.set("matches:home", [
       {
         id: 8722,
@@ -594,15 +587,9 @@ describe("resolveTeamNames", () => {
     ["next year's national-team bucket, unlisted anywhere", "maajp2031", null],
     ["a club bucket", "spljp26", "kotimaa"],
   ])("gives a TASO team from %s the region %s", async (_case, bucket, expected) => {
-    /**
-     * Only the club game has a TASO team page. `/maajoukkueet/joukkue/[id]` is
-     * football-data's, and `/kotimaa/joukkue/[id]` is scoped to the domestic
-     * bucket — so a national-team id would 404 on one and find nothing on the
-     * other. Null makes it an unlinked row instead, which both `/suosikit` and
-     * team search already render.
-     *
-     * The prefix is what is checked, not a list: TASO adds a bucket every year.
-     */
+    // Only the club game has a TASO team page, so a national-team id gets no region and
+    // therefore no link: an unlinked row, which `/suosikit` and team search already
+    // render. The prefix is what is checked, not a list: TASO adds a bucket every year.
     state.sides.set("taso_matches:home", [
       {
         id: 60731,
@@ -620,7 +607,7 @@ describe("resolveTeamNames", () => {
     expect(team?.region).toBe(expected);
   });
 
-  describe("Finland's own pages, from #325", () => {
+  describe("Finland's own pages", () => {
     const suomi = (bucket = "maajp2026") => {
       state.sides.set("taso_matches:home", [
         {
@@ -638,12 +625,9 @@ describe("resolveTeamNames", () => {
       ["the men's friendlies category", ["Miehet-A", "UNL"], "/maajoukkueet/huuhkajat"],
       ["the women's friendlies category", ["Naiset-A", "WUNL"], "/maajoukkueet/helmarit"],
     ])("links Finland to its own page from %s", async (_case, categories, expected) => {
-      /**
-       * `Miehet-A` and `Naiset-A` and not the tournament ids: both sides carry
-       * an A-friendlies category in every bucket, while a `W` prefix only looks
-       * like it marks the women's game — `WCQ` is the men's World Cup
-       * qualifiers.
-       */
+      // `Miehet-A` and `Naiset-A`, not the tournament ids: both sides carry an
+      // A-friendlies category in every bucket, while a `W` prefix only looks like
+      // it marks the women's game. `WCQ` is the men's World Cup qualifiers.
       suomi();
       state.nationalCategories = categories.map((category) => ({ id: 144368, category }));
       const { resolveTeamNames } = await import("@/lib/favourites");
@@ -689,12 +673,9 @@ describe("resolveTeamNames", () => {
     });
 
     it("does not hand Finland's page to a football-data team with the same id", async () => {
-      /**
-       * The two providers share a numeric id space — there is already a test
-       * above for that, and this is the same hazard one layer down. Keyed by the
-       * bare id, a football-data club numbered like TASO's Finland was handed
-       * `/maajoukkueet/huuhkajat`.
-       */
+      // The two providers share a numeric id space, the hazard the id-space test
+      // further up guards, one layer down: keyed by the bare id, a football-data club
+      // numbered like TASO's Finland would be sent to `/maajoukkueet/huuhkajat`.
       state.sides.set("taso_matches:home", [
         {
           id: 144368,

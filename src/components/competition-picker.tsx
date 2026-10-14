@@ -9,12 +9,8 @@ export const PICKER_HEADING = "Valitse kilpailu";
 /**
  * One row of the picker, independent of where it came from.
  *
- * A region is no longer necessarily one provider's: `/maajoukkueet` holds two
- * football-data tournaments and TASO-backed Huuhkajat, which has no
- * football-data code and so cannot live in `SUPPORTED_COMPETITIONS` — that
- * list also feeds `kilpailu` validation, and an entry there would let
- * `?kilpailu=…` resolve on a standings page that cannot serve it. So the
- * region page concatenates instead. See specs/017-huuhkajat.md.
+ * decisions/016-world-cup-and-euro.md
+ * decisions/017-huuhkajat.md
  */
 export type PickerEntry = {
   key: string;
@@ -26,12 +22,11 @@ export type PickerEntry = {
 };
 
 /**
- * One region's competition list — the body of `/ulkomaat` and `/maajoukkueet`,
+ * One region's competition list: the body of `/ulkomaat` and `/maajoukkueet`,
  * which differ only in which competitions they show and where they link.
  *
- * `object-contain` because not every icon is a flag: the World area has none,
- * so the World Cup carries a 3:1 wordmark that must not be stretched into a
- * 3:2 slot. See specs/016-world-cup-and-euro.md.
+ * decisions/016-world-cup-and-euro.md
+ * decisions/026-favourites.md
  */
 export function CompetitionPicker({
   region,
@@ -42,12 +37,8 @@ export function CompetitionPicker({
   region: CompetitionRegion;
   basePath: string;
   /**
-   * The Finnish segment a favourite is stored under, when this list should
-   * offer stars (specs/026-favourites.md).
-   *
-   * Separate from `region` above, which is football-data's notion — and only
-   * the registry rows get a star, because `extraEntries` holds Huuhkajat and
-   * Helmarit, which are teams rather than competitions.
+   * The Finnish segment a favourite is stored under, when this list should offer
+   * stars. Only the registry rows get one.
    */
   favouriteRegion?: RegionSegment;
   /** Rows from outside `SUPPORTED_COMPETITIONS`, rendered after it. */

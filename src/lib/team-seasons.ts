@@ -1,3 +1,10 @@
+/**
+ * The competitions and seasons a club has stored matches in, for a team page
+ * whose club moves between tiers.
+ *
+ * decisions/022-teams-between-tiers.md
+ */
+
 import { and, desc, eq, inArray, notLike, or, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "@/db";
@@ -10,25 +17,23 @@ import { NATIONAL_TEAM_COMPETITION_PREFIX } from "./match-source";
 import { isStoredInteger } from "./provider-ids";
 import type { TeamPageSource } from "./team-context";
 
-/** One competition a club played in one season, and how much of it. */
+/**
+ * One competition a club played in one season, and how much of it.
+ *
+ * decisions/022-teams-between-tiers.md
+ */
 export type TeamSeason = { competitionCode: string; seasonId: number; matches: number };
 
 export type TeamSeasonsResult =
   | { status: "ok"; seasons: TeamSeason[] }
-  /** No stored match at all under this route — the same bar specs/020 uses. */
+  /** No stored match at all under this route. */
   | { status: "not_found" }
   | { status: "error" };
 
 /**
  * Every competition and season a club has stored matches for, newest first.
  *
- * A club's seasons are spread across tiers — promotion and relegation are
- * ordinary — while a team page's season selector offered the *competition's*
- * seasons. Measured 2026-09-02: 120 of the 264 (club, season) options on
- * Veikkausliiga's team pages ended at the team-not-found message, and 28 of 108
- * on the Premier League's. This is what lets the selector offer the seasons the
- * club actually played, and lets a page that finds nothing say where it did
- * play instead. See specs/022-teams-between-tiers.md.
+ * decisions/022-teams-between-tiers.md
  */
 const loadTeamSeasons = cache(async function loadTeamSeasons(
   kind: TeamPageSource["kind"],
@@ -46,11 +51,10 @@ const loadTeamSeasons = cache(async function loadTeamSeasons(
 });
 
 /**
- * Which rows belong to a club under one route.
+ * Which rows belong to a club under one route. Written once, for both reads
+ * below.
  *
- * Written once and used by both reads below: the seasons a club played, and the
- * name to call it by. Two copies of a predicate is two chances for them to
- * disagree about what a club's matches are.
+ * decisions/022-teams-between-tiers.md
  */
 function footballDataScope(region: CompetitionRegion, teamProviderId: number) {
   const codes = competitionsInRegion(region).map((competition) => competition.code);
@@ -132,16 +136,10 @@ async function tasoSeasons(teamProviderId: number): Promise<TeamSeasonsResult> {
 }
 
 /**
- * What to call a club whose page has no matches to take a name from.
+ * What to call a club whose page has no matches to take a name from. `error`
+ * is not `not_found`: a database that could not answer is not a nameless club.
  *
- * A separate question from its seasons, and a rarer one: a page that renders
- * matches reads the name off the first of them, so this only runs on the
- * cross-tier page. Keeping it out of `getTeamSeasons` leaves the common page at
- * one added query rather than two.
- *
- * `error` is distinct from `not_found` on purpose. A database that could not
- * answer is not a club without a name, and a page that cannot tell them apart
- * renders an explanation with a blank where the club should be.
+ * decisions/022-teams-between-tiers.md
  */
 export type TeamNameResult =
   | { status: "ok"; name: string }
@@ -201,7 +199,11 @@ export function getTeamName(
   return loadTeamName(source.kind, scope, teamProviderId);
 }
 
-/** Newest season first, and within a season the competition with the most matches. */
+/**
+ * Newest season first, and within a season the competition with the most matches.
+ *
+ * decisions/022-teams-between-tiers.md
+ */
 function sortSeasons(seasons: TeamSeason[]): TeamSeason[] {
   return [...seasons].sort(
     (left, right) =>
@@ -224,26 +226,25 @@ export function getTeamSeasons(
 
 /**
  * Where a club played in one season: the competition with the most matches.
+ * `sortSeasons` has already ordered them.
  *
- * A 27-game league beats a 2-game cup run, so the reader lands where the club
- * actually spent the year. Read from stored rows rather than from a ranking of
- * tiers, which the data does not carry. `sortSeasons` has already ordered them.
+ * decisions/022-teams-between-tiers.md
  */
 export function competitionForSeason(seasons: TeamSeason[], seasonId: number): string | null {
   return seasons.find((season) => season.seasonId === seasonId)?.competitionCode ?? null;
 }
 
-/** What a team page needs from a club's seasons, once labels are applied. */
+/**
+ * What a team page needs from a club's seasons, once labels are applied.
+ *
+ * decisions/022-teams-between-tiers.md
+ */
 export type TeamSeasonsView = {
   /** The seasons the club played, newest first, for the selector. */
   offeredSeasons: Array<{ seasonId: number; label: string }>;
   /**
-   * Season → the competition the selector navigates to.
-   *
-   * Derived from the same filtered set as `offeredSeasons`, so the selector
-   * cannot be sent to a competition-season the page would reject. Computing it
-   * from the raw list is a real bug: a season whose busiest competition is
-   * unreachable would map to that one.
+   * Season to the competition the selector navigates to, from the same filtered
+   * set as `offeredSeasons`.
    */
   seasonCompetitions: Record<number, string>;
   /** Where the club played in the season being shown, most matches first. */
@@ -253,11 +254,10 @@ export type TeamSeasonsView = {
 };
 
 /**
- * The same three answers both team pages need, derived once.
+ * The three answers both team pages need, derived once. How a season is
+ * labelled and a competition named comes in as functions.
  *
- * The pages differ only in how they label a season and name a competition —
- * `2026` against `2025/26`, the domestic registry against the football-data
- * one — so those come in as functions and everything else is shared.
+ * decisions/022-teams-between-tiers.md
  */
 export function teamSeasonsView(
   seasons: TeamSeason[],
@@ -268,12 +268,6 @@ export function teamSeasonsView(
     href: (competitionCode: string, seasonId: number) => string;
     /**
      * Whether a page exists for this competition and season.
-     *
-     * A club can have stored rows the app no longer offers — a raised season
-     * floor leaves them behind — and offering one sends a `kausi` the page
-     * rejects, landing the reader on a fallback season with a notice rather
-     * than where they clicked. Filtered here rather than in the pages, because
-     * both would need the same rule.
      */
     selectable: (competitionCode: string, seasonId: number) => boolean;
   }
@@ -282,9 +276,7 @@ export function teamSeasonsView(
     labels.selectable(entry.competitionCode, entry.seasonId)
   );
   // The season being shown is always offered, even when the club did not play
-  // it: a dropdown that omits it has nothing selected, so the browser displays
-  // its first option and the control claims a different season from the page.
-  // It is also why the pages need no empty-list fallback — this list never is.
+  // it, so the dropdown never has nothing selected and the list is never empty.
   const offeredSeasons = [...new Set([...reachable.map((entry) => entry.seasonId), seasonId])]
     .sort((left, right) => right - left)
     .map((year) => ({ seasonId: year, label: labels.season(year) }));
@@ -311,12 +303,20 @@ export function teamSeasonsView(
   };
 }
 
-/** Every competition a club played in one season, most matches first. */
+/**
+ * Every competition a club played in one season, most matches first.
+ *
+ * decisions/022-teams-between-tiers.md
+ */
 export function competitionsInSeason(seasons: TeamSeason[], seasonId: number): TeamSeason[] {
   return seasons.filter((season) => season.seasonId === seasonId);
 }
 
-/** Season → the competition the selector should land on, for every season the club played. */
+/**
+ * Season to the competition the selector should land on, for every season the club played.
+ *
+ * decisions/022-teams-between-tiers.md
+ */
 function seasonCompetitions(seasons: TeamSeason[]): Record<number, string> {
   const map: Record<number, string> = {};
   for (const season of seasons) {

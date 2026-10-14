@@ -1,102 +1,53 @@
-# 009 — Axiom log setup
+# 009 — Axiom logs
 
 ## Goal
-Create an Axiom account and dataset so the app can ship logs there via the
-Axiom Next.js SDK. Railway does not have a native log drain — logs are sent
-directly from the application instead.
+
+The app's logs in Axiom. Railway has no log drain: the app ships its own logs,
+through Pino's Axiom transport (`src/lib/logger.ts`), when a token is set.
+
+This project: datasets `footy-trends` (staging) and `footy-trends-prod`
+(production).
 
 ---
 
-## Step 1 — Create an Axiom account
+## Step 1 — Account and dataset
 
-1. Go to https://axiom.co
-2. Sign up — free tier includes 25 GB/month ingest and 90-day retention,
-   which is more than enough for a hobby project
-3. No credit card needed for the free tier
+1. https://axiom.co → sign up (the free tier is enough)
+2. **Datasets** → **New dataset**, one per environment
 
----
+## Step 2 — An ingest token
 
-## Step 2 — Create or reuse a dataset
+**Settings** → **API tokens** → **New API token**, with **Ingest** permission
+for that dataset only. It is shown once.
 
-If you already have an Axiom account with existing datasets, you can reuse one
-and filter by service name in queries. If you want a clean separation, create
-a new dataset:
+## Step 3 — Store it in Railway
 
-1. In Axiom → **Datasets** → **New dataset**
-2. Name: `footy-trends` (or add to an existing dataset and filter later)
-3. Leave other settings as default
-4. Save
-
----
-
-## Step 3 — Create an API token
-
-1. In Axiom → **Settings** → **API tokens**
-2. Click **New API token**
-3. Name: `footy-trends-ingest`
-4. Permissions: **Ingest** only (do not grant query or admin access)
-5. Save and copy the token — you will only see it once, so store it in your
-   password manager
-
----
-
-## Step 4 — Store the token in Railway
-
-1. Go to Railway → project → app service → **Variables** tab
-2. Add:
+Web service → **Variables**, in `staging`:
 
 | Name | Value |
-|------|-------|
-| `AXIOM_TOKEN` | your API token from Step 3 |
-| `AXIOM_DATASET` | `footy-trends` (or your dataset name) |
+|---|---|
+| `AXIOM_TOKEN` | the token |
+| `AXIOM_DATASET` | the dataset's name |
+| `LOG_LEVEL` | `info` |
 
----
+Locally, leave `AXIOM_TOKEN` empty: the app logs to the terminal.
 
-## Step 5 — Add to .env.example
+In Railway, with a token set, the app logs to Axiom **only**: Railway's log keeps
+what happens during a deploy (the build, the migrations, startup), and Axiom
+holds everything the app does. That split is deliberate.
 
-```
-# Axiom logging (SDK added during project init)
-AXIOM_TOKEN=
-AXIOM_DATASET=footy-trends
-```
+## Step 4 — Verify, after the first deploy
 
-```bash
-git add docs/setup/009-axiom-logs.md .env.example
-git commit -m "chore: add Axiom env vars to .env.example"
-git push origin main
-```
-
----
-
-## Step 6 — SDK integration (deferred to project init)
-
-The actual SDK (`@axiomhq/nextjs`) is installed and wired up in
-`012-project-init.md` alongside the rest of the application setup.
-The credentials stored above will be ready when that step runs.
-
-For reference, the integration is a few lines in `next.config.ts` —
-no custom logging calls needed in application code.
-
----
-
-## Known noise
-
-`MaxListenersExceededWarning: ... 11 close listeners added to
-[ServerResponse]` used to appear in production logs as well as in dev, so it
-reached Axiom. It came from Next's own request pipeline plus Sentry and was a
-false positive rather than a leak. Silenced in #174 by raising the limit for
-`ServerResponse` only — see "Silenced warning —
-`MaxListenersExceededWarning`" in `017-sentry-setup.md`. If it reappears in
-Axiom after a Next or Sentry upgrade, the listener count has grown past the
-new limit and the probe in that document will say by how much.
+Open the dataset: a line appears for each request the app makes to a provider.
 
 ---
 
 ## Done when
-- [ ] Axiom account and dataset ready
-- [ ] API token created with ingest-only permissions
-- [ ] `AXIOM_TOKEN` and `AXIOM_DATASET` stored in Railway variables
-- [ ] Both added to `.env.example`
+
+- [ ] A dataset and an ingest-only token exist for staging
+- [ ] `AXIOM_TOKEN`, `AXIOM_DATASET` and `LOG_LEVEL` are set in Railway `staging`
+- [ ] Log lines arrive in the dataset after a deploy
 
 ## Next
-→ `010-renovate-setup.md`
+
+→ `017-sentry-setup.md`

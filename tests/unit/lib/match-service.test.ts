@@ -4,11 +4,21 @@ import type { MatchSource } from "@/lib/match-source";
 import { warmModules } from "../../support/warm-module";
 
 /**
- * The queries themselves are exercised against a real Postgres in
- * `tests/integration/match.test.ts` — that is where the SQL is proved. These
- * cover the decisions made *around* the queries in TypeScript: the scope
- * predicate applied to a returned row, the placeholder short-circuit, and the
- * two failure paths, which no integration test can trigger on demand.
+ * The decisions made around the match queries in TypeScript: the scope predicate applied to a
+ * returned row, the placeholder short-circuit, and the two failure paths, which no integration
+ * test can trigger on demand. The SQL is proved in `tests/integration/match.test.ts`.
+ *
+ * decisions/019-match-page.md
+ * decisions/020-context-free-team-page.md
+ * decisions/042-head-to-head-view.md
+ * decisions/044-scorelines-and-goal-averages.md
+ * decisions/045-bogey-teams.md
+ * decisions/047-rivalry-page.md
+ * decisions/048-league-goals-per-game-trend.md
+ * decisions/049-home-advantage-and-draw-rate.md
+ * decisions/051-home-win-baseline.md
+ * decisions/057-surprise-index.md
+ * decisions/058-rivalry-prediction.md
  */
 
 const selectMock = vi.fn();
@@ -21,14 +31,12 @@ vi.mock("@/db", () => ({
         where: (...args: unknown[]) => {
           const builder = {
             limit: () => selectMock(...args),
-            /** Goals per game (specs/048) is one aggregate, ending at `.groupBy(...)`. */
+            // Goals per game is one aggregate, ending at `.groupBy(...)`.
             groupBy: () => Promise.resolve().then(() => selectMock(...args)),
-            /**
-             * Every head-to-head read — the full history, and the match page's
-             * five taken from it (specs/042) — ends at `.orderBy(...)`.
-             */
+            // Every head-to-head read, the full history and the match page's
+            // five taken from it, ends at `.orderBy(...)`.
             orderBy: () => ({
-              /** A team's latest five (specs/047) end at `.orderBy(...).limit(...)`. */
+              // A team's latest five end at `.orderBy(...).limit(...)`.
               limit: () => Promise.resolve().then(() => selectMock(...args)),
               // biome-ignore lint/suspicious/noThenProperty: drizzle's query builder is itself a thenable — awaiting it is what runs the query — so a stand-in for it has to be one too
               then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
@@ -36,7 +44,8 @@ vi.mock("@/db", () => ({
                   .then(() => selectMock(...args))
                   .then(resolve, reject),
             }),
-            /** The competition averages (specs/044) are awaited straight after `.where(...)`. */
+            // The competition averages are awaited straight after
+            // `.where(...)`.
             // biome-ignore lint/suspicious/noThenProperty: drizzle's query builder is itself a thenable — awaiting it is what runs the query — so a stand-in for it has to be one too
             then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
               Promise.resolve()
@@ -144,7 +153,7 @@ describe("getMatchPageData", () => {
 
   it("lists five meetings before kickoff and counts the whole history they came from", async () => {
     // One read serves both: the link's count is the length of the history the
-    // full page lists (specs/042, S10), and the five are taken from it.
+    // full page lists, and the five are taken from it.
     const at = (month: number) => new Date(Date.UTC(2026, month, 1, 15));
     const later = tasoRow({ providerMatchId: 4000009, kickoffAt: at(9) });
     const itself = tasoRow();
@@ -278,10 +287,8 @@ describe("getMatchPageData", () => {
   });
 });
 
-/**
- * The full history behind specs/042. Its SQL is proved in
- * `tests/integration/match.test.ts`; these are the decisions made around it.
- */
+// The full history. Its SQL is proved in `tests/integration/match.test.ts`;
+// these are the decisions made around it.
 describe("getHeadToHeadHistory", () => {
   it("has no history for a team against itself, and asks nothing", async () => {
     const { getHeadToHeadHistory } = await import("@/lib/match-service");
@@ -326,7 +333,55 @@ describe("getHeadToHeadHistory", () => {
   });
 });
 
-describe("getCompetitionAverages (specs/044)", () => {
+describe("getNextMeeting", () => {
+  const NOW = new Date("2026-09-29T12:00:00Z");
+
+  it("answers a TASO source with the row its table holds, tagged as TASO's", async () => {
+    const row = tasoRow({ providerMatchId: 5, status: "SCHEDULED" });
+    selectMock.mockReturnValue([row]);
+    const { getNextMeeting } = await import("@/lib/match-service");
+
+    expect(await getNextMeeting(DOMESTIC, 1, 2, NOW)).toEqual({
+      status: "ok",
+      match: { source: "taso", match: row },
+    });
+  });
+
+  it("answers a football-data source with its own table's row, tagged as football-data's", async () => {
+    const row = footballDataRow({ providerMatchId: 6, status: "TIMED" });
+    selectMock.mockReturnValue([row]);
+    const { getNextMeeting } = await import("@/lib/match-service");
+
+    expect(await getNextMeeting(FOREIGN, 57, 61, NOW)).toEqual({
+      status: "ok",
+      match: { source: "football-data", match: row },
+    });
+  });
+
+  it("has no match when neither table stores an upcoming meeting", async () => {
+    selectMock.mockReturnValue([]);
+    const { getNextMeeting } = await import("@/lib/match-service");
+
+    expect(await getNextMeeting(DOMESTIC, 1, 2, NOW)).toEqual({ status: "ok", match: null });
+    expect(await getNextMeeting(FOREIGN, 1, 2, NOW)).toEqual({ status: "ok", match: null });
+  });
+
+  it("reports a failed read as an error, and logs it with both team ids", async () => {
+    const failure = new Error("connection lost");
+    selectMock.mockImplementation(() => {
+      throw failure;
+    });
+    const { getNextMeeting } = await import("@/lib/match-service");
+
+    expect(await getNextMeeting(DOMESTIC, 1, 2, NOW)).toEqual({ status: "error" });
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      { err: failure, first: 1, second: 2 },
+      "Unable to read the pair's next meeting"
+    );
+  });
+});
+
+describe("getCompetitionAverages", () => {
   beforeEach(() => {
     selectMock.mockReset();
     loggerErrorMock.mockReset();
@@ -386,7 +441,7 @@ describe("getCompetitionAverages (specs/044)", () => {
     await expect(getCompetitionAverages([LC])).resolves.toEqual({ status: "error" });
   });
 
-  it("turns a database failure into its own case (S10)", async () => {
+  it("turns a database failure into its own case", async () => {
     const { getCompetitionAverages } = await import("@/lib/match-service");
     selectMock.mockRejectedValueOnce(new Error("connection reset"));
 
@@ -395,7 +450,7 @@ describe("getCompetitionAverages (specs/044)", () => {
   });
 });
 
-describe("getWorstOpponents (specs/045)", () => {
+describe("getWorstOpponents", () => {
   beforeEach(() => {
     selectMock.mockReset();
     loggerErrorMock.mockReset();
@@ -404,7 +459,7 @@ describe("getWorstOpponents (specs/045)", () => {
   const CLUB = 60901;
   const KUPS = 60969;
 
-  /** Three meetings with one opponent, the club losing each: enough to count (S2). */
+  // Three meetings with one opponent, the club losing each: enough to count.
   function lostThree() {
     return [1, 2, 3].map((n) =>
       tasoRow({
@@ -423,7 +478,7 @@ describe("getWorstOpponents (specs/045)", () => {
   it.each([
     ["a TASO national-team page", NATIONAL],
     ["a football-data national-team page", { kind: "football-data", region: "national-teams" }],
-  ] as const)("has no panel on %s, and asks nothing (S5)", async (_name, source) => {
+  ] as const)("has no panel on %s, and asks nothing", async (_name, source) => {
     const { getWorstOpponents } = await import("@/lib/match-service");
 
     await expect(getWorstOpponents(source, CLUB, "/maajoukkueet")).resolves.toEqual({
@@ -480,7 +535,7 @@ describe("getWorstOpponents (specs/045)", () => {
   });
 });
 
-describe("getTeamForm (specs/047)", () => {
+describe("getTeamForm", () => {
   beforeEach(() => {
     selectMock.mockReset();
     loggerErrorMock.mockReset();
@@ -488,7 +543,8 @@ describe("getTeamForm (specs/047)", () => {
 
   const TEAM = 60901;
 
-  /** Five results for TEAM, newest first as the read returns them: W D L W W, oldest first. */
+  // Five results for TEAM, newest first as the read returns them: W D L W W,
+  // oldest first.
   function five() {
     const scores: Array<[number, number]> = [
       [2, 0],
@@ -546,7 +602,7 @@ describe("getTeamForm (specs/047)", () => {
   });
 });
 
-describe("getGoalsPerGame (specs/048)", () => {
+describe("getGoalsPerGame", () => {
   beforeEach(() => {
     selectMock.mockReset();
     loggerErrorMock.mockReset();
@@ -568,7 +624,7 @@ describe("getGoalsPerGame (specs/048)", () => {
     });
   });
 
-  it("keeps each TASO season's own competition and category only (S2)", async () => {
+  it("keeps each TASO season's own competition and category only", async () => {
     const { getGoalsPerGame } = await import("@/lib/match-service");
     selectMock.mockResolvedValueOnce([
       // Under-21 today, under-20 before 2026: one line across the rename.
@@ -601,7 +657,50 @@ describe("getGoalsPerGame (specs/048)", () => {
   });
 });
 
-describe("getOutcomeShares (specs/049)", () => {
+describe("getFirstStoredSeason", () => {
+  beforeEach(() => {
+    selectMock.mockReset();
+  });
+
+  it("is the earliest season a football-data competition has a finished match of", async () => {
+    const { getFirstStoredSeason } = await import("@/lib/match-service");
+    selectMock.mockResolvedValueOnce([
+      { seasonId: 2025, matches: 380, goals: 1140 },
+      { seasonId: 2023, matches: 380, goals: 1064 },
+      { seasonId: 2024, matches: 380, goals: 1064 },
+    ]);
+
+    await expect(getFirstStoredSeason("football-data", "PL")).resolves.toBe(2023);
+  });
+
+  it("counts a TASO season only under the competition's own pair that season", async () => {
+    const { getFirstStoredSeason } = await import("@/lib/match-service");
+    selectMock.mockResolvedValueOnce([
+      { seasonId: 2026, competitionId: "spljp26", categoryId: "P21SM", matches: 10, goals: 30 },
+      { seasonId: 2025, competitionId: "spljp25", categoryId: "P20SM", matches: 10, goals: 25 },
+      // Another umbrella's matches a season earlier are not this competition's.
+      { seasonId: 2024, competitionId: "Liigacup24", categoryId: "P20SM", matches: 10, goals: 9 },
+    ]);
+
+    await expect(getFirstStoredSeason("taso", "P21SM")).resolves.toBe(2025);
+  });
+
+  it("is null for a competition with no finished match stored", async () => {
+    const { getFirstStoredSeason } = await import("@/lib/match-service");
+    selectMock.mockResolvedValueOnce([]);
+
+    await expect(getFirstStoredSeason("taso", "VL")).resolves.toBeNull();
+  });
+
+  it("lets a failed read through to its caller", async () => {
+    const { getFirstStoredSeason } = await import("@/lib/match-service");
+    selectMock.mockRejectedValueOnce(new Error("connection reset"));
+
+    await expect(getFirstStoredSeason("football-data", "PL")).rejects.toThrow("connection reset");
+  });
+});
+
+describe("getOutcomeShares", () => {
   beforeEach(() => {
     selectMock.mockReset();
     loggerErrorMock.mockReset();
@@ -647,7 +746,7 @@ describe("getOutcomeShares (specs/049)", () => {
     expect(result).toMatchObject({ status: "ok", rows: [{ code: "P21SM", matches: 20 }] });
   });
 
-  it("fails as a whole when either read fails, never a partial table (S15)", async () => {
+  it("fails as a whole when either read fails, never a partial table", async () => {
     const { getOutcomeShares } = await import("@/lib/match-service");
     selectMock
       .mockResolvedValueOnce([{ code: "PL", seasonId: 2024, spansCalendarYears: true, ...counts }])
@@ -661,7 +760,7 @@ describe("getOutcomeShares (specs/049)", () => {
   });
 });
 
-describe("getHomeBaseline (specs/051)", () => {
+describe("getHomeBaseline", () => {
   beforeEach(() => {
     selectMock.mockReset();
     loggerErrorMock.mockReset();

@@ -3,10 +3,14 @@ import type { NormalizedMatch } from "@/lib/standings";
 import { streaksOf } from "@/lib/streaks";
 
 /**
- * Team 1's season, written as outcomes: `W` won, `D` drew, `L` lost. Every
- * match is against team 9, alternating home and away so both sides are read,
- * one per day so kickoff decides the order.
+ * Streaks within a season.
+ *
+ * decisions/035-streaks.md
  */
+
+// Team 1's season, written as outcomes: `W` won, `D` drew, `L` lost. Every
+// match is against team 9, alternating home and away so both sides are read,
+// one per day so kickoff decides the order.
 function season(outcomes: string): NormalizedMatch[] {
   return [...outcomes].map((outcome, index) => {
     const goals = { W: [2, 0], D: [1, 1], L: [0, 2] }[outcome] ?? [0, 0];

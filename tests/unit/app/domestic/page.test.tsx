@@ -4,13 +4,15 @@ import Domestic, { metadata } from "@/app/domestic/page";
 import { DOMESTIC_COMPETITIONS } from "@/lib/domestic-competitions";
 
 /**
- * The favourite star inside this tree calls `useSession`. The real client opens
- * a broadcast channel whose nanostores cleanup runs a second *after* the last
- * unsubscribe — by which time this file's jsdom is gone, so it throws
- * `window is not defined` as an uncaught exception inside whichever file
- * happens to be running then. Signed out is what these tests already assumed;
- * this just says so without starting a timer (specs/026-favourites.md).
+ * The Kotimaa competition picker.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/026-favourites.md
  */
+
+// The favourite star in this tree calls `useSession`, and the real client must
+// not load in a unit test: its cleanup timer outlives the file's jsdom. Signed
+// out is what these tests assume.
 vi.mock("@/lib/auth-client", () => ({
   useSession: () => ({ data: null, refetch: vi.fn() }),
 }));

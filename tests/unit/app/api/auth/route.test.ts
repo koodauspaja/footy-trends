@@ -2,13 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../../../support/warm-module";
 
 /**
- * The better-auth route handler. Mocked down to its wiring, because the module
- * under test is wiring: what matters is that better-auth's handler is the one
- * exported, and that the route can never be cached.
+ * The better-auth route handler, mocked down to its wiring, because the module is wiring:
+ * better-auth's handler is the one exported, and the route can never be cached. A route
+ * file nothing imports is absent from the coverage report, so it has a test of its own.
  *
- * Without this file the route has no test at all — which vitest reports as 100%
- * (it only measures files a test imports) while Sonar correctly reports 0%.
+ * decisions/023-google-oauth-login.md
  */
+
 const { toNextJsHandler, auth } = vi.hoisted(() => ({
   toNextJsHandler: vi.fn(() => ({
     GET: vi.fn(),

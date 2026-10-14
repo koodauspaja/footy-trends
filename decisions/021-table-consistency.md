@@ -98,3 +98,40 @@ failure names the columns that disagree. Its first run failed on widths of `0`:
 `page.goto` resolves before layout, and a table measured too early reports
 nothing — which compares equal to nothing else and fails as though the columns
 had drifted. It now waits for the first table to be visible before measuring.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/components/data-table.tsx` at `dc74e3e` by #531.
+
+- **`COLUMN_WIDTHS`.** Browser auto layout sizes each column from its own
+  table's rows, so three phases of one competition rendered one above the
+  other drifted apart: at 1280px on
+  `/kotimaa/sarjataulukko?kilpailu=VL&kausi=2019`, two match lists were 20,
+  47, 12 and 14 pixels apart column by column, and twelve World Cup group
+  tables spread their name column across 663–669px. The numbers keep the
+  standings' floor near the 760px it always had: 64 + 8×44 + 112 fixed, plus
+  a 240px minimum for the flexible column, is 768.
+- **`DataTable`.** `table-fixed` with a `<colgroup>` makes the widths
+  declarations and not suggestions: the browser stops measuring content, so
+  two tables with the same columns are identical whatever their rows say.
+  The flexible column absorbs the rest, so a wide screen still gives the team
+  name the room and the numbers stay grouped. A long name wraps inside its
+  column.
+
+Cut from `src/components/match-list-table.tsx` at `dc74e3e` by #531.
+
+- **The match list's widths.** A phase without a round number still lines up
+  with one that has it, and a list's width does not depend on how long its
+  team names are: the same component rendered 217px apart on `/kotimaa` and
+  the Champions League page.
+- **`Tulos` is left-aligned.** Right-aligning a score would line up the away
+  goals, which means nothing.
+
+Cut from `src/components/standings-table.tsx` at `dc74e3e` by #531.
+
+- **`StandingsTable`'s alignment.** The stats are right-aligned so digits
+  line up by place value, which is most of what a standings table is for;
+  `Sija` stays left, where it reads as a label beside the team name and not a
+  quantity to compare. With `Joukkue` flexible the numbers stay grouped on a
+  wide screen and are not strung across it, and every table on the page has
+  the same columns as its siblings.

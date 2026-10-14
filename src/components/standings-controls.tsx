@@ -1,10 +1,11 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import type { Competition } from "@/lib/competitions";
 import type { SeasonOption } from "@/lib/seasons";
 import { CompetitionSelect } from "./competition-select";
+import { RoundSelect } from "./round-select";
 import { SeasonSelect } from "./season-select";
+import { useSeasonRoundNavigation } from "./use-season-round-navigation";
 
 type StandingsControlsProps = {
   /** The region's Finnish URL prefix — `/ulkomaat` or `/maajoukkueet`. */
@@ -18,11 +19,13 @@ type StandingsControlsProps = {
 };
 
 /**
- * Plain GET form so all three selections still work without JavaScript; the
- * `Näytä` button is only shown when scripting is unavailable, because with
- * scripting each change handler navigates immediately. `Kilpailu`, `Kausi`,
- * and `Kierros` live in one form so changing any one of them resubmits all
- * three together — no selection is lost when another changes.
+ * `Kilpailu`, `Kausi` and `Kierros` in one plain GET form, so changing one
+ * resubmits all three. The `Näytä` button shows only when scripting is
+ * unavailable.
+ *
+ * decisions/003-standings-after-selected-round.md
+ * decisions/006-other-competitions.md
+ * decisions/532-one-transaction-type-one-round-dropdown.md
  */
 export function StandingsControls({
   basePath,
@@ -33,19 +36,7 @@ export function StandingsControls({
   availableRounds,
   selectedRound,
 }: Readonly<StandingsControlsProps>) {
-  const router = useRouter();
-
-  function navigate(competitionCode: string, seasonId: number, round: number | undefined) {
-    const params = new URLSearchParams(window.location.search);
-    params.set("kilpailu", competitionCode);
-    params.set("kausi", String(seasonId));
-    if (round === undefined) {
-      params.delete("kierros");
-    } else {
-      params.set("kierros", String(round));
-    }
-    router.push(`${basePath}/sarjataulukko?${params.toString()}`);
-  }
+  const navigate = useSeasonRoundNavigation(`${basePath}/sarjataulukko`);
 
   return (
     <form
@@ -65,30 +56,12 @@ export function StandingsControls({
         onChange={(seasonId) => navigate(selectedCompetitionCode, seasonId, selectedRound)}
       />
 
-      <label className="text-sm text-muted" htmlFor="kierros">
-        Kierros
-      </label>
-      <select
-        className="rounded border border-border px-3 py-2"
-        defaultValue={selectedRound ?? ""}
-        id="kierros"
-        name="kierros"
-        onChange={(event) => {
-          const { value } = event.target;
-          navigate(
-            selectedCompetitionCode,
-            selectedSeasonId,
-            value === "" ? undefined : Number(value)
-          );
-        }}
-      >
-        <option value="">Koko kausi</option>
-        {availableRounds.map((round) => (
-          <option key={round} value={round}>
-            {`Kierros ${round}`}
-          </option>
-        ))}
-      </select>
+      <RoundSelect
+        availableRounds={availableRounds}
+        selectedRound={selectedRound}
+        onChange={(round) => navigate(selectedCompetitionCode, selectedSeasonId, round)}
+        wholeSeason
+      />
 
       <noscript>
         <button className="rounded border border-border px-3 py-2" type="submit">

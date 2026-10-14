@@ -7,6 +7,14 @@ import {
   orderRoundsForTree,
 } from "@/lib/cup-bracket";
 
+/**
+ * The cup bracket: which ties are drawn, in what order, and how a two-legged
+ * tie is aggregated.
+ *
+ * decisions/014-champions-league.md
+ * decisions/015-finnish-cups.md
+ */
+
 let nextMatchId = 1;
 
 type LegOptions = {
@@ -44,7 +52,7 @@ function leg(options: LegOptions): BracketSourceMatch {
   };
 }
 
-/** Narrows away the index-access undefined that strict mode adds. */
+// Narrows away the index-access undefined that strict mode adds.
 function firstTie(rounds: BracketRound[]): BracketTie {
   const tie = rounds[0]?.ties[0];
   if (tie === undefined) throw new Error("expected the round to have at least one tie");
@@ -533,10 +541,8 @@ describe("buildBracket", () => {
 });
 
 describe("orderRoundsForTree", () => {
-  /**
-   * The real MSC 2026 bracket. TASO returns the quarter-finals in kickoff
-   * order, which draws VPS/FC Inter's semi-final against the wrong pair.
-   */
+  // The real MSC 2026 bracket. TASO returns the quarter-finals in kickoff
+  // order, which draws VPS/FC Inter's semi-final against the wrong pair.
   function mscRounds() {
     const qf = [
       leg({

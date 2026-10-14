@@ -5,13 +5,19 @@ import type { CupSeasonResult, StandingsResult } from "@/lib/standings-service";
 import { warmModules } from "../../../../support/warm-module";
 
 /**
- * The favourite star inside this tree calls `useSession`. The real client opens
- * a broadcast channel whose nanostores cleanup runs a second *after* the last
- * unsubscribe — by which time this file's jsdom is gone, so it throws
- * `window is not defined` as an uncaught exception inside whichever file
- * happens to be running then. Signed out is what these tests already assumed;
- * this just says so without starting a timer (specs/026-favourites.md).
+ * A foreign competition's standings page.
+ *
+ * decisions/006-other-competitions.md
+ * decisions/007-back-navigation.md
+ * decisions/008-winless-teams-in-standings.md
+ * decisions/014-champions-league.md
+ * decisions/026-favourites.md
+ * decisions/048-league-goals-per-game-trend.md
  */
+
+// The favourite star in this tree calls `useSession`, and the real client must
+// not load in a unit test: its cleanup timer outlives the file's jsdom. Signed
+// out is what these tests assume.
 vi.mock("@/lib/auth-client", () => ({
   useSession: () => ({ data: null, refetch: vi.fn() }),
 }));
@@ -40,12 +46,9 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
-/**
- * The competition's Analyysit (specs/048) stands in here with a marker: its
- * panel, its gate and which competitions have it are
- * `competition-analytics.test.tsx`'s. What this file owns is the page's side —
- * what it asks the section for, and where the section sits.
- */
+// The competition's Analyysit stands in here with a marker: its panel, its gate
+// and which competitions have it are `competition-analytics.test.tsx`'s. This
+// file owns what the page asks the section for, and where the section sits.
 const competitionAnalyticsMock = vi.fn(
   async (_props: {
     kind: string;
@@ -116,7 +119,7 @@ describe("Standings page", () => {
     getCupSeasonMock.mockResolvedValue({ status: "empty" });
   });
 
-  it("asks for the competition's Analyysit, labelling seasons as its selector does (specs/048)", async () => {
+  it("asks for the competition's Analyysit, labelling seasons as its selector does", async () => {
     await renderStandings({ kilpailu: "PL", kausi: "2024" });
 
     expect(competitionAnalyticsMock).toHaveBeenCalledTimes(1);
@@ -130,7 +133,7 @@ describe("Standings page", () => {
     expect(props?.seasonLabel(2024)).toBe("2024/25");
   });
 
-  it("places the Analyysit under the table and its legend (specs/048)", async () => {
+  it("places the Analyysit under the table and its legend", async () => {
     await renderStandings();
 
     const legend = screen.getByText(/^O = ottelut/);
@@ -601,7 +604,7 @@ describe("Standings page, cup competitions", () => {
     expect(screen.queryByRole("heading", { name: "Liigavaihe" })).not.toBeInTheDocument();
   });
 
-  it("asks for the Champions League's Analyysit and places it under the tables (specs/048)", async () => {
+  it("asks for the Champions League's Analyysit and places it under the tables", async () => {
     getCupSeasonMock.mockResolvedValue({
       status: "ok",
       matches: [

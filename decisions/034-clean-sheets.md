@@ -42,3 +42,17 @@ page's `O`, for Arsenal 2024/25 and for KuPS across Veikkausliiga 2026's split.
 - **Clean sheets home and away** would fit `Koti- ja vierastilastot` as a fifth
   row rather than as a chart of its own; not in this issue's scope.
 - **Clean sheets by season** belongs to #426, the across-seasons placeholder.
+
+## Moved from comments, 2026-10-06
+
+Cut from `src/components/charts/clean-sheet-chart.tsx` at `48ebab4` by #531.
+
+- **`CleanSheetChart`'s text.** `25 % (3/12)` says what the percentage is
+  of.
+
+Cut from `src/lib/clean-sheets.ts` at `48ebab4` by #531.
+
+- **A running share in `clean-sheets.ts`.** A five-match window of so rare
+  an event takes only six values and sits at zero a quarter of the time,
+  which reads as missing data and not as a run without a shut-out. The
+  services pass the matches in, in the other charts' order.

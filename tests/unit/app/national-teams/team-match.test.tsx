@@ -3,6 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MatchPageData, TasoMatchRow } from "@/lib/match-service";
 import { warmModules } from "../../../support/warm-module";
 
+/**
+ * A Huuhkajat or Helmarit match's page, which TASO feeds.
+ *
+ * decisions/019-match-page.md
+ * decisions/018-helmarit.md
+ */
+
 const getMatchPageDataMock = vi.fn<() => Promise<MatchPageData>>();
 const getSeasonCategoryNameMapMock =
   vi.fn<
@@ -115,7 +122,7 @@ describe("/maajoukkueet/huuhkajat/ottelu/:id", () => {
 
   it("names each previous meeting's competition, with the team suffix stripped", async () => {
     // TASO's own group names here run to "2024", "Slovakia" and "Heinäkuu"; the
-    // competition names are already normalised by specs/018. See #251.
+    // competition names are already normalised.
     getSeasonCategoryNameMapMock.mockResolvedValue({
       UNL: "UEFA Nations League Huuhkajat",
       WCQ: "MM-karsinnat Huuhkajat",
@@ -138,7 +145,7 @@ describe("/maajoukkueet/huuhkajat/ottelu/:id", () => {
 
   it("reads one category map per bucket, however many rows share it", async () => {
     // `getCached` does not deduplicate in-flight misses, so a per-row lookup
-    // would fetch the same map once per row on a cold cache. See #251.
+    // would fetch the same map once per row on a cold cache.
     getMatchPageDataMock.mockResolvedValue({
       status: "ok",
       match: { source: "taso", match: row() },

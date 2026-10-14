@@ -230,6 +230,6 @@ And in the app:
       not-found page
 
 ## Next
-→ Nothing scheduled. This is a one-time operation per environment; after the
-  first admin exists, `/yllapito` is where admins are added and removed, and
-  `/yllapito/data` is where a stored season is corrected.
+→ `024-predictions-cron.md`. Granting the first admin is a one-time operation
+  per environment; after it, `/yllapito` is where admins are added and removed,
+  and `/yllapito/data` is where a stored season is corrected.
