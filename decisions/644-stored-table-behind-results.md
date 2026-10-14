@@ -100,6 +100,7 @@ table is behind:
   | 13 | A group with no carry-over entry never behind |
   | 15 | The rule applied in place of the unplayed one |
   | 16 | The rule never applies, against Postgres |
+  | 17 | A team with no finished match counted as below none |
 
 - **Two first survived.** Mutation 9 did because the test's listed team had
   never played in the parent, which made the group not calculable either way;
