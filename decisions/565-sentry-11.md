@@ -57,7 +57,11 @@ searched for each value.
 v10 applies the header deny list to span attributes only: on an error event it
 removes the cookie header and the IP headers and nothing else, which is why
 `Authorization` survived the first step. The query value in `http.target` was
-the same before and after: `filterSpanQueries` closes it (the table above). The edge runtime was not measured: the app has no middleware and no edge
+the same before and after: `filterSpanQueries` closes it (the table above).
+Re-run with it on v11.7.0, the query also carrying the OAuth callback's `code`
+and `state` and a `password`: none of `token`, `code`, `state` or `password`
+appears anywhere in what was sent, events, breadcrumbs or spans; `email`, not a
+denied name, still does. The edge runtime was not measured: the app has no middleware and no edge
 route, so nothing runs there.
 
 ## Release step
