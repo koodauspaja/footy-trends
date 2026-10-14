@@ -10,13 +10,13 @@ rating replay) and decisions/059 (cup ties predicted from league state).
 | Decision | Choice | Why |
 |---|---|---|
 | Where the rules live | `src/lib/elo-variants.ts`, pure: the constants, the two states, the two predictions and `replayVariants` | As decisions/053 for `elo.ts`: every rule is unit-tested without a database, and the services only read and write |
-| One replay, not a second | `replayElo` gains an optional third callback, `onPlayed`, called with each kickoff's league matches after their updates are applied; `replayVariants` learns from it and predicts from `onPredict` | A second loop over the matches would have to repeat the kickoff grouping, the order, the placeholder filter and the cup rule, and could drift from them, as a parallel path did on #630. One replay keeps the variants on exactly the matches and ratings `elo-v1` has |
+| One replay loop, not a second | `replayElo` gains an optional third callback, `onPlayed`, called with each kickoff's league matches after their updates are applied; `replayVariants` learns from it and predicts from `onPredict` | A second loop over the matches would have to repeat the kickoff grouping, the order, the placeholder filter and the cup rule, and could drift from them, as a parallel path did on #630. One loop keeps the variants on exactly the matches and ratings `elo-v1` has. The backtest runs that loop once more per provider for the variants, the two more replays the spec's Performance section allows, each milliseconds |
 | `elo-v1` unchanged | `replayElo`'s ratings and `onPredict` calls are what they were; `onPlayed` only reads. `threeWay` now calls `splitThreeWay`, the same arithmetic | AC 3. A test runs the replay with and without `onPlayed` and asserts identical ratings and predictions |
 | The variants' ratings | `elo-v1`'s, read from the replay; neither variant changes a rating | S2 for form ("the rating itself unchanged"), S15 for the home advantage |
 | The form term's expectation | Each side's score above `elo-v1`'s expectation at kickoff, the flat 60 included | S2 and API & Data: "each `S − E` as Elo computed it at kickoff" |
-| The home advantage's expectation | The variant's own, with the team's home advantage in place of 60 | S15 |
+| The home advantage's expectation | The variant's own, with the team's home advantage in place of 60, through `expectedHome`, which takes the advantage as an optional third argument | S15. One logistic formula, not a copy of it with another constant |
 | Which matches teach the variants | The matches `elo-v1` learns from: every rated league and Champions League match, never a predicted cup tie | S11: "a cup tie moves no rating, form or home advantage". The form window and the home advantage follow the ratings' own set, so neither knows a match the ratings do not |
-| A season | A team's form is that of its latest season played, and counts nothing at its first match of another; its home advantage is regressed a third towards 60 at its first home match of a later season | S4, as `ratingFor` does for a rating |
+| A season | `ratingFor`'s own rule, for both states: a match of the team's stored season or an older one is the same season; a later one starts the form afresh and regresses the home advantage a third towards 60; the state then stores the match's season, as the ratings do | S4, "as specs/053 S3". The variants read `elo-v1`'s ratings, so they must agree with them on what a new season is, a back-dated match included |
 | One kickoff | Every change at a kickoff is worked out from the state before any of its matches, then applied; a team in two matches at one kickoff (a stored duplicate) keeps both | decisions/053's rule for the ratings, the same for the variants' state |
 | The clamp | Applied after a kickoff's changes are added up | S3's bounds hold on what is stored; a team cannot pass 150 by two home matches at one kickoff |
 | An upcoming match | `predictUpcomingVariants`: the current ratings with `ratingFor`'s season regression, and the state as the replay left it | The same as `predictElo` for `elo-v1` |
@@ -38,6 +38,27 @@ variants' whole history itself (its backtest step writes every missing row);
 staging has nothing scheduled, so there it is the only way. Until the rows
 exist, `/ennusteet`'s backtest tab, which judges only the matches every model
 predicted, shows its empty state. Must reach the release notes.
+
+## The author's review before the first push
+
+The pass in `skills/self-review.md` and the `code-review` skill, run on the
+branch before it was pushed. What they changed:
+
+| Finding | Outcome |
+|---|---|
+| `onPredict`'s `predict` read the state when called, not at the match | Fixed: the two expectations are worked out before the callback is called. Mutation 29 |
+| An upcoming match spread its whole candidate into the fixture | Fixed: the three fields it needs are picked |
+| The form's season rule was `!==` where `ratingFor`'s is `<=` | Fixed, as the row "A season" says. Mutation 30 |
+| `homeExpected` copied the logistic formula | Fixed: `expectedHome` takes the advantage. Mutation 31 |
+| The replay's callback repeated the prediction step | Fixed: `expectations` and `splitBoth`, shared with an upcoming match |
+| The cup-tie test asserted inside a callback that might not run | Fixed: collected, then asserted outside, the value required to be a number |
+| The 375 px test did not show that anything scrolls | Fixed: it asserts each box's content is wider than the box |
+| Four doc comments ran to four lines | Trimmed to three |
+| The run's and the backtest's comments named Elo and Poisson only | Fixed: they name the three Elo models |
+| The backtest replays each provider three times | Not changed: the spec allows the two more replays, milliseconds each |
+| The hourly run builds every variant backtest row and filters the written ones | Not changed: `elo-v1`'s rows are built and filtered the same way; Poisson's `wanted` exists because its fit costs a day's work, a replay does not |
+| A shared helper for the ten-field row | Not changed: six existing copies; a refactor of them is not this feature's |
+| The dash-dot-dot legend sample beside Poisson's dash-dot | Not changed: looked at on the page at 375 px in both schemes, the two read apart (a dash and two dots, a dash and one) |
 
 ## What the tests prove, and how
 
@@ -86,6 +107,8 @@ predicted, shows its empty state. Must reach the release notes.
 | 27 | The intro naming three models |
 | 28 | The form term against the variant's own form-weighted expectation |
 | 29 | The variants' predictions worked out when asked, not at the match |
+| 30 | An older season's match resetting the form |
+| 31 | `expectedHome` ignoring a home advantage of its own |
 
 - **One first survived and was a wrong mutation**: number 12 replaced the draw
   share after its guard, which changed nothing; with the guard removed it was
