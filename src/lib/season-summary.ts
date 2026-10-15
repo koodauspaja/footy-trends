@@ -36,6 +36,13 @@ export const MIN_MATCHES = 5;
  */
 export const UPSET_BELOW_PERCENT = 25;
 /**
+ * The decimals points per match is compared and printed with: the two
+ * `Koti- ja vierastilastot` prints.
+ *
+ * decisions/066-season-summary.md
+ */
+export const POINTS_DECIMALS = 2;
+/**
  * How many sentences a block holds at most.
  *
  * decisions/066-season-summary.md
@@ -45,7 +52,7 @@ export const MAX_FACTS = 3;
 export type Direction = "best" | "worst";
 
 /**
- * A home or away record: points per match at one decimal, and how many earlier
+ * A home or away record: points per match as printed, and how many earlier
  * seasons, newest first, it beats in a row. `everySeason` when that is all of them.
  *
  * decisions/066-season-summary.md
@@ -89,20 +96,20 @@ export type SeasonSummarySeries =
   | { status: "error" };
 
 /**
- * Points per match as `Koti- ja vierastilastot` prints it, one decimal, or
- * `null` for a side with no match. Two seasons the panel shows alike are equal.
+ * Points per match as `Koti- ja vierastilastot` prints it, or `null` for a side
+ * with no match. Two seasons the panel shows alike are equal.
  *
  * decisions/066-season-summary.md
  */
 export function shownPointsPerMatch(side: SideStats): number | null {
   const value = pointsPerMatch(side);
-  return value === null ? null : Number(value.toFixed(1));
+  return value === null ? null : Number(value.toFixed(POINTS_DECIMALS));
 }
 
 /**
  * The home or away fact, if the selected season's side beats at least
  * `MIN_EARLIER_SEASONS` earlier seasons in a row, newest first. A season it
- * only equals, or one with no match on that side, stops the count.
+ * only equals as printed, or one with no match on that side, stops the count.
  *
  * decisions/066-season-summary.md
  */

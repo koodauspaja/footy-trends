@@ -3,12 +3,13 @@ import { formatDecimal } from "@/components/charts/line-chart";
 import { inProgressSeasonLine } from "@/components/competition-analytics";
 import { eloGaveText } from "@/components/season-surprises";
 import { teamDisplayName } from "@/lib/match-detail";
-import type {
-  RunFact,
-  SeasonSummarySeries,
-  SideFact,
-  SummaryFact,
-  UpsetFact,
+import {
+  POINTS_DECIMALS,
+  type RunFact,
+  type SeasonSummarySeries,
+  type SideFact,
+  type SummaryFact,
+  type UpsetFact,
 } from "@/lib/season-summary";
 import type { StreakKind } from "@/lib/streaks";
 
@@ -31,7 +32,7 @@ const RUN_NAMES: Record<StreakKind, string> = {
 };
 
 /**
- * `Paras kotisaldo 5 kauteen: 2,4 pistettä ottelua kohden.`: the count is the
+ * `Paras kotisaldo 5 kauteen: 2,38 pistettä ottelua kohden.`: the count is the
  * selected season and the earlier ones it beats in a row.
  *
  * decisions/066-season-summary.md
@@ -40,7 +41,7 @@ export function sideSentence(fact: SideFact): string {
   const record = fact.direction === "best" ? "Paras" : "Heikoin";
   const side = fact.kind === "home" ? "kotisaldo" : "vierassaldo";
   const over = fact.everySeason ? EVERY_SEASON : `${fact.beaten + 1} kauteen`;
-  return `${record} ${side} ${over}: ${formatDecimal(fact.pointsPerMatch)} pistettä ottelua kohden.`;
+  return `${record} ${side} ${over}: ${formatDecimal(fact.pointsPerMatch, POINTS_DECIMALS)} pistettä ottelua kohden.`;
 }
 
 /**

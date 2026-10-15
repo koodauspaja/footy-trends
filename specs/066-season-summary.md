@@ -56,10 +56,10 @@ five per side (Recommended)"; R1, R3, R4 and R5 "As drafted (Recommended)".
 
 | # | Rule | Choice |
 |---|---|---|
-| R1 | "Beats" | The selected season's figure, rounded as `Koti- ja vierastilastot` shows it (one decimal), is **strictly** better (or, for a worst, strictly worse) than each earlier season's, rounded the same way. A season it only equals stops the count |
+| R1 | "Beats" | The selected season's figure, rounded as `Koti- ja vierastilastot` shows it (two decimals; Miikka, 2026-10-15), is **strictly** better (or, for a worst, strictly worse) than each earlier season's, rounded the same way. A season it only equals stops the count |
 | R2 | The home and away figure | Points per match, `pointsPerMatch` of specs/033. **At least five home (or away) matches in the selected season**, on top of S6's five played |
 | R3 | N in the sentence | The selected season and every earlier compared season it beats in a row, newest first. `N` is at least four, by S5. If it beats every compared season, the sentence says `tallennetuilla kausilla` instead of a count |
-| R4 | A run record | specs/039's record for a kind, over the club's league seasons, whose run ends in the selected season. A run equal to the earlier record counts, as specs/039 S7 gives a tie to the most recent run, so the sentence agrees with `Ennätykset`. One run per direction: `wins` before `unbeaten`, `defeats` before `winless` |
+| R4 | A run record | specs/039's record for a kind, over the club's league seasons, whose run ends in the selected season, so the sentence agrees with `Ennätykset`. A run equal to the record counts when `Ennätykset` names it: specs/039 S7 gives a tie between two spells to the most recent, while inside one spell the first is named (Miikka, 2026-10-15: follow `Ennätykset`). One run per direction: `wins` before `unbeaten`, `defeats` before `winless` |
 | R5 | Ranking | Favourable first (S3). Within a direction: the fact beating more seasons first; a run record counts as beating all of them; on equal counts the run, then home, then away; the upset last. Then the first three |
 
 ## UX / UI (Finnish strings)
@@ -77,11 +77,11 @@ Then one to three sentences, a paragraph each, in the order of R5:
 
 | Fact | Sentence |
 |---|---|
-| Home, best | `Paras kotisaldo 5 kauteen: 2,4 pistettä ottelua kohden.` |
-| Home, worst | `Heikoin kotisaldo 5 kauteen: 0,8 pistettä ottelua kohden.` |
-| Away, best | `Paras vierassaldo 5 kauteen: 1,9 pistettä ottelua kohden.` |
-| Away, worst | `Heikoin vierassaldo 5 kauteen: 0,6 pistettä ottelua kohden.` |
-| Home or away, beats every compared season (R3) | `Paras kotisaldo tallennetuilla kausilla: 2,4 pistettä ottelua kohden.` (and `Heikoin`, `vierassaldo` likewise) |
+| Home, best | `Paras kotisaldo 5 kauteen: 2,38 pistettä ottelua kohden.` |
+| Home, worst | `Heikoin kotisaldo 5 kauteen: 0,83 pistettä ottelua kohden.` |
+| Away, best | `Paras vierassaldo 5 kauteen: 1,94 pistettä ottelua kohden.` |
+| Away, worst | `Heikoin vierassaldo 5 kauteen: 0,57 pistettä ottelua kohden.` |
+| Home or away, beats every compared season (R3) | `Paras kotisaldo tallennetuilla kausilla: 2,38 pistettä ottelua kohden.` (and `Heikoin`, `vierassaldo` likewise) |
 | Run record, wins | `Seuran pisin voittoputki tallennetuilla kausilla: 9 ottelua.` |
 | Run record, unbeaten | `Seuran pisin tappioton putki tallennetuilla kausilla: 14 ottelua.` |
 | Run record, defeats | `Seuran pisin tappioputki tallennetuilla kausilla: 6 ottelua.` |
@@ -90,7 +90,7 @@ Then one to three sentences, a paragraph each, in the order of R5:
 
 - The team is never named: it is the page's subject. The opponent appears only
   in the match's own `A – B`, which needs no case ending.
-- Numbers as digits; points per match with one decimal and a comma
+- Numbers as digits; points per match with two decimals and a comma, as the panel prints it
   (`formatDecimal`); the percentage whole with a no-break space (`percentText`),
   `Elo antoi` as specs/057 writes it.
 - The upset's match label links to the match page, as specs/057's list does.
@@ -112,7 +112,7 @@ than five played matches, or when the page is a cup season or a national team.
 | Home and away per season | `homeAwayStats` and `pointsPerMatch` (specs/033) over each season's finished matches, read with the season readers specs/038 uses (`readSeasonFor`, `readTasoSeason`) |
 | The run record | `recordsFor` of specs/039 (`streak-records.ts`); the fact holds when the record's span ends in the selected season |
 | The upset | specs/057's backtest rows (`elo-v1`, `kind = "backtest"`) for the competition-season, narrowed to matches the team won; a new team filter beside `getSeasonSurprises` |
-| Ranking and sentences | A pure module: one detector per fact returning a fact or nothing, a ranking (R5), and the templates |
+| Ranking and sentences | A pure module: one detector per fact returning a fact or nothing, and a ranking (R5). The templates sit beside the block's component, whose formatters they print with |
 | Access | `canSeeAnalytics()`, checked once by the section as today |
 
 **Caching:** nothing new. specs/033, 038 and 039 cache nothing; the reads are
@@ -127,9 +127,9 @@ except the upset's.
 | Fewer than three earlier seasons in the competition (S5, S8) | No home, away or run fact |
 | A season in progress with fewer than five played matches (S6) | No block |
 | Fewer than five home matches, five away (R2) | No home fact, no away fact |
-| The selected figure equal to an earlier season's at one decimal (R1) | The count stops there; under four, no fact |
+| The selected figure equal to an earlier season's as printed (R1) | The count stops there; under four, no fact |
 | Best of every compared season (R3) | `tallennetuilla kausilla` |
-| A run record equal to the earlier record (R4) | Shown, as `Ennätykset` shows it |
+| A run record equal to the earlier record (R4) | Shown when `Ennätykset` names the selected season: a tie with an earlier spell's record, not one inside the same spell |
 | Both a winning and an unbeaten record | The winning run only (R4) |
 | A record run that started in an earlier season | Shown: its span ends in the selected season (R4) |
 | No win below 25 % (S10) | No upset fact |
@@ -187,8 +187,8 @@ carries no user id.
 
 | File | Minimal assertions |
 |---|---|
-| `tests/unit/lib/season-summary.test.ts` | Each detector at its boundary: three and two earlier seasons; equal at one decimal stopping the count; four and five home matches; a run record ending in and before the season; a tie with the record; wins over unbeaten; the upset at 24 % and 25 %; the first stored season; the ranking, favourable first, the cap |
-| `tests/unit/lib/season-summary-sentences.test.ts` | Every template as an exact string, both directions, `tallennetuilla kausilla`, a football-data season label |
+| `tests/unit/lib/season-summary.test.ts` | Each detector at its boundary: three and two earlier seasons; equal as printed stopping the count; four and five home matches; a run record ending in and before the season; a tie with the record; wins over unbeaten; the upset at 24 % and 25 %; the first stored season; the ranking, favourable first, the cap |
+| `tests/unit/components/season-summary-section.test.tsx` | Every template as an exact string, both directions, `tallennetuilla kausilla`, a football-data season label |
 | `tests/unit/lib/surprise-service.test.ts` | The team filter: only the team's wins, its competition-season |
 | `tests/unit/components/…` | The group first in `Analyysit`; `(kesken)` once; no block for a cup, a national team, a past season; the failure line; the upset's link |
 | `tests/e2e/…` | Signed in, a seeded club season shows the block and its numbers match the panels; signed out, none |
@@ -198,7 +198,7 @@ Every new test is mutation-checked before review, per `skills/self-review.md`.
 ## Files To Update
 
 - `specs/066-season-summary.md` (this file)
-- A pure module for the detectors, the ranking and the sentences; its service; `analytics-section.tsx`
+- A pure module for the detectors and the ranking; its service; the block's component, which holds the sentences; `analytics-section.tsx`
 - `decisions/066-season-summary.md`, by the implementing agent
 
 ## Open Questions

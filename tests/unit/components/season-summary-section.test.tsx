@@ -21,7 +21,7 @@ function side(overrides: Partial<SideFact> = {}): SideFact {
   return {
     kind: "home",
     direction: "best",
-    pointsPerMatch: 2.4,
+    pointsPerMatch: 2.38,
     beaten: 4,
     everySeason: false,
     ...overrides,
@@ -53,30 +53,30 @@ function joined(fact: UpsetFact): string {
 
 describe("the sentences", () => {
   it("names the home and away records, both directions", () => {
-    expect(sideSentence(side())).toBe("Paras kotisaldo 5 kauteen: 2,4 pistettä ottelua kohden.");
-    expect(sideSentence(side({ direction: "worst", pointsPerMatch: 0.8 }))).toBe(
-      "Heikoin kotisaldo 5 kauteen: 0,8 pistettä ottelua kohden."
+    expect(sideSentence(side())).toBe("Paras kotisaldo 5 kauteen: 2,38 pistettä ottelua kohden.");
+    expect(sideSentence(side({ direction: "worst", pointsPerMatch: 0.83 }))).toBe(
+      "Heikoin kotisaldo 5 kauteen: 0,83 pistettä ottelua kohden."
     );
-    expect(sideSentence(side({ kind: "away", pointsPerMatch: 1.9 }))).toBe(
-      "Paras vierassaldo 5 kauteen: 1,9 pistettä ottelua kohden."
+    expect(sideSentence(side({ kind: "away", pointsPerMatch: 1.94 }))).toBe(
+      "Paras vierassaldo 5 kauteen: 1,94 pistettä ottelua kohden."
     );
-    expect(sideSentence(side({ kind: "away", direction: "worst", pointsPerMatch: 0.6 }))).toBe(
-      "Heikoin vierassaldo 5 kauteen: 0,6 pistettä ottelua kohden."
+    expect(sideSentence(side({ kind: "away", direction: "worst", pointsPerMatch: 0.57 }))).toBe(
+      "Heikoin vierassaldo 5 kauteen: 0,57 pistettä ottelua kohden."
     );
   });
 
-  it("counts the selected season with the ones it beats", () => {
+  it("counts the selected season with the ones it beats, printing both decimals", () => {
     expect(sideSentence(side({ beaten: 3, pointsPerMatch: 2 }))).toBe(
-      "Paras kotisaldo 4 kauteen: 2,0 pistettä ottelua kohden."
+      "Paras kotisaldo 4 kauteen: 2,00 pistettä ottelua kohden."
     );
   });
 
   it("says tallennetuilla kausilla for a record over every compared season", () => {
     expect(sideSentence(side({ everySeason: true }))).toBe(
-      "Paras kotisaldo tallennetuilla kausilla: 2,4 pistettä ottelua kohden."
+      "Paras kotisaldo tallennetuilla kausilla: 2,38 pistettä ottelua kohden."
     );
     expect(sideSentence(side({ kind: "away", direction: "worst", everySeason: true }))).toBe(
-      "Heikoin vierassaldo tallennetuilla kausilla: 2,4 pistettä ottelua kohden."
+      "Heikoin vierassaldo tallennetuilla kausilla: 2,38 pistettä ottelua kohden."
     );
   });
 
@@ -137,7 +137,7 @@ describe("seasonSummaryPanel", () => {
     const { container } = renderPanel(ok());
 
     expect([...container.querySelectorAll("p")].map((p) => p.textContent)).toEqual([
-      "Paras kotisaldo 5 kauteen: 2,4 pistettä ottelua kohden.",
+      "Paras kotisaldo 5 kauteen: 2,38 pistettä ottelua kohden.",
       joined(UPSET),
     ]);
   });
