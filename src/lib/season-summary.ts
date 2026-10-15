@@ -9,6 +9,7 @@ import {
   leagueSeasons,
   readSeasons,
   type SeasonKey,
+  type SeasonRead,
   type SeasonReadResult,
 } from "./season-comparison";
 import type { StreakRecords, StreakRecordsSeries } from "./streak-records";
@@ -243,9 +244,9 @@ export type SummaryReaders<T extends SeasonKey> = {
 };
 
 /**
- * The block for one club and season. Nothing is read beyond the selected
- * season until it is known to be the club's latest league season with
- * `MIN_MATCHES` played.
+ * The block for one club and season: one of its league seasons, with no later
+ * league season the club has played a match in. Nothing else is read until the
+ * selected season has `MIN_MATCHES` played.
  *
  * decisions/066-season-summary.md
  */
@@ -254,13 +255,24 @@ export async function seasonSummaryFor<T extends SeasonKey>(
 ): Promise<SeasonSummarySeries> {
   const { teamId, selected, seasons, isLeague } = readers;
   const leagues = leagueSeasons(seasons, isLeague);
-  const latest = Math.max(...leagues.map((season) => season.seasonId));
-  if (!isLeague(selected.competitionCode) || selected.seasonId !== latest) {
+  const listed = leagues.some(
+    (season) =>
+      season.competitionCode === selected.competitionCode && season.seasonId === selected.seasonId
+  );
+  if (!listed) return { status: "unavailable" };
+
+  // A later season counts once the club has played in it: its fixtures are
+  // stored before it starts.
+  const laterKeys = leagues.filter((season) => season.seasonId > selected.seasonId);
+  const [read, laterReads] = await Promise.all([
+    readers.read(selected),
+    Promise.all(laterKeys.map(readers.read)),
+  ]);
+  const later = readSeasons(laterReads);
+  if (read.status === "error" || later.status === "error") return { status: "error" };
+  if (read.status === "empty" || later.reads.some((season) => playedBy(season, teamId) > 0)) {
     return { status: "unavailable" };
   }
-
-  const read = await readers.read(selected);
-  if (read.status !== "ok") return read.status === "error" ? read : { status: "unavailable" };
   const sides = homeAwayStats(read.read.finished, teamId);
   if (sides.home.matches + sides.away.matches < MIN_MATCHES) return { status: "unavailable" };
 
@@ -302,4 +314,14 @@ export async function seasonSummaryFor<T extends SeasonKey>(
     inProgress: selected.seasonId === readers.activeSeasonId,
     seasonLabel,
   };
+}
+
+/**
+ * The club's finished matches in a season, home and away.
+ *
+ * decisions/066-season-summary.md
+ */
+function playedBy(season: SeasonRead, teamId: number): number {
+  const { home, away } = homeAwayStats(season.finished, teamId);
+  return home.matches + away.matches;
 }

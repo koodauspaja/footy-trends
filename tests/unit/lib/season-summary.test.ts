@@ -410,11 +410,67 @@ describe("seasonSummaryFor", () => {
     });
   });
 
-  it("has no block for a past season, and reads nothing", async () => {
+  it("has no block for a past season, and reads neither the records nor the upset", async () => {
     const summary = readers({ selected: { competitionCode: "VL", seasonId: 2025 } });
 
     expect(await seasonSummaryFor(summary)).toEqual({ status: "unavailable" });
-    expect(summary.read).not.toHaveBeenCalled();
+    expect(summary.records).not.toHaveBeenCalled();
+    expect(summary.upset).not.toHaveBeenCalled();
+  });
+
+  it("keeps the block while the next season's fixtures are stored but none is played", async () => {
+    const seasons = [...SEASONS, { competitionCode: "VL", seasonId: 2027, matches: 22 }];
+    const summary = readers({
+      seasons,
+      read: async (key) => (key.seasonId === 2027 ? read([]) : stored(key)),
+    });
+
+    expect(await seasonSummaryFor(summary)).toMatchObject({ status: "ok", seasonLabel: "2026" });
+  });
+
+  it.each([
+    ["at home", "V", ""],
+    ["away", "", "V"],
+  ])(
+    "has no block once the club has played %s in a later season, in any division",
+    async (_side, home, away) => {
+      const seasons = [...SEASONS, { competitionCode: "YK", seasonId: 2027, matches: 1 }];
+      const summary = readers({
+        seasons,
+        read: async (key) =>
+          key.seasonId === 2027 ? read(finished(2027, home, away)) : stored(key),
+      });
+
+      expect(await seasonSummaryFor(summary)).toEqual({ status: "unavailable" });
+    }
+  );
+
+  it("does not count another team's match as the club's in a later season", async () => {
+    const seasons = [...SEASONS, { competitionCode: "VL", seasonId: 2027, matches: 22 }];
+    const others: ResultMatch = {
+      providerMatchId: 1,
+      kickoffAt: new Date(Date.UTC(2027, 3, 1)),
+      homeTeamProviderId: OTHER,
+      awayTeamProviderId: 3,
+      homeGoals: 1,
+      awayGoals: 0,
+    };
+    const summary = readers({
+      seasons,
+      read: async (key) => (key.seasonId === 2027 ? read([others]) : stored(key)),
+    });
+
+    expect(await seasonSummaryFor(summary)).toMatchObject({ status: "ok" });
+  });
+
+  it("fails when a later season's read fails", async () => {
+    const seasons = [...SEASONS, { competitionCode: "VL", seasonId: 2027, matches: 22 }];
+    const summary = readers({
+      seasons,
+      read: async (key) => (key.seasonId === 2027 ? { status: "error" } : stored(key)),
+    });
+
+    expect(await seasonSummaryFor(summary)).toEqual({ status: "error" });
   });
 
   it("has no block for a cup season", async () => {
