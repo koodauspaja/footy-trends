@@ -169,9 +169,16 @@ describe("getTeamUpset", () => {
   });
 
   it("reads a football-data season too", async () => {
-    mocks.seasonRows.mockResolvedValueOnce([predicted({ awayTeamProviderId: 99 })]);
+    // Won away by team 99, at 21 %.
+    mocks.seasonRows.mockResolvedValueOnce([
+      predicted({ awayTeamProviderId: 99, homeGoals: 0, awayGoals: 2, away: 0.21 }),
+    ]);
 
-    await expect(getTeamUpset("football-data", "PL", 2025, 99)).resolves.toBeNull();
+    await expect(getTeamUpset("football-data", "PL", 2025, 99)).resolves.toMatchObject({
+      providerMatchId: 1,
+      awayTeamProviderId: 99,
+      probability: 0.21,
+    });
     expect(mocks.getFirstStoredSeason).toHaveBeenCalledWith("football-data", "PL");
   });
 

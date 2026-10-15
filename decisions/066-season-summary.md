@@ -1,4 +1,4 @@
-# 066 — Kausi lyhyesti: decisions
+# 066 — Season summary (`Kausi lyhyesti`): decisions
 
 Implementation notes for `specs/066-season-summary.md` (#356). The spec says
 what is shown; this says how, and where the implementation had to decide
