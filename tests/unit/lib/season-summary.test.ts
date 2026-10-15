@@ -65,10 +65,11 @@ function awayFact(beaten: number, direction: SideFact["direction"] = "best"): Si
 }
 
 describe("shownPointsPerMatch", () => {
-  it("rounds to the one decimal the home and away panel prints", () => {
-    // 49 points in 25 matches is 1,96, printed 2,0.
-    expect(shownPointsPerMatch(side(25, 16, 1))).toBe(2);
-    expect(shownPointsPerMatch(side(5, 2, 1))).toBe(1.4);
+  it("rounds to the two decimals the home and away panel prints", () => {
+    // Two points in three matches is 0,666…, printed 0,67, as 67 points in 100 are.
+    expect(shownPointsPerMatch(side(3, 0, 2))).toBe(0.67);
+    expect(shownPointsPerMatch(side(100, 22, 1))).toBe(0.67);
+    expect(shownPointsPerMatch(side(25, 16, 1))).toBe(1.96);
   });
 
   it("has no figure for a side with no match", () => {
@@ -92,7 +93,7 @@ describe("sideFact", () => {
   it("counts the earlier seasons beaten in a row, newest first", () => {
     const fact = sideFact("away", side(5, 4), [...weaker, side(10, 10), side(10, 1)]);
 
-    // 2,4 beats 1,5, 1,2 and 0,9, then stops at 3,0, so the 0,3 before it is not counted.
+    // 2,40 beats 1,50, 1,20 and 0,90, then stops at 3,00, so the 0,30 before it is not counted.
     expect(fact).toEqual({
       kind: "away",
       direction: "best",
@@ -114,13 +115,15 @@ describe("sideFact", () => {
     });
   });
 
-  it("stops the count at a season it equals at one decimal", () => {
-    // 2,0 against 1,96: equal as printed, so only the two seasons after it are beaten.
-    const earlier = [side(10, 6), side(10, 5), side(25, 16, 1), side(10, 1)];
+  it("stops the count at a season it equals as printed", () => {
+    // 4 points in 6 matches against 67 in 100: both 0,67, so only the two seasons
+    // before that one are beaten.
+    const earlier = [side(10, 2), side(10, 1), side(100, 22, 1), side(10, 0)];
 
-    expect(sideFact("home", side(5, 3, 1), earlier)).toBeNull();
-    expect(sideFact("home", side(5, 3, 1), [side(10, 6), ...earlier])).toMatchObject({
+    expect(sideFact("home", side(6, 1, 1), earlier)).toBeNull();
+    expect(sideFact("home", side(6, 1, 1), [side(10, 1), ...earlier])).toMatchObject({
       beaten: 3,
+      pointsPerMatch: 0.67,
     });
   });
 
