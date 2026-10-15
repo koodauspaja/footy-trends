@@ -2,7 +2,7 @@ import { eq, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { matches, predictions, tasoMatches } from "@/db/schema";
-import { getMatchSurprise, getSeasonSurprises } from "@/lib/surprise-service";
+import { getMatchSurprise, getSeasonSurprises, getTeamUpset } from "@/lib/surprise-service";
 
 /**
  * The surprise reads against a real Postgres, set in 1980 and 1981 so the
@@ -11,6 +11,7 @@ import { getMatchSurprise, getSeasonSurprises } from "@/lib/surprise-service";
  * at a time, so these rows are this suite's for as long as it needs them.
  *
  * decisions/057-surprise-index.md
+ * decisions/066-season-summary.md
  */
 
 const IDS = Array.from({ length: 12 }, (_, index) => 984_001 + index);
@@ -244,5 +245,54 @@ describe("getMatchSurprise against Postgres", () => {
     await expect(
       getMatchSurprise({ source: "taso", match: match as typeof tasoMatches.$inferSelect })
     ).resolves.toBeNull();
+  });
+});
+
+describe("getTeamUpset against Postgres", () => {
+  const TEAM = 984_201;
+
+  it("is the team's own win Elo gave least, in its competition-season only", async () => {
+    await db.insert(tasoMatches).values([
+      // The season before: 1981 is not the competition's first, and the team's
+      // 1 % win in it belongs to 1980.
+      tasoMatch(0, { seasonId: 1980, competitionCode: "spljp80", kickoffAt: kickoff(1, 1980) }),
+      // Won at home, 20 %.
+      tasoMatch(1),
+      // Won away, 10 %: the upset.
+      tasoMatch(2, {
+        homeTeamProviderId: 984_203,
+        homeTeamName: "Yllätys Muu",
+        awayTeamProviderId: TEAM,
+        awayTeamName: "Yllätys Koti",
+        homeGoals: 0,
+        awayGoals: 1,
+      }),
+      // Lost at home, a result Elo gave 5 %: the opponent's upset, not the team's.
+      tasoMatch(3, { homeGoals: 0, awayGoals: 1 }),
+      // Two other teams, 1 %.
+      tasoMatch(4, { homeTeamProviderId: 984_204, awayTeamProviderId: 984_205 }),
+    ]);
+    await db
+      .insert(predictions)
+      .values([
+        predicted(0, "taso", { homeProbability: 0.01 }),
+        predicted(1, "taso"),
+        predicted(2, "taso"),
+        predicted(3, "taso", { awayProbability: 0.05 }),
+        predicted(4, "taso", { homeProbability: 0.01 }),
+      ]);
+
+    await expect(getTeamUpset("taso", "VL", 1981, TEAM)).resolves.toMatchObject({
+      providerMatchId: id(2),
+      probability: 0.1,
+      awayTeamProviderId: TEAM,
+    });
+  });
+
+  it("has none in the competition's first stored season", async () => {
+    await db.insert(tasoMatches).values([tasoMatch(1)]);
+    await db.insert(predictions).values([predicted(1, "taso")]);
+
+    await expect(getTeamUpset("taso", "VL", 1981, TEAM)).resolves.toBeNull();
   });
 });

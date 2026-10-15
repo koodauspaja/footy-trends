@@ -41,6 +41,7 @@ import {
   type SeasonReadResult,
   UNRANKED_MEASURES,
 } from "./season-comparison";
+import { teamSeasonSummary } from "./season-summary-service";
 import { calculateStandings, selectTeamMatches, type TeamStanding } from "./standings";
 import { competitionScope, recordsFor, type StreakRecordsSeries } from "./streak-records";
 import {
@@ -1557,6 +1558,18 @@ export function getTeamStreakRecords(
     return { status: "error" as const };
   });
 }
+
+/**
+ * The `Kausi lyhyesti` block for this club's season.
+ *
+ * decisions/066-season-summary.md
+ */
+export const getTeamSeasonSummary = teamSeasonSummary("taso", {
+  isLeague: isDomesticLeague,
+  read: (key, activeSeasonId, teamProviderId) =>
+    readTasoSeason(key.competitionCode, key.seasonId, activeSeasonId, teamProviderId),
+  records: getTeamStreakRecords,
+});
 
 /**
  * Which of the club's seasons belong beside this one: the league ones for a
