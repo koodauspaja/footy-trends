@@ -118,7 +118,8 @@ than five played matches, or when the page is a cup season or a national team.
 **Caching:** nothing new. specs/033, 038 and 039 cache nothing; the reads are
 the ones `Tämä kausi verrattuna` and `Ennätykset` already make on the same
 page, shared through React's `cache()`, so the block adds no query of its own
-except the upset's.
+except the upset's two: the competition's first stored season and its backtest
+rows.
 
 ## Edge Cases
 
@@ -149,7 +150,8 @@ except the upset's.
 
 The block reads what `Tämä kausi verrattuna` and `Ennätykset` already read on
 the same render, so its cost is the detectors over a few seasons in memory and
-one query for the upset. The implementing agent measures the page's render time
+two queries for the upset: the competition's first stored season, as specs/057
+reads it, and its backtest rows. The implementing agent measures the page's render time
 on a TASO club with the most stored seasons, before and after, and writes it in
 the decision record.
 
