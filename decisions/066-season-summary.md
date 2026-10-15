@@ -35,9 +35,92 @@ something the spec did not.
 
 ## What the tests prove, and how
 
-To be written once the mutation pass has run.
+- **Every mutation below was caught but one**, which is equivalent and says so.
+  Each was applied alone, the named test files run, and the source restored.
+  One more, the `sideFact` guard on fewer than three earlier seasons, survived
+  and was a finding: the count it guards cannot reach three without them, so
+  the guard was deleted rather than tested.
+
+  | # | Mutation | Caught by |
+  |---|---|---|
+  | 1–4 | `MIN_EARLIER_SEASONS` 3 → 2, `MIN_MATCHES` 5 → 4, `UPSET_BELOW_PERCENT` 25 → 26, `MAX_FACTS` 3 → 4 | `season-summary.test.ts` |
+  | 5 | `POINTS_DECIMALS` 2 → 1 | `season-summary.test.ts`, `season-summary-section.test.tsx` |
+  | 6 | An earlier season with no match on the side no longer stops the count | `season-summary.test.ts` |
+  | 7, 8 | A best that only equals counts as beating; likewise a worst | `season-summary.test.ts` |
+  | 9 | `everySeason` always false | `season-summary.test.ts` |
+  | 10 | Only `best` looked for | `season-summary.test.ts` |
+  | 11 | Both runs of a direction stated | `season-summary.test.ts` |
+  | 12 | A record stated whatever season it ends in | `season-summary.test.ts` |
+  | 13 | The run fact without three earlier seasons | `season-summary.test.ts` |
+  | 14 | A side with four matches gets a fact | `season-summary.test.ts` |
+  | 15, 16 | The upset at 25 % kept; the upset's figure floored, not rounded | `season-summary.test.ts` |
+  | 17 | An unbeaten run unfavourable | `season-summary.test.ts` |
+  | 18 | A worst side favourable | `season-summary.test.ts` |
+  | 19 | Favourable no longer first | `season-summary.test.ts` |
+  | 20 | A run counts as beating no season | `season-summary.test.ts` |
+  | 21, 22 | The tie order home before the run; away before home | `season-summary.test.ts` |
+  | 23 | The upset ranked first | `season-summary.test.ts` |
+  | 24 | The count no longer orders facts | `season-summary.test.ts` |
+  | 25, 26 | A cup season, a past season given a block | `season-summary.test.ts` |
+  | 27 | A block before five matches | `season-summary.test.ts` |
+  | 28, 29 | Other competitions' seasons compared; the selected season compared with itself | `season-summary.test.ts` |
+  | 30 | Earlier seasons oldest first | `season-summary.test.ts` |
+  | 31, 32 | A failed earlier read, a failed records read, ignored | `season-summary.test.ts` |
+  | 33 | Never in progress | `season-summary.test.ts` |
+  | 34 | A block with no fact | `season-summary.test.ts` |
+  | 35, 36 | A failed selected read read as nothing stored, and the reverse | `season-summary.test.ts` |
+  | 37 | The wrong season's label | `season-summary.test.ts` |
+  | 38 | `teamUpset` counts a home defeat | `surprise.test.ts` |
+  | 39 | `teamUpset` ignores away wins | `surprise.test.ts` |
+  | 40, 41 | `teamUpset` over every match; the likeliest win, not the least | `surprise.test.ts` |
+  | 42 | `getTeamUpset` reads the first stored season | `surprise-service.test.ts` |
+  | 43 | `getTeamUpset` for another team | `surprise-service.test.ts` |
+  | 44 | The upset read from the wrong provider | `season-summary-service.test.ts` |
+  | 45, 46 | The log line without the season, or reworded | `season-summary-service.test.ts` |
+  | 47–53 | `Paras` and `Heikoin` swapped; `vierassaldo` lost; the count without the selected season; `tallennetuilla kausilla` inverted; `1 ottelua`; two runs' names swapped | `season-summary-section.test.tsx` |
+  | 54 | `(kesken)` inverted | `season-summary-section.test.tsx` |
+  | 55 | No failure line | `season-summary-section.test.tsx`, `analytics-section.test.tsx` |
+  | 56 | The upset linked to another match | `season-summary-section.test.tsx` |
+  | 57 | Two runs keyed alike | `season-summary-section.test.tsx` |
+  | 58 | An `unavailable` series rendered | `season-summary-section.test.tsx` |
+  | 59 | The probability printed as a hundred times itself | `season-summary-section.test.tsx` |
+  | 60 | The block left out of `Analyysit` | `analytics-section.test.tsx` |
+  | 61, 62 | A failed season lookup read as no seasons; the match link without the region | both team page tests |
+  | 63 | The TASO page's active season replaced by the selected one | domestic team page test |
+  | 64 | The national-teams test inverted on `/ulkomaat` | foreign and national-teams page tests |
+  | 65 | `nationalTeamAnalytics` offers a block | `national-team-analytics.test.ts` |
+  | 66–69 | Either provider's `isLeague` taking a cup; football-data's records, TASO's season reader, replaced | `standings-service.test.ts`, `taso-standings-service.test.ts` |
+
+  Equivalent, and so not caught: `teamUpset`'s home condition `>` → `>=`. A
+  draw that passes the filter is dropped by `ranked`, which skips every match
+  `surpriseOf` gives no figure.
+- **The query** is the one `getSeasonSurprises` already runs; `tests/integration/surprise.test.ts`
+  adds the team filter and the first stored season against Postgres.
+- **End to end**, `tests/e2e/season-summary.spec.ts` seeds a club into four
+  Premier League seasons, 2020/21 to 2023/24, and one Elo backtest row, and reads
+  each sentence's number back from its panel: `3,00` from `Koti- ja
+  vierastilastot`, `6 voittoa Kausi 2023/24` from `Ennätykset`, `12 %` from the
+  match page the upset links to. It removes the rows and the cached reads they
+  reached (`elo:v1`, `poisson:v1`, the backtest reports, the forecasts and the
+  four seasons' tables), as `rivalry-prediction.spec.ts` does for TASO.
 
 ## Measured
 
-To be written: the render time before and after on the TASO club with the most
-stored seasons.
+The render time of `/kotimaa/joukkue/60731?kilpailu=VL&kausi=2026` (HJK, six
+stored Veikkausliiga seasons, the most of any club in the test database), signed
+in, production builds of `main` (`7afb18d`) and this branch side by side against
+the test database, 3 warm-up requests each and then 25 alternating:
+
+| Build | Median | 90th percentile | Fastest | Slowest |
+|---|---|---|---|---|
+| `main` | 36 ms | 41 ms | 32 ms | 49 ms |
+| This branch | 48 ms | 57 ms | 41 ms | 62 ms |
+
+HJK's 2026 has no fact, but every read the block makes runs before that is
+known, so the cost is the same with or without sentences. What the block adds
+to a render is the records computed a second time over the cached season reads,
+the earlier seasons' home and away counts, and the upset's two queries (the
+competition's first stored season and its backtest rows); how the 12 ms splits
+between them was not measured. Ilves, KuPS, SJK and IFK Mariehamn
+get a block on the same data; at 375 px, light and dark, it wraps with no
+horizontal scroll.
