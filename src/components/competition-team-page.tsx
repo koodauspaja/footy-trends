@@ -175,7 +175,7 @@ async function resolveTeamPage({
           played
         ),
       // A club's latest league season only: a national team has no block.
-      loadSummary: () =>
+      loadSummary: (seasons) =>
         region === "national-teams"
           ? Promise.resolve({ status: "unavailable" as const })
           : getTeamSeasonSummary(
@@ -183,7 +183,7 @@ async function resolveTeamPage({
               teamProviderId,
               seasonId,
               context.activeSeasonId,
-              played,
+              seasons,
               labelSeason
             ),
       // A cup has no table to rank a position in, so the panel is absent, not

@@ -245,7 +245,11 @@ describe("National-teams team page", () => {
     await expect(loadElo?.()).resolves.toEqual({ series: { status: "unavailable" } });
   });
 
-  it("has no season summary: the block is a club's", async () => {
+  it.each([
+    ["the lookup finds no club season", { status: "not_found" as const }],
+    ["the season lookup fails", { status: "error" as const }],
+  ])("has no season summary when %s: the block is a club's", async (_case, lookup) => {
+    getTeamSeasonsMock.mockResolvedValue(lookup);
     const { default: Page } = await import("@/app/national-teams/team/[id]/page");
     render(
       await Page({

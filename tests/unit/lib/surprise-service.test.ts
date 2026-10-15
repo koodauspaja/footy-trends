@@ -13,6 +13,7 @@ import type { StoredMatch } from "@/lib/match-service";
 
 const mocks = vi.hoisted(() => ({
   seasonRows: vi.fn(),
+  joined: vi.fn(),
   matchRow: vi.fn(),
   getFirstStoredSeason: vi.fn(),
   loggerError: vi.fn(),
@@ -23,7 +24,11 @@ vi.mock("@/db", () => ({
     select: () => ({
       from: () => ({
         // A season's list is a join; a match's figure is one row by its key.
-        innerJoin: () => ({ where: () => Promise.resolve().then(mocks.seasonRows) }),
+        // The joined table says which provider's query ran.
+        innerJoin: (table: unknown) => {
+          mocks.joined(table);
+          return { where: () => Promise.resolve().then(mocks.seasonRows) };
+        },
         where: () => ({ limit: () => Promise.resolve().then(mocks.matchRow) }),
       }),
     }),
@@ -36,6 +41,7 @@ vi.mock("@/lib/match-service", () => ({
   getFirstStoredSeason: mocks.getFirstStoredSeason,
 }));
 
+import { matches, tasoMatches } from "@/db/schema";
 import { getMatchSurprise, getSeasonSurprises, getTeamUpset } from "@/lib/surprise-service";
 
 function predicted(overrides: Record<string, unknown> = {}) {
@@ -166,6 +172,7 @@ describe("getTeamUpset", () => {
       probability: 0.12,
     });
     expect(mocks.getFirstStoredSeason).toHaveBeenCalledWith("taso", "VL");
+    expect(mocks.joined).toHaveBeenCalledWith(tasoMatches);
   });
 
   it("reads a football-data season too", async () => {
@@ -180,6 +187,7 @@ describe("getTeamUpset", () => {
       probability: 0.21,
     });
     expect(mocks.getFirstStoredSeason).toHaveBeenCalledWith("football-data", "PL");
+    expect(mocks.joined).toHaveBeenCalledWith(matches);
   });
 
   it("has none in the competition's first stored season, and reads no prediction", async () => {

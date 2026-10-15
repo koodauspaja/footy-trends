@@ -227,7 +227,8 @@ export function rankFacts(facts: readonly SummaryFact[], earlierSeasons: number)
 
 /**
  * What a summary reads, from the caller: one orchestrator for both providers.
- * `records` is the same read `Ennätykset` makes, so the two agree.
+ * `seasons` is `null` when the club's seasons could not be looked up; `records`
+ * is the same read `Ennätykset` makes, so the two agree.
  *
  * decisions/066-season-summary.md
  */
@@ -235,18 +236,18 @@ export type SummaryReaders<T extends SeasonKey> = {
   teamId: number;
   selected: SeasonKey;
   activeSeasonId: number;
-  seasons: readonly T[];
+  seasons: readonly T[] | null;
   isLeague: (competitionCode: string) => boolean;
   label: (seasonId: number) => string;
   read: (key: SeasonKey) => Promise<SeasonReadResult>;
-  records: () => Promise<StreakRecordsSeries>;
+  records: (seasons: readonly T[]) => Promise<StreakRecordsSeries>;
   upset: () => Promise<Surprise | null>;
 };
 
 /**
- * The block for one club and season: one of its league seasons, with no later
- * league season the club has played a match in. Nothing else is read until the
- * selected season has `MIN_MATCHES` played.
+ * The block for one club and league season, with no later league season the
+ * club has played a match in. Nothing else is read until the selected season
+ * has `MIN_MATCHES` played.
  *
  * decisions/066-season-summary.md
  */
@@ -254,25 +255,26 @@ export async function seasonSummaryFor<T extends SeasonKey>(
   readers: SummaryReaders<T>
 ): Promise<SeasonSummarySeries> {
   const { teamId, selected, seasons, isLeague } = readers;
+  // A cup has no block whether or not the club's seasons could be read.
+  if (!isLeague(selected.competitionCode)) return { status: "unavailable" };
+  if (seasons === null) return { status: "error" };
   const leagues = leagueSeasons(seasons, isLeague);
-  const listed = leagues.some(
-    (season) =>
-      season.competitionCode === selected.competitionCode && season.seasonId === selected.seasonId
-  );
-  if (!listed) return { status: "unavailable" };
 
   // A later season counts once the club has played in it: its fixtures are
-  // stored before it starts.
+  // stored before it starts. One played settles it, whichever others failed.
   const laterKeys = leagues.filter((season) => season.seasonId > selected.seasonId);
   const [read, laterReads] = await Promise.all([
     readers.read(selected),
     Promise.all(laterKeys.map(readers.read)),
   ]);
-  const later = readSeasons(laterReads);
-  if (read.status === "error" || later.status === "error") return { status: "error" };
-  if (read.status === "empty" || later.reads.some((season) => playedBy(season, teamId) > 0)) {
-    return { status: "unavailable" };
+  const playedLater = laterReads.some(
+    (later) => later.status === "ok" && playedBy(later.read, teamId) > 0
+  );
+  if (playedLater) return { status: "unavailable" };
+  if (read.status === "error" || laterReads.some((later) => later.status === "error")) {
+    return { status: "error" };
   }
+  if (read.status === "empty") return { status: "unavailable" };
   const sides = homeAwayStats(read.read.finished, teamId);
   if (sides.home.matches + sides.away.matches < MIN_MATCHES) return { status: "unavailable" };
 
@@ -284,7 +286,7 @@ export async function seasonSummaryFor<T extends SeasonKey>(
     .toSorted((left, right) => right.seasonId - left.seasonId);
   const [earlierReads, records, upset] = await Promise.all([
     Promise.all(earlierKeys.map(readers.read)),
-    readers.records(),
+    readers.records(seasons),
     readers.upset(),
   ]);
   const earlier = readSeasons(earlierReads);

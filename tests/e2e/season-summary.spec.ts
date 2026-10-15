@@ -65,7 +65,9 @@ const ROWS = [
     ...Array.from({ length: 4 }, (): [boolean, Result] => [false, "lost"]),
   ]),
 ];
-const IDS = ROWS.map((row) => row.provider_match_id);
+// A 2024/25 match one test adds, and removes, by itself.
+const LATER_MATCH_ID = FIRST_MATCH_ID + 99;
+const IDS = [...ROWS.map((row) => row.provider_match_id), LATER_MATCH_ID];
 
 async function withDatabase(run: (sql: postgres.Sql) => Promise<unknown>) {
   const sql = postgres(testDatabaseUrl());
@@ -93,7 +95,7 @@ async function dropCachedReads() {
     await redis.del(
       "elo:v1:football-data",
       "poisson:v1:football-data",
-      ...[2020, 2021, 2022, 2023].map((seasonId) => `standings:PL:${seasonId}`),
+      ...[2020, 2021, 2022, 2023, 2024].map((seasonId) => `standings:PL:${seasonId}`),
       ...derived
     );
   } finally {
@@ -185,18 +187,31 @@ test.describe("Kausi lyhyesti, signed in", () => {
   });
 });
 
-test("shows no block for a past season or a cup season", async ({ page }) => {
+test("takes the block away once the club has played in a later season", async ({ page }) => {
   await signedIn(page);
+  // One finished 2024/25 match: 2023/24, which has a block, becomes a past season.
+  const later = { ...season(2024, [[true, "won"]])[0], provider_match_id: LATER_MATCH_ID };
 
-  // Arsenal has later Premier League seasons stored than 2024/25.
-  for (const url of [
-    "/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024",
-    "/ulkomaat/joukkue/57?kilpailu=CL&kausi=2024",
-  ]) {
-    await page.goto(url);
+  await withDatabase(async (sql) => {
+    await sql`insert into matches ${sql(later)}`;
+  });
+  try {
+    await page.goto(TEAM);
     await expect(page.getByRole("heading", { level: 3, name: "Ottelu ottelulta" })).toBeVisible();
     await expect(page.getByRole("heading", { name: HEADING })).toHaveCount(0);
+  } finally {
+    await withDatabase(
+      (sql) => sql`delete from matches where provider_match_id = ${LATER_MATCH_ID}`
+    );
   }
+});
+
+test("shows no block for a cup season", async ({ page }) => {
+  await signedIn(page);
+
+  await page.goto("/ulkomaat/joukkue/57?kilpailu=CL&kausi=2024");
+  await expect(page.getByRole("heading", { level: 3, name: "Ottelu ottelulta" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: HEADING })).toHaveCount(0);
 });
 
 test("shows no block on a national team's pages", async ({ page }) => {
