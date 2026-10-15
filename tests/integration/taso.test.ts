@@ -65,6 +65,9 @@ function buildMatch(overrides: Partial<NormalizedTasoMatch> = {}): NormalizedTas
   };
 }
 
+// Every season this file writes is in its own fixture block, 901xxx.
+const FIXTURE_SEASONS = { first: 901000, last: 901999 };
+
 // Scoped by season and competition, so it clears every category's fixtures alike.
 async function clearFixtures() {
   await db
@@ -72,7 +75,15 @@ async function clearFixtures() {
     .where(and(eq(tasoMatches.seasonId, seasonId), eq(tasoMatches.competitionCode, competitionId)));
   // Group rows too. The concurrency test writes them, and leaving them behind
   // lets one run's fixtures decide whether the next run's assertions hold.
-  await db.delete(tasoGroupTeams).where(eq(tasoGroupTeams.competitionCode, "spljp99"));
+  // Only this file's seasons: `spljp99` is a fixture code other files use as well.
+  await db
+    .delete(tasoGroupTeams)
+    .where(
+      and(
+        eq(tasoGroupTeams.competitionCode, "spljp99"),
+        between(tasoGroupTeams.seasonId, FIXTURE_SEASONS.first, FIXTURE_SEASONS.last)
+      )
+    );
 }
 
 // At the top level, so every describe in the file is covered, not only the first.
@@ -82,9 +93,6 @@ afterEach(async () => {
   await clearFixtures();
   vi.clearAllMocks();
 });
-
-// Every season this file writes is in its own fixture block, 901xxx.
-const FIXTURE_SEASONS = { first: 901000, last: 901999 };
 
 // The file leaves the database as it found it, so e2e can run after it.
 afterAll(async () => {
@@ -98,6 +106,43 @@ afterAll(async () => {
     .where(between(tasoGroupTeams.seasonId, FIXTURE_SEASONS.first, FIXTURE_SEASONS.last));
 
   expect({ leftMatches, leftGroupTeams }).toEqual({ leftMatches: [], leftGroupTeams: [] });
+});
+
+// First in the file: its own `clearFixtures` call would otherwise clear what a
+// describe before it left, and the `afterAll` check would never see it.
+describe("clearFixtures", () => {
+  it("leaves another file's spljp99 group rows alone", async () => {
+    // A season outside this file's block, as another file could write under the same code.
+    const elsewhere = 1999;
+    const row = {
+      categoryId: "VL",
+      competitionCode: "spljp99",
+      seasonId: elsewhere,
+      groupId: 1,
+      teamProviderId: 1,
+      teamName: "Team 1",
+      points: 0,
+      played: 0,
+      won: 0,
+      drawn: 0,
+      lost: 0,
+      goalsFor: 0,
+      goalsAgainst: 0,
+    } as Parameters<typeof synchronizeGroupTeams>[3][number];
+    const isElsewhere = and(
+      eq(tasoGroupTeams.competitionCode, "spljp99"),
+      eq(tasoGroupTeams.seasonId, elsewhere)
+    );
+
+    await synchronizeGroupTeams("VL", "spljp99", elsewhere, [row], []);
+    try {
+      await clearFixtures();
+
+      expect(await db.select().from(tasoGroupTeams).where(isElsewhere)).toHaveLength(1);
+    } finally {
+      await db.delete(tasoGroupTeams).where(isElsewhere);
+    }
+  });
 });
 
 describe("taso integration", () => {
