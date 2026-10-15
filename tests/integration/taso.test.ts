@@ -1,5 +1,5 @@
-import { and, eq } from "drizzle-orm";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { and, between, eq } from "drizzle-orm";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db";
 import { tasoGroupTeams, tasoMatches } from "@/db/schema";
 import { calculateStandings } from "@/lib/standings";
@@ -16,6 +16,7 @@ import { synchronizeGroupTeams } from "@/lib/taso-standings-service";
  * decisions/127-carry-over-config-validation.md
  * decisions/196-concurrent-group-syncs.md
  * decisions/644-stored-table-behind-results.md
+ * decisions/666-taso-fixtures-cleared-file-wide.md
  */
 
 vi.mock("@/lib/taso", async (importOriginal) => {
@@ -74,14 +75,32 @@ async function clearFixtures() {
   await db.delete(tasoGroupTeams).where(eq(tasoGroupTeams.competitionCode, "spljp99"));
 }
 
+// At the top level, so every describe in the file is covered, not only the first.
+beforeEach(clearFixtures);
+
+afterEach(async () => {
+  await clearFixtures();
+  vi.clearAllMocks();
+});
+
+// Every season this file writes is in its own fixture block, 901xxx.
+const FIXTURE_SEASONS = { first: 901000, last: 901999 };
+
+// The file leaves the database as it found it, so e2e can run after it.
+afterAll(async () => {
+  const leftMatches = await db
+    .select({ seasonId: tasoMatches.seasonId })
+    .from(tasoMatches)
+    .where(between(tasoMatches.seasonId, FIXTURE_SEASONS.first, FIXTURE_SEASONS.last));
+  const leftGroupTeams = await db
+    .select({ seasonId: tasoGroupTeams.seasonId })
+    .from(tasoGroupTeams)
+    .where(between(tasoGroupTeams.seasonId, FIXTURE_SEASONS.first, FIXTURE_SEASONS.last));
+
+  expect({ leftMatches, leftGroupTeams }).toEqual({ leftMatches: [], leftGroupTeams: [] });
+});
+
 describe("taso integration", () => {
-  beforeEach(clearFixtures);
-
-  afterEach(async () => {
-    await clearFixtures();
-    vi.clearAllMocks();
-  });
-
   it("persists synchronized matches, readable back with the same shape calculateStandings expects", async () => {
     const { synchronizeMatches } = await import("@/lib/taso-standings-service");
     const providerMatches = [buildMatch()];
