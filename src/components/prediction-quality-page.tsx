@@ -1,5 +1,11 @@
 import { ChartPanel } from "@/components/charts/chart-panel";
-import { formatDecimal, LineChart, LineLegend, percentText } from "@/components/charts/line-chart";
+import {
+  formatDecimal,
+  LineChart,
+  LineLegend,
+  LineSample,
+  percentText,
+} from "@/components/charts/line-chart";
 import { PageShell } from "@/components/page-shell";
 import { SameRouteLink } from "@/components/same-route-link";
 import { SignInPrompt } from "@/components/sign-in-prompt";
@@ -12,10 +18,12 @@ import { POISSON_MODEL } from "@/lib/poisson";
 import {
   type CalibrationBin,
   comparedCompetitionName,
+  parseDrawn,
   type QualityReport,
   qualityHref,
   type RollingPoint,
   SCORE_DECIMALS,
+  toggleDrawn,
 } from "@/lib/prediction-quality";
 import {
   getPredictionQuality,
@@ -59,6 +67,15 @@ export const BY_COMPETITION_HEADING = "Kilpailuittain";
 export const BY_COMPETITION_NOTE =
   "Brier-pistemäärä kilpailuittain. Lihavoitu luku on kilpailun paras malli; pienempi on parempi.";
 export const ALL_COMPETITIONS_LINK = "Kaikki kilpailut";
+/**
+ * The toggles choosing which models the two charts draw: their label, and
+ * what each says to a screen reader after the model's name.
+ *
+ * decisions/068-model-choice-on-ennusteet.md
+ */
+export const DRAWN_LABEL = "Kaavioissa näytetään:";
+export const DRAWN_SHOWN = ", näytetään kaavioissa";
+export const DRAWN_HIDDEN = ", piilotettu kaavioista";
 /**
  * Under `Kilpailuittain` when a cup has a row and no competition is chosen: the
  * figures above then leave the cups out.
@@ -153,13 +170,14 @@ export function filteredSentence(name: string): string {
 const score = (value: number) => formatDecimal(value, SCORE_DECIMALS);
 
 /**
- * The page's parameters, as Next gives them: `alue`, `tyyppi` and `kilpailu`,
- * the defaults `kotimaa`, backtest and every competition. A repeated one is an
- * array, and falls back, as does a `kilpailu` that is not one of the
- * provider's compared competitions.
+ * The page's parameters, as Next gives them: `alue`, `tyyppi`, `kilpailu` and
+ * `mallit`, the defaults `kotimaa`, backtest, every competition and
+ * `DEFAULT_DRAWN`. A repeated one is an array, and falls back, as does a
+ * `kilpailu` that is not one of the provider's compared competitions.
  *
  * decisions/054-prediction-quality.md
  * decisions/056-accuracy-by-competition.md
+ * decisions/068-model-choice-on-ennusteet.md
  */
 export type QualityParams = Record<string, string | string[] | undefined>;
 
@@ -167,6 +185,7 @@ export function parseQualityParams(params: QualityParams): {
   source: MatchSource["kind"];
   kind: PredictionKind;
   competition: string | null;
+  drawn: string[];
 } {
   const source = params.alue === "ulkomaat" ? "football-data" : "taso";
   const named = params.kilpailu;
@@ -175,6 +194,7 @@ export function parseQualityParams(params: QualityParams): {
     kind: params.tyyppi === "ennakkoon" ? "live" : "backtest",
     competition:
       typeof named === "string" && qualityCompetitions(source).includes(named) ? named : null,
+    drawn: parseDrawn(params.mallit),
   };
 }
 
@@ -195,6 +215,55 @@ function Switch({
         </li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * One toggle per model, above the two charts: each links to the page with that
+ * model shown or hidden, but the last one shown cannot be hidden. Its name is
+ * one hidden string, so a browser adds no space before the comma.
+ *
+ * decisions/068-model-choice-on-ennusteet.md
+ */
+function DrawnToggles({
+  models,
+  drawn,
+  hrefFor,
+}: Readonly<{
+  models: readonly string[];
+  drawn: readonly string[];
+  hrefFor: (drawn: readonly string[]) => string;
+}>) {
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+      <span id="quality-drawn">{DRAWN_LABEL}</span>
+      <ul aria-labelledby="quality-drawn" className="flex flex-wrap gap-x-4 gap-y-1">
+        {models.map((model) => {
+          const shown = drawn.includes(model);
+          const content = (
+            <>
+              <LineSample faded={!shown} {...lineStyle(model)} />
+              <span aria-hidden="true">{modelLabel(model)}</span>
+              <span className="sr-only">{`${modelLabel(model)}${shown ? DRAWN_SHOWN : DRAWN_HIDDEN}`}</span>
+            </>
+          );
+          return (
+            <li key={model}>
+              {shown && drawn.length === 1 ? (
+                <span className="flex items-center gap-2 font-semibold">{content}</span>
+              ) : (
+                <SameRouteLink
+                  className={`flex items-center gap-2 ${shown ? "font-semibold" : "text-muted hover:underline"}`}
+                  href={hrefFor(toggleDrawn(drawn, model))}
+                >
+                  {content}
+                </SameRouteLink>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 
@@ -313,11 +382,13 @@ function CompetitionTable({
   source,
   kind,
   competition,
+  drawn,
 }: Readonly<{
   report: Extract<QualityReport, { status: "ok" }>;
   source: MatchSource["kind"];
   kind: PredictionKind;
   competition: string | null;
+  drawn: readonly string[];
 }>) {
   return (
     <div className="overflow-x-auto">
@@ -344,7 +415,7 @@ function CompetitionTable({
                 <SameRouteLink
                   aria-current={row.code === competition ? "page" : undefined}
                   className={row.code === competition ? "font-semibold" : "underline"}
-                  href={qualityHref(source, kind, row.code)}
+                  href={qualityHref(source, kind, row.code, drawn)}
                 >
                   {comparedCompetitionName(source, row.code)}
                 </SameRouteLink>
@@ -373,18 +444,26 @@ function Report({
   source,
   kind,
   competition,
+  drawn,
 }: Readonly<{
   report: Extract<QualityReport, { status: "ok" }>;
   source: MatchSource["kind"];
   kind: PredictionKind;
   competition: string | null;
+  drawn: readonly string[];
 }>) {
+  const isDrawn = (line: { model: string }) => drawn.includes(line.model);
   return (
     <div>
       <p className="mt-4 text-muted text-sm">
         {windowSentence(report.matches, report.firstYear, report.lastYear)}
       </p>
       {kind === "backtest" ? <p className="mt-1 text-muted text-sm">{BACKTEST_NOTE}</p> : null}
+      <DrawnToggles
+        drawn={drawn}
+        hrefFor={(next) => qualityHref(source, kind, competition, next)}
+        models={report.models}
+      />
 
       <ChartPanel heading={ACCURACY_HEADING} headingId="quality-accuracy">
         <p className="mb-2">
@@ -395,7 +474,7 @@ function Report({
         {report.rolling === null ? (
           <p>{tooFewSentence(report.matches)}</p>
         ) : (
-          <RollingChart lines={report.rolling} />
+          <RollingChart lines={report.rolling.filter(isDrawn)} />
         )}
         <p className="mt-2 text-muted text-sm">{ACCURACY_NOTE}</p>
       </ChartPanel>
@@ -467,13 +546,19 @@ function Report({
       </ChartPanel>
 
       <ChartPanel heading={CALIBRATION_HEADING} headingId="quality-calibration">
-        <CalibrationChart lines={report.calibration} />
+        <CalibrationChart lines={report.calibration.filter(isDrawn)} />
         <p className="mt-2 text-muted text-sm">{CALIBRATION_NOTE}</p>
         {report.binsOmitted ? <p className="mt-1 text-muted text-sm">{BINS_OMITTED_NOTE}</p> : null}
       </ChartPanel>
 
       <ChartPanel heading={BY_COMPETITION_HEADING} headingId="quality-competitions">
-        <CompetitionTable competition={competition} kind={kind} report={report} source={source} />
+        <CompetitionTable
+          competition={competition}
+          drawn={drawn}
+          kind={kind}
+          report={report}
+          source={source}
+        />
         <p className="mt-2 text-muted text-sm">{BY_COMPETITION_NOTE}</p>
         {competition === null &&
         report.competitions.some((row) => isPredictedCup(source, row.code)) ? (
@@ -489,27 +574,33 @@ function Body({
   source,
   kind,
   competition,
+  drawn,
 }: Readonly<{
   result: QualityResult;
   source: MatchSource["kind"];
   kind: PredictionKind;
   competition: string | null;
+  drawn: readonly string[];
 }>) {
   if (result.status === "error") return <p className="mt-4">{QUALITY_ERROR}</p>;
   if (result.status === "empty") return <p className="mt-4">{NO_JUDGED}</p>;
-  return <Report competition={competition} kind={kind} report={result} source={source} />;
+  return (
+    <Report competition={competition} drawn={drawn} kind={kind} report={result} source={source} />
+  );
 }
 
 /**
  * `/ennusteet`: the models judged against the results, one
- * provider and one kind at a time, over all its competitions or one. Signed in
- * only, the gate asked before anything is read.
+ * provider and one kind at a time, over all its competitions or one, its charts
+ * drawing the models chosen. Signed in only, the gate asked before anything is
+ * read.
  *
  * decisions/054-prediction-quality.md
  * decisions/056-accuracy-by-competition.md
+ * decisions/068-model-choice-on-ennusteet.md
  */
 export async function PredictionQualityPage({ params }: Readonly<{ params: QualityParams }>) {
-  const { source, kind, competition } = parseQualityParams(params);
+  const { source, kind, competition, drawn } = parseQualityParams(params);
   if (!(await canSeeAnalytics())) {
     return (
       <PageShell heading={QUALITY_HEADING}>
@@ -524,10 +615,14 @@ export async function PredictionQualityPage({ params }: Readonly<{ params: Quali
       <div className="flex flex-col gap-2">
         <Switch
           options={[
-            { label: "Kotimaa", href: qualityHref("taso", kind), current: source === "taso" },
+            {
+              label: "Kotimaa",
+              href: qualityHref("taso", kind, null, drawn),
+              current: source === "taso",
+            },
             {
               label: "Ulkomaat",
-              href: qualityHref("football-data", kind),
+              href: qualityHref("football-data", kind, null, drawn),
               current: source === "football-data",
             },
           ]}
@@ -536,12 +631,12 @@ export async function PredictionQualityPage({ params }: Readonly<{ params: Quali
           options={[
             {
               label: "Jälkikäteen lasketut",
-              href: qualityHref(source, "backtest", competition),
+              href: qualityHref(source, "backtest", competition, drawn),
               current: kind === "backtest",
             },
             {
               label: "Ennakkoon tehdyt",
-              href: qualityHref(source, "live", competition),
+              href: qualityHref(source, "live", competition, drawn),
               current: kind === "live",
             },
           ]}
@@ -550,12 +645,12 @@ export async function PredictionQualityPage({ params }: Readonly<{ params: Quali
       {competition === null ? null : (
         <p className="mt-4 text-sm">
           {filteredSentence(comparedCompetitionName(source, competition))}{" "}
-          <SameRouteLink className="underline" href={qualityHref(source, kind)}>
+          <SameRouteLink className="underline" href={qualityHref(source, kind, null, drawn)}>
             {ALL_COMPETITIONS_LINK}
           </SameRouteLink>
         </p>
       )}
-      <Body competition={competition} kind={kind} result={result} source={source} />
+      <Body competition={competition} drawn={drawn} kind={kind} result={result} source={source} />
     </PageShell>
   );
 }

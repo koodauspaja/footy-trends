@@ -32,10 +32,10 @@ vi.mock("@/lib/match-service", () => ({
   FOOTBALL_DATA_AWAY_GOALS: "away",
 }));
 
+import { QUALITY_MODELS } from "@/lib/prediction-quality";
 import {
   getPredictionQuality,
   QUALITY_FIRST_SEASON,
-  QUALITY_MODELS,
   qualityCacheKey,
   qualityCacheKeys,
   qualityCompetitions,
