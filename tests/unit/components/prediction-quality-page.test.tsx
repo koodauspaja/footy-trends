@@ -888,6 +888,24 @@ describe("PredictionQualityPage's choice of the models its charts draw", () => {
     );
   });
 
+  it.each([
+    [{}, "taso", "backtest", null],
+    [{ tyyppi: "ennakkoon" }, "taso", "live", null],
+    [{ alue: "ulkomaat" }, "football-data", "backtest", null],
+    [{ alue: "ulkomaat", tyyppi: "ennakkoon", kilpailu: "PL" }, "football-data", "live", "PL"],
+    [{ kilpailu: "M1" }, "taso", "backtest", "M1"],
+  ])(
+    "offers the toggles and draws the choice for %o",
+    async (params, source, kind, competition) => {
+      await renderPage({ ...params, mallit: "elo-vire,poisson" });
+
+      expect(getPredictionQuality).toHaveBeenCalledWith(source, kind, competition);
+      expect(toggles()).toHaveLength(5);
+      expect(drawnIn(ACCURACY_HEADING)).toEqual(["elo-form-v1", "poisson-v1"]);
+      expect(drawnIn(CALIBRATION_HEADING)).toEqual(["perfect", "elo-form-v1", "poisson-v1"]);
+    }
+  );
+
   it("keeps the toggles when the rolling chart gives way to the count, since calibration follows them", async () => {
     getPredictionQuality.mockResolvedValue({ ...spread, matches: 37, rolling: null });
     await renderPage({ mallit: "elo" });
