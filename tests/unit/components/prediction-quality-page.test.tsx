@@ -11,6 +11,8 @@ import type { QualityResult } from "@/lib/prediction-quality-service";
  * decisions/050-table-volatility.md
  * decisions/055-poisson-goal-model.md
  * decisions/056-accuracy-by-competition.md
+ * decisions/059-cup-predictions.md
+ * decisions/060-elo-variants.md
  */
 
 const { canSeeAnalytics, getPredictionQuality } = vi.hoisted(() => ({
@@ -39,6 +41,7 @@ import {
   BY_COMPETITION_NOTE,
   CALIBRATION_HEADING,
   CALIBRATION_NOTE,
+  CUPS_APART_NOTE,
   filteredSentence,
   LOG_LOSS_NOTE,
   modelLabel,
@@ -185,7 +188,9 @@ describe("modelLabel", () => {
     expect(modelLabel("home-baseline-v1")).toBe("Perustaso");
     expect(modelLabel("elo-v1")).toBe("Elo");
     expect(modelLabel("poisson-v1")).toBe("Poisson");
-    expect(modelLabel("elo-form-v1")).toBe("elo-form-v1");
+    expect(modelLabel("elo-form-v1")).toBe("Elo + vire");
+    expect(modelLabel("elo-home-v1")).toBe("Elo + kotietu");
+    expect(modelLabel("elo-v2")).toBe("elo-v2");
   });
 });
 
@@ -201,7 +206,7 @@ describe("PredictionQualityPage", () => {
     expect(screen.getByRole("heading", { level: 1, name: QUALITY_HEADING })).toBeInTheDocument();
     expect(screen.getByText(QUALITY_INTRO)).toBeInTheDocument();
     expect(QUALITY_INTRO).toBe(
-      "Kuinka usein perustaso, Elo ja Poisson ovat ennustaneet ottelun lopputuloksen oikein, ja kuinka hyvin niiden todennäköisyydet ovat pitäneet paikkansa."
+      "Kuinka usein perustaso, Elo, Elo + vire, Elo + kotietu ja Poisson ovat ennustaneet ottelun lopputuloksen oikein, ja kuinka hyvin niiden todennäköisyydet ovat pitäneet paikkansa."
     );
     expect(screen.getByRole("link", { name: "Kotimaa" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Ulkomaat" })).toHaveAttribute(
@@ -465,6 +470,46 @@ describe("PredictionQualityPage", () => {
     expect(screen.queryByRole("link", { name: ALL_COMPETITIONS_LINK })).not.toBeInTheDocument();
   });
 
+  it("lists a Suomen Cup's row, and says the figures above leave the cups out", async () => {
+    getPredictionQuality.mockResolvedValue({
+      ...report,
+      competitions: [
+        ...report.competitions,
+        { code: "MSC", matches: 210, brier: [0.66, 0.63, 0.64], best: [false, true, false] },
+      ],
+    });
+    await renderPage();
+
+    const panel = screen.getByRole("region", { name: BY_COMPETITION_HEADING });
+    expect(within(panel).getByRole("link", { name: "Miesten Suomen Cup" })).toHaveAttribute(
+      "href",
+      "/ennusteet?alue=kotimaa&tyyppi=jalkikateen&kilpailu=MSC"
+    );
+    expect(within(panel).getByText(CUPS_APART_NOTE)).toBeInTheDocument();
+    expect(CUPS_APART_NOTE).toBe(
+      "Suomen Cupit näytetään omina riveinään, eivätkä ne sisälly yllä oleviin kokonaislukuihin."
+    );
+  });
+
+  it("does not say so on a chosen competition's report, whose figures are that competition's", async () => {
+    getPredictionQuality.mockResolvedValue({
+      ...report,
+      competitions: [
+        ...report.competitions,
+        { code: "MSC", matches: 210, brier: [0.66, 0.63, 0.64], best: [false, true, false] },
+      ],
+    });
+    await renderPage({ kilpailu: "VL" });
+
+    expect(screen.queryByText(CUPS_APART_NOTE)).not.toBeInTheDocument();
+  });
+
+  it("does not say so without a cup's row", async () => {
+    await renderPage();
+
+    expect(screen.queryByText(CUPS_APART_NOTE)).not.toBeInTheDocument();
+  });
+
   it("names football-data's competitions from its own registry", async () => {
     getPredictionQuality.mockResolvedValue({
       ...report,
@@ -566,5 +611,86 @@ describe("PredictionQualityPage", () => {
 
     expect(screen.getByText(QUALITY_SIGNED_OUT)).toBeInTheDocument();
     expect(getPredictionQuality).not.toHaveBeenCalled();
+  });
+});
+
+describe("PredictionQualityPage with the two Elo variants", () => {
+  const FIVE = ["home-baseline-v1", "elo-v1", "elo-form-v1", "elo-home-v1", "poisson-v1"];
+  const points = [
+    { at: Date.UTC(2017, 5, 1), accuracy: 48 },
+    { at: Date.UTC(2025, 5, 1), accuracy: 52 },
+  ];
+  const five: Extract<QualityReport, { status: "ok" }> = {
+    ...report,
+    models: FIVE,
+    totals: FIVE.map((model) => ({ model, matches: 1234, accuracy: 50, brier: 0.6, logLoss: 1 })),
+    rolling: FIVE.map((model) => ({ model, points })),
+    seasons: [{ seasonId: 2025, matches: 198, brier: [0.61, 0.6, 0.59, 0.58, 0.57] }],
+    calibration: FIVE.map((model) => ({ model, bins: bins(40) })),
+    competitions: [
+      {
+        code: "VL",
+        matches: 1520,
+        brier: [0.61, 0.6, 0.59, 0.58, 0.57],
+        best: [false, false, false, false, true],
+      },
+    ],
+  };
+
+  beforeEach(() => {
+    canSeeAnalytics.mockReset().mockResolvedValue(true);
+    getPredictionQuality.mockReset().mockResolvedValue(five);
+  });
+
+  it.each([
+    [ACCURACY_HEADING, "the rolling accuracy"],
+    [CALIBRATION_HEADING, "the calibration"],
+  ])(
+    "draws Elo + vire long-dashed and Elo + kotietu dash-dot-dotted in %s's chart and legend",
+    async (heading) => {
+      await renderPage();
+
+      const panel = screen.getByRole("region", { name: heading });
+      const pattern = (model: string) =>
+        panel
+          .querySelector(`[data-series="${model}"] [data-part=line]`)
+          ?.getAttribute("stroke-dasharray");
+      expect(FIVE.map(pattern)).toEqual(["6 4", null, "12 4", "6 4 2 4 2 4", "6 4 2 4"]);
+      expect(panel.querySelector('[data-series="elo-form-v1"]')).toHaveAttribute(
+        "data-long-dashed"
+      );
+      expect(panel.querySelector('[data-series="elo-home-v1"]')).toHaveAttribute(
+        "data-dash-dot-dotted"
+      );
+      const legend = [...panel.querySelectorAll("li")].filter((item) => item.querySelector("svg"));
+      const sample = (label: string) =>
+        legend
+          .find((item) => item.textContent === label)
+          ?.querySelector("svg line")
+          ?.getAttribute("stroke-dasharray");
+      expect([sample("Elo + vire"), sample("Elo + kotietu")]).toEqual(["12 4", "6 4 2 4 2 4"]);
+    }
+  );
+
+  it("puts each table with a column per model in its own box that scrolls sideways", async () => {
+    await renderPage();
+
+    const byCompetition = within(
+      screen.getByRole("region", { name: BY_COMPETITION_HEADING })
+    ).getByRole("table");
+    const [totals, seasons] = within(
+      screen.getByRole("region", { name: SCORES_HEADING })
+    ).getAllByRole("table");
+
+    for (const table of [byCompetition, seasons]) {
+      expect(table?.parentElement).toHaveClass("overflow-x-auto");
+      expect(
+        within(table as HTMLElement)
+          .getAllByRole("columnheader")
+          .map((cell) => cell.textContent)
+      ).toEqual(expect.arrayContaining(["Elo + vire", "Elo + kotietu"]));
+    }
+    // A model per row needs no box: two columns of figures.
+    expect(totals?.parentElement).not.toHaveClass("overflow-x-auto");
   });
 });

@@ -7,9 +7,12 @@
  * decisions/053-elo-ratings.md
  * decisions/055-poisson-goal-model.md
  * decisions/057-surprise-index.md
+ * decisions/059-cup-predictions.md
+ * decisions/060-elo-variants.md
  */
 
-import { ELO_MODEL, type EloMatch, replayElo, threeWay } from "./elo";
+import { ELO_MODEL, type EloMatch, replayElo, type ThreeWay, threeWay } from "./elo";
+import { ELO_FORM_MODEL, ELO_HOME_MODEL, replayVariants } from "./elo-variants";
 import { HOME_BASELINE_MODEL, homeBaseline } from "./home-baseline";
 import type { MatchSource } from "./match-source";
 import { POISSON_MODEL, replayPoisson } from "./poisson";
@@ -49,11 +52,31 @@ function sharesOf(tally: Tally, code: string, source: MatchSource["kind"]) {
 }
 
 /**
+ * Whether a match can be predicted for its sides: always in a league; in a cup
+ * only when the Elo replay predicts it, which rates both sides first.
+ *
+ * decisions/059-cup-predictions.md
+ */
+function ratedSides(finished: readonly FinishedMatch[]): (match: FinishedMatch) => boolean {
+  const predicted = new Set<string>();
+  for (const source of ["football-data", "taso"] as const) {
+    replayElo(
+      finished.filter((match) => match.source === source),
+      (match) => {
+        if (match.cup) predicted.add(`${match.source}:${match.providerMatchId}`);
+      }
+    );
+  }
+  return (match) => !match.cup || predicted.has(`${match.source}:${match.providerMatchId}`);
+}
+
+/**
  * One `backtest` row per match with an earlier finished match in its
- * competition. Matches sharing a kickoff are predicted from the same tally and
- * added to it together; a competition's first kickoff gets no row.
+ * competition, and in a cup only between rated sides. Matches sharing a kickoff
+ * are predicted from one tally and added to it together.
  *
  * decisions/052-predictions-log.md
+ * decisions/059-cup-predictions.md
  */
 export function backtestRows(
   finished: readonly FinishedMatch[],
@@ -66,6 +89,7 @@ export function backtestRows(
     byCompetition.set(key, [...(byCompetition.get(key) ?? []), match]);
   }
 
+  const predictable = ratedSides(finished);
   const rows: PredictionRow[] = [];
   for (const matches of byCompetition.values()) {
     const ordered = matches.toSorted(
@@ -79,7 +103,7 @@ export function backtestRows(
       let end = index;
       while (ordered[end]?.kickoffAt.getTime() === kickoff) end += 1;
       const together = ordered.slice(index, end);
-      for (const match of together) {
+      for (const match of together.filter(predictable)) {
         const baseline = sharesOf(tally, match.code, match.source);
         if (baseline.status !== "ok") continue;
         rows.push({
@@ -144,6 +168,48 @@ export function eloBacktestRows(
 }
 
 /**
+ * One `elo-form-v1` and one `elo-home-v1` backtest row per match the baseline
+ * backtest also predicts, as `elo-v1`'s: the ratings and the variants' state
+ * the match was played at, and the draw share of the strictly earlier matches.
+ *
+ * decisions/060-elo-variants.md
+ */
+export function eloVariantBacktestRows(
+  finished: readonly FinishedMatch[],
+  baseline: readonly PredictionRow[],
+  now: Date
+): PredictionRow[] {
+  const drawShares = new Map(
+    baseline.map((row) => [`${row.source}:${row.providerMatchId}`, row.drawProbability])
+  );
+  const rows: PredictionRow[] = [];
+  const row = (match: FinishedMatch, model: string, prediction: ThreeWay): PredictionRow => ({
+    source: match.source,
+    providerMatchId: match.providerMatchId,
+    competitionCode: match.code,
+    model,
+    kind: "backtest",
+    homeProbability: prediction.home,
+    drawProbability: prediction.draw,
+    awayProbability: prediction.away,
+    predictedAt: now,
+    kickoffAt: match.kickoffAt,
+  });
+  for (const source of ["football-data", "taso"] as const) {
+    replayVariants(
+      finished.filter((match) => match.source === source),
+      (match, predict) => {
+        const drawShare = drawShares.get(`${match.source}:${match.providerMatchId}`);
+        if (drawShare === undefined) return;
+        const { form, home } = predict(drawShare);
+        rows.push(row(match, ELO_FORM_MODEL, form), row(match, ELO_HOME_MODEL, home));
+      }
+    );
+  }
+  return rows;
+}
+
+/**
  * One `poisson-v1` backtest row per match its day's fit can predict: the fit
  * of the provider's matches on strictly earlier UTC days. Given `wanted`, the
  * rows of those matches only, and a fit only for their days.
@@ -193,10 +259,11 @@ export function backtestKey(
 
 /**
  * The backtest rows of every model that `written` does not hold. The baseline
- * and Elo are replayed whole and filtered; Poisson is fitted only for the days
- * of a match that lacks its row.
+ * and the three Elo models are replayed whole and filtered; Poisson is fitted
+ * only for the days of a match that lacks its row.
  *
  * decisions/057-surprise-index.md
+ * decisions/060-elo-variants.md
  */
 export function missingBacktestRows(
   finished: readonly FinishedMatch[],
@@ -209,6 +276,7 @@ export function missingBacktestRows(
   return [
     ...missing(baseline),
     ...missing(eloBacktestRows(finished, baseline, now)),
+    ...missing(eloVariantBacktestRows(finished, baseline, now)),
     ...poissonBacktestRows(
       finished,
       now,

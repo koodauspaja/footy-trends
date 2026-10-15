@@ -15,6 +15,7 @@ vi.mock("@/lib/taso", async (importOriginal) => ({
 }));
 
 import { expectedHome } from "@/lib/elo";
+import type { StoredMatch } from "@/lib/match-service";
 import {
   fitPoisson,
   type PoissonMatch,
@@ -23,22 +24,26 @@ import {
   utcDay,
 } from "@/lib/poisson";
 import { runPredictionBacktest, runPredictionLog } from "@/lib/prediction-log-service";
+import { getMatchSurprise } from "@/lib/surprise-service";
 
 /**
  * The predictions log against a real Postgres. The hourly run is set in 2099
  * and the backtest in 1990, so the live rows and the rows asserted on are this
  * suite's. Both also backtest every finished match stored, other suites'
  * included, so every backtest row in the database is deleted either side of
- * each test, with this suite's own rows.
+ * each test, with this suite's own rows. Their time follows what the database
+ * holds, which an end-to-end run fills with whole seasons, so each test has 30 s.
  *
  * decisions/051-home-win-baseline.md
  * decisions/052-predictions-log.md
  * decisions/053-elo-ratings.md
  * decisions/055-poisson-goal-model.md
  * decisions/057-surprise-index.md
+ * decisions/059-cup-predictions.md
+ * decisions/060-elo-variants.md
  */
 
-const IDS = Array.from({ length: 12 }, (_, index) => 985_001 + index);
+const IDS = Array.from({ length: 16 }, (_, index) => 985_001 + index);
 const NOW = new Date("2099-06-01T12:00:00Z");
 const HOUR = 60 * 60 * 1000;
 const at = (hours: number) => new Date(NOW.getTime() + hours * HOUR);
@@ -112,7 +117,7 @@ function rowsFor(id: number, kind: "live" | "backtest", model = "home-baseline-v
     );
 }
 
-describe("the hourly run", () => {
+describe("the hourly run", { timeout: 30_000 }, () => {
   // One finished match in each competition, well before the run and outside its
   // 24-hour result window, so the baseline has history whatever else is stored.
   beforeEach(async () => {
@@ -171,7 +176,7 @@ describe("the hourly run", () => {
 
     // Logged before it kicked off, as every match is: a live row is not a backtest row.
     await db.insert(predictions).values(
-      ["home-baseline-v1", "elo-v1", "poisson-v1"].map((model) => ({
+      ["home-baseline-v1", "elo-v1", "elo-form-v1", "elo-home-v1", "poisson-v1"].map((model) => ({
         source: "football-data",
         providerMatchId: IDS[9] as number,
         competitionCode: "DED",
@@ -188,7 +193,13 @@ describe("the hourly run", () => {
     const first = await runPredictionLog(() => NOW, immediate);
     const second = await runPredictionLog(() => new Date(NOW.getTime() + HOUR), immediate);
 
-    for (const model of ["home-baseline-v1", "elo-v1", "poisson-v1"]) {
+    for (const model of [
+      "home-baseline-v1",
+      "elo-v1",
+      "elo-form-v1",
+      "elo-home-v1",
+      "poisson-v1",
+    ]) {
       const rows = await rowsFor(IDS[9] as number, "backtest", model);
       expect(rows).toHaveLength(1);
       // Written by the first run and left by the second.
@@ -201,7 +212,7 @@ describe("the hourly run", () => {
     }
     // The competition's first match has nothing before it.
     expect(await rowsFor(IDS[10] as number, "backtest")).toEqual([]);
-    expect(first.backtested).toBeGreaterThanOrEqual(3);
+    expect(first.backtested).toBeGreaterThanOrEqual(5);
     expect(second.backtested).toBe(0);
     expect(first.failures).toEqual([]);
   });
@@ -221,18 +232,22 @@ describe("the hourly run", () => {
     expect(rows[0]?.kickoffAt).toEqual(at(30));
   });
 
-  it("logs elo-v1 beside the baseline, one row each", async () => {
-    await db.insert(matches).values(footballDataRow());
+  it.each(["elo-v1", "elo-form-v1", "elo-home-v1"])(
+    "logs %s beside the baseline, one row each",
+    async (model) => {
+      await db.insert(matches).values(footballDataRow());
 
-    await runPredictionLog(() => NOW, immediate);
-    await runPredictionLog(() => NOW, immediate);
+      await runPredictionLog(() => NOW, immediate);
+      await runPredictionLog(() => NOW, immediate);
 
-    const [elo] = await rowsFor(IDS[0] as number, "live", "elo-v1");
-    expect(await rowsFor(IDS[0] as number, "live", "elo-v1")).toHaveLength(1);
-    const total =
-      (elo?.homeProbability ?? 0) + (elo?.drawProbability ?? 0) + (elo?.awayProbability ?? 0);
-    expect(total).toBeCloseTo(1, 10);
-  });
+      const rows = await rowsFor(IDS[0] as number, "live", model);
+      expect(rows).toHaveLength(1);
+      const [elo] = rows;
+      const total =
+        (elo?.homeProbability ?? 0) + (elo?.drawProbability ?? 0) + (elo?.awayProbability ?? 0);
+      expect(total).toBeCloseTo(1, 10);
+    }
+  );
 
   it("logs poisson-v1 beside them from the stored history, one row", async () => {
     await db.insert(matches).values(footballDataRow());
@@ -280,7 +295,7 @@ describe("the hourly run", () => {
   });
 });
 
-describe("the backtest", () => {
+describe("the backtest", { timeout: 30_000 }, () => {
   const kickoff = (day: number) => new Date(Date.UTC(1990, 4, day, 15));
 
   it("predicts each match from strictly earlier ones, a shoot-out draw a draw, and is idempotent", async () => {
@@ -340,6 +355,40 @@ describe("the backtest", () => {
     expect(await rowsFor(IDS[2] as number, "backtest", "elo-v1")).toEqual([
       expect.objectContaining({
         homeProbability: expect.closeTo(0.5 * expectedHome(home2, away2), 12),
+        drawProbability: 0.5,
+      }),
+    ]);
+
+    // elo-form-v1 and elo-home-v1: elo-v1's ratings, with each side's form, or
+    // the home side's own advantage; the shoot-out a draw for them too.
+    const flat = (home: number, away: number, advantage: number) =>
+      1 / (1 + 10 ** ((away - (home + advantage)) / 400));
+    const formBy2 = first;
+    const formBy3 = first + second;
+    const advantage2 = 60 + 4 * (1 - flat(1500, 1500, 60));
+    const advantage3 = advantage2 + 4 * (0.5 - flat(home1, away1, advantage2));
+    expect(await rowsFor(IDS[0] as number, "backtest", "elo-form-v1")).toHaveLength(0);
+    expect(await rowsFor(IDS[1] as number, "backtest", "elo-form-v1")).toEqual([
+      expect.objectContaining({
+        homeProbability: expect.closeTo(expectedHome(home1 + formBy2, away1 - formBy2), 12),
+        drawProbability: 0,
+      }),
+    ]);
+    expect(await rowsFor(IDS[2] as number, "backtest", "elo-form-v1")).toEqual([
+      expect.objectContaining({
+        homeProbability: expect.closeTo(0.5 * expectedHome(home2 + formBy3, away2 - formBy3), 12),
+        drawProbability: 0.5,
+      }),
+    ]);
+    expect(await rowsFor(IDS[1] as number, "backtest", "elo-home-v1")).toEqual([
+      expect.objectContaining({
+        homeProbability: expect.closeTo(flat(home1, away1, advantage2), 12),
+        drawProbability: 0,
+      }),
+    ]);
+    expect(await rowsFor(IDS[2] as number, "backtest", "elo-home-v1")).toEqual([
+      expect.objectContaining({
+        homeProbability: expect.closeTo(0.5 * flat(home2, away2, advantage3), 12),
         drawProbability: 0.5,
       }),
     ]);
@@ -419,5 +468,46 @@ describe("the backtest", () => {
       ]);
     }
     expect(await rowsFor(IDS[9] as number, "backtest")).toHaveLength(0);
+  });
+
+  it("predicts a Suomen Cup tie between rated sides from the cup's own history, and an outsider's not at all", async () => {
+    const cup = (id: number, day: number, overrides: Partial<typeof tasoMatches.$inferInsert>) =>
+      tasoRow({ providerMatchId: id, categoryId: "MSC", kickoffAt: kickoff(day), ...overrides });
+    await db.insert(tasoMatches).values([
+      // The league match that rates both sides.
+      tasoRow({ providerMatchId: IDS[12] as number, kickoffAt: kickoff(1) }),
+      // The cup's first tie, level after extra time and settled on penalties.
+      cup(IDS[13] as number, 2, { homeGoals: 1, awayGoals: 1, winner: "home" }),
+      cup(IDS[14] as number, 3, {
+        homeTeamProviderId: 985_202,
+        awayTeamProviderId: 985_201,
+        homeGoals: 2,
+        awayGoals: 0,
+      }),
+      // A side that has played no league match.
+      cup(IDS[15] as number, 4, { awayTeamProviderId: 985_299, homeGoals: 0, awayGoals: 1 }),
+    ]);
+
+    await runPredictionBacktest(NOW);
+
+    const models = ["home-baseline-v1", "elo-v1", "elo-form-v1", "elo-home-v1", "poisson-v1"];
+    for (const model of models) {
+      const [row] = await rowsFor(IDS[14] as number, "backtest", model);
+      expect(row?.competitionCode).toBe("MSC");
+      expect(await rowsFor(IDS[15] as number, "backtest", model)).toHaveLength(0);
+    }
+    // The baseline is the cup's own: its one earlier tie, a draw.
+    expect((await rowsFor(IDS[14] as number, "backtest"))[0]).toMatchObject({
+      homeProbability: 0,
+      drawProbability: 1,
+      awayProbability: 0,
+    });
+    // The finished tie's page reads its surprise figure from the Elo row: a
+    // draw share of 1, used as it is, left the home win nothing.
+    const [tie] = await db
+      .select()
+      .from(tasoMatches)
+      .where(eq(tasoMatches.providerMatchId, IDS[14] as number));
+    expect(await getMatchSurprise({ source: "taso", match: tie } as StoredMatch)).toBe(0);
   });
 });

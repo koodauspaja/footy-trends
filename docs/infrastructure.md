@@ -112,7 +112,7 @@ By name; no value is in the repository. The lists are in `.railway/railway.ts`.
 | `LOG_LEVEL` | `info` | `info` | why `info` is safe: `docs/setup/021` |
 | `AUTH_ALLOWED_EMAILS` | set | absent | unset means anyone may sign in |
 | `AUTH_CLIENT_IP_HEADERS`, `AUTH_TRUSTED_PROXIES` | present, **empty on purpose** | absent | the default, `x-real-ip`, is right behind Railway's edge (decisions/309) |
-| `SENTRY_TRACES_SAMPLE_RATE`, `SENTRY_SEND_DEFAULT_PII`, `SENTRY_ENABLE_LOGS` and their `NEXT_PUBLIC_` copies | absent | set | production: 0.1, false, false. Absent means the wizard's defaults: 1, true, true |
+| `SENTRY_TRACES_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` | absent | set | production: 0.1. Absent means the in-code default, also 0.1 (decisions/656). What an event carries is not a variable: `DATA_COLLECTION` in `src/lib/sentry-config.ts`, every environment (decisions/565) |
 
 The `predictions` service holds its own: `DATABASE_URL`, `REDIS_URL`, the two
 provider keys, `FOOTBALL_DATA_EARLIEST_SEASON`, `AXIOM_TOKEN`, `AXIOM_DATASET`
@@ -174,8 +174,8 @@ The whole backtest is still run by hand, per environment:
 `DATABASE_URL=<that environment> npm run predictions -- backtest`, from a
 checkout of the commit that environment runs. It rewrites every row.
 
-- **After a release that adds a model**, so the hour's run does not compute
-  the model's whole history: it would, in about 30 s.
+- **After a release that adds a model or a predicted competition**, so the
+  hour's run does not compute their whole history: it would, in about 30 s.
 - **On staging, whenever its backtest rows should be current**: nothing
   scheduled runs there.
 
@@ -304,7 +304,7 @@ Organization project `Footy Trends` (number 2), private. Status: `Backlog`,
 
 | | Where | Constraints |
 |---|---|---|
-| Errors | Sentry: `sentry.server.config.ts`, `sentry.edge.config.ts`, `src/instrumentation-client.ts`, all reading `src/lib/sentry-config.ts` | three files, and the browser needs `NEXT_PUBLIC_` copies of each setting. A blank variable means unset, not zero. A failure a client component catches goes to Sentry, not Axiom, through `reportClientError`, tagged `where` (decisions/604) |
+| Errors | Sentry: `sentry.server.config.ts`, `sentry.edge.config.ts`, `src/instrumentation-client.ts`, all reading `src/lib/sentry-config.ts` | three files, and the browser needs a `NEXT_PUBLIC_` copy of the sample rate. A blank variable means unset, not zero. A failure a client component catches goes to Sentry, not Axiom, through `reportClientError`, tagged `where` (decisions/604) |
 | Logs | Pino with the `@axiomhq/pino` transport (`src/lib/logger.ts`), one dataset per environment | **Policy (2026-10-04): deploy-time failures show in Railway's log; everything the app does goes to Axiom.** With Axiom configured, the app's logger writes to Axiom only, so Railway's log holds the build, the migrations and Next's startup lines, and nothing from the running app. `info` logs once per outbound provider request and once per health check, so volume follows cache misses, not traffic (`docs/setup/021`). An admin's write (a role change, a deletion, a forced refresh) and each hourly predictions run are one `info` line each, with ids and never an address. A refused sign-in is a `warn` with no fields (decisions/603). Logging is a feature requirement: a spec says what the feature logs (`skills/write-spec.md`, item 8), and the pass before a review checks it (`skills/self-review.md`, section 11). |
 | Health | `/api/health`; `?providers=1` also asks TASO | `?providers=1` is an uncached provider call: not for a short-interval monitor |
 

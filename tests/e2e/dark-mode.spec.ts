@@ -17,6 +17,10 @@ const PAGES = [
   ["the region picker", "/"],
   ["a standings table", "/kotimaa/sarjataulukko?kilpailu=VL&kausi=2026"],
   ["a match list", "/ulkomaat/ottelut?kilpailu=PL"],
+  // Rows tinted by the kind of place they hold: cup places and relegation, then
+  // promotion and its play-off.
+  ["a foreign table with zones", "/ulkomaat/sarjataulukko?kilpailu=PL"],
+  ["a second foreign table with zones", "/ulkomaat/sarjataulukko?kilpailu=ELC"],
   // Renders the amber fallback banner, which has its own three tokens.
   ["a fallback notice", "/kotimaa/sarjataulukko?kilpailu=NOPE"],
 ] as const;
@@ -205,6 +209,50 @@ for (const scheme of ["light", "dark"] as const) {
         await expect(page.getByRole("heading").first()).toBeVisible();
 
         await expectLegible(page, path, scheme);
+      });
+    }
+
+    // The 4 px edge is what carries a zone's colour, so it is measured against the page, as a
+    // control's border would be, and held to the text threshold: specs/065 measured each edge at
+    // 4.9:1 or better. Both pages together paint all four kinds.
+    for (const [kind, path] of [
+      ["cup", "/ulkomaat/sarjataulukko?kilpailu=PL"],
+      ["relegation", "/ulkomaat/sarjataulukko?kilpailu=PL"],
+      ["promotion", "/ulkomaat/sarjataulukko?kilpailu=ELC"],
+      ["playoff", "/ulkomaat/sarjataulukko?kilpailu=ELC"],
+    ] as const) {
+      test(`the ${kind} edge stands out from the page`, async ({ page }) => {
+        await page.goto(path);
+        const first = page
+          .locator(`tr[class*='bg-zone-${kind}-background'] > :first-child`)
+          .first();
+        await expect(first).toBeVisible();
+
+        const { edge, page: background } = await first.evaluate((cell) => {
+          const toRgb = (css: string) => (css.match(/\d+/g) ?? []).slice(0, 3).map(Number);
+          // Tailwind composes its shadow utilities, so the computed value lists empty shadows
+          // before the edge: take the one that is 4 px wide, inset.
+          const edgeShadow = getComputedStyle(cell)
+            .boxShadow.split(/,\s*(?=rgb)/)
+            .find((shadow) => shadow.includes("4px") && shadow.includes("inset"));
+          return {
+            edge: toRgb(edgeShadow ?? ""),
+            page: toRgb(getComputedStyle(document.body).backgroundColor),
+          };
+        });
+        const luminance = (rgb: number[]) => {
+          const [r = 0, g = 0, b = 0] = rgb.map((value) => {
+            const s = value / 255;
+            return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+          });
+          return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        };
+        const [lighter = 0, darker = 0] = [luminance(edge), luminance(background)].sort(
+          (a, b) => b - a
+        );
+
+        expect(edge).toHaveLength(3);
+        expect((lighter + 0.05) / (darker + 0.05)).toBeGreaterThanOrEqual(4.5);
       });
     }
 

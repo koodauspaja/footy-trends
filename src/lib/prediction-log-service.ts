@@ -7,6 +7,7 @@
  * decisions/053-elo-ratings.md
  * decisions/055-poisson-goal-model.md
  * decisions/057-surprise-index.md
+ * decisions/060-elo-variants.md
  */
 
 import { and, eq, gt, inArray, isNotNull, lte, sql } from "drizzle-orm";
@@ -14,10 +15,10 @@ import { db } from "@/db";
 import { matches, predictions, tasoMatches } from "@/db/schema";
 import { invalidateCache } from "./cache";
 import { categoryIdsFor, competitionForSeasonPair } from "./domestic-competitions";
-import { replayElo, type TeamRating } from "./elo";
+import { isRated, type TeamRating } from "./elo";
+import { replayVariants, type VariantState } from "./elo-variants";
 import { getSeasonMatches as getFootballDataSeasonMatches } from "./football-data";
-import { COMPETITIONS } from "./goals-per-game";
-import { HOME_BASELINE_MODEL } from "./home-baseline";
+import { HOME_BASELINE_MODEL, isPredictedCup, PREDICTED_COMPETITIONS } from "./home-baseline";
 import { logger } from "./logger";
 import {
   FOOTBALL_DATA_AWAY_GOALS,
@@ -31,12 +32,14 @@ import {
   backtestKey,
   backtestRows,
   eloBacktestRows,
+  eloVariantBacktestRows,
   type FinishedMatch,
   missingBacktestRows,
   poissonBacktestRows,
 } from "./prediction-backtest";
 import {
   eloLiveRow,
+  eloVariantLiveRows,
   isLoggable,
   LOG_WINDOW_HOURS,
   type LogCandidate,
@@ -61,12 +64,13 @@ const HOUR_MS = 60 * 60 * 1000;
  */
 const WRITE_BATCH = 1000;
 
-const TASO_CODES = [...COMPETITIONS.taso];
+const TASO_CODES = [...PREDICTED_COMPETITIONS.taso];
 
 /**
- * Stored matches of the compared competitions kicking off inside either window.
+ * Stored matches of the predicted competitions kicking off inside either window.
  *
  * decisions/052-predictions-log.md
+ * decisions/059-cup-predictions.md
  */
 async function readCandidates(now: Date): Promise<LogCandidate[]> {
   const from = new Date(now.getTime() - RESULT_WINDOW_HOURS * HOUR_MS);
@@ -88,7 +92,7 @@ async function readCandidates(now: Date): Promise<LogCandidate[]> {
       .from(matches)
       .where(
         and(
-          inArray(matches.competitionCode, [...COMPETITIONS["football-data"]]),
+          inArray(matches.competitionCode, [...PREDICTED_COMPETITIONS["football-data"]]),
           gt(matches.kickoffAt, from),
           lte(matches.kickoffAt, to)
         )
@@ -257,6 +261,8 @@ export type PredictionRunReport = {
  * decisions/603-server-side-records.md
  * decisions/055-poisson-goal-model.md
  * decisions/057-surprise-index.md
+ * decisions/059-cup-predictions.md
+ * decisions/060-elo-variants.md
  */
 export async function runPredictionLog(
   clock: () => Date = () => new Date(),
@@ -302,10 +308,10 @@ export async function runPredictionLog(
   }
 
   // The run replays and fits for itself, never from the pages' cache. A failed
-  // read costs the Elo and Poisson rows only: the baseline's are still written,
-  // and no row is ever made from ratings or strengths that were never read.
+  // read costs the three Elo models' and Poisson's rows only: the baseline's are
+  // still written, and no row is ever made from ratings or strengths never read.
   const finished = readFinished();
-  const ratings = await finished.then(eloRatingsBySource, (error: unknown) => {
+  const elo = await finished.then(eloBySource, (error: unknown) => {
     logger.error({ err: error }, "Unable to read the Elo history for predictions");
     failures.push("elo ratings");
     return null;
@@ -326,11 +332,27 @@ export async function runPredictionLog(
     .flatMap((candidate) => {
       const baseline = baselines.get(keyOf(candidate));
       if (baseline === undefined) return [];
+      // A cup tie is logged by no model unless both sides are rated, which an
+      // unread history cannot say.
+      if (isPredictedCup(candidate.source, candidate.code)) {
+        const rated = elo?.[candidate.source].ratings;
+        if (rated === undefined || !isRated(rated, candidate.homeTeam)) return [];
+        if (!isRated(rated, candidate.awayTeam)) return [];
+      }
       return [
         liveRow(candidate, baseline, HOME_BASELINE_MODEL, writtenAt),
-        ratings === null
+        elo === null
           ? null
-          : eloLiveRow(candidate, ratings[candidate.source], baseline, writtenAt),
+          : eloLiveRow(candidate, elo[candidate.source].ratings, baseline, writtenAt),
+        ...(elo === null
+          ? []
+          : eloVariantLiveRows(
+              candidate,
+              elo[candidate.source].ratings,
+              elo[candidate.source].state,
+              baseline,
+              writtenAt
+            )),
         fits === null ? null : poissonLiveRow(candidate, fits[candidate.source], writtenAt),
       ].filter((row) => row !== null);
     });
@@ -356,16 +378,18 @@ export async function runPredictionLog(
 }
 
 /**
- * Each provider's current Elo ratings, replayed apart: the id spaces never meet.
+ * Each provider's current Elo ratings and the variants' state, from one replay
+ * each, apart: the id spaces never meet.
  *
  * decisions/053-elo-ratings.md
+ * decisions/060-elo-variants.md
  */
-function eloRatingsBySource(
+function eloBySource(
   finished: readonly FinishedMatch[]
-): Record<MatchSource["kind"], ReadonlyMap<number, TeamRating>> {
-  const ratingsOf = (source: MatchSource["kind"]) =>
-    replayElo(finished.filter((match) => match.source === source)).ratings;
-  return { "football-data": ratingsOf("football-data"), taso: ratingsOf("taso") };
+): Record<MatchSource["kind"], { ratings: ReadonlyMap<number, TeamRating>; state: VariantState }> {
+  const replayOf = (source: MatchSource["kind"]) =>
+    replayVariants(finished.filter((match) => match.source === source));
+  return { "football-data": replayOf("football-data"), taso: replayOf("taso") };
 }
 
 /**
@@ -387,13 +411,13 @@ function poissonFitsBySource(
 }
 
 /**
- * Every stored finished match of the compared competitions, its score after
- * extra time, with its teams and season: of both providers unless told which.
- * The backtests, the live ratings and fits, and the pages' all read it.
+ * Every stored finished match of the predicted competitions, a cup tie marked,
+ * its score after extra time: of both providers unless told which.
  *
  * decisions/052-predictions-log.md
  * decisions/053-elo-ratings.md
  * decisions/055-poisson-goal-model.md
+ * decisions/059-cup-predictions.md
  */
 export async function readFinished(
   sources: ReadonlySet<MatchSource["kind"]> = new Set(["football-data", "taso"])
@@ -415,7 +439,7 @@ export async function readFinished(
           .from(matches)
           .where(
             and(
-              inArray(matches.competitionCode, [...COMPETITIONS["football-data"]]),
+              inArray(matches.competitionCode, [...PREDICTED_COMPETITIONS["football-data"]]),
               eq(matches.status, FINISHED_STATUS),
               isNotNull(matches.homeGoals),
               isNotNull(matches.awayGoals)
@@ -453,7 +477,17 @@ export async function readFinished(
       // Both scores are non-null by the query; the check narrows the type.
       return code === null || homeGoals === null || awayGoals === null
         ? []
-        : [{ source: "taso" as const, code, seasonId, homeGoals, awayGoals, ...row }];
+        : [
+            {
+              source: "taso" as const,
+              code,
+              seasonId,
+              homeGoals,
+              awayGoals,
+              ...row,
+              ...(isPredictedCup("taso", code) ? { cup: true } : {}),
+            },
+          ];
     }),
   ];
 }
@@ -514,6 +548,7 @@ async function writeMissingBacktest(
  * decisions/052-predictions-log.md
  * decisions/055-poisson-goal-model.md
  * decisions/056-accuracy-by-competition.md
+ * decisions/060-elo-variants.md
  */
 export async function runPredictionBacktest(now: Date = new Date()): Promise<number> {
   const finished = await readFinished();
@@ -521,6 +556,7 @@ export async function runPredictionBacktest(now: Date = new Date()): Promise<num
   const rows = [
     ...baseline,
     ...eloBacktestRows(finished, baseline, now),
+    ...eloVariantBacktestRows(finished, baseline, now),
     ...poissonBacktestRows(finished, now),
   ];
   try {

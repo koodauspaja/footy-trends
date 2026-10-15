@@ -14,6 +14,7 @@ import type {
  *
  * decisions/061-season-simulation.md
  * decisions/638-forecast-names-left-out-groups.md
+ * decisions/064-season-simulation-zones.md
  */
 
 // `Ennuste`'s own link string; its component reads the models, which this panel does not.
@@ -39,6 +40,7 @@ import {
   TABLE_WIN_HEADER,
   TITLE_HEADER,
   TOP_THREE_HEADER,
+  zonePositionsText,
 } from "@/components/season-forecast";
 
 const HREF = "/ennusteet?alue=kotimaa&tyyppi=jalkikateen&kilpailu=VL";
@@ -53,6 +55,7 @@ function team(teamProviderId: number, overrides: Partial<ForecastRow> = {}): For
     last: open(0.02),
     topThree: open(0.93),
     bottomThree: open(0.04),
+    zones: [],
     ...overrides,
   };
 }
@@ -62,6 +65,7 @@ function table(overrides: Partial<ForecastTable> = {}): ForecastTable {
     groupId: 1,
     groupName: null,
     decidesTitle: true,
+    zones: [],
     rows: [team(1), team(2)],
     ...overrides,
   };
@@ -135,6 +139,13 @@ describe("leftOutText", () => {
   });
 });
 
+describe("zonePositionsText", () => {
+  it("says sija for one place and sijat with an en dash for several", () => {
+    expect(zonePositionsText({ from: 2, to: 2, label: "x" })).toBe("sija 2");
+    expect(zonePositionsText({ from: 3, to: 8, label: "x" })).toBe("sijat 3–8");
+  });
+});
+
 describe("chanceText", () => {
   it("prints a whole percent", () => {
     expect(chanceText(open(0.614))).toBe("61 %");
@@ -183,6 +194,14 @@ describe("SeasonForecastBody", () => {
     expect(within(first as HTMLElement).getByRole("rowheader").textContent).toBe("Team 1");
     // The league's one table is the page's own: it is not named again.
     expect(screen.queryByRole("heading")).toBeNull();
+  });
+
+  it("gives the ordinary columns no second line", () => {
+    const { container } = render(
+      <SeasonForecastBody forecast={ok("single", [table()])} qualityHref={HREF} />
+    );
+
+    expect(container.querySelectorAll("thead span")).toHaveLength(0);
   });
 
   it("shows each of several tables under its name, with first and last place", () => {
@@ -286,6 +305,149 @@ describe("SeasonForecastBody", () => {
       minWidth: "472px",
       columns: ["", "72px", "96px", "96px", "96px"],
       scrolls: "overflow-x-auto",
+    });
+  });
+
+  describe("a group with zones", () => {
+    const zones = [
+      { from: 1, to: 1, label: "Nousee Veikkausliigaan" },
+      { from: 3, to: 8, label: "Säilyy / Putoaa" },
+    ];
+    const zoned = (overrides: Partial<ForecastTable> = {}) =>
+      table({
+        zones,
+        rows: [
+          team(1, { zones: [open(0.61), open(0.93)] }),
+          team(2, { zones: [open(0.02), open(0.04)] }),
+        ],
+        ...overrides,
+      });
+
+    it("shows one column per zone, headed by its label and the places it covers", () => {
+      render(<SeasonForecastBody forecast={ok("single", [zoned()])} qualityHref={HREF} />);
+
+      expect(headers()).toEqual([
+        "Joukkue",
+        "Odotetut pisteet",
+        "Nousee Veikkausliigaansija 1",
+        "Säilyy / Putoaasijat 3–8",
+      ]);
+      // The places are a block of their own under the label, not on its line.
+      const positions = screen.getByText("sijat 3–8");
+      expect(positions.tagName).toBe("SPAN");
+      expect(positions.className).toContain("block");
+      expect(positions.parentElement?.firstChild?.textContent).toBe("Säilyy / Putoaa");
+      const [, first] = screen.getAllByRole("row");
+      expect(
+        within(first as HTMLElement)
+          .getAllByRole("cell")
+          .map((cell) => cell.textContent)
+      ).toEqual(["52,4", "61\u00a0%", "93\u00a0%"]);
+      for (const gone of [TITLE_HEADER, TOP_THREE_HEADER, BOTTOM_THREE_HEADER, TABLE_LAST_HEADER]) {
+        expect(screen.queryByText(gone)).toBeNull();
+      }
+    });
+
+    it("makes a column of a single zone, as of several", () => {
+      const [only] = zones as [(typeof zones)[number]];
+      render(
+        <SeasonForecastBody
+          forecast={ok("single", [
+            zoned({
+              zones: [only],
+              rows: [team(1, { zones: [open(0.61)] })],
+            }),
+          ])}
+          qualityHref={HREF}
+        />
+      );
+
+      expect(headers()).toEqual(["Joukkue", "Odotetut pisteet", "Nousee Veikkausliigaansija 1"]);
+    });
+
+    it("prints a settled zone as 0 % or 100 %", () => {
+      const settledRow = team(1, {
+        zones: [
+          { share: 1, settled: true },
+          { share: 0, settled: true },
+        ],
+      });
+      render(
+        <SeasonForecastBody
+          forecast={ok("single", [zoned({ rows: [settledRow] })])}
+          qualityHref={HREF}
+        />
+      );
+
+      const [, first] = screen.getAllByRole("row");
+      expect(
+        within(first as HTMLElement)
+          .getAllByRole("cell")
+          .map((cell) => cell.textContent)
+      ).toEqual(["52,4", "100\u00a0%", "0\u00a0%"]);
+    });
+
+    it("uses the zones' columns in every layout, a split's regular season too", () => {
+      for (const layout of ["several", "before-split"] as const) {
+        const { unmount } = render(
+          <SeasonForecastBody forecast={ok(layout, [zoned()])} qualityHref={HREF} />
+        );
+        expect(headers()).toEqual([
+          "Joukkue",
+          "Odotetut pisteet",
+          "Nousee Veikkausliigaansija 1",
+          "Säilyy / Putoaasijat 3–8",
+        ]);
+        unmount();
+      }
+    });
+
+    it("gives the columns a width of their own and lets the table scroll", () => {
+      const { container } = render(
+        <SeasonForecastBody forecast={ok("single", [zoned()])} qualityHref={HREF} />
+      );
+
+      expect([...container.querySelectorAll("col")].map((col) => col.style.width)).toEqual([
+        "",
+        "72px",
+        "112px",
+        "112px",
+      ]);
+      expect((container.querySelector("table") as HTMLTableElement).style.minWidth).toBe("408px");
+      expect(container.querySelector("table")?.parentElement?.className).toBe("overflow-x-auto");
+    });
+
+    it("keeps the team's name in view when the table scrolls", () => {
+      const { container } = render(
+        <SeasonForecastBody forecast={ok("single", [zoned()])} qualityHref={HREF} />
+      );
+
+      const names = [
+        ...container.querySelectorAll("thead th:first-child, tbody th:first-child"),
+      ] as HTMLElement[];
+      expect(names).toHaveLength(3);
+      expect(names.every((cell) => cell.className.includes("sticky left-0"))).toBe(true);
+    });
+
+    it("leaves a group without zones on its own columns beside one that has them", () => {
+      render(
+        <SeasonForecastBody
+          forecast={ok("several", [
+            zoned({ groupName: "Mestaruussarja" }),
+            table({ groupId: 2, groupName: "Karsintasarja", decidesTitle: false }),
+          ])}
+          qualityHref={HREF}
+        />
+      );
+
+      const [upper, lower] = screen.getAllByRole("table");
+      expect(headers(upper)).toContain("Säilyy / Putoaasijat 3–8");
+      expect(headers(lower)).toEqual([
+        "Joukkue",
+        "Odotetut pisteet",
+        "Sarjan voitto",
+        "Sarjan viimeinen sija",
+      ]);
     });
   });
 

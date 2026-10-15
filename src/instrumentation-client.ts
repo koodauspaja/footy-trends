@@ -3,18 +3,17 @@
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/
 
 import * as Sentry from "@sentry/nextjs";
-import { flagFrom, sampleRateFrom } from "@/lib/sentry-config";
+import { DATA_COLLECTION, filterSpanQueries, sampleRateFrom } from "@/lib/sentry-config";
 
 /**
  * `NEXT_PUBLIC_`-prefixed, because anything read in the browser is inlined into
- * the bundle at build time. Each default keeps what the browser did before
- * its variable existed.
+ * the bundle at build time. Unset, it takes its default in
+ * `src/lib/sentry-config.ts`.
  *
  * decisions/140-sentry-production-configuration.md
+ * decisions/656-e2e-sends-nothing-to-sentry.md
  */
 const tracesSampleRate = sampleRateFrom(process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE);
-const enableLogs = flagFrom(process.env.NEXT_PUBLIC_SENTRY_ENABLE_LOGS);
-const sendDefaultPii = flagFrom(process.env.NEXT_PUBLIC_SENTRY_SEND_DEFAULT_PII);
 
 /*
  * `integrations` is deliberately not set at all. `integrations: []` would
@@ -26,12 +25,9 @@ Sentry.init({
   // Define how likely traces are sampled.
   tracesSampleRate,
 
-  // Enable logs to be sent to Sentry
-  enableLogs,
-
-  // Enable sending user PII (Personally Identifiable Information)
-  // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options/#sendDefaultPii
-  sendDefaultPii,
+  // What an event may carry, and no credential left in a span's raw URL.
+  dataCollection: DATA_COLLECTION,
+  beforeSendSpan: filterSpanQueries,
 });
 
 export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;

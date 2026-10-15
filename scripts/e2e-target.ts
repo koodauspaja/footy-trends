@@ -7,9 +7,10 @@
 
 /**
  * `fresh-build` builds and then serves, `prebuilt` serves a build the caller
- * made, and `dev` is `next dev`.
+ * made, with whatever Sentry DSN it was built with, and `dev` is `next dev`.
  *
  * decisions/568-e2e-against-a-production-build.md
+ * decisions/656-e2e-sends-nothing-to-sentry.md
  */
 export type E2eTarget = "fresh-build" | "prebuilt" | "dev";
 
@@ -57,4 +58,17 @@ export function startUpTimeoutMs(target: E2eTarget): number {
  */
 export function vouchesForAPush(target: E2eTarget): boolean {
   return target === "fresh-build";
+}
+
+/**
+ * The server's environment with no Sentry DSN, so a `fresh-build` or `dev` run
+ * reports nothing to Sentry whatever `.env` holds. A `prebuilt` build keeps the
+ * DSN it was built with, inlined at build time.
+ *
+ * decisions/656-e2e-sends-nothing-to-sentry.md
+ */
+export function withoutSentry<Env extends object>(
+  env: Env
+): Omit<Env, "NEXT_PUBLIC_SENTRY_DSN"> & { NEXT_PUBLIC_SENTRY_DSN: "" } {
+  return { ...env, NEXT_PUBLIC_SENTRY_DSN: "" };
 }

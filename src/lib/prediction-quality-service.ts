@@ -14,8 +14,8 @@ import { getCached } from "./cache";
 import { SUPPORTED_COMPETITIONS } from "./competitions";
 import { DOMESTIC_COMPETITIONS } from "./domestic-competitions";
 import { ELO_MODEL } from "./elo";
-import { COMPETITIONS } from "./goals-per-game";
-import { HOME_BASELINE_MODEL } from "./home-baseline";
+import { ELO_FORM_MODEL, ELO_HOME_MODEL } from "./elo-variants";
+import { HOME_BASELINE_MODEL, PREDICTED_COMPETITIONS, PREDICTED_CUPS } from "./home-baseline";
 import { logger } from "./logger";
 import { FOOTBALL_DATA_AWAY_GOALS, FOOTBALL_DATA_HOME_GOALS } from "./match-service";
 import type { MatchSource } from "./match-source";
@@ -31,8 +31,15 @@ import {
  * The models judged, in the order every figure lists them.
  *
  * decisions/054-prediction-quality.md
+ * decisions/060-elo-variants.md
  */
-export const QUALITY_MODELS = [HOME_BASELINE_MODEL, ELO_MODEL, POISSON_MODEL] as const;
+export const QUALITY_MODELS = [
+  HOME_BASELINE_MODEL,
+  ELO_MODEL,
+  ELO_FORM_MODEL,
+  ELO_HOME_MODEL,
+  POISSON_MODEL,
+] as const;
 
 /**
  * The first season judged: domestically 2016, leaving Elo's cold 2015
@@ -62,10 +69,13 @@ export type QualityResult = QualityReport | { status: "error" };
  * rows per competition come in this order, and only these filter the page.
  *
  * decisions/056-accuracy-by-competition.md
+ * decisions/059-cup-predictions.md
  */
 export function qualityCompetitions(source: MatchSource["kind"]): string[] {
   const registry = source === "taso" ? DOMESTIC_COMPETITIONS : SUPPORTED_COMPETITIONS;
-  return registry.map(({ code }) => code).filter((code) => COMPETITIONS[source].has(code));
+  return registry
+    .map(({ code }) => code)
+    .filter((code) => PREDICTED_COMPETITIONS[source].has(code));
 }
 
 /**
@@ -188,6 +198,7 @@ async function readJudged(source: MatchSource["kind"], kind: PredictionKind): Pr
  *
  * decisions/054-prediction-quality.md
  * decisions/056-accuracy-by-competition.md
+ * decisions/059-cup-predictions.md
  */
 export async function getPredictionQuality(
   source: MatchSource["kind"],
@@ -205,7 +216,14 @@ export async function getPredictionQuality(
             outcome: outcomeOf(homeGoals, awayGoals),
           })
         );
-        return qualityReport(judged, QUALITY_MODELS, qualityCompetitions(source), competition);
+        // The cups have their own rows, and no part in the figures of all.
+        return qualityReport(
+          judged,
+          QUALITY_MODELS,
+          qualityCompetitions(source),
+          competition,
+          source === "taso" ? PREDICTED_CUPS : new Set()
+        );
       }
     );
   } catch (error) {

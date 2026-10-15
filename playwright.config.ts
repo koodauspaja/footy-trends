@@ -9,11 +9,12 @@
  * decisions/304-test-database.md
  * decisions/384-a-dom-only-where-a-test-needs-one.md
  * decisions/568-e2e-against-a-production-build.md
+ * decisions/656-e2e-sends-nothing-to-sentry.md
  */
 
 import { existsSync } from "node:fs";
 import { defineConfig, devices } from "@playwright/test";
-import { e2eTarget, serverCommand, startUpTimeoutMs } from "./scripts/e2e-target";
+import { e2eTarget, serverCommand, startUpTimeoutMs, withoutSentry } from "./scripts/e2e-target";
 import { E2E_ANALYTICS_FLAG } from "./src/lib/e2e-analytics";
 import { testDatabaseUrl } from "./tests/support/test-database";
 
@@ -80,10 +81,14 @@ export default defineConfig({
     // Never reused: a server already listening was started against the
     // development database, or is a `next dev` where a build is under test.
     reuseExistingServer: false,
-    // The test database, not the developer's; everything else is inherited. The
-    // analytics flag works only against a `_test` database, which this also sets:
-    // see `src/lib/e2e-analytics.ts`.
-    env: { ...process.env, DATABASE_URL: testDatabaseUrl(), [E2E_ANALYTICS_FLAG]: "1" },
+    // The test database, not the developer's, and no Sentry DSN; everything else
+    // is inherited. The analytics flag works only against a `_test` database,
+    // which this also sets: see `src/lib/e2e-analytics.ts`.
+    env: withoutSentry({
+      ...process.env,
+      DATABASE_URL: testDatabaseUrl(),
+      [E2E_ANALYTICS_FLAG]: "1",
+    }),
     timeout: startUpTimeoutMs(target),
   },
 });

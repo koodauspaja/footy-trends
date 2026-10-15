@@ -5,6 +5,7 @@
  *
  * decisions/049-home-advantage-and-draw-rate.md
  * decisions/051-home-win-baseline.md
+ * decisions/059-cup-predictions.md
  */
 
 import { competitionForSeasonPair } from "./domestic-competitions";
@@ -34,6 +35,35 @@ export const UPCOMING_STATUSES: readonly string[] = ["SCHEDULED", "TIMED"];
 
 const UPCOMING: ReadonlySet<string> = new Set(UPCOMING_STATUSES);
 
+/**
+ * The cups the models predict. A cup tie is predicted from what its sides did
+ * in the leagues, and never moves a rating or a strength.
+ *
+ * decisions/059-cup-predictions.md
+ */
+export const PREDICTED_CUPS: ReadonlySet<string> = new Set(["MSC", "NSC"]);
+
+/**
+ * The competitions the models predict: the compared ones, and the cups.
+ * `COMPETITIONS` is kept as it is, since it also places the pages' panels.
+ *
+ * decisions/051-home-win-baseline.md
+ * decisions/059-cup-predictions.md
+ */
+export const PREDICTED_COMPETITIONS: Record<MatchSource["kind"], ReadonlySet<string>> = {
+  "football-data": COMPETITIONS["football-data"],
+  taso: new Set([...COMPETITIONS.taso, ...PREDICTED_CUPS]),
+};
+
+/**
+ * Whether a predicted competition is one of the cups.
+ *
+ * decisions/059-cup-predictions.md
+ */
+export function isPredictedCup(kind: MatchSource["kind"], code: string): boolean {
+  return kind === "taso" && PREDICTED_CUPS.has(code);
+}
+
 export type HomeBaseline =
   | {
       status: "ok";
@@ -53,31 +83,35 @@ export type HomeBaseline =
   | { status: "error" };
 
 /**
- * A compared competition, as the models know it: the provider and its code.
+ * A predicted competition, as the models know it: the provider and its code.
  *
  * decisions/051-home-win-baseline.md
+ * decisions/059-cup-predictions.md
  */
 export type BaselineCompetition = { kind: MatchSource["kind"]; code: string };
 
 /**
  * The competition a match is predicted from, or `null` when it gets no
- * prediction: not upcoming, or not a compared competition. A TASO match is
+ * prediction: not upcoming, or not a predicted competition. A TASO match is
  * filed by its `(competition_id, category_id)` pair.
  *
  * decisions/049-home-advantage-and-draw-rate.md
  * decisions/051-home-win-baseline.md
+ * decisions/059-cup-predictions.md
  */
 export function baselineCompetition(stored: StoredMatch): BaselineCompetition | null {
   if (!UPCOMING.has(stored.match.status)) return null;
 
   if (stored.source === "football-data") {
     const code = stored.match.competitionCode;
-    return COMPETITIONS["football-data"].has(code) ? { kind: "football-data", code } : null;
+    return PREDICTED_COMPETITIONS["football-data"].has(code)
+      ? { kind: "football-data", code }
+      : null;
   }
 
   const { competitionCode, categoryId, seasonId } = stored.match;
   const code = competitionForSeasonPair(
-    [...COMPETITIONS.taso],
+    [...PREDICTED_COMPETITIONS.taso],
     competitionCode,
     categoryId,
     seasonId

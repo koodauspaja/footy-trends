@@ -5,9 +5,16 @@
  * decisions/052-predictions-log.md
  * decisions/049-home-advantage-and-draw-rate.md
  * decisions/055-poisson-goal-model.md
+ * decisions/060-elo-variants.md
  */
 
-import { ELO_MODEL, predictElo, type TeamRating } from "./elo";
+import { ELO_MODEL, predictElo, type TeamRating, type ThreeWay } from "./elo";
+import {
+  ELO_FORM_MODEL,
+  ELO_HOME_MODEL,
+  predictUpcomingVariants,
+  type VariantState,
+} from "./elo-variants";
 import type { HomeBaseline } from "./home-baseline";
 import type { MatchSource } from "./match-source";
 import { POISSON_MODEL, type PoissonFit, predictPoisson } from "./poisson";
@@ -47,9 +54,10 @@ export type RefreshTarget =
   | { source: "taso"; code: string; seasonId: number; competitionId: string; categoryId: string };
 
 /**
- * One stored match of a compared competition, near enough to now to matter.
+ * One stored match of a predicted competition, near enough to now to matter.
  *
  * decisions/052-predictions-log.md
+ * decisions/059-cup-predictions.md
  */
 export type LogCandidate = RefreshTarget & {
   providerMatchId: number;
@@ -196,6 +204,38 @@ export function eloLiveRow(
     predictedAt: now,
     kickoffAt: candidate.kickoffAt,
   };
+}
+
+/**
+ * The `elo-form-v1` and `elo-home-v1` live rows for a match: the current
+ * ratings and the variants' state, and the competition's draw share from its
+ * baseline — or none without a draw share or with a placeholder side.
+ *
+ * decisions/060-elo-variants.md
+ */
+export function eloVariantLiveRows(
+  candidate: LogCandidate,
+  ratings: ReadonlyMap<number, TeamRating>,
+  state: VariantState,
+  baseline: HomeBaseline,
+  now: Date
+): PredictionRow[] {
+  if (baseline.status !== "ok") return [];
+  const predicted = predictUpcomingVariants(ratings, state, candidate, baseline.drawShare / 100);
+  if (predicted === null) return [];
+  const row = (model: string, prediction: ThreeWay): PredictionRow => ({
+    source: candidate.source,
+    providerMatchId: candidate.providerMatchId,
+    competitionCode: candidate.code,
+    model,
+    kind: "live",
+    homeProbability: prediction.home,
+    drawProbability: prediction.draw,
+    awayProbability: prediction.away,
+    predictedAt: now,
+    kickoffAt: candidate.kickoffAt,
+  });
+  return [row(ELO_FORM_MODEL, predicted.form), row(ELO_HOME_MODEL, predicted.home)];
 }
 
 /**

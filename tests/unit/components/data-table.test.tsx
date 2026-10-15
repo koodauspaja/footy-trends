@@ -179,3 +179,84 @@ describe("DataTable rules between rows", () => {
     );
   });
 });
+
+describe("DataTable zone tint", () => {
+  const three: Row[] = [...rows, { id: 3, name: "Ilves", points: 3 }];
+
+  it("tints a row by its kind and draws the edge on its first cell only", () => {
+    render(
+      <DataTable
+        columns={columns}
+        rowKey={(row) => row.id}
+        rows={three}
+        zoneKindOf={(row) => (row.id === 2 ? "relegation" : undefined)}
+      />
+    );
+
+    const [, first, second, third] = screen.getAllByRole("row");
+    expect(first?.className).toBe("border-border-subtle border-b");
+    expect(third?.className).toBe("border-border-subtle border-b");
+    expect(second).toHaveClass("bg-zone-relegation-background");
+    const cells = [...(second?.children ?? [])];
+    expect(cells[0]).toHaveClass("shadow-[inset_4px_0_0_var(--zone-relegation-edge)]");
+    expect(cells[1]?.className).not.toContain("shadow-");
+    expect(first?.firstElementChild?.className).not.toContain("shadow-");
+  });
+
+  it.each([
+    ["cup", "bg-zone-cup-background", "shadow-[inset_4px_0_0_var(--zone-cup-edge)]"],
+    [
+      "promotion",
+      "bg-zone-promotion-background",
+      "shadow-[inset_4px_0_0_var(--zone-promotion-edge)]",
+    ],
+    ["playoff", "bg-zone-playoff-background", "shadow-[inset_4px_0_0_var(--zone-playoff-edge)]"],
+    [
+      "relegation",
+      "bg-zone-relegation-background",
+      "shadow-[inset_4px_0_0_var(--zone-relegation-edge)]",
+    ],
+  ] as const)("paints a %s row with its own tint and edge", (kind, tint, edge) => {
+    render(
+      <DataTable
+        columns={columns}
+        rowKey={(row) => row.id}
+        rows={rows.slice(0, 1)}
+        zoneKindOf={() => kind}
+      />
+    );
+
+    const row = screen.getAllByRole("row")[1];
+    expect(row).toHaveClass(tint);
+    expect(row?.firstElementChild).toHaveClass(edge);
+  });
+
+  it("asks for the row's index, and leaves an untinted row as it was", () => {
+    const zoneKindOf = vi.fn(() => undefined);
+    render(
+      <DataTable columns={columns} rowKey={(row) => row.id} rows={rows} zoneKindOf={zoneKindOf} />
+    );
+
+    expect(zoneKindOf).toHaveBeenCalledWith(rows[1], 1);
+    for (const row of screen.getAllByRole("row").slice(1)) {
+      expect(row.className).toBe("border-border-subtle border-b");
+    }
+  });
+
+  it("lets the current row's shade win over a tint, and keeps the zone's edge", () => {
+    render(
+      <DataTable
+        columns={columns}
+        hasRuleBelow={() => true}
+        isCurrentRow={() => true}
+        rowKey={(row) => row.id}
+        rows={rows.slice(0, 1)}
+        zoneKindOf={() => "cup"}
+      />
+    );
+
+    const row = screen.getAllByRole("row")[1];
+    expect(row?.className).toBe("border-muted border-b-2 bg-surface font-semibold");
+    expect(row?.firstElementChild).toHaveClass("shadow-[inset_4px_0_0_var(--zone-cup-edge)]");
+  });
+});

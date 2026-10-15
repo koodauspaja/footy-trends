@@ -64,14 +64,7 @@ const ENVIRONMENTS = {
     // Production must not sleep.
     sleepsWhenIdle: false,
     // Only production tunes Sentry.
-    variables: [
-      "NEXT_PUBLIC_SENTRY_ENABLE_LOGS",
-      "NEXT_PUBLIC_SENTRY_SEND_DEFAULT_PII",
-      "NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE",
-      "SENTRY_ENABLE_LOGS",
-      "SENTRY_SEND_DEFAULT_PII",
-      "SENTRY_TRACES_SAMPLE_RATE",
-    ],
+    variables: ["NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE", "SENTRY_TRACES_SAMPLE_RATE"],
   },
 } as const;
 

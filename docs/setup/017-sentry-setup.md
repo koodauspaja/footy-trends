@@ -26,8 +26,10 @@ Web service → **Variables**, in `staging`:
 
 Locally, leave it empty unless you are testing Sentry itself.
 
-Staging sets nothing else, so it traces everything and sends logs to Sentry
-too. Production turns those down: `021-production-environment.md`, Step 5.
+Staging sets nothing else, so it traces a tenth of requests, the in-code
+default. What an event may carry is not a variable: `DATA_COLLECTION` in
+`src/lib/sentry-config.ts`, the same everywhere, and no log is sent to Sentry
+(`021-production-environment.md`, Step 5).
 
 ## Step 3 — Verify, after the first deploy
 

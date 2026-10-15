@@ -7,9 +7,12 @@ import {
   ELO_START,
   type EloMatch,
   expectedHome,
+  homeScore,
+  type PlayedMatch,
   predictElo,
   ratingFor,
   replayElo,
+  splitThreeWay,
   threeWay,
 } from "@/lib/elo";
 
@@ -19,6 +22,8 @@ import {
  * prediction.
  *
  * decisions/053-elo-ratings.md
+ * decisions/059-cup-predictions.md
+ * decisions/060-elo-variants.md
  */
 
 let nextId = 1;
@@ -219,5 +224,126 @@ describe("predictElo", () => {
   it("predicts nothing for a placeholder side", () => {
     expect(predictElo(ratings, 0, 2, 2025, 0.2)).toBeNull();
     expect(predictElo(ratings, 1, 0, 2025, 0.2)).toBeNull();
+  });
+});
+
+describe("a cup tie in the replay", () => {
+  // Teams 1 and 2 play the league; 3 has played only the cup.
+  const league = [played(1, 1, 2, 2, 0), played(8, 2, 1, 1, 1)];
+  const cup = (
+    day: number,
+    homeTeam: number,
+    awayTeam: number,
+    homeGoals: number,
+    awayGoals: number
+  ) => played(day, homeTeam, awayTeam, homeGoals, awayGoals, { code: "MSC", cup: true });
+
+  it("moves no rating and adds nothing to any team's history", () => {
+    const without = replayElo(league);
+    const withCups = replayElo([...league, cup(4, 2, 1, 5, 0), cup(10, 1, 2, 0, 3)]);
+
+    expect(withCups.ratings).toEqual(without.ratings);
+    expect(withCups.history).toEqual(without.history);
+  });
+
+  it("is predicted from the ratings both sides had at its kickoff", () => {
+    const tie = cup(4, 2, 1, 0, 0);
+    const seen: Array<[number, number, number]> = [];
+    replayElo([...league, tie], (match, home, away) => {
+      seen.push([match.providerMatchId, home, away]);
+    });
+    const before = replayElo([league[0] as EloMatch]).ratings;
+
+    expect(seen.find(([id]) => id === tie.providerMatchId)).toEqual([
+      tie.providerMatchId,
+      ratingFor(before, 2, 2025),
+      ratingFor(before, 1, 2025),
+    ]);
+  });
+
+  it.each([
+    ["home", 3, 1],
+    ["away", 1, 3],
+  ] as const)(
+    "is not predicted when the %s side has never played a rated match",
+    (_side, home, away) => {
+      const tie = cup(4, home, away, 1, 0);
+      const seen: number[] = [];
+      replayElo([...league, tie], (match) => seen.push(match.providerMatchId));
+
+      expect(seen).not.toContain(tie.providerMatchId);
+    }
+  );
+
+  it("is not predicted from a league match at the same kickoff", () => {
+    // Team 3's first league match kicks off with the tie, so it is not yet rated.
+    const tie = cup(5, 3, 1, 1, 0);
+    const seen: number[] = [];
+    replayElo([...league, played(5, 3, 2, 1, 0), tie], (match) => seen.push(match.providerMatchId));
+
+    expect(seen).not.toContain(tie.providerMatchId);
+  });
+});
+
+describe("expectedHome with a home advantage of its own", () => {
+  it("takes the given advantage in place of 60, and 60 when given none", () => {
+    expect(expectedHome(1500, 1500, 0)).toBe(0.5);
+    expect(expectedHome(1500, 1600, 100)).toBe(0.5);
+    expect(expectedHome(1550, 1500, 60)).toBe(expectedHome(1550, 1500));
+  });
+});
+
+describe("splitThreeWay and homeScore", () => {
+  it("splits a home side's expected score as threeWay does from two ratings", () => {
+    expect(splitThreeWay(expectedHome(1600, 1450), 0.3)).toEqual(threeWay(1600, 1450, 0.3));
+    expect(splitThreeWay(0.6, 0.25)).toEqual({ home: 0.75 * 0.6, draw: 0.25, away: 0.75 * 0.4 });
+  });
+
+  it("scores a home win 1, a draw a half and a loss 0", () => {
+    expect(
+      [played(1, 1, 2, 2, 1), played(1, 1, 2, 1, 1), played(1, 1, 2, 0, 3)].map(homeScore)
+    ).toEqual([1, 0.5, 0]);
+  });
+});
+
+describe("replayElo's onPlayed", () => {
+  it("hands over each kickoff's league matches, at the ratings they were played at, in kickoff order", () => {
+    const first = played(1, 1, 2, 2, 0);
+    const together = [played(2, 1, 3, 1, 0), played(2, 2, 4, 0, 0)];
+    const tie = played(2, 3, 4, 0, 1, { code: "MSC", cup: true });
+    const kickoffs: PlayedMatch[][] = [];
+
+    replayElo([...together, tie, first], undefined, (played) => kickoffs.push([...played]));
+
+    const moved = ELO_K * (1 - expectedHome(1500, 1500));
+    expect(kickoffs).toEqual([
+      [{ match: first, home: 1500, away: 1500 }],
+      [
+        { match: together[0], home: 1500 + moved, away: 1500 },
+        { match: together[1], home: 1500 - moved, away: 1500 },
+      ],
+    ]);
+  });
+
+  it("changes nothing elo-v1 rates or predicts", () => {
+    const history = [
+      played(3, 2, 1, 1, 1),
+      played(1, 1, 2, 2, 0),
+      played(2, 3, 1, 0, 2),
+      played(2, 1, 3, 0, 0, { code: "MSC", cup: true }),
+      played(4, 3, 2, 1, 0, { seasonId: 2026 }),
+    ];
+    const without: unknown[] = [];
+    const withIt: unknown[] = [];
+
+    const plain = replayElo(history, (...args) => without.push(args));
+    const watched = replayElo(
+      history,
+      (...args) => withIt.push(args),
+      () => undefined
+    );
+
+    expect(watched).toEqual(plain);
+    expect(withIt).toEqual(without);
   });
 });
