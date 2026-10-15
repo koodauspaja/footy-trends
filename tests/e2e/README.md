@@ -189,6 +189,18 @@ and blocks, when nothing vouches for what you are pushing (#84).
 It is installed by `npm install` — Husky's `prepare` script wires
 `core.hooksPath` to `.husky/`, so a fresh clone gets it with no manual step.
 
+### A push of only documentation needs no run
+
+When every file the pushed commits change from `origin/main` is under `specs/`,
+`decisions/`, `docs/` or `skills/`, or is a `.md` file at the repository root,
+the hook prints that it skipped the check and the push proceeds, whatever the
+marker says. Nothing e2e runs reads those files.
+
+Any other file in the diff, and anything the hook cannot work out (no
+`origin/main`, a commit git cannot compare, nothing pushed), goes to the full
+check below. A file moved out of `src/` into `docs/` still counts as a change
+under `src/`.
+
 ### What it checks
 
 A full, passing run writes `.e2e-freshness` (gitignored). The hook blocks when:
@@ -197,16 +209,20 @@ A full, passing run writes `.e2e-freshness` (gitignored). The hook blocks when:
 |---|---|
 | No marker | `No passing full e2e run has been recorded` |
 | Older than **12 hours** | `The last passing e2e run finished 13 h 0 min ago` |
-| A watched file modified since the marker: anything under `src/` or `tests/e2e/`, `next.config.ts`, `playwright.config.ts` or `scripts/e2e-target.ts` | `3 file(s) changed since the last passing e2e run: …` |
+| A watched file added, modified or deleted since the marker | `3 file(s) changed since the last passing e2e run: …` |
+
+Every file is watched except the documentation paths above: `drizzle/`,
+`package-lock.json`, `public/` and the config files as much as `src/` and
+`tests/e2e/`, and an untracked file `.gitignore` does not cover as well. A
+file added anywhere later is watched without anyone listing it.
 
 The file comparison is the load-bearing one — a run is stale the moment the
 code it exercised changes. The twelve-hour window is a backstop for what that
-cannot see: a dependency bump, a `.env` edit, a provider changing its data.
+cannot see: a `.env` edit, a provider changing its data.
 
-Modification times are read from the working tree rather than from the commits
-being pushed, because what matters is whether the code on disk is the code the
-suite ran against. An uncommitted edit breaks that just as thoroughly as a
-commit does.
+The comparison reads the working tree rather than the commits being pushed,
+because what matters is whether the code on disk is the code the suite ran
+against. An uncommitted edit breaks that just as thoroughly as a commit does.
 
 ### It warns instead of blocking without local infrastructure
 
@@ -221,8 +237,8 @@ everyone routinely bypasses stops being a gate.
 git push --no-verify
 ```
 
-Skips the hook entirely. Reach for it when you know the suite is irrelevant to
-what you are pushing — a docs-only change, say.
+Skips the hook entirely, a code change included. A push of only documentation
+does not need it: the hook passes that on its own.
 
 ### Only a full run counts
 
