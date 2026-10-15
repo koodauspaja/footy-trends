@@ -13,6 +13,7 @@ import type { QualityResult } from "@/lib/prediction-quality-service";
  * decisions/056-accuracy-by-competition.md
  * decisions/059-cup-predictions.md
  * decisions/060-elo-variants.md
+ * decisions/068-model-choice-on-ennusteet.md
  */
 
 const { canSeeAnalytics, getPredictionQuality } = vi.hoisted(() => ({
@@ -42,6 +43,9 @@ import {
   CALIBRATION_HEADING,
   CALIBRATION_NOTE,
   CUPS_APART_NOTE,
+  DRAWN_HIDDEN,
+  DRAWN_LABEL,
+  DRAWN_SHOWN,
   filteredSentence,
   LOG_LOSS_NOTE,
   modelLabel,
@@ -121,22 +125,25 @@ describe("parseQualityParams", () => {
       source: "taso",
       kind: "backtest",
       competition: null,
+      drawn: ["home-baseline-v1", "elo-v1", "poisson-v1"],
     });
   });
 
   it("reads ulkomaat and ennakkoon, and nothing else", () => {
-    expect(parseQualityParams({ alue: "ulkomaat", tyyppi: "ennakkoon" })).toEqual({
+    expect(parseQualityParams({ alue: "ulkomaat", tyyppi: "ennakkoon" })).toMatchObject({
       source: "football-data",
       kind: "live",
       competition: null,
     });
-    expect(parseQualityParams({ alue: "mars", tyyppi: "huomenna" })).toEqual({
+    expect(parseQualityParams({ alue: "mars", tyyppi: "huomenna" })).toMatchObject({
       source: "taso",
       kind: "backtest",
       competition: null,
     });
     // Repeated, Next gives an array: not a value the page names, so the default.
-    expect(parseQualityParams({ alue: ["ulkomaat", "ulkomaat"], tyyppi: ["ennakkoon"] })).toEqual({
+    expect(
+      parseQualityParams({ alue: ["ulkomaat", "ulkomaat"], tyyppi: ["ennakkoon"] })
+    ).toMatchObject({
       source: "taso",
       kind: "backtest",
       competition: null,
@@ -152,6 +159,18 @@ describe("parseQualityParams", () => {
       source: "football-data",
       competition: "PL",
     });
+  });
+
+  it("reads the drawn models from mallit", () => {
+    expect(parseQualityParams({ mallit: "poisson,elo-vire" }).drawn).toEqual([
+      "elo-form-v1",
+      "poisson-v1",
+    ]);
+    expect(parseQualityParams({ mallit: ["elo", "elo"] }).drawn).toEqual([
+      "home-baseline-v1",
+      "elo-v1",
+      "poisson-v1",
+    ]);
   });
 
   it("ignores a kilpailu that is unknown, the other provider's, or repeated", () => {
@@ -614,29 +633,30 @@ describe("PredictionQualityPage", () => {
   });
 });
 
-describe("PredictionQualityPage with the two Elo variants", () => {
-  const FIVE = ["home-baseline-v1", "elo-v1", "elo-form-v1", "elo-home-v1", "poisson-v1"];
-  const points = [
-    { at: Date.UTC(2017, 5, 1), accuracy: 48 },
-    { at: Date.UTC(2025, 5, 1), accuracy: 52 },
-  ];
-  const five: Extract<QualityReport, { status: "ok" }> = {
-    ...report,
-    models: FIVE,
-    totals: FIVE.map((model) => ({ model, matches: 1234, accuracy: 50, brier: 0.6, logLoss: 1 })),
-    rolling: FIVE.map((model) => ({ model, points })),
-    seasons: [{ seasonId: 2025, matches: 198, brier: [0.61, 0.6, 0.59, 0.58, 0.57] }],
-    calibration: FIVE.map((model) => ({ model, bins: bins(40) })),
-    competitions: [
-      {
-        code: "VL",
-        matches: 1520,
-        brier: [0.61, 0.6, 0.59, 0.58, 0.57],
-        best: [false, false, false, false, true],
-      },
-    ],
-  };
+const FIVE = ["home-baseline-v1", "elo-v1", "elo-form-v1", "elo-home-v1", "poisson-v1"];
+const ALL_FIVE = "perustaso,elo,elo-vire,elo-kotietu,poisson";
+const points = [
+  { at: Date.UTC(2017, 5, 1), accuracy: 48 },
+  { at: Date.UTC(2025, 5, 1), accuracy: 52 },
+];
+const five: Extract<QualityReport, { status: "ok" }> = {
+  ...report,
+  models: FIVE,
+  totals: FIVE.map((model) => ({ model, matches: 1234, accuracy: 50, brier: 0.6, logLoss: 1 })),
+  rolling: FIVE.map((model) => ({ model, points })),
+  seasons: [{ seasonId: 2025, matches: 198, brier: [0.61, 0.6, 0.59, 0.58, 0.57] }],
+  calibration: FIVE.map((model) => ({ model, bins: bins(40) })),
+  competitions: [
+    {
+      code: "VL",
+      matches: 1520,
+      brier: [0.61, 0.6, 0.59, 0.58, 0.57],
+      best: [false, false, false, false, true],
+    },
+  ],
+};
 
+describe("PredictionQualityPage with the two Elo variants", () => {
   beforeEach(() => {
     canSeeAnalytics.mockReset().mockResolvedValue(true);
     getPredictionQuality.mockReset().mockResolvedValue(five);
@@ -648,7 +668,7 @@ describe("PredictionQualityPage with the two Elo variants", () => {
   ])(
     "draws Elo + vire long-dashed and Elo + kotietu dash-dot-dotted in %s's chart and legend",
     async (heading) => {
-      await renderPage();
+      await renderPage({ mallit: ALL_FIVE });
 
       const panel = screen.getByRole("region", { name: heading });
       const pattern = (model: string) =>
@@ -692,5 +712,197 @@ describe("PredictionQualityPage with the two Elo variants", () => {
     }
     // A model per row needs no box: two columns of figures.
     expect(totals?.parentElement).not.toHaveClass("overflow-x-auto");
+  });
+});
+
+describe("PredictionQualityPage's choice of the models its charts draw", () => {
+  // The baseline far below the rest, so the axis shows whether it is drawn.
+  const spread: Extract<QualityReport, { status: "ok" }> = {
+    ...five,
+    rolling: FIVE.map((model) => ({
+      model,
+      points:
+        model === "home-baseline-v1"
+          ? [
+              { at: Date.UTC(2017, 5, 1), accuracy: 31 },
+              { at: Date.UTC(2025, 5, 1), accuracy: 34 },
+            ]
+          : points,
+    })),
+  };
+  const toggles = () =>
+    within(screen.getByRole("list", { name: DRAWN_LABEL })).getAllByRole("listitem");
+  const drawnIn = (heading: string) =>
+    [...screen.getByRole("region", { name: heading }).querySelectorAll("[data-series]")].map(
+      (series) => series.getAttribute("data-series")
+    );
+  const legendOf = (heading: string) =>
+    [...screen.getByRole("region", { name: heading }).querySelectorAll("li")]
+      .filter((item) => item.querySelector("svg"))
+      .map((item) => item.textContent);
+
+  beforeEach(() => {
+    canSeeAnalytics.mockReset().mockResolvedValue(true);
+    getPredictionQuality.mockReset().mockResolvedValue(spread);
+  });
+
+  it("words the toggles in Finnish", () => {
+    expect([DRAWN_LABEL, DRAWN_SHOWN, DRAWN_HIDDEN]).toEqual([
+      "Kaavioissa näytetään:",
+      ", näytetään kaavioissa",
+      ", piilotettu kaavioista",
+    ]);
+  });
+
+  it("by default draws the baseline, Elo and Poisson, and offers a toggle per model above the charts", async () => {
+    await renderPage();
+
+    expect(toggles().map((item) => item.textContent)).toEqual([
+      `Perustaso${DRAWN_SHOWN}`,
+      `Elo${DRAWN_SHOWN}`,
+      `Elo + vire${DRAWN_HIDDEN}`,
+      `Elo + kotietu${DRAWN_HIDDEN}`,
+      `Poisson${DRAWN_SHOWN}`,
+    ]);
+    const list = screen.getByRole("list", { name: DRAWN_LABEL });
+    const accuracy = screen.getByRole("region", { name: ACCURACY_HEADING });
+    expect(list.compareDocumentPosition(accuracy) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(drawnIn(ACCURACY_HEADING)).toEqual(["home-baseline-v1", "elo-v1", "poisson-v1"]);
+    expect(drawnIn(CALIBRATION_HEADING)).toEqual([
+      "perfect",
+      "home-baseline-v1",
+      "elo-v1",
+      "poisson-v1",
+    ]);
+  });
+
+  it("links each toggle to the page with its model shown or hidden", async () => {
+    await renderPage();
+
+    expect(screen.getByRole("link", { name: `Elo${DRAWN_SHOWN}` })).toHaveAttribute(
+      "href",
+      "/ennusteet?alue=kotimaa&tyyppi=jalkikateen&mallit=perustaso,poisson"
+    );
+    expect(screen.getByRole("link", { name: `Elo + vire${DRAWN_HIDDEN}` })).toHaveAttribute(
+      "href",
+      "/ennusteet?alue=kotimaa&tyyppi=jalkikateen&mallit=perustaso,elo,elo-vire,poisson"
+    );
+  });
+
+  it("tells a shown toggle from a hidden one by weight and a faded sample", async () => {
+    await renderPage();
+
+    const shown = screen.getByRole("link", { name: `Elo${DRAWN_SHOWN}` });
+    const hidden = screen.getByRole("link", { name: `Elo + vire${DRAWN_HIDDEN}` });
+    expect(shown).toHaveClass("font-semibold");
+    expect(hidden).not.toHaveClass("font-semibold");
+    expect(hidden).toHaveClass("text-muted");
+    expect(shown.querySelector("line")).toHaveClass("stroke-foreground");
+    expect(hidden.querySelector("line")).toHaveClass("stroke-muted");
+    // The sample is the line's own dash.
+    expect(hidden.querySelector("line")?.getAttribute("stroke-dasharray")).toBe("12 4");
+  });
+
+  it("draws only the chosen models in both charts, their legends and their screen-reader text", async () => {
+    await renderPage({ mallit: "elo,elo-vire" });
+
+    expect(drawnIn(ACCURACY_HEADING)).toEqual(["elo-v1", "elo-form-v1"]);
+    expect(legendOf(ACCURACY_HEADING)).toEqual(["Elo", "Elo + vire"]);
+    expect(document.querySelector("#quality-rolling-text")?.textContent).toBe(
+      "Elo: 52\u00a0%Elo + vire: 52\u00a0%"
+    );
+    expect(drawnIn(CALIBRATION_HEADING)).toEqual(["perfect", "elo-v1", "elo-form-v1"]);
+    expect(legendOf(CALIBRATION_HEADING)).toEqual(["Täydellinen kalibrointi", "Elo", "Elo + vire"]);
+    expect(
+      [...(document.querySelector("#quality-calibration-text")?.children ?? [])].map(
+        (item) => item.textContent?.split(":")[0]
+      )
+    ).toEqual(["Elo", "Elo + vire"]);
+  });
+
+  it("keeps all five in the accuracy line and both tables, and judges the same matches", async () => {
+    await renderPage({ mallit: "elo" });
+
+    const accuracy = screen.getByRole("region", { name: ACCURACY_HEADING });
+    expect(accuracy.querySelector("p")?.textContent?.split(" · ")).toHaveLength(5);
+    const [totals, seasons] = within(
+      screen.getByRole("region", { name: SCORES_HEADING })
+    ).getAllByRole("table");
+    expect(within(totals as HTMLElement).getAllByRole("row")).toHaveLength(6);
+    expect(within(seasons as HTMLElement).getAllByRole("columnheader")).toHaveLength(7);
+    const byCompetition = within(
+      screen.getByRole("region", { name: BY_COMPETITION_HEADING })
+    ).getByRole("table");
+    expect(within(byCompetition).getAllByRole("columnheader")).toHaveLength(7);
+    expect(getPredictionQuality).toHaveBeenCalledWith("taso", "backtest", null);
+  });
+
+  it("fits the accuracy axis to the drawn lines", async () => {
+    const yTicks = () =>
+      [
+        ...screen
+          .getByRole("region", { name: ACCURACY_HEADING })
+          .querySelectorAll("[data-part=y-axis] > text[dominant-baseline]"),
+      ].map((tick) => tick.textContent);
+
+    const { unmount } = render(await PredictionQualityPage({ params: {} }));
+    expect(yTicks()).toEqual(["30", "40", "50", "60"]);
+    unmount();
+    await renderPage({ mallit: "elo,poisson" });
+    expect(yTicks()).toEqual(["40", "50", "60"]);
+  });
+
+  it("does not let the last shown model be hidden", async () => {
+    await renderPage({ mallit: "elo-kotietu" });
+
+    const last = toggles()[3] as HTMLElement;
+    expect(last.textContent).toBe(`Elo + kotietu${DRAWN_SHOWN}`);
+    expect(within(last).queryByRole("link")).not.toBeInTheDocument();
+    expect(last.firstElementChild).toHaveClass("font-semibold");
+    expect(screen.getAllByRole("link", { name: new RegExp(DRAWN_HIDDEN) })).toHaveLength(4);
+    expect(drawnIn(ACCURACY_HEADING)).toEqual(["elo-home-v1"]);
+  });
+
+  it("carries the choice in the switches, the competition links and the link back", async () => {
+    await renderPage({ mallit: "poisson,elo", kilpailu: "VL" });
+
+    const href = (name: string) => screen.getByRole("link", { name }).getAttribute("href");
+    expect(href("Kotimaa")).toBe("/ennusteet?alue=kotimaa&tyyppi=jalkikateen&mallit=elo,poisson");
+    expect(href("Ulkomaat")).toBe("/ennusteet?alue=ulkomaat&tyyppi=jalkikateen&mallit=elo,poisson");
+    expect(href("Ennakkoon tehdyt")).toBe(
+      "/ennusteet?alue=kotimaa&tyyppi=ennakkoon&kilpailu=VL&mallit=elo,poisson"
+    );
+    expect(href("Jälkikäteen lasketut")).toBe(
+      "/ennusteet?alue=kotimaa&tyyppi=jalkikateen&kilpailu=VL&mallit=elo,poisson"
+    );
+    expect(href("Veikkausliiga")).toBe(
+      "/ennusteet?alue=kotimaa&tyyppi=jalkikateen&kilpailu=VL&mallit=elo,poisson"
+    );
+    expect(href(ALL_COMPETITIONS_LINK)).toBe(
+      "/ennusteet?alue=kotimaa&tyyppi=jalkikateen&mallit=elo,poisson"
+    );
+    // A toggle keeps the competition.
+    expect(href(`Elo${DRAWN_SHOWN}`)).toBe(
+      "/ennusteet?alue=kotimaa&tyyppi=jalkikateen&kilpailu=VL&mallit=poisson"
+    );
+  });
+
+  it("keeps the toggles when the rolling chart gives way to the count, since calibration follows them", async () => {
+    getPredictionQuality.mockResolvedValue({ ...spread, matches: 37, rolling: null });
+    await renderPage({ mallit: "elo" });
+
+    expect(screen.getByRole("list", { name: DRAWN_LABEL })).toBeInTheDocument();
+    expect(drawnIn(CALIBRATION_HEADING)).toEqual(["perfect", "elo-v1"]);
+  });
+
+  it.each([
+    ["empty", NO_JUDGED],
+    ["error", QUALITY_ERROR],
+  ] as const)("shows no toggles when the report is %s", async (status, line) => {
+    getPredictionQuality.mockResolvedValue({ status });
+    await renderPage({ mallit: "elo" });
+
+    expect(screen.getByText(line)).toBeInTheDocument();
+    expect(screen.queryByText(DRAWN_LABEL)).not.toBeInTheDocument();
   });
 });
