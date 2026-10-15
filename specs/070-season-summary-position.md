@@ -1,9 +1,8 @@
 # 070 — Kausi lyhyesti: the league position fact
 
-> **Status: draft, not confirmed.** Written for #664. Builds on specs/066
-> (`Kausi lyhyesti`, #356, PR #662), which must merge first. Every choice still
-> open is in Open Questions, Q1–Q7; the behaviour written beside a question is
-> its recommended answer, not a decision.
+> **Status: Q1–Q7 answered by Miikka on 2026-10-15 (Settled decisions); awaiting
+> the go.** Written for #664. Builds on specs/066 (`Kausi lyhyesti`, #356, PR
+> #662), which must merge first. Strings may be fine-tuned during implementation.
 
 ## Summary
 
@@ -33,7 +32,7 @@ the way `Tämä kausi verrattuna` reads a position.
 
 In the existing `Kausi lyhyesti` group (specs/066 S2); no new group or heading.
 
-| Fact | Sentence (draft, Q5) |
+| Fact | Sentence (Q5) |
 |---|---|
 | Best, against N seasons | `Paras sijoitus 5 kauteen: 3.` |
 | Worst | `Heikoin sijoitus 5 kauteen: 11.` |
@@ -53,7 +52,7 @@ In the existing `Kausi lyhyesti` group (specs/066 S2); no new group or heading.
 |---|---|
 | The selected season's place | Its position after the last round the club has played, as `Tämä kausi verrattuna` reads it (`compareSeasons`, specs/038): the place and the table's size |
 | Each earlier season's place | `positionAtShare` (specs/038) at the selected season's share of completion: the final place for a finished season, the place at the same point for one in progress (Q1) |
-| The comparison | The place, or its share of the table when sizes differ (Q2) |
+| The comparison | The place, whatever the table's size (Q2) |
 | Ranking | specs/066 R5, with this fact's place among the others (Q6) |
 
 All of it is in the season reads specs/066 already makes (`SeasonRead.points`,
@@ -71,7 +70,7 @@ All of it is in the season reads specs/066 already makes (`SeasonRead.points`,
 | An earlier season that ranks nobody | Stops the count, as an earlier season with no figure does in specs/066 (Q4) |
 | Equal to an earlier season's place | The count stops there (specs/066 R1) |
 | A split season (Veikkausliiga) | The place in the combined table after the split, as specs/030 and specs/038 read it |
-| The table's size differs between seasons of the competition | As Q2 settles it |
+| The table's size differs between seasons of the competition | Places compared as they are (Q2) |
 | A season in progress | Compared at the same share of each earlier season (Q1) |
 | Four or more facts qualify | specs/066's cap of three, by R5 |
 
@@ -102,7 +101,7 @@ one `error` line, `Unable to summarise the season`.
 
 | File | Minimal assertions |
 |---|---|
-| `tests/unit/lib/season-summary.test.ts` | The detector at its boundaries: two and three earlier seasons; equal places; best and worst; a season in progress against finished ones at the same share; an earlier season ranking nobody; tables of different sizes (Q2); the ranking with the other facts |
+| `tests/unit/lib/season-summary.test.ts` | The detector at its boundaries: two and three earlier seasons; equal places; best and worst; a season in progress against finished ones at the same share; an earlier season ranking nobody; tables of different sizes compared by place (Q2); the ranking with the other facts |
 | `tests/unit/components/season-summary-section.test.tsx` | Both sentences and `tallennetuilla kausilla` as exact strings |
 | `tests/e2e/season-summary.spec.ts` | On the seeded club, the sentence's place equals `Tämä kausi verrattuna`'s |
 
@@ -114,9 +113,11 @@ Every new test is mutation-checked before review.
 - `src/lib/season-summary.ts`, `src/components/season-summary-section.tsx`
 - `decisions/070-season-summary-position.md`, by the implementing agent
 
-## Open Questions
+## Settled decisions
 
-| # | Question | Recommended |
+Answered by Miikka on 2026-10-15: "recommendations good", so each question takes its recommended answer.
+
+| # | Question | Decision |
 |---|---|---|
 | Q1 | Which earlier position: each season's final place, or its place at the same share of the season | **The same share**, as `Tämä kausi verrattuna` already does (specs/038). For a finished season the two are the same; for a season in progress, a final place would compare 10 rounds with 27 |
 | Q2 | When the table's size differs between seasons (Ykkönen has had 10 and 12 teams): compare places, or each place's share of its table | **Places**, since the seasons are one competition (S8) and the sentence prints a place. The alternative, shares, is fairer between sizes, but `3.` of 10 would then lose to `3.` of 12 |
@@ -125,3 +126,7 @@ Every new test is mutation-checked before review.
 | Q5 | The wording, and whether a season in progress says so in the sentence | `Paras sijoitus 5 kauteen: 3.`, the same in progress: `(kesken)` above the block covers it. Alternative: `Paras sijoitus tässä vaiheessa kautta 5 kauteen: 3.` |
 | Q6 | Where it ranks in R5 among facts beating as many seasons | **First among the comparisons**: position, run, home, away, then the others. A place is the figure a reader looks at first |
 | Q7 | Is a place the club has held only for a round or two worth stating (fifth round, first place) | **Yes**, under specs/066's five played matches: the comparison is with the same point of the other seasons (Q1), which keeps it fair |
+
+## Open Questions
+
+**None.** Q1–Q7 were answered on 2026-10-15 and are recorded above.
