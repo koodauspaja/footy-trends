@@ -106,7 +106,9 @@ something the spec did not.
   Premier League seasons, 2020/21 to 2023/24, and one Elo backtest row, and reads
   each sentence's number back from its panel: `3,00` from `Koti- ja
   vierastilastot`, `6 voittoa Kausi 2023/24` from `Ennätykset`, `12 %` from the
-  match page the upset links to. It removes the rows and the cached reads they
+  match page the upset links to. A past season, a cup season, England's World Cup
+  page and `/maajoukkueet/huuhkajat` show no block; those last two are what the
+  criterion asks to see, while the rule behind them is the unit tests'. It removes the rows and the cached reads they
   reached (`elo:v1`, `poisson:v1`, the backtest reports, the forecasts and the
   four seasons' tables), as `rivalry-prediction.spec.ts` does for TASO.
 

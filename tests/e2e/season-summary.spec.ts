@@ -199,6 +199,19 @@ test("shows no block for a past season or a cup season", async ({ page }) => {
   }
 });
 
+test("shows no block on a national team's pages", async ({ page }) => {
+  await signedIn(page);
+
+  for (const url of [
+    "/maajoukkueet/joukkue/770?kilpailu=WC&kausi=2026",
+    "/maajoukkueet/huuhkajat",
+  ]) {
+    await page.goto(url);
+    await expect(page.getByRole("heading", { level: 2, name: "Analyysit" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: HEADING })).toHaveCount(0);
+  }
+});
+
 test("sends no sentence to a signed-out reader", async ({ page }) => {
   const response = await page.goto(TEAM);
   const html = (await response?.text()) ?? "";
