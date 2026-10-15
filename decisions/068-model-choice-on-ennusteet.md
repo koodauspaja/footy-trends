@@ -49,7 +49,8 @@ branch before it was pushed. What they changed:
   line and the tables whole; the axis fitted to the drawn lines; the last
   shown model not a link; every link carrying the choice; the toggles kept
   without the rolling chart and absent on the empty and failure states; the
-  read asked for the same report whatever is drawn.
+  read asked for the same report whatever is drawn; the same toggles and lines
+  in both regions and both kinds, with and without a competition.
 - **End to end**, against a production build: the default's three lines, a
   toggle showing and another hiding a model, the choice kept through the kind
   switch and back, the last model not a link, shown and hidden told apart by
@@ -87,3 +88,9 @@ branch before it was pushed. What they changed:
 | 24 | The toggles shown only with the rolling chart |
 | 25 | The toggles shown on an empty report |
 | 26 | The page asking for a report of the drawn models' own matches |
+| 27 | The choice applied on the domestic backtest only |
+
+- **One defect only the browser shows**: a toggle named by its visible name
+  followed by a hidden suffix reads `Elo , näytetään kaavioissa` in Chromium,
+  which jsdom does not reproduce. The end-to-end tests that find a toggle by
+  its name failed on that first version, which is how it was found.
