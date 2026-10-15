@@ -33,6 +33,10 @@ branch before it was pushed. What they changed:
 
 | Finding | Outcome |
 |---|---|
+| `PredictionQualityPage`'s comment did not say its charts draw a choice | Fixed, and it cites this record |
+| The end-to-end test `judges all five models … by default` now needs the five chosen, which its name hid | Renamed |
+| The spec's Tests Required row for the service, and specs/060 S6 | Recorded above, in "The cache key's test" and "specs/060 S6" |
+| `code-review`: a report with fewer models than the drawn ones lets the last drawn one be hidden, and gives a chart no lines | Not changed: an `ok` report is over the matches every model predicted, so its `models` is always `QUALITY_MODELS` whole, with a line and bins for each. The one exception is a report cached before 060's release, three models for at most 15 minutes, on which no toggle names a variant; only a hand-written `mallit` naming one reaches it |
 
 ## What the tests prove, and how
 
