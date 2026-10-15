@@ -757,7 +757,7 @@ describe("PredictionQualityPage's choice of the models its charts draw", () => {
   it("by default draws the baseline, Elo and Poisson, and offers a toggle per model above the charts", async () => {
     await renderPage();
 
-    expect(toggles().map((item) => item.textContent)).toEqual([
+    expect(toggles().map((item) => item.querySelector(".sr-only")?.textContent)).toEqual([
       `Perustaso${DRAWN_SHOWN}`,
       `Elo${DRAWN_SHOWN}`,
       `Elo + vire${DRAWN_HIDDEN}`,
@@ -856,7 +856,8 @@ describe("PredictionQualityPage's choice of the models its charts draw", () => {
     await renderPage({ mallit: "elo-kotietu" });
 
     const last = toggles()[3] as HTMLElement;
-    expect(last.textContent).toBe(`Elo + kotietu${DRAWN_SHOWN}`);
+    expect(last.querySelector(".sr-only")?.textContent).toBe(`Elo + kotietu${DRAWN_SHOWN}`);
+    expect(last.querySelector("[aria-hidden=true]:not(svg)")?.textContent).toBe("Elo + kotietu");
     expect(within(last).queryByRole("link")).not.toBeInTheDocument();
     expect(last.firstElementChild).toHaveClass("font-semibold");
     expect(screen.getAllByRole("link", { name: new RegExp(DRAWN_HIDDEN) })).toHaveLength(4);

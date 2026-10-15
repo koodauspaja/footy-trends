@@ -220,7 +220,8 @@ function Switch({
 
 /**
  * One toggle per model, above the two charts: each links to the page with that
- * model shown or hidden, but the last one shown cannot be hidden.
+ * model shown or hidden, but the last one shown cannot be hidden. Its name is
+ * one hidden string, so a browser adds no space before the comma.
  *
  * decisions/068-model-choice-on-ennusteet.md
  */
@@ -242,8 +243,8 @@ function DrawnToggles({
           const content = (
             <>
               <LineSample faded={!shown} {...lineStyle(model)} />
-              {modelLabel(model)}
-              <span className="sr-only">{shown ? DRAWN_SHOWN : DRAWN_HIDDEN}</span>
+              <span aria-hidden="true">{modelLabel(model)}</span>
+              <span className="sr-only">{`${modelLabel(model)}${shown ? DRAWN_SHOWN : DRAWN_HIDDEN}`}</span>
             </>
           );
           return (
