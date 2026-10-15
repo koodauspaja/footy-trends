@@ -90,7 +90,8 @@ const {
   getCurrentSeasonMock,
   loggerWarnMock,
   loggerErrorMock,
-  getSeasonSummaryMock,
+  seasonSummaryForMock,
+  getTeamUpsetMock,
 } = vi.hoisted(() => ({
   dbMock: {
     select: vi.fn(),
@@ -107,12 +108,17 @@ const {
   getCurrentSeasonMock: vi.fn(),
   loggerWarnMock: vi.fn(),
   loggerErrorMock: vi.fn(),
-  getSeasonSummaryMock: vi.fn(),
+  seasonSummaryForMock: vi.fn(),
+  getTeamUpsetMock: vi.fn(),
 }));
 vi.mock("@/db", () => ({ db: dbMock }));
 // The summary's own rules are season-summary.test.ts's; here only what this
-// provider hands it.
-vi.mock("@/lib/season-summary-service", () => ({ getSeasonSummary: getSeasonSummaryMock }));
+// provider hands it, through the shared read path.
+vi.mock("@/lib/season-summary", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/season-summary")>()),
+  seasonSummaryFor: seasonSummaryForMock,
+}));
+vi.mock("@/lib/surprise-service", () => ({ getTeamUpset: getTeamUpsetMock }));
 vi.mock("@/lib/cache", () => ({
   getCached: getCachedMock,
   getCachedUnlessDegraded: getCachedUnlessDegradedMock,
@@ -4168,15 +4174,17 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
 
     it("summarises the season over the comparison's season reads and the records", async () => {
       mockStoredMatches(matches, rows);
-      getSeasonSummaryMock.mockResolvedValueOnce({ status: "unavailable" });
+      seasonSummaryForMock.mockResolvedValueOnce({ status: "unavailable" });
       const selected = ownSeason();
 
       await expect(
         getTeamSeasonSummary(LEAGUE, 1, selected, ACTIVE_SEASON, seasonsFor(selected), String)
       ).resolves.toEqual({ status: "unavailable" });
 
-      const [source, readers] = getSeasonSummaryMock.mock.calls[0] ?? [];
-      expect(source).toBe("taso");
+      const [readers] = seasonSummaryForMock.mock.calls[0] ?? [];
+      // The upset is read from this provider.
+      await readers.upset();
+      expect(getTeamUpsetMock).toHaveBeenCalledWith("taso", LEAGUE, selected, 1);
       expect(readers).toMatchObject({
         teamId: 1,
         selected: { competitionCode: LEAGUE, seasonId: selected },

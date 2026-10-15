@@ -69,7 +69,8 @@ const {
   calculateStandingsMock,
   loggerWarnMock,
   loggerErrorMock,
-  getSeasonSummaryMock,
+  seasonSummaryForMock,
+  getTeamUpsetMock,
 } = vi.hoisted(() => ({
   dbMock: { select: vi.fn(), insert: vi.fn() },
   redisMock: { get: vi.fn(), setex: vi.fn() },
@@ -77,12 +78,17 @@ const {
   calculateStandingsMock: vi.fn(),
   loggerWarnMock: vi.fn(),
   loggerErrorMock: vi.fn(),
-  getSeasonSummaryMock: vi.fn(),
+  seasonSummaryForMock: vi.fn(),
+  getTeamUpsetMock: vi.fn(),
 }));
 vi.mock("@/db", () => ({ db: dbMock }));
 // The summary's own rules are season-summary.test.ts's; here only what this
-// provider hands it.
-vi.mock("@/lib/season-summary-service", () => ({ getSeasonSummary: getSeasonSummaryMock }));
+// provider hands it, through the shared read path.
+vi.mock("@/lib/season-summary", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/season-summary")>()),
+  seasonSummaryFor: seasonSummaryForMock,
+}));
+vi.mock("@/lib/surprise-service", () => ({ getTeamUpset: getTeamUpsetMock }));
 vi.mock("@/lib/redis", () => ({ redis: redisMock }));
 vi.mock("@/lib/football-data", () => ({ getSeasonMatches: getSeasonMatchesMock }));
 vi.mock("@/lib/logger", () => ({ logger: { warn: loggerWarnMock, error: loggerErrorMock } }));
@@ -2074,15 +2080,22 @@ describe("getTeamSeasonComparison", () => {
   });
 
   it("summarises the season over the comparison's season reads and the records", async () => {
-    getSeasonSummaryMock.mockResolvedValueOnce({ status: "unavailable" });
+    seasonSummaryForMock.mockResolvedValueOnce({ status: "unavailable" });
     mockSeasonReads(strongSeason, strongSeason, weakSeason);
 
     await expect(
       getTeamSeasonSummary(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON, seasons, String)
     ).resolves.toEqual({ status: "unavailable" });
 
-    const [source, readers] = getSeasonSummaryMock.mock.calls[0] ?? [];
-    expect(source).toBe("football-data");
+    const [readers] = seasonSummaryForMock.mock.calls[0] ?? [];
+    // The upset is read from this provider.
+    await readers.upset();
+    expect(getTeamUpsetMock).toHaveBeenCalledWith(
+      "football-data",
+      COMPETITION_CODE,
+      PAST_SEASON,
+      1
+    );
     expect(readers).toMatchObject({
       teamId: 1,
       selected: { competitionCode: COMPETITION_CODE, seasonId: PAST_SEASON },
