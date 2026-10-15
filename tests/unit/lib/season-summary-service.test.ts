@@ -79,6 +79,7 @@ describe("getSeasonSummary", () => {
       seasonLabel: "2026",
     });
     expect(mocks.getTeamUpset).toHaveBeenCalledWith("taso", "VL", 2026, 1);
+    expect(mocks.loggerError).not.toHaveBeenCalled();
   });
 
   it("turns anything thrown into the failure, and logs one line saying what it summarised", async () => {
