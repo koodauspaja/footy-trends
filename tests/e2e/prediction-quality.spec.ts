@@ -109,7 +109,9 @@ test.describe("Prediction quality, signed in", () => {
     await expect(page.getByRole("heading", { level: 1, name: HEADING })).toBeVisible();
   });
 
-  test("judges all five models on the domestic backtest by default", async ({ page }) => {
+  test("judges all five models on the default domestic backtest, all five drawn when chosen", async ({
+    page,
+  }) => {
     await page.goto("/ennusteet?mallit=perustaso,elo,elo-vire,elo-kotietu,poisson");
 
     await expect(page.getByRole("link", { name: "Kotimaa" })).toHaveAttribute(
