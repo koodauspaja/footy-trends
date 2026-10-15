@@ -1,9 +1,8 @@
 # 069 — Kausi lyhyesti: the clean-sheet fact
 
-> **Status: draft, not confirmed.** Written for #663. Builds on specs/066
-> (`Kausi lyhyesti`, #356, PR #662), which must merge first. Every choice still
-> open is in Open Questions, Q1–Q6; the behaviour written beside a question is
-> its recommended answer, not a decision.
+> **Status: Q1–Q6 answered by Miikka on 2026-10-15 (Settled decisions); awaiting
+> the go.** Written for #663. Builds on specs/066 (`Kausi lyhyesti`, #356, PR
+> #662), which must merge first. Strings may be fine-tuned during implementation.
 
 ## Summary
 
@@ -31,7 +30,7 @@ competition, the figure `Nollapelit` already shows.
 
 In the existing `Kausi lyhyesti` group (specs/066 S2); no new group or heading.
 
-| Fact | Sentence (draft, Q4) |
+| Fact | Sentence (Q4) |
 |---|---|
 | Best, against N seasons | `Paras nollapeliosuus 5 kauteen: 42 % otteluista.` |
 | Worst | `Heikoin nollapeliosuus 5 kauteen: 8 % otteluista.` |
@@ -104,9 +103,11 @@ Every new test is mutation-checked before review.
 - `src/lib/season-summary.ts`, `src/components/season-summary-section.tsx`
 - `decisions/069-season-summary-clean-sheets.md`, by the implementing agent
 
-## Open Questions
+## Settled decisions
 
-| # | Question | Recommended |
+Answered by Miikka on 2026-10-15: "recommendations good", so each question takes its recommended answer.
+
+| # | Question | Decision |
 |---|---|---|
 | Q1 | Which figure: the share of matches with a clean sheet, or the count of them | **The share**, at the whole percent `Nollapelit` prints. A count favours a season with more matches, and a season in progress could never be the best |
 | Q2 | Both directions, or the best only | **Both**, as specs/066 S3: favourable first |
@@ -114,3 +115,7 @@ Every new test is mutation-checked before review.
 | Q4 | The sentence's wording | `Paras nollapeliosuus N kauteen: 42 % otteluista.` / `Heikoin …`. Alternatives: `Eniten nollapelejä …` (reads as a count) or `Nollapelejä 42 % otteluista, paras 5 kauteen.` |
 | Q5 | Where it ranks in R5 among facts beating as many seasons | **After away, before the upset**: run, home, away, clean sheets, upset |
 | Q6 | Is 0 % a fact worth stating as the worst | **Yes**, as any other share: a season without a clean sheet is notable |
+
+## Open Questions
+
+**None.** Q1–Q6 were answered on 2026-10-15 and are recorded above.
