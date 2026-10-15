@@ -15,8 +15,7 @@ import {
   type SeasonReadResult,
   UNRANKED_MEASURES,
 } from "./season-comparison";
-import type { SeasonSummarySeries } from "./season-summary";
-import { getSeasonSummary } from "./season-summary-service";
+import { teamSeasonSummary } from "./season-summary-service";
 import {
   calculateStandings,
   selectTeamMatches,
@@ -310,31 +309,16 @@ export function getTeamStreakRecords(
 }
 
 /**
- * The `Kausi lyhyesti` block for this club's season, over the same reads as
- * `Tämä kausi verrattuna` and the same records as `Ennätykset`.
+ * The `Kausi lyhyesti` block for this club's season.
  *
  * decisions/066-season-summary.md
  */
-export function getTeamSeasonSummary(
-  competitionCode: string,
-  teamProviderId: number,
-  seasonId: number,
-  activeSeasonId: number,
-  seasons: readonly TeamSeason[],
-  label: (seasonId: number) => string
-): Promise<SeasonSummarySeries> {
-  return getSeasonSummary("football-data", {
-    teamId: teamProviderId,
-    selected: { competitionCode, seasonId },
-    activeSeasonId,
-    seasons,
-    isLeague: isLeagueCompetition,
-    label,
-    read: (key) => readSeasonFor(key.competitionCode, key.seasonId, activeSeasonId, teamProviderId),
-    records: () =>
-      getTeamStreakRecords(competitionCode, teamProviderId, activeSeasonId, seasons, label),
-  });
-}
+export const getTeamSeasonSummary = teamSeasonSummary("football-data", {
+  isLeague: isLeagueCompetition,
+  read: (key, activeSeasonId, teamProviderId) =>
+    readSeasonFor(key.competitionCode, key.seasonId, activeSeasonId, teamProviderId),
+  records: getTeamStreakRecords,
+});
 
 /**
  * Which of the club's seasons belong beside this one: its league seasons across
