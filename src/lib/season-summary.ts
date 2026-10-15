@@ -120,7 +120,6 @@ export function sideFact(
 ): SideFact | null {
   const value = shownPointsPerMatch(selected);
   if (value === null || selected.matches < MIN_MATCHES) return null;
-  if (earlier.length < MIN_EARLIER_SEASONS) return null;
 
   for (const direction of ["best", "worst"] as const) {
     const beaten = beatenInARow(value, earlier, direction);

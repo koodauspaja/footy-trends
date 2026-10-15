@@ -98,6 +98,7 @@ describe("getSeasonSummary", () => {
       },
       "Unable to summarise the season"
     );
+    expect(mocks.getTeamUpset).toHaveBeenCalledWith("football-data", "VL", 2026, 1);
   });
 
   it("logs nothing for a read that reports its own failure", async () => {
