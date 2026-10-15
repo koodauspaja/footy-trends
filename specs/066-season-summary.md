@@ -45,7 +45,7 @@ no block.
 | S6 | Which seasons and teams | **League seasons of clubs, both providers. A season in progress says so once, `Kausi 2026 (kesken)`, and shows nothing until five matches are played** | As S5. |
 | S7 | Splitting | **This issue carries the first version; follow-up issues carry the clean-sheet and position facts, most likely in the same release** | Miikka, 2026-10-12: "It can be split". |
 | S8 | The seasons compared | **The club's stored seasons in the same competition, before the selected one** | Miikka, 2026-10-14: "Same competition only (Recommended)". A record from another division is a tier effect, not a season's form. football-data stores seasons from 2023, so its clubs reach S5's three only from 2026/27. |
-| S9 | Which season gets a block | **The club's most recent stored league season only**: the season in progress, or in the winter the one just finished | Miikka, 2026-10-14: "Most recent only (Recommended)". The run record is then the one `Ennätykset` shows, so every sentence can be checked against a panel. |
+| S9 | Which season gets a block | **The club's most recent stored league season only**: the season in progress, or in the winter the one just finished. A later season counts once the club has played a match in it | Miikka, 2026-10-14: "Most recent only (Recommended)". The run record is then the one `Ennätykset` shows, so every sentence can be checked against a panel. A season's fixtures are stored before it starts; Miikka, 2026-10-15: "Latest with a played match". |
 | S10 | The upset | **The team's own win in the selected season with the lowest probability Elo's backtest row gave it (specs/057), shown only below 25 %.** None in the competition's first stored season, as specs/057 | Miikka, 2026-10-14: "Under 25 % (Recommended)". Without a threshold a strong side's "biggest upset" is a 45 % win. |
 | S11 | A block of unfavourable facts only | **Not capped: up to three, as any block** | Miikka, 2026-10-14: "No cap (Recommended)". A season worst at home, worst away and with a record losing run reads as it was. |
 
@@ -140,6 +140,7 @@ except the upset's.
 | Three unfavourable facts and no favourable one | Three sentences (S11) |
 | No fact | No block |
 | A past season selected (S9) | No block |
+| The next season's fixtures stored, none played (S9) | The season just finished keeps its block |
 | A cup season, a national team (S6) | No block |
 | One read fails | The failure line in place of the sentences |
 | Signed out | No sentence in the HTML |

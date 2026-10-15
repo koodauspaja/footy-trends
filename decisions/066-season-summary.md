@@ -10,7 +10,8 @@ something the spec did not.
 |---|---|---|
 | Where the rules live | `season-summary.ts`, pure: one detector per fact (`sideFact`, `runFacts`, `upsetFact`), `rankFacts` for R5, and `seasonSummaryFor`, which reads through readers the caller passes | As `comparisonFor` and `recordsFor`: one orchestrator for both providers, every rule unit-tested without a database. |
 | The read path | `season-summary-service.ts` adds the upset read and the one `error` line; each provider's `getTeamSeasonSummary` passes its own season reader and its own `getTeamStreakRecords` | The providers differ only in how a season is read, which they already say once for `Tämä kausi verrattuna`. The block's records are `Ennätykset`'s own call, so the two cannot disagree. |
-| What is read for a past season or a cup | Nothing: the selected season is checked against the club's league seasons first, and the other seasons are read only once it has five matches played | S9 and S6. Most team-page views are not the latest season. |
+| What is read for a past season or a cup | A cup: nothing, it is not among the club's league seasons. A past season: itself and the league seasons after it, the reads `Ennätykset` already makes. The earlier seasons, the records and the upset are read only once the selected season is the latest and has five matches played | S9 and S6. Most team-page views are not the latest season. |
+| The latest league season (S9) | The latest the club has **played a match in**: a later league season, in any division, counts only once one of its matches involving the club is finished | A season's fixtures are stored before it starts, TASO's in the winter and football-data's in the summer; read literally, the unplayed season would take the block away from every page until five of its matches were played. Miikka, 2026-10-15: "Latest with a played match". |
 | Rounding before comparing (R1) | Two decimals, `POINTS_DECIMALS`: `Number(value.toFixed(2))` to compare, `formatDecimal(value, 2)` to print, the same `toFixed` the panel prints with | `Koti- ja vierastilastot` prints `2,38`, not the one decimal R1 assumed; Miikka chose two on 2026-10-15 ("Two, as the panel"), so the sentence's figure is the panel's. Two seasons the panel prints alike are equal, whichever way binary rounding went. |
 | An earlier season with no match on that side | Stops the count, as an equal season does | A count past a season with no figure would claim a comparison it did not make. Only a hand-built season can lack every home match. |
 | An earlier season with nothing stored | Left out of the comparison, as `Tämä kausi verrattuna` leaves it out (`readSeasons`) | One rule for what a compared season is, on the same page. |
@@ -90,6 +91,11 @@ something the spec did not.
   | 64 | The national-teams test inverted on `/ulkomaat` | foreign and national-teams page tests |
   | 65 | `nationalTeamAnalytics` offers a block | `national-team-analytics.test.ts` |
   | 66–69 | Either provider's `isLeague` taking a cup; football-data's records, TASO's season reader, replaced | `standings-service.test.ts`, `taso-standings-service.test.ts` |
+  | 70–72 | A later season counting with nothing played; a later season ignored; the selected season counted as its own successor | `season-summary.test.ts` |
+  | 73 | A failed later read ignored | `season-summary.test.ts` |
+  | 74, 75 | Only home matches, only away matches, counted as played in a later season | `season-summary.test.ts` |
+  | 76, 77 | The selected season not required among the club's league seasons; matched by year alone | `season-summary.test.ts` |
+  | 78 | A selected season with nothing stored read as stored | `season-summary.test.ts` |
 
   Equivalent, and so not caught: `teamUpset`'s home condition `>` → `>=`. A
   draw that passes the filter is dropped by `ranked`, which skips every match
