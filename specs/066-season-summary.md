@@ -161,11 +161,11 @@ No new environment variable or secret.
 
 ## Logging
 
-The feature only reads. A failed season read is already logged by its service.
+The feature only reads. A failed season read is also logged, at `warn`, by its service.
 
 | Event | Level | The line |
 |---|---|---|
-| A detector, or a read it makes, throws | `error` | `Unable to summarise the season`, with the provider, the team's provider id, the competition's code, the season id and the error |
+| A read the block makes fails, or a detector or a read throws | `error` | `Unable to summarise the season`, once, with the provider, the team's provider id, the competition's code, the season id, and the error when one was thrown |
 
 Nothing at `info`: a page view is not an event. No personal data: the line
 carries no user id.
