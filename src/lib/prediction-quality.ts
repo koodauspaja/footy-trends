@@ -10,7 +10,69 @@
 
 import { getCompetitionName } from "./competitions";
 import { getDomesticCompetitionName } from "./domestic-competitions";
+import { ELO_MODEL } from "./elo";
+import { ELO_FORM_MODEL, ELO_HOME_MODEL } from "./elo-variants";
+import { HOME_BASELINE_MODEL } from "./home-baseline";
 import type { MatchSource } from "./match-source";
+import { POISSON_MODEL } from "./poisson";
+
+/**
+ * The models judged, in the order every figure lists them.
+ *
+ * decisions/054-prediction-quality.md
+ * decisions/060-elo-variants.md
+ */
+export const QUALITY_MODELS = [
+  HOME_BASELINE_MODEL,
+  ELO_MODEL,
+  ELO_FORM_MODEL,
+  ELO_HOME_MODEL,
+  POISSON_MODEL,
+] as const;
+
+type QualityModel = (typeof QUALITY_MODELS)[number];
+
+/**
+ * Each model's name in the page's `mallit`.
+ *
+ * decisions/068-model-choice-on-ennusteet.md
+ */
+const MODEL_SLUGS: Readonly<Record<QualityModel, string>> = {
+  [HOME_BASELINE_MODEL]: "perustaso",
+  [ELO_MODEL]: "elo",
+  [ELO_FORM_MODEL]: "elo-vire",
+  [ELO_HOME_MODEL]: "elo-kotietu",
+  [POISSON_MODEL]: "poisson",
+};
+
+/**
+ * The models the charts draw when `mallit` names none.
+ *
+ * decisions/068-model-choice-on-ennusteet.md
+ */
+export const DEFAULT_DRAWN: readonly string[] = [HOME_BASELINE_MODEL, ELO_MODEL, POISSON_MODEL];
+
+/**
+ * The models a `mallit` names, in `QUALITY_MODELS`' order: the default when it
+ * is not one string or names no known model.
+ *
+ * decisions/068-model-choice-on-ennusteet.md
+ */
+export function parseDrawn(value: string | string[] | undefined): string[] {
+  if (typeof value !== "string") return [...DEFAULT_DRAWN];
+  const slugs = new Set(value.split(","));
+  const drawn = QUALITY_MODELS.filter((model) => slugs.has(MODEL_SLUGS[model]));
+  return drawn.length === 0 ? [...DEFAULT_DRAWN] : drawn;
+}
+
+/**
+ * The drawn models with one shown or hidden, in `QUALITY_MODELS`' order.
+ *
+ * decisions/068-model-choice-on-ennusteet.md
+ */
+export function toggleDrawn(drawn: readonly string[], model: string): string[] {
+  return QUALITY_MODELS.filter((each) => (each === model) !== drawn.includes(each));
+}
 
 /**
  * What happened, from the home side's point of view.
@@ -391,20 +453,26 @@ export function qualityReport(
 
 /**
  * The page's address for a provider and a kind, filtered to one competition
- * when one is given.
+ * when one is given, and naming the drawn models unless they are the default.
  *
  * decisions/056-accuracy-by-competition.md
  * decisions/058-rivalry-prediction.md
+ * decisions/068-model-choice-on-ennusteet.md
  */
 export function qualityHref(
   source: MatchSource["kind"],
   kind: "backtest" | "live",
-  competition: string | null = null
+  competition: string | null = null,
+  drawn: readonly string[] = DEFAULT_DRAWN
 ): string {
   const regionSlug = source === "taso" ? "kotimaa" : "ulkomaat";
   const kindSlug = kind === "backtest" ? "jalkikateen" : "ennakkoon";
   const filter = competition === null ? "" : `&kilpailu=${competition}`;
-  return `/ennusteet?alue=${regionSlug}&tyyppi=${kindSlug}${filter}`;
+  const named = QUALITY_MODELS.filter((model) => drawn.includes(model));
+  const isDefault =
+    named.length === DEFAULT_DRAWN.length && DEFAULT_DRAWN.every((model) => drawn.includes(model));
+  const models = isDefault ? "" : `&mallit=${named.map((model) => MODEL_SLUGS[model]).join(",")}`;
+  return `/ennusteet?alue=${regionSlug}&tyyppi=${kindSlug}${filter}${models}`;
 }
 
 /**
