@@ -591,11 +591,13 @@ function Body({
 
 /**
  * `/ennusteet`: the models judged against the results, one
- * provider and one kind at a time, over all its competitions or one. Signed in
- * only, the gate asked before anything is read.
+ * provider and one kind at a time, over all its competitions or one, its charts
+ * drawing the models chosen. Signed in only, the gate asked before anything is
+ * read.
  *
  * decisions/054-prediction-quality.md
  * decisions/056-accuracy-by-competition.md
+ * decisions/068-model-choice-on-ennusteet.md
  */
 export async function PredictionQualityPage({ params }: Readonly<{ params: QualityParams }>) {
   const { source, kind, competition, drawn } = parseQualityParams(params);

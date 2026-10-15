@@ -4,8 +4,8 @@ import type { QualityReport } from "@/lib/prediction-quality";
 import type { QualityResult } from "@/lib/prediction-quality-service";
 
 /**
- * The `/ennusteet` page: its switches, its tables, the calibration chart and
- * the page of one competition.
+ * The `/ennusteet` page: its switches, its tables, the calibration chart, the
+ * page of one competition and the models its charts draw.
  *
  * decisions/054-prediction-quality.md
  * decisions/050-table-volatility.md

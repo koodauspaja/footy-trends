@@ -23,6 +23,8 @@ decisions/060 (the five models and their lines).
 | What follows the choice | `Report` filters `rolling` and `calibration` to the drawn models before the charts get them; the legends, the screen-reader lists and the y-axis follow from that | S3, S6. The accuracy line, both tables and `Kilpailuittain` read the report whole |
 | Links that carry the choice | Both switches, each competition's row, `Kaikki kilpailut` and every toggle; the region switch still drops `kilpailu` | S2. decisions/056's rule for `kilpailu` is unchanged |
 | The read and the cache | `getPredictionQuality(source, kind, competition)` as before, `quality:v3:*` unchanged | S5. The choice is applied after the read, so it never reaches a cache key |
+| The cache key's test | The spec's Tests Required names `prediction-quality-service.test.ts` for "the cache key unchanged by a choice"; no test was added there. The page test asserts the read is asked for the same report whatever is drawn (mutation 26) | `qualityCacheKey` takes no choice, so a test of it could not fail; the read's arguments are where a choice could reach the key |
+| specs/060 S6 | The variants are no longer in the two charts by default, only when chosen; every other figure still shows them | This feature's S1 and S3. specs/060 and decisions/060 stay as they were |
 
 ## The author's review before the first push
 
