@@ -9,7 +9,7 @@ something the spec did not.
 | Decision | Choice | Why |
 |---|---|---|
 | Where the rules live | `season-summary.ts`, pure: one detector per fact (`sideFact`, `runFacts`, `upsetFact`), `rankFacts` for R5, and `seasonSummaryFor`, which reads through readers the caller passes | As `comparisonFor` and `recordsFor`: one orchestrator for both providers, every rule unit-tested without a database. |
-| The read path | `season-summary-service.ts` adds the upset read and the one `error` line; each provider's `getTeamSeasonSummary` passes its own season reader and its own `getTeamStreakRecords` | The providers differ only in how a season is read, which they already say once for `Tämä kausi verrattuna`. The block's records are `Ennätykset`'s own call, so the two cannot disagree. |
+| The read path | `season-summary-service.ts` adds the upset read and the one `error` line. Each provider's `getTeamSeasonSummary` is `teamSeasonSummary(source, { isLeague, read, records })`: its league rule, its own season reader and its own `getTeamStreakRecords` | The providers differ only in how a season is read, which they already say once for `Tämä kausi verrattuna`; the first draft wrote the rest out twice, and Sonar counted it as duplicated lines. The block's records are `Ennätykset`'s own call, so the two cannot disagree. |
 | What is read for a past season or a cup | A cup: nothing, it is not among the club's league seasons. A past season: itself and the league seasons after it, the reads `Ennätykset` already makes. The earlier seasons, the records and the upset are read only once the selected season is the latest and has five matches played | S9 and S6. Most team-page views are not the latest season. |
 | The latest league season (S9) | The latest the club has **played a match in**: a later league season, in any division, counts only once one of its matches involving the club is finished | A season's fixtures are stored before it starts, TASO's in the winter and football-data's in the summer; read literally, the unplayed season would take the block away from every page until five of its matches were played. Miikka, 2026-10-15: "Latest with a played match". |
 | Rounding before comparing (R1) | Two decimals, `POINTS_DECIMALS`: `Number(value.toFixed(2))` to compare, `formatDecimal(value, 2)` to print, the same `toFixed` the panel prints with | `Koti- ja vierastilastot` prints `2,38`, not the one decimal R1 assumed; Miikka chose two on 2026-10-15 ("Two, as the panel"), so the sentence's figure is the panel's. Two seasons the panel prints alike are equal, whichever way binary rounding went. |
@@ -96,6 +96,8 @@ something the spec did not.
   | 74, 75 | Only home matches, only away matches, counted as played in a later season | `season-summary.test.ts` |
   | 76, 77 | The selected season not required among the club's league seasons; matched by year alone | `season-summary.test.ts` |
   | 78 | A selected season with nothing stored read as stored | `season-summary.test.ts` |
+  | 79, 80 | Either provider's `teamSeasonSummary` given the other's source | `standings-service.test.ts`, `taso-standings-service.test.ts` |
+  | 81–85 | `teamSeasonSummary` reading for another team, passing no seasons to the records, selecting the active season, taking every competition as a league, dropping the page's label | the same two |
 
   Equivalent, and so not caught: `teamUpset`'s home condition `>` → `>=`. A
   draw that passes the filter is dropped by `ranked`, which skips every match
