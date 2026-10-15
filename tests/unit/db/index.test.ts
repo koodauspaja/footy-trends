@@ -8,10 +8,11 @@ import { warmModules } from "../../support/warm-module";
  *
  * decisions/196-concurrent-group-syncs.md
  * decisions/536-database-url-required.md
+ * decisions/665-statement-timeout.md
  */
 
 const end = vi.fn((_options?: { timeout: number }) => Promise.resolve());
-const postgresMock = vi.fn((_url: string) => ({ end }));
+const postgresMock = vi.fn((_url: string, _options?: unknown) => ({ end }));
 
 // What drizzle hands back, as far as these tests need one: state, a method that
 // reads it, and `$client`, which the real one holds as its own property:
@@ -93,11 +94,23 @@ describe("the database client", () => {
     void db.dialect;
 
     expect(postgresMock).toHaveBeenCalledTimes(1);
-    expect(postgresMock).toHaveBeenCalledWith(URL);
+    expect(postgresMock).toHaveBeenCalledWith(URL, expect.anything());
     expect(drizzleMock).toHaveBeenCalledTimes(1);
     expect(drizzleMock).toHaveBeenCalledWith(postgresMock.mock.results[0]?.value, {
       schema: expect.any(Object),
     });
+  });
+
+  it("gives every statement on the client the statement timeout", async () => {
+    const { db } = await load();
+    const { STATEMENT_TIMEOUT_MS } = await import("@/db");
+
+    void db.dialect;
+
+    expect(postgresMock).toHaveBeenCalledWith(URL, {
+      connection: { statement_timeout: STATEMENT_TIMEOUT_MS },
+    });
+    expect(STATEMENT_TIMEOUT_MS).toBe(10_000);
   });
 
   it("hands back the real client's values, and its methods bound to it", async () => {
