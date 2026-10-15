@@ -2083,8 +2083,10 @@ describe("getTeamSeasonComparison", () => {
     seasonSummaryForMock.mockResolvedValueOnce({ status: "unavailable" });
     mockSeasonReads(strongSeason, strongSeason, weakSeason);
 
+    // The page's own season wording, passed through as given.
+    const label = (seasonId: number) => `Kausi ${seasonId}`;
     await expect(
-      getTeamSeasonSummary(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON, seasons, String)
+      getTeamSeasonSummary(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON, seasons, label)
     ).resolves.toEqual({ status: "unavailable" });
 
     const [readers] = seasonSummaryForMock.mock.calls[0] ?? [];
@@ -2101,7 +2103,7 @@ describe("getTeamSeasonComparison", () => {
       selected: { competitionCode: COMPETITION_CODE, seasonId: PAST_SEASON },
       activeSeasonId: ACTIVE_SEASON,
       seasons,
-      label: String,
+      label,
     });
     // Leagues only: a cup and a code the registry no longer carries are not.
     expect(readers.isLeague(COMPETITION_CODE)).toBe(true);
