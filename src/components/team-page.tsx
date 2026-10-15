@@ -59,7 +59,8 @@ export type TeamAnalyticsLoaders = TeamPanelLoaders & {
   loadComparison: () => Promise<SeasonComparisonSeries>;
   loadOpponents: () => Promise<OpponentsSeries>;
   loadElo: () => Promise<EloPanelData>;
-  loadSummary: () => Promise<SeasonSummarySeries>;
+  /** `seasons` is `null` when the club's seasons could not be looked up. */
+  loadSummary: (seasons: readonly TeamSeason[] | null) => Promise<SeasonSummarySeries>;
 };
 
 /**
@@ -246,8 +247,10 @@ export async function TeamPage<M extends MatchListRow>({
             seasons.status !== "error"
               ? loaders.loadComparison()
               : Promise.resolve({ status: "error" as const }),
+          // The loader decides: a cup or a national team has no block even when
+          // the lookup failed.
           loadSummary: async () => ({
-            series: seasons.status !== "error" ? await loaders.loadSummary() : { status: "error" },
+            series: await loaders.loadSummary(seasons.status === "error" ? null : played),
             matchHref,
           }),
         });

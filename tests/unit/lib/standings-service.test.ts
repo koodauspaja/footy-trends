@@ -2112,7 +2112,10 @@ describe("getTeamSeasonComparison", () => {
     await expect(
       readers.read({ competitionCode: COMPETITION_CODE, seasonId: PAST_SEASON })
     ).resolves.toMatchObject({ status: "ok", read: { competition: "Valioliiga" } });
-    await expect(readers.records()).resolves.toMatchObject({ status: "ok", scope: "Valioliiga" });
+    await expect(readers.records(seasons)).resolves.toMatchObject({
+      status: "ok",
+      scope: "Valioliiga",
+    });
   });
 
   it("reads the club's records across its league seasons", async () => {

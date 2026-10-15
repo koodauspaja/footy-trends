@@ -150,13 +150,13 @@ async function resolveTeamPage({
       loadComparison: () =>
         getTeamSeasonComparison(competitionCode, teamProviderId, seasonId, currentSeason, played),
       // The club's latest league season only; a cup page has no block.
-      loadSummary: () =>
+      loadSummary: (seasons) =>
         getTeamSeasonSummary(
           competitionCode,
           teamProviderId,
           seasonId,
           currentSeason,
-          played,
+          seasons,
           String
         ),
       // A cup has no table to rank a position in, so the panel is absent, not

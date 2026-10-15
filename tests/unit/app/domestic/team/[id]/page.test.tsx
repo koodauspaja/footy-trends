@@ -826,14 +826,16 @@ describe("Domestic team page league position", () => {
     expect(data && "matchHref" in data ? data.matchHref(42) : null).toBe("/kotimaa/ottelu/42");
   });
 
-  it("reports an outage for the season summary too when the season lookup fails", async () => {
+  it("tells the season summary when the season lookup failed, for it to decide", async () => {
+    // A cup or a national team has no block either way; a league season shows
+    // the failure line. Which it is, is the summary's to say.
     getTeamSeasonsMock.mockResolvedValue({ status: "error" });
 
     await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
     const loadSummary = analyticsSectionMock.mock.calls[0]?.[0].loadSummary;
+    await loadSummary?.();
 
-    expect((await loadSummary?.())?.series).toEqual({ status: "error" });
-    expect(getTeamSeasonSummaryMock).not.toHaveBeenCalled();
+    expect(getTeamSeasonSummaryMock.mock.calls[0]?.[4]).toBeNull();
   });
 
   it("asks for the records with the season wording the selector uses", async () => {

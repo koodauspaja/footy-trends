@@ -4198,7 +4198,10 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       await expect(
         readers.read({ competitionCode: LEAGUE, seasonId: selected })
       ).resolves.toMatchObject({ status: "ok", read: { competition: "Ykkönen" } });
-      await expect(readers.records()).resolves.toMatchObject({ status: "ok", scope: "Ykkönen" });
+      await expect(readers.records(seasonsFor(selected))).resolves.toMatchObject({
+        status: "ok",
+        scope: "Ykkönen",
+      });
     });
 
     it("keeps a season whose table ranks nothing, because its results still count", async () => {

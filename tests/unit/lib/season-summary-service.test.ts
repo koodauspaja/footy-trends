@@ -101,13 +101,26 @@ describe("getSeasonSummary", () => {
     expect(mocks.getTeamUpset).toHaveBeenCalledWith("football-data", "VL", 2026, 1);
   });
 
-  it("logs nothing for a read that reports its own failure", async () => {
+  it("logs one line for a read that reports its own failure, with no error to carry", async () => {
     await expect(
       getSeasonSummary(
         "taso",
         readers(async () => ({ status: "error" }))
       )
     ).resolves.toEqual({ status: "error" });
+    expect(mocks.loggerError).toHaveBeenCalledTimes(1);
+    expect(mocks.loggerError).toHaveBeenCalledWith(
+      { source: "taso", teamProviderId: 1, competitionCode: "VL", seasonId: 2026 },
+      "Unable to summarise the season"
+    );
+  });
+
+  it("logs nothing when there is simply no block", async () => {
+    mocks.getTeamUpset.mockResolvedValueOnce(null);
+
+    await expect(getSeasonSummary("taso", readers())).resolves.toEqual({
+      status: "unavailable",
+    });
     expect(mocks.loggerError).not.toHaveBeenCalled();
   });
 });

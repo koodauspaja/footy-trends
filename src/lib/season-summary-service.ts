@@ -13,8 +13,8 @@ import { getTeamUpset } from "./surprise-service";
 import type { TeamSeason } from "./team-seasons";
 
 /**
- * The block for one club and season, or `error` with one line logged when a
- * detector or a read it makes throws.
+ * The block for one club and season, or `error` with one line logged, whether a
+ * read failed or a detector or a read threw.
  *
  * decisions/066-season-summary.md
  */
@@ -23,24 +23,30 @@ export async function getSeasonSummary<T extends SeasonKey>(
   readers: Omit<SummaryReaders<T>, "upset">
 ): Promise<SeasonSummarySeries> {
   const { teamId, selected } = readers;
+  let series: SeasonSummarySeries = { status: "error" };
+  // The error itself when one was thrown; a read that reports failure has none.
+  let thrown: { err?: unknown } = {};
   try {
-    return await seasonSummaryFor({
+    series = await seasonSummaryFor({
       ...readers,
       upset: () => getTeamUpset(source, selected.competitionCode, selected.seasonId, teamId),
     });
   } catch (error) {
+    thrown = { err: error };
+  }
+  if (series.status === "error") {
     logger.error(
       {
         source,
         teamProviderId: teamId,
         competitionCode: selected.competitionCode,
         seasonId: selected.seasonId,
-        err: error,
+        ...thrown,
       },
       "Unable to summarise the season"
     );
-    return { status: "error" };
   }
+  return series;
 }
 
 /**
@@ -77,7 +83,7 @@ export function teamSeasonSummary(source: MatchSource["kind"], provider: Summary
     teamProviderId: number,
     seasonId: number,
     activeSeasonId: number,
-    seasons: readonly TeamSeason[],
+    seasons: readonly TeamSeason[] | null,
     label: (seasonId: number) => string
   ): Promise<SeasonSummarySeries> =>
     getSeasonSummary(source, {
@@ -88,7 +94,7 @@ export function teamSeasonSummary(source: MatchSource["kind"], provider: Summary
       isLeague: provider.isLeague,
       label,
       read: (key) => provider.read(key, activeSeasonId, teamProviderId),
-      records: () =>
-        provider.records(competitionCode, teamProviderId, activeSeasonId, seasons, label),
+      records: (stored) =>
+        provider.records(competitionCode, teamProviderId, activeSeasonId, stored, label),
     });
 }
