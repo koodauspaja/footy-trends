@@ -165,7 +165,7 @@ The feature only reads. A failed season read is also logged, at `warn`, by its s
 
 | Event | Level | The line |
 |---|---|---|
-| A read the block makes fails, or a detector or a read throws | `error` | `Unable to summarise the season`, once, with the provider, the team's provider id, the competition's code, the season id, and the error when one was thrown |
+| A read the block makes fails, or a detector or a read throws | `error` | `Unable to summarise the season`, once, with the provider, the team's provider id, the competition's code, the season id, and the error when one was thrown. Not for a failed lookup of the club's seasons, which logs itself |
 
 Nothing at `info`: a page view is not an event. No personal data: the line
 carries no user id.
