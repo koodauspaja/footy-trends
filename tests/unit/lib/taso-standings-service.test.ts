@@ -4204,6 +4204,28 @@ describe("the result charts: form, goals, home and away, clean sheets", () => {
       });
     });
 
+    it("gives the summary its records unlogged, so a failure is logged once, by the summary", async () => {
+      mockStoredMatches(matches, rows);
+      seasonSummaryForMock.mockResolvedValueOnce({ status: "unavailable" });
+      const selected = ownSeason();
+      const throwing = () => {
+        throw new Error("label failed");
+      };
+
+      await getTeamSeasonSummary(
+        LEAGUE,
+        1,
+        selected,
+        ACTIVE_SEASON,
+        seasonsFor(selected),
+        throwing
+      );
+      const [readers] = seasonSummaryForMock.mock.calls[0] ?? [];
+
+      await expect(readers.records(seasonsFor(selected))).rejects.toThrow("label failed");
+      expect(loggerErrorMock).not.toHaveBeenCalled();
+    });
+
     it("keeps a season whose table ranks nothing, because its results still count", async () => {
       // Published points that disagree with our calculation make the group
       // pass-through: it is shown, but it ranks nobody.

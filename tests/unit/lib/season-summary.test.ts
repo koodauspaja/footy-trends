@@ -513,6 +513,44 @@ describe("seasonSummaryFor", () => {
     expect(await seasonSummaryFor(summary)).toEqual({ status: "unavailable" });
   });
 
+  it("has no block for a past season when a later one was played, though another later read threw", async () => {
+    const seasons = [...SEASONS, { competitionCode: "VL", seasonId: 2027, matches: 22 }];
+    const summary = readers({
+      seasons,
+      selected: { competitionCode: "VL", seasonId: 2025 },
+      read: async (key) => {
+        if (key.seasonId === 2027) throw new Error("connection reset");
+        return stored(key);
+      },
+    });
+
+    expect(await seasonSummaryFor(summary)).toEqual({ status: "unavailable" });
+  });
+
+  it("throws a read that threw when no later season settles it", async () => {
+    const summary = readers({
+      read: async (key) => {
+        if (key.seasonId === 2026) throw new Error("connection reset");
+        return stored(key);
+      },
+    });
+
+    await expect(seasonSummaryFor(summary)).rejects.toThrow("connection reset");
+  });
+
+  it("throws a later read that threw when no later season was played", async () => {
+    const seasons = [...SEASONS, { competitionCode: "VL", seasonId: 2027, matches: 22 }];
+    const summary = readers({
+      seasons,
+      read: async (key) => {
+        if (key.seasonId === 2027) throw new Error("timeout");
+        return stored(key);
+      },
+    });
+
+    await expect(seasonSummaryFor(summary)).rejects.toThrow("timeout");
+  });
+
   it("has no block for a past season when a later one was played, though its own read failed", async () => {
     const summary = readers({
       selected: { competitionCode: "VL", seasonId: 2025 },

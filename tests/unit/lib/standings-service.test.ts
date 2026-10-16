@@ -2118,6 +2118,20 @@ describe("getTeamSeasonComparison", () => {
     });
   });
 
+  it("gives the summary its records unlogged, so a failure is logged once, by the summary", async () => {
+    seasonSummaryForMock.mockResolvedValueOnce({ status: "unavailable" });
+    mockSeasonReads(strongSeason, strongSeason, weakSeason);
+    const throwing = () => {
+      throw new Error("label failed");
+    };
+
+    await getTeamSeasonSummary(COMPETITION_CODE, 1, PAST_SEASON, ACTIVE_SEASON, seasons, throwing);
+    const [readers] = seasonSummaryForMock.mock.calls[0] ?? [];
+
+    await expect(readers.records(seasons)).rejects.toThrow("label failed");
+    expect(loggerErrorMock).not.toHaveBeenCalled();
+  });
+
   it("reads the club's records across its league seasons", async () => {
     mockSeasonReads(strongSeason, strongSeason);
 

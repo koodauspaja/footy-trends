@@ -34,7 +34,8 @@ export async function getSeasonSummary<T extends SeasonKey>(
   } catch (error) {
     thrown = { err: error };
   }
-  if (series.status === "error") {
+  // A failed season lookup has logged itself already.
+  if (series.status === "error" && readers.seasons !== null) {
     logger.error(
       {
         source,

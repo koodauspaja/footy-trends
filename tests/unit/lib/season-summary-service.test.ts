@@ -116,6 +116,30 @@ describe("getSeasonSummary", () => {
     );
   });
 
+  it("logs nothing for a failed season lookup, which logged itself", async () => {
+    await expect(getSeasonSummary("taso", { ...readers(), seasons: null })).resolves.toEqual({
+      status: "error",
+    });
+    expect(mocks.loggerError).not.toHaveBeenCalled();
+  });
+
+  it("logs a records read that threw once, with its error", async () => {
+    mocks.getTeamUpset.mockResolvedValueOnce(null);
+    const throwing = {
+      ...readers(),
+      records: async (): Promise<StreakRecordsSeries> => {
+        throw new Error("records failed");
+      },
+    };
+
+    await expect(getSeasonSummary("taso", throwing)).resolves.toEqual({ status: "error" });
+    expect(mocks.loggerError).toHaveBeenCalledTimes(1);
+    expect(mocks.loggerError).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.objectContaining({ message: "records failed" }) }),
+      "Unable to summarise the season"
+    );
+  });
+
   it("logs nothing when there is simply no block", async () => {
     mocks.getTeamUpset.mockResolvedValueOnce(null);
 

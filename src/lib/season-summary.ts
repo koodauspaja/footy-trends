@@ -261,16 +261,20 @@ export async function seasonSummaryFor<T extends SeasonKey>(
   const leagues = leagueSeasons(seasons, isLeague);
 
   // A later season counts once the club has played in it: its fixtures are
-  // stored before it starts. One played settles it, whichever others failed.
+  // stored before it starts. One played settles it, whichever others failed or
+  // threw, so every read settles before a failure counts.
   const laterKeys = leagues.filter((season) => season.seasonId > selected.seasonId);
-  const [read, laterReads] = await Promise.all([
-    readers.read(selected),
-    Promise.all(laterKeys.map(readers.read)),
+  const [selectedRead, laterSettled] = await Promise.all([
+    settle(readers.read(selected)),
+    Promise.all(laterKeys.map((key) => settle(readers.read(key)))),
   ]);
-  const playedLater = laterReads.some(
-    (later) => later.status === "ok" && playedBy(later.read, teamId) > 0
+  const playedLater = laterSettled.some(
+    (later) =>
+      "value" in later && later.value.status === "ok" && playedBy(later.value.read, teamId) > 0
   );
   if (playedLater) return { status: "unavailable" };
+  const read = settledValue(selectedRead);
+  const laterReads = laterSettled.map(settledValue);
   if (read.status === "error" || laterReads.some((later) => later.status === "error")) {
     return { status: "error" };
   }
@@ -316,6 +320,25 @@ export async function seasonSummaryFor<T extends SeasonKey>(
     inProgress: selected.seasonId === readers.activeSeasonId,
     seasonLabel,
   };
+}
+
+/**
+ * A read's outcome, its rejection kept for later rather than thrown at once.
+ *
+ * decisions/066-season-summary.md
+ */
+type Settled<V> = { value: V } | { reason: unknown };
+
+function settle<V>(promise: Promise<V>): Promise<Settled<V>> {
+  return promise.then(
+    (value) => ({ value }),
+    (reason: unknown) => ({ reason })
+  );
+}
+
+function settledValue<V>(settled: Settled<V>): V {
+  if ("reason" in settled) throw settled.reason;
+  return settled.value;
 }
 
 /**
