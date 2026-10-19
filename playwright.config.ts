@@ -45,7 +45,7 @@ const target = e2eTarget(process.env.E2E_TARGET);
  *
  * decisions/304-test-database.md
  */
-const PORT = process.env.E2E_PORT ?? "3001";
+const PORT = (process.env.E2E_PORT ?? "").trim() || "3001";
 const BASE_URL = `http://localhost:${PORT}`;
 
 /**
