@@ -599,9 +599,17 @@ describe("taso mapping", () => {
     );
   });
 
-  it("sends its requests to the server TASO_API_BASE_URL names, when it is set", async () => {
+  it.each([
+    ["the server it names", "http://localhost:3002", "http://localhost:3002"],
+    [
+      "the server it names, trailing slashes dropped",
+      "http://localhost:3002//",
+      "http://localhost:3002",
+    ],
+    ["the provider, when it is blank", "  ", "https://spl.torneopal.net/taso/rest"],
+  ])("sends its requests, given TASO_API_BASE_URL, to %s", async (_case, override, base) => {
     vi.stubEnv("TASO_API_KEY", "test-api-key");
-    vi.stubEnv("TASO_API_BASE_URL", "http://localhost:3002");
+    vi.stubEnv("TASO_API_BASE_URL", override);
     const fetchMock = vi
       .fn()
       .mockResolvedValue({ ok: true, status: 200, json: async () => ({ matches: [] }) });
@@ -610,39 +618,7 @@ describe("taso mapping", () => {
     await getSeasonMatches("spljp26", "VL", 2026);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://localhost:3002/getMatches?competition_id=spljp26&category_id=VL",
-      expect.anything()
-    );
-  });
-
-  it("drops a trailing slash from TASO_API_BASE_URL, so no path starts with two", async () => {
-    vi.stubEnv("TASO_API_KEY", "test-api-key");
-    vi.stubEnv("TASO_API_BASE_URL", "http://localhost:3002//");
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue({ ok: true, status: 200, json: async () => ({ matches: [] }) });
-    vi.stubGlobal("fetch", fetchMock);
-
-    await getSeasonMatches("spljp26", "VL", 2026);
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      "http://localhost:3002/getMatches?competition_id=spljp26&category_id=VL",
-      expect.anything()
-    );
-  });
-
-  it("sends its requests to the provider when TASO_API_BASE_URL is blank", async () => {
-    vi.stubEnv("TASO_API_KEY", "test-api-key");
-    vi.stubEnv("TASO_API_BASE_URL", "  ");
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue({ ok: true, status: 200, json: async () => ({ matches: [] }) });
-    vi.stubGlobal("fetch", fetchMock);
-
-    await getSeasonMatches("spljp26", "VL", 2026);
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://spl.torneopal.net/taso/rest/getMatches?competition_id=spljp26&category_id=VL",
+      `${base}/getMatches?competition_id=spljp26&category_id=VL`,
       expect.anything()
     );
   });
