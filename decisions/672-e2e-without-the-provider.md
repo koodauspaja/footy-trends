@@ -43,4 +43,5 @@ for. On an empty database their specs still need TASO, or the rows an earlier
 run stored, so a clean checkout is not yet independent of the provider. A first
 measurement, 142 of 397 failing, was taken on a database whose name did not end
 in `_test`, which the e2e sign-in flag requires, so it overstates what TASO
-alone costs; the remaining count is measured in the pull request that follows.
+alone costs. The true count is not measured; standing in for the rest is for
+when CI's e2e needs to pass without TASO.
