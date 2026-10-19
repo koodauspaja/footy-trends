@@ -27,13 +27,30 @@ export function e2eTarget(value: string | undefined): E2eTarget {
 }
 
 /**
+ * A port read from the environment: blank is `fallback`, and anything but a whole
+ * number from 1 to 65535 stops the run. Ports go into the shell commands
+ * Playwright starts, so nothing else may reach them.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
+export function e2ePort(name: string, value: string | undefined, fallback: number): number {
+  const raw = (value ?? "").trim();
+  if (raw === "") return fallback;
+  const port = /^\d{1,5}$/.test(raw) ? Number(raw) : 0;
+  if (port < 1 || port > 65_535) {
+    throw new Error(`${name} must be a port from 1 to 65535, not ${JSON.stringify(raw)}.`);
+  }
+  return port;
+}
+
+/**
  * The command Playwright starts its server with. The port is an argument and
  * not `PORT`, so it holds however `next dev` and `next start` read their
  * environment.
  *
  * decisions/568-e2e-against-a-production-build.md
  */
-export function serverCommand(target: E2eTarget, port: string): string {
+export function serverCommand(target: E2eTarget, port: number): string {
   if (target === "dev") return `npm run dev -- -p ${port}`;
 
   const start = `npm start -- -p ${port}`;

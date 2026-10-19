@@ -16,7 +16,13 @@
 
 import { existsSync } from "node:fs";
 import { defineConfig, devices } from "@playwright/test";
-import { e2eTarget, serverCommand, startUpTimeoutMs, withoutSentry } from "./scripts/e2e-target";
+import {
+  e2ePort,
+  e2eTarget,
+  serverCommand,
+  startUpTimeoutMs,
+  withoutSentry,
+} from "./scripts/e2e-target";
 import { E2E_ANALYTICS_FLAG } from "./src/lib/e2e-analytics";
 import { standInRedis } from "./tests/support/taso-stub";
 import { testDatabaseUrl } from "./tests/support/test-database";
@@ -47,7 +53,7 @@ const target = e2eTarget(process.env.E2E_TARGET);
  *
  * decisions/304-test-database.md
  */
-const PORT = (process.env.E2E_PORT ?? "").trim() || "3001";
+const PORT = e2ePort("E2E_PORT", process.env.E2E_PORT, 3001);
 const BASE_URL = `http://localhost:${PORT}`;
 
 /**
@@ -62,19 +68,18 @@ const TASO_STUB = process.env.E2E_TASO_STUB === "1";
 if (!TASO_STUB && (process.env.E2E_TASO_STUB ?? "") !== "") {
   throw new Error("E2E_TASO_STUB is 1 or unset; anything else would leave the stand-in off.");
 }
-// Blank is unset, so the stand-in and the URL Playwright polls share one port.
-const TASO_PORT = (process.env.E2E_TASO_PORT ?? "").trim() || "3002";
+const TASO_PORT = e2ePort("E2E_TASO_PORT", process.env.E2E_TASO_PORT, 3002);
 const TASO_URL = `http://localhost:${TASO_PORT}`;
 
 // The run's own Redis, set for the whole run, not only the server: the specs
 // that drop cache keys must reach the one the server reads. Workers inherit it.
-const REDIS_PORT = (process.env.E2E_REDIS_PORT ?? "").trim() || "6380";
+const REDIS_PORT = e2ePort("E2E_REDIS_PORT", process.env.E2E_REDIS_PORT, 6380);
 const redis = standInRedis(REDIS_PORT);
 if (TASO_STUB) process.env.REDIS_URL = redis.url;
 
 const redisServer = {
   command: redis.command,
-  port: Number(REDIS_PORT),
+  port: REDIS_PORT,
   reuseExistingServer: false,
   // SIGTERM, which `docker run` passes on so the container stops and is removed;
   // Playwright's default SIGKILL would leave it running.
@@ -86,7 +91,7 @@ const tasoStub = {
   command: "node --import tsx tests/support/taso-stub-server.ts",
   url: TASO_URL,
   reuseExistingServer: false,
-  env: { ...process.env, E2E_TASO_PORT: TASO_PORT },
+  env: { ...process.env, E2E_TASO_PORT: String(TASO_PORT) },
   timeout: 30_000,
 };
 

@@ -157,7 +157,7 @@ describe("the TASO stand-in", () => {
 
 describe("the stand-in run's own Redis", () => {
   it("is a container on the port asked, reachable only from this machine, keeping nothing", () => {
-    expect(standInRedis("6390")).toEqual({
+    expect(standInRedis(6390)).toEqual({
       command:
         'docker run --rm -p 127.0.0.1:6390:6379 redis:8-alpine redis-server --save "" --appendonly no',
       url: "redis://127.0.0.1:6390",

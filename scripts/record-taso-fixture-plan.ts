@@ -176,8 +176,9 @@ const LEVELS_PER_GROUP = 10;
 
 /**
  * One category's groups as `getCategory` sent them: every group with a team row
- * or a zone, its teams, and its zones as the ten counts and labels
- * `normalizeGroupLevels` reads. A group's name comes from its matches when it has any.
+ * or a zone, its teams in the order given, and its zones as the ten counts and
+ * labels `normalizeGroupLevels` reads. A group's name comes from its matches when
+ * it has any.
  */
 export function toProviderGroups(
   teams: StoredGroupTeam[],
@@ -202,10 +203,9 @@ export function toProviderGroups(
       ...(levels.length === 0
         ? {}
         : { next_stage_levels: counts.join(","), next_stage_level_texts: labels }),
-      teams: teams
-        .filter((team) => team.groupId === groupId)
-        .sort((a, b) => a.teamProviderId - b.teamProviderId)
-        .map(toProviderTeam),
+      // In the order given, which is TASO's: the page keeps it for teams that
+      // share a standing, or have none.
+      teams: teams.filter((team) => team.groupId === groupId).map(toProviderTeam),
     };
   });
 }
@@ -273,26 +273,24 @@ export function buildFixture(input: {
     }
   }
 
-  const fixture: RecordedFixture = {
-    competitions: [],
-    categories: {},
-    matches: toRecord(matchLists),
-    groups: toRecord(groupLists),
-  };
-  for (const [competitionId, seasonId] of [...seasons].sort(([a], [b]) => a.localeCompare(b))) {
-    const names = Object.hasOwn(input.categoryNames, competitionId)
-      ? input.categoryNames[competitionId]
-      : undefined;
-    if (names !== undefined) fixture.categories[competitionId] = names;
-    if (SEASON_COMPETITION_ID.test(competitionId)) {
-      fixture.competitions.push({
+  const ordered = [...seasons].sort(([a], [b]) => a.localeCompare(b));
+  return {
+    competitions: ordered
+      .filter(([competitionId]) => SEASON_COMPETITION_ID.test(competitionId))
+      .map(([competitionId, seasonId]) => ({
         competition_id: competitionId,
         competition_status: "published",
         season_id: String(seasonId),
-      });
-    }
-  }
-  return fixture;
+      })),
+    // Built from entries, so every id is an own key, `__proto__` included.
+    categories: Object.fromEntries(
+      Object.entries(input.categoryNames)
+        .filter(([competitionId]) => seasons.has(competitionId))
+        .sort(([a], [b]) => a.localeCompare(b))
+    ),
+    matches: toRecord(matchLists),
+    groups: toRecord(groupLists),
+  };
 }
 
 /** Each competition id's one season, or a throw naming the competition that holds two. */

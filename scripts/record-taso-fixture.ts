@@ -51,7 +51,8 @@ async function main(): Promise<void> {
           select competition_id, category_id, season_id, group_id, team_provider_id, team_name,
             starting_points, points, matches_played, matches_won, matches_tied, matches_lost,
             goals_for, goals_against, goals_diff, current_standing, final_group_standing
-          from taso_group_teams`,
+          from taso_group_teams
+          order by id`,
         await tx<StoredZone[]>`
           select competition_id, category_id, season_id, group_id, level, team_count, label
           from taso_group_zones`,

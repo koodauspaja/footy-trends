@@ -116,7 +116,7 @@ export const STAND_IN_REDIS_IMAGE = "redis:8-alpine";
  *
  * decisions/674-e2e-on-an-empty-database.md
  */
-export function standInRedis(port: string): { command: string; url: string } {
+export function standInRedis(port: number): { command: string; url: string } {
   return {
     command: `docker run --rm -p 127.0.0.1:${port}:6379 ${STAND_IN_REDIS_IMAGE} redis-server --save "" --appendonly no`,
     url: `redis://127.0.0.1:${port}`,

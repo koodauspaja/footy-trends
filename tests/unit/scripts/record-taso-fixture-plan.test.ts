@@ -241,7 +241,7 @@ describe("a category's stored groups as getCategory sent them", () => {
     ]);
   });
 
-  it("sends a group with no zones without levels, its teams in id order, an unfinished standing as null", () => {
+  it("sends a group with no zones without levels, its teams in the order given, an unfinished standing as null", () => {
     const groups = toProviderGroups(
       [{ ...team, teamProviderId: 70000, finalGroupStanding: null }, { ...team, groupId: 3 }, team],
       [],
@@ -250,8 +250,8 @@ describe("a category's stored groups as getCategory sent them", () => {
     expect(groups.map((group) => group.group_id)).toEqual(["3", "7"]);
     expect(groups[1]).not.toHaveProperty("next_stage_levels");
     expect(groups[1]?.teams?.map((row) => [row.team_id, row.final_group_standing])).toEqual([
-      ["60987", "2"],
       ["70000", null],
+      ["60987", "2"],
     ]);
   });
 });
@@ -311,6 +311,19 @@ describe("the recorded fixture", () => {
       categoryNames: {},
     });
     expect(fixture.categories).toEqual({});
+  });
+
+  it("keeps the names of a competition whose id is __proto__ as an own key", () => {
+    const fixture = buildFixture({
+      matches: [{ ...match, competitionId: "__proto__" }],
+      groupTeams: [],
+      zones: [],
+      categoryNames: JSON.parse('{"__proto__": {"VL": "Veikkausliiga"}}'),
+    });
+    expect(Object.hasOwn(fixture.categories, "__proto__")).toBe(true);
+    expect(JSON.parse(JSON.stringify(fixture.categories))).toEqual(
+      JSON.parse('{"__proto__": {"VL": "Veikkausliiga"}}')
+    );
   });
 
   it("refuses to record no matches at all, so the fixture is not replaced by an empty one", () => {
