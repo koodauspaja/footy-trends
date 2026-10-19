@@ -128,6 +128,8 @@ describe("getSeasonSummary", () => {
     mocks.getTeamUpset.mockResolvedValueOnce(null);
     const throwing = {
       ...readers(),
+      // Three earlier seasons, so the records are read at all.
+      seasons: [2023, 2024, 2025, 2026].map((seasonId) => ({ competitionCode: "VL", seasonId })),
       records: async (): Promise<StreakRecordsSeries> => {
         throw new Error("records failed");
       },

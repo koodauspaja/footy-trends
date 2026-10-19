@@ -172,21 +172,19 @@ describe("runFacts", () => {
   });
 
   // Four wins and a defeat in each season, so every season holds a four-win run.
-  function fourWins(seasonId: number): RecordSeason {
-    return {
-      competitionCode: "VL",
-      seasonId,
-      label: String(seasonId),
-      finished: [1, 2, 3, 4, 5].map((day) => ({
-        providerMatchId: seasonId * 100 + day,
-        kickoffAt: new Date(Date.UTC(seasonId, 4, day)),
-        homeTeamProviderId: TEAM,
-        awayTeamProviderId: OTHER,
-        homeGoals: day === 5 ? 0 : 1,
-        awayGoals: day === 5 ? 1 : 0,
-      })),
-    };
-  }
+  const fourWins = (seasonId: number): RecordSeason => ({
+    competitionCode: "VL",
+    seasonId,
+    label: String(seasonId),
+    finished: [1, 2, 3, 4, 5].map((day) => ({
+      providerMatchId: seasonId * 100 + day,
+      kickoffAt: new Date(Date.UTC(seasonId, 4, day)),
+      homeTeamProviderId: TEAM,
+      awayTeamProviderId: OTHER,
+      homeGoals: day === 5 ? 0 : 1,
+      awayGoals: day === 5 ? 1 : 0,
+    })),
+  });
   const fourWinRun = { kind: "run", run: "wins", length: 4 };
 
   it("states a run equal to an earlier spell's record, as Ennätykset gives it to the later", () => {
