@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildFixture,
+  isProviderMatch,
   isRecorded,
   type Selection,
   type StoredGroupTeam,
@@ -116,6 +117,17 @@ describe("which stored rows are recorded", () => {
     ["the latest season", { competitionId: "spljp26", categoryId: "VL", seasonId: 2026 }, true],
   ])("records %s: %s", (_case, row, expected) => {
     expect(isRecorded(row, selection)).toBe(expected);
+  });
+});
+
+describe("which stored matches came from TASO", () => {
+  it.each([
+    ["a TASO match id", 3_911_959, true],
+    ["the largest id below the e2e specs' range", 998_999_999, true],
+    ["the first id the e2e specs seed", 999_000_000, false],
+    ["a spec's seeded match", 999_057_001, false],
+  ])("counts %s as TASO's: %s", (_case, tasoMatchId, expected) => {
+    expect(isProviderMatch({ tasoMatchId })).toBe(expected);
   });
 });
 

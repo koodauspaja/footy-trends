@@ -101,6 +101,17 @@ export function isRecorded(row: Row, selection: Selection): boolean {
   );
 }
 
+/** Where the e2e specs' own match ids start, far above any TASO uses. */
+const FIRST_SYNTHETIC_MATCH_ID = 999_000_000;
+
+/**
+ * Whether a stored match came from TASO, not from an e2e spec that seeded it
+ * and has not yet removed it.
+ */
+export function isProviderMatch(row: Pick<StoredMatch, "tasoMatchId">): boolean {
+  return row.tasoMatchId < FIRST_SYNTHETIC_MATCH_ID;
+}
+
 const STATUS = new Map([
   ["FINISHED", "Played"],
   ["SCHEDULED", "Fixture"],

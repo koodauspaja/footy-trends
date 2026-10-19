@@ -7,6 +7,7 @@ import { CATEGORY_ID, COMPETITION_ID, SEASON } from "../tests/e2e/fixtures/veikk
 import { testDatabaseUrl } from "../tests/support/test-database";
 import {
   buildFixture,
+  isProviderMatch,
   isRecorded,
   type Selection,
   type StoredGroupTeam,
@@ -56,7 +57,7 @@ async function main(): Promise<void> {
           from taso_group_zones`,
       ]
     );
-    const matches = matchRows.filter((row) => isRecorded(row, selection));
+    const matches = matchRows.filter((row) => isRecorded(row, selection) && isProviderMatch(row));
     const groupTeams = groupTeamRows.filter((row) => isRecorded(row, selection));
     const zones = zoneRows.filter((row) => isRecorded(row, selection));
 
