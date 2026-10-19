@@ -43,11 +43,24 @@ never refetched, so those pages make no provider request at all.
 An emergency override, for while TASO refuses our requests. Set in `.env`, it
 makes `playwright.config.ts` start `tests/support/taso-stub-server.ts` on port
 3002 (`E2E_TASO_PORT` changes it) and point the app's server at it with
-`TASO_API_BASE_URL`. The stand-in answers `getCategories` and `getMatches` for
-the national-team buckets from `tests/e2e/fixtures/taso-national-teams.json`,
-and refuses every other request, as the provider does now, so a league or cup
-page falls back to the rows already stored. Remove the line when TASO answers
-again. `decisions/672-e2e-without-the-provider.md` has the reasons.
+`TASO_API_BASE_URL`. The stand-in replays recorded answers, so the suite passes
+on an empty test database:
+
+| Fixture | What it holds |
+|---|---|
+| `tests/e2e/fixtures/taso-national-teams.json` | The national-team buckets' categories and matches |
+| `tests/e2e/fixtures/taso-domestic.json.gz` | Every domestic season live runs stored: `getCompetitions`, matches, group tables, and the category names Redis still held |
+
+It refuses every other request, as the provider does now. The run's server, its
+specs and global setup use Redis database 15 instead of the configured one, and
+global setup empties it first, so no cached answer from an earlier run or from
+`npm run dev` decides a result. Remove the line when TASO answers again.
+
+`npm run test:e2e:record-taso` rewrites the domestic fixture from the test
+database's TASO rows and the configured Redis. It only reads them; run it after
+a live run has stored what a new spec needs.
+`decisions/672-e2e-without-the-provider.md` and
+`decisions/674-e2e-on-an-empty-database.md` have the reasons.
 
 ## Prerequisites
 
