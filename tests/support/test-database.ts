@@ -47,7 +47,10 @@ export function testDatabaseUrl(): string {
   // appended to the encoded name, so the URL still round-trips.
   const encodedName = url.pathname.replace(/^\//, "");
   if (encodedName === "") {
-    throw new Error(`DATABASE_URL names no database, so no test database can be derived: ${base}`);
+    // The host only: the URL carries the password, and this message reaches logs.
+    throw new Error(
+      `DATABASE_URL names no database, so no test database can be derived: ${url.host}`
+    );
   }
 
   url.pathname = `/${encodedName}${SUFFIX}`;
@@ -61,11 +64,12 @@ export function testDatabaseUrl(): string {
  * decisions/304-test-database.md
  */
 export function databaseNameFor(url: string): string {
-  const name = decodeURIComponent(new URL(url).pathname.replace(/^\//, ""));
+  const parsed = new URL(url);
+  const name = decodeURIComponent(parsed.pathname.replace(/^\//, ""));
   // Validated here, where the identifier is produced: an explicit
-  // `TEST_DATABASE_URL` skips the derivation.
+  // `TEST_DATABASE_URL` skips the derivation. The host only, as above.
   if (name === "") {
-    throw new Error(`The test database URL names no database: ${url}`);
+    throw new Error(`The test database URL names no database: ${parsed.host}`);
   }
   return name;
 }

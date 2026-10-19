@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
-import type Redis from "ioredis";
 
 /**
  * What the e2e suite's stand-in for TASO answers, as a pure function of the
@@ -106,44 +105,22 @@ export function answer(fixture: Fixture, path: string): StubAnswer {
   }
 }
 
-/** The last of Redis's sixteen default databases, which nothing else here uses. */
-const STAND_IN_REDIS_DB = 15;
+/** The Redis image `docker-compose.yml` runs, so the run's own matches development's. */
+export const STAND_IN_REDIS_IMAGE = "redis:8-alpine";
 
 /**
- * The Redis the app's server uses while the stand-in answers for TASO: the
- * configured one, on its own database, so its entries and development's never
- * meet. `global-setup.ts` empties it before each run, through `emptyStandInRedis`.
+ * A Redis of the run's own while the stand-in answers for TASO: a container that
+ * Playwright starts empty on `port` and Docker removes when it stops, keeping
+ * nothing on disk. The run never reads, writes or deletes anything in the Redis
+ * development uses.
  *
  * decisions/674-e2e-on-an-empty-database.md
  */
-export function standInRedisUrl(configured: string | undefined): string {
-  const url = new URL((configured ?? "").trim() || "redis://localhost:6379");
-  url.pathname = `/${STAND_IN_REDIS_DB}`;
-  return url.toString();
-}
-
-/** The key a stand-in run leaves in its Redis database, so the next one may empty it. */
-export const STAND_IN_MARKER = "e2e:taso-stand-in";
-
-/**
- * Empties the stand-in's Redis database before a run, when it is empty or an
- * earlier run marked it; keys in an unmarked one are someone else's, and stop the
- * run. Check and flush are separate commands: nothing else writes to the database
- * while global setup runs, before any server is started.
- *
- * decisions/674-e2e-on-an-empty-database.md
- */
-export async function emptyStandInRedis(
-  redis: Pick<Redis, "dbsize" | "exists" | "flushdb" | "set">
-): Promise<void> {
-  if ((await redis.dbsize()) > 0 && (await redis.exists(STAND_IN_MARKER)) === 0) {
-    throw new Error(
-      `Redis database ${STAND_IN_REDIS_DB} holds keys no run with E2E_TASO_STUB=1 wrote, ` +
-        "and the run empties it first; empty it yourself, or point REDIS_URL at another server."
-    );
-  }
-  await redis.flushdb();
-  await redis.set(STAND_IN_MARKER, "1");
+export function standInRedis(port: string): { command: string; url: string } {
+  return {
+    command: `docker run --rm -p 127.0.0.1:${port}:6379 ${STAND_IN_REDIS_IMAGE} redis-server --save "" --appendonly no`,
+    url: `redis://127.0.0.1:${port}`,
+  };
 }
 
 function recorded<T>(record: ByCategory<T>, competitionId: string, categoryId: string) {

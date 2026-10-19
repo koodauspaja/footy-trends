@@ -2,11 +2,10 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   answer,
-  emptyStandInRedis,
   loadFixture,
   mergeFixtures,
-  STAND_IN_MARKER,
-  standInRedisUrl,
+  STAND_IN_REDIS_IMAGE,
+  standInRedis,
 } from "../../support/taso-stub";
 
 /**
@@ -156,59 +155,17 @@ describe("the TASO stand-in", () => {
   });
 });
 
-describe("the stand-in's Redis", () => {
-  it.each([
-    ["the default server when none is configured", undefined, "redis://localhost:6379/15"],
-    ["the default server when the setting is blank", "  ", "redis://localhost:6379/15"],
-    [
-      "the configured server, its own database replaced",
-      "redis://cache:6380/0",
-      "redis://cache:6380/15",
-    ],
-    [
-      "the configured credentials",
-      "redis://user:secret@cache:6379",
-      "redis://user:secret@cache:6379/15",
-    ],
-  ])("is database 15 on %s", (_case, configured, expected) => {
-    expect(standInRedisUrl(configured)).toBe(expected);
-  });
-});
-
-type StandInRedis = Parameters<typeof emptyStandInRedis>[0];
-
-describe("emptying the stand-in's Redis before a run", () => {
-  function fakeRedis(keys: string[]) {
-    const stored = new Set(keys);
-    return {
-      stored,
-      dbsize: async () => stored.size,
-      exists: async (key: string) => (stored.has(key) ? 1 : 0),
-      flushdb: async () => {
-        stored.clear();
-        return "OK" as const;
-      },
-      set: async (key: string) => {
-        stored.add(key);
-        return "OK" as const;
-      },
-    };
-  }
-
-  it.each([
-    ["empty", []],
-    ["marked by an earlier run", [STAND_IN_MARKER, "taso:matches:spljp26:VL"]],
-  ])("empties a database that is %s, and marks it", async (_case, keys) => {
-    const redis = fakeRedis(keys);
-    await emptyStandInRedis(redis as unknown as StandInRedis);
-    expect([...redis.stored]).toEqual([STAND_IN_MARKER]);
+describe("the stand-in run's own Redis", () => {
+  it("is a container on the port asked, reachable only from this machine, keeping nothing", () => {
+    expect(standInRedis("6390")).toEqual({
+      command:
+        'docker run --rm -p 127.0.0.1:6390:6379 redis:8-alpine redis-server --save "" --appendonly no',
+      url: "redis://127.0.0.1:6390",
+    });
   });
 
-  it("leaves a database holding someone else's keys as it is, and stops the run", async () => {
-    const redis = fakeRedis(["session:abc"]);
-    await expect(emptyStandInRedis(redis as unknown as StandInRedis)).rejects.toThrow(
-      "Redis database 15 holds keys no run with E2E_TASO_STUB=1 wrote"
-    );
-    expect([...redis.stored]).toEqual(["session:abc"]);
+  it("runs the Redis image docker-compose.yml runs for development", () => {
+    const compose = readFileSync("docker-compose.yml", "utf8");
+    expect(compose).toContain(`\n  redis:\n    image: ${STAND_IN_REDIS_IMAGE}\n`);
   });
 });

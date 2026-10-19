@@ -1,7 +1,5 @@
 import { existsSync } from "node:fs";
-import Redis from "ioredis";
 import postgres from "postgres";
-import { emptyStandInRedis, standInRedisUrl } from "../support/taso-stub";
 import { ensureTestDatabase } from "../support/test-database";
 import {
   CATEGORY_ID,
@@ -115,7 +113,6 @@ async function seedFixtureSeason(url: string): Promise<void> {
  *
  * decisions/009-veikkausliiga.md
  * decisions/304-test-database.md
- * decisions/674-e2e-on-an-empty-database.md
  */
 export default async function globalSetup() {
   if (existsSync(".env")) {
@@ -143,15 +140,4 @@ export default async function globalSetup() {
   // `playwright.config.ts`.
   const url = await ensureTestDatabase();
   await seedFixtureSeason(url);
-
-  // With the stand-in, each run starts from an empty cache of its own, so no
-  // answer an earlier run cached decides this one.
-  if (process.env.E2E_TASO_STUB === "1") {
-    const redis = new Redis(standInRedisUrl(process.env.REDIS_URL));
-    try {
-      await emptyStandInRedis(redis);
-    } finally {
-      await redis.quit();
-    }
-  }
 }

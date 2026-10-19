@@ -79,9 +79,12 @@ describe("testDatabaseUrl", () => {
     // Appending the suffix to nothing would produce `/_test` — a database
     // nobody meant, created on the first run.
     vi.stubEnv("TEST_DATABASE_URL", undefined);
-    vi.stubEnv("DATABASE_URL", "postgresql://postgres@localhost:5432");
+    vi.stubEnv("DATABASE_URL", "postgresql://postgres:hunter2@localhost:5432");
 
-    expect(() => testDatabaseUrl()).toThrow(/names no database/);
+    expect(() => testDatabaseUrl()).toThrow(
+      "DATABASE_URL names no database, so no test database can be derived: localhost:5432"
+    );
+    expect(() => testDatabaseUrl()).not.toThrow(/hunter2/);
   });
 
   it("says what to do when neither variable is set", () => {
@@ -106,8 +109,11 @@ describe("databaseNameFor", () => {
     // `testDatabaseUrl` checks the derived path, but an explicit
     // `TEST_DATABASE_URL` never goes through it — and an empty name reaches
     // Postgres as `create database ""`.
-    expect(() => databaseNameFor("postgresql://postgres@localhost:5432")).toThrow(
-      /names no database/
+    expect(() => databaseNameFor("postgresql://postgres:hunter2@localhost:5432")).toThrow(
+      "The test database URL names no database: localhost:5432"
+    );
+    expect(() => databaseNameFor("postgresql://postgres:hunter2@localhost:5432")).not.toThrow(
+      /hunter2/
     );
   });
 

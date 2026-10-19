@@ -18,7 +18,7 @@ import { existsSync } from "node:fs";
 import { defineConfig, devices } from "@playwright/test";
 import { e2eTarget, serverCommand, startUpTimeoutMs, withoutSentry } from "./scripts/e2e-target";
 import { E2E_ANALYTICS_FLAG } from "./src/lib/e2e-analytics";
-import { standInRedisUrl } from "./tests/support/taso-stub";
+import { standInRedis } from "./tests/support/taso-stub";
 import { testDatabaseUrl } from "./tests/support/test-database";
 
 // Evaluated before `global-setup.ts`, so the variables it reads are loaded
@@ -52,8 +52,8 @@ const BASE_URL = `http://localhost:${PORT}`;
 
 /**
  * `E2E_TASO_STUB=1` points the app at a local stand-in for TASO, for while the
- * provider refuses our requests, and at a Redis database of its own. Unset, the
- * suite reaches TASO as before.
+ * provider refuses our requests, and at a Redis of its own. Unset, the suite
+ * reaches TASO and the configured Redis as before.
  *
  * decisions/672-e2e-without-the-provider.md
  * decisions/674-e2e-on-an-empty-database.md
@@ -62,12 +62,25 @@ const TASO_STUB = process.env.E2E_TASO_STUB === "1";
 if (!TASO_STUB && (process.env.E2E_TASO_STUB ?? "") !== "") {
   throw new Error("E2E_TASO_STUB is 1 or unset; anything else would leave the stand-in off.");
 }
-// Set for the whole run, not only the server: the specs that drop cache keys
-// must reach the database the server reads. Workers inherit it.
-if (TASO_STUB) process.env.REDIS_URL = standInRedisUrl(process.env.REDIS_URL);
 // Blank is unset, so the stand-in and the URL Playwright polls share one port.
 const TASO_PORT = (process.env.E2E_TASO_PORT ?? "").trim() || "3002";
 const TASO_URL = `http://localhost:${TASO_PORT}`;
+
+// The run's own Redis, set for the whole run, not only the server: the specs
+// that drop cache keys must reach the one the server reads. Workers inherit it.
+const REDIS_PORT = (process.env.E2E_REDIS_PORT ?? "").trim() || "6380";
+const redis = standInRedis(REDIS_PORT);
+if (TASO_STUB) process.env.REDIS_URL = redis.url;
+
+const redisServer = {
+  command: redis.command,
+  port: Number(REDIS_PORT),
+  reuseExistingServer: false,
+  // SIGTERM, which `docker run` passes on so the container stops and is removed;
+  // Playwright's default SIGKILL would leave it running.
+  gracefulShutdown: { signal: "SIGTERM" as const, timeout: 10_000 },
+  timeout: 60_000,
+};
 
 const tasoStub = {
   command: "node --import tsx tests/support/taso-stub-server.ts",
@@ -106,7 +119,7 @@ export default defineConfig({
     },
   ],
   webServer: [
-    ...(TASO_STUB ? [tasoStub] : []),
+    ...(TASO_STUB ? [redisServer, tasoStub] : []),
     {
       command: serverCommand(target, PORT),
       url: BASE_URL,
