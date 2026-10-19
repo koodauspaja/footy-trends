@@ -229,17 +229,7 @@ export function buildFixture(input: {
   zones: StoredZone[];
   categoryNames: Record<string, Record<string, string>>;
 }): RecordedFixture {
-  const seasons = new Map<string, number>();
-  for (const row of [...input.matches, ...input.groupTeams, ...input.zones]) {
-    const known = seasons.get(row.competitionId);
-    if (known !== undefined && known !== row.seasonId) {
-      throw new Error(
-        `${row.competitionId} holds seasons ${known} and ${row.seasonId}; the stand-in replays one`
-      );
-    }
-    seasons.set(row.competitionId, row.seasonId);
-  }
-
+  const seasons = seasonOfEachCompetition([...input.matches, ...input.groupTeams, ...input.zones]);
   if (input.matches.length === 0) {
     throw new Error("No matches to record; the fixture is left as it is");
   }
@@ -292,6 +282,21 @@ export function buildFixture(input: {
     }
   }
   return fixture;
+}
+
+/** Each competition id's one season, or a throw naming the competition that holds two. */
+function seasonOfEachCompetition(rows: Row[]): Map<string, number> {
+  const seasons = new Map<string, number>();
+  for (const row of rows) {
+    const known = seasons.get(row.competitionId);
+    if (known !== undefined && known !== row.seasonId) {
+      throw new Error(
+        `${row.competitionId} holds seasons ${known} and ${row.seasonId}; the stand-in replays one`
+      );
+    }
+    seasons.set(row.competitionId, row.seasonId);
+  }
+  return seasons;
 }
 
 function put<T>(
