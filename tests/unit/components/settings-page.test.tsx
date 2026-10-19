@@ -696,8 +696,8 @@ describe("Profiilikuva", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Tallenna kuva" }));
-    await waitFor(() => expect(screen.queryByText(STALE_PICTURE)).not.toBeInTheDocument());
     expect(saveAvatarAction).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(screen.queryByText(STALE_PICTURE)).not.toBeInTheDocument());
     expect(screen.getByText("Profiilikuva päivitetty.")).toBeInTheDocument();
   });
 

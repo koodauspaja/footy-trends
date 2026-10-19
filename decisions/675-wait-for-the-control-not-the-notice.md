@@ -9,7 +9,7 @@ out at 1000 ms.
 | Decision | Why |
 |---|---|
 | Before its second click, the test waits until "Tallenna kuva" is enabled again | The reload notice is set by the refetch's `catch`, outside the save's transition, so it can render while the transition is still pending and the button is still `disabled`. Whether the transition's end has committed by the time `waitFor` returns depends on timing, and a click on a disabled button does nothing. Waiting for the button is waiting for what the next step depends on. |
-| The test asserts that `saveAvatarAction` ran twice | Its last assertion, "Profiilikuva päivitetty.", was already true after the first save, so an ignored second click could only show up as a timeout on the notice. Now it fails saying the save did not run. |
+| Straight after the second click, the test asserts that `saveAvatarAction` ran twice | The click handler calls the action synchronously, so an ignored click fails there at once, saying the save did not run, instead of as a timeout on the notice a second later. Its last assertion, "Profiilikuva päivitetty.", was already true after the first save. |
 | The component is not changed | A reader cannot click a disabled button either, and the button enables a moment later; the UI reaches the right state. Only the test acted between the two commits. |
 
 ## Measured
