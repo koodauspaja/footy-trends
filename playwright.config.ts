@@ -17,8 +17,10 @@
 import { existsSync } from "node:fs";
 import { defineConfig, devices } from "@playwright/test";
 import {
-  e2ePort,
+  e2eAppPort,
+  e2eRedisPort,
   e2eTarget,
+  e2eTasoPort,
   serverCommand,
   startUpTimeoutMs,
   withoutSentry,
@@ -53,7 +55,7 @@ const target = e2eTarget(process.env.E2E_TARGET);
  *
  * decisions/304-test-database.md
  */
-const PORT = e2ePort("E2E_PORT", process.env.E2E_PORT, 3001);
+const PORT = e2eAppPort(process.env);
 const BASE_URL = `http://localhost:${PORT}`;
 
 /**
@@ -71,7 +73,7 @@ if (!TASO_STUB && (process.env.E2E_TASO_STUB ?? "") !== "") {
 // With the stand-in, a database of its own, set for the whole run as REDIS_URL
 // is: global setup and the specs read it too.
 if (TASO_STUB) process.env.TEST_DATABASE_URL = standInDatabaseUrl(testDatabaseUrl(), PORT);
-const TASO_PORT = e2ePort("E2E_TASO_PORT", process.env.E2E_TASO_PORT, 3002);
+const TASO_PORT = e2eTasoPort(process.env);
 const TASO_URL = `http://localhost:${TASO_PORT}`;
 
 /**
@@ -82,7 +84,7 @@ const TASO_URL = `http://localhost:${TASO_PORT}`;
  * decisions/674-e2e-on-an-empty-database.md
  */
 function redisServer() {
-  const port = e2ePort("E2E_REDIS_PORT", process.env.E2E_REDIS_PORT, 6380);
+  const port = e2eRedisPort(process.env);
   const redis = standInRedis(port);
   process.env.REDIS_URL = redis.url;
   return {

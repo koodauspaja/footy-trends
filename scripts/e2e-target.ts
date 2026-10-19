@@ -44,6 +44,25 @@ export function e2ePort(name: string, value: string | undefined, fallback: numbe
 }
 
 /**
+ * The suite's ports from the environment, with their defaults, read in one place
+ * by `playwright.config.ts` and global setup alike. The stand-in's Redis port is
+ * apart, read only when the stand-in is on.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
+export function e2eAppPort(env: Record<string, string | undefined>): number {
+  return e2ePort("E2E_PORT", env.E2E_PORT, 3001);
+}
+
+export function e2eTasoPort(env: Record<string, string | undefined>): number {
+  return e2ePort("E2E_TASO_PORT", env.E2E_TASO_PORT, 3002);
+}
+
+export function e2eRedisPort(env: Record<string, string | undefined>): number {
+  return e2ePort("E2E_REDIS_PORT", env.E2E_REDIS_PORT, 6380);
+}
+
+/**
  * The command Playwright starts its server with. The port is an argument and
  * not `PORT`, so it holds however `next dev` and `next start` read their
  * environment.

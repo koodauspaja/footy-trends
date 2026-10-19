@@ -1,7 +1,8 @@
 import { existsSync } from "node:fs";
 import Redis from "ioredis";
 import postgres from "postgres";
-import { STAND_IN_TASO_KEYS } from "../support/taso-stub";
+import { e2eAppPort, e2eRedisPort } from "../../scripts/e2e-target";
+import { STAND_IN_TASO_KEYS, standInDatabaseUrl, standInRedis } from "../support/taso-stub";
 import { ensureTestDatabase } from "../support/test-database";
 import {
   CATEGORY_ID,
@@ -115,8 +116,8 @@ async function seedFixtureSeason(url: string): Promise<void> {
  *
  * decisions/674-e2e-on-an-empty-database.md
  */
-async function clearStandInTaso(url: string): Promise<void> {
-  const sql = postgres(url);
+async function clearStandInTaso(databaseUrl: string, redisUrl: string): Promise<void> {
+  const sql = postgres(databaseUrl);
   try {
     await sql`delete from taso_matches`;
     await sql`delete from taso_group_teams`;
@@ -124,7 +125,7 @@ async function clearStandInTaso(url: string): Promise<void> {
   } finally {
     await sql.end();
   }
-  const redis = new Redis(process.env.REDIS_URL ?? "");
+  const redis = new Redis(redisUrl);
   try {
     for await (const keys of redis.scanStream({ match: STAND_IN_TASO_KEYS, count: 500 })) {
       if (keys.length > 0) await redis.del(...keys);
@@ -168,6 +169,13 @@ export default async function globalSetup() {
   // seeds it. The application server is pointed at the same URL by
   // `playwright.config.ts`.
   const url = await ensureTestDatabase();
-  if (process.env.E2E_TASO_STUB === "1") await clearStandInTaso(url);
+  // Derived here as the config derives them, never read back from the
+  // environment: a missing variable must not point the deletes elsewhere.
+  if (process.env.E2E_TASO_STUB === "1") {
+    await clearStandInTaso(
+      standInDatabaseUrl(url, e2eAppPort(process.env)),
+      standInRedis(e2eRedisPort(process.env)).url
+    );
+  }
   await seedFixtureSeason(url);
 }
