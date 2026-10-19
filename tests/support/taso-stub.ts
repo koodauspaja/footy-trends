@@ -57,6 +57,9 @@ export function answer(fixture: Fixture, path: string): StubAnswer {
   }
   if (url.pathname === "/getMatches") {
     const categoryId = url.searchParams.get("category_id") ?? "";
+    // Only a listed category is known to have no matches; an unlisted one is
+    // refused, so a refresh cannot replace stored rows with nothing.
+    if (!(categoryId in known)) return { status: 503, body: { error: "not in the fixture" } };
     return {
       status: 200,
       body: { matches: fixture.matches[competitionId]?.[categoryId] ?? [] },

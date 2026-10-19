@@ -48,6 +48,10 @@ describe("the TASO stand-in", () => {
     });
   });
 
+  it("refuses a category its competition does not list", () => {
+    expect(answer(fixture, "/getMatches?competition_id=maajp2025&category_id=EC").status).toBe(503);
+  });
+
   it("refuses a request without a competition, an unknown competition and an unknown path", () => {
     expect(answer(fixture, "/getCompetitions").status).toBe(503);
     expect(answer(fixture, "/getMatches?competition_id=spljp26&category_id=VL").status).toBe(503);
