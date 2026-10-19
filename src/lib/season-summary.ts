@@ -201,7 +201,11 @@ export function isFavourable(fact: SummaryFact): boolean {
   }
 }
 
-// On equal counts, the run first, then home, then away; the upset last.
+/**
+ * On equal counts, the run first, then home, then away; the upset last.
+ *
+ * decisions/066-season-summary.md
+ */
 const TIE_ORDER: Record<SummaryFact["kind"], number> = { run: 0, home: 1, away: 2, upset: 3 };
 
 /**

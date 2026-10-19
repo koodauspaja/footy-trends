@@ -289,6 +289,39 @@ describe("getTeamUpset against Postgres", () => {
     });
   });
 
+  it("reads a football-data team's win from Elo's backtest rows of its competition-season only", async () => {
+    const CLUB = 984_101;
+    await db.insert(matches).values([
+      // Every match a home win by the club. The season before, at 1 %.
+      footballDataMatch(0, { seasonId: 1980, kickoffAt: kickoff(1, 1980) }),
+      // 20 %: the upset, every lower figure below being another row's.
+      footballDataMatch(1),
+      footballDataMatch(2),
+      footballDataMatch(3),
+      footballDataMatch(4),
+      footballDataMatch(5),
+      // In play with a score so far.
+      footballDataMatch(6, { status: "IN_PLAY" }),
+    ]);
+    await db
+      .insert(predictions)
+      .values([
+        predicted(0, "football-data", { homeProbability: 0.01 }),
+        predicted(1, "football-data"),
+        predicted(2, "football-data", { kind: "live", homeProbability: 0.05 }),
+        predicted(3, "football-data", { model: "poisson-v1", homeProbability: 0.05 }),
+        predicted(4, "taso", { competitionCode: "PPL", homeProbability: 0.05 }),
+        predicted(5, "football-data", { competitionCode: "PL", homeProbability: 0.05 }),
+        predicted(6, "football-data", { homeProbability: 0.05 }),
+      ]);
+
+    await expect(getTeamUpset("football-data", "PPL", 1981, CLUB)).resolves.toMatchObject({
+      providerMatchId: id(1),
+      probability: 0.2,
+      homeTeamProviderId: CLUB,
+    });
+  });
+
   it("has none in the competition's first stored season", async () => {
     await db.insert(tasoMatches).values([tasoMatch(1)]);
     await db.insert(predictions).values([predicted(1, "taso")]);
