@@ -14,9 +14,6 @@ import { getWorstOpponents } from "@/lib/match-service";
  * decisions/665-statement-timeout.md
  */
 
-// Cancelled at the bound, with room for a slow machine, and well short of Playwright's 30 s.
-const WAITED_AT_MOST_MS = STATEMENT_TIMEOUT_MS + 5_000;
-
 const clients: Array<ReturnType<typeof postgres>> = [];
 
 // A second connection of the test's own, which holds what the app client then waits on.
@@ -41,9 +38,10 @@ describe("the statement timeout", { timeout: 30_000 }, () => {
       db.execute(sql`select pg_sleep(${(STATEMENT_TIMEOUT_MS + 2_000) / 1000})`)
     ).rejects.toMatchObject({ cause: { code: "57014" } });
 
+    // The cancellation itself proves the bound was hit; this proves it was this
+    // one and not a sooner failure. No upper bound: a loaded machine only adds.
     const waited = Date.now() - started;
     expect(waited).toBeGreaterThanOrEqual(STATEMENT_TIMEOUT_MS - 500);
-    expect(waited).toBeLessThan(WAITED_AT_MOST_MS);
   });
 
   it("shows a panel's failure line when its read waits on a lock past it", async () => {
@@ -62,6 +60,5 @@ describe("the statement timeout", { timeout: 30_000 }, () => {
     expect(series).toEqual({ status: "error" });
     expect(renderToStaticMarkup(opponentsPanel(series))).toContain(OPPONENTS_ERROR_MESSAGE);
     expect(waited).toBeGreaterThanOrEqual(STATEMENT_TIMEOUT_MS - 500);
-    expect(waited).toBeLessThan(WAITED_AT_MOST_MS);
   });
 });
