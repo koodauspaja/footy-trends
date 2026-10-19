@@ -4,7 +4,8 @@ import type { StreakRecordsSeries } from "@/lib/streak-records";
 
 /**
  * The block's read path: the upset read for the provider and season asked
- * about, and one `error` line when anything under it throws.
+ * about, the records read as `Ennätykset` reads them, and one `error` line when
+ * anything under it fails.
  *
  * decisions/066-season-summary.md
  */
@@ -14,7 +15,7 @@ const mocks = vi.hoisted(() => ({ getTeamUpset: vi.fn(), loggerError: vi.fn() })
 vi.mock("@/lib/surprise-service", () => ({ getTeamUpset: mocks.getTeamUpset }));
 vi.mock("@/lib/logger", () => ({ logger: { error: mocks.loggerError } }));
 
-import { getSeasonSummary } from "@/lib/season-summary-service";
+import { getSeasonSummary, teamSeasonSummary } from "@/lib/season-summary-service";
 
 // Five home wins in 2026, the only stored season: a block with the upset alone.
 const SEASON: SeasonReadResult = {
@@ -147,5 +148,70 @@ describe("getSeasonSummary", () => {
       status: "unavailable",
     });
     expect(mocks.loggerError).not.toHaveBeenCalled();
+  });
+});
+
+// A season of `TEAM` 1's home matches, each won when `won` says so.
+function homeSeason(seasonId: number, won: readonly boolean[]): SeasonReadResult {
+  return {
+    status: "ok",
+    read: {
+      competition: "Veikkausliiga",
+      all: [],
+      points: [],
+      teamCount: 0,
+      finished: won.map((win, index) => ({
+        providerMatchId: seasonId * 100 + index,
+        kickoffAt: new Date(Date.UTC(seasonId, 4, index + 1)),
+        homeTeamProviderId: 1,
+        awayTeamProviderId: 2,
+        homeGoals: win ? 1 : 0,
+        awayGoals: win ? 0 : 1,
+        matchday: index + 1,
+      })),
+    },
+  };
+}
+
+describe("teamSeasonSummary", () => {
+  it("reads the records over the provider's league seasons, its reader and the page's labels", async () => {
+    mocks.getTeamUpset.mockResolvedValue(null);
+    const lost = [false, false, false, false, false];
+    // Three lost seasons, then five wins; the cup's seven are not a league's.
+    const stored: Record<string, SeasonReadResult> = {
+      "VL-2023": homeSeason(2023, lost),
+      "VL-2024": homeSeason(2024, lost),
+      "VL-2025": homeSeason(2025, lost),
+      "VL-2026": homeSeason(2026, [true, true, true, true, true]),
+      "SC-2026": homeSeason(2026, [true, true, true, true, true, true, true]),
+    };
+    const read = vi.fn(
+      async (
+        key: { competitionCode: string; seasonId: number },
+        _activeSeasonId: number,
+        _teamProviderId: number
+      ) => stored[`${key.competitionCode}-${key.seasonId}`] ?? { status: "empty" as const }
+    );
+    const summary = teamSeasonSummary("taso", { isLeague: (code) => code === "VL", read });
+    const seasons = [2023, 2024, 2025, 2026]
+      .map((seasonId) => ({ competitionCode: "VL", seasonId, matches: 5 }))
+      .concat({ competitionCode: "SC", seasonId: 2026, matches: 7 });
+
+    const result = await summary("VL", 1, 2026, 2026, seasons, (year) => `Kausi ${year}`);
+
+    expect(result).toMatchObject({ status: "ok", seasonLabel: "Kausi 2026" });
+    expect(result.status === "ok" && result.facts).toContainEqual({
+      kind: "run",
+      run: "wins",
+      length: 5,
+    });
+    expect(read).not.toHaveBeenCalledWith(
+      expect.objectContaining({ competitionCode: "SC" }),
+      expect.anything(),
+      expect.anything()
+    );
+    for (const [, activeSeasonId, teamProviderId] of read.mock.calls) {
+      expect([activeSeasonId, teamProviderId]).toEqual([2026, 1]);
+    }
   });
 });

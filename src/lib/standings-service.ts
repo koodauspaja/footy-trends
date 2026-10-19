@@ -295,28 +295,6 @@ export function getTeamStreakRecords(
   seasons: readonly TeamSeason[],
   label: (seasonId: number) => string
 ): Promise<StreakRecordsSeries> {
-  return streakRecordsOf(competitionCode, teamProviderId, activeSeasonId, seasons, label).catch(
-    (error) => {
-      logger.error({ err: error, teamProviderId }, "Unable to read the club's streak records");
-      return { status: "error" as const };
-    }
-  );
-}
-
-/**
- * The records themselves, unlogged: `Kausi lyhyesti` reads them through its own
- * one log line.
- *
- * decisions/039-streak-records.md
- * decisions/066-season-summary.md
- */
-function streakRecordsOf(
-  competitionCode: string,
-  teamProviderId: number,
-  activeSeasonId: number,
-  seasons: readonly TeamSeason[],
-  label: (seasonId: number) => string
-): Promise<StreakRecordsSeries> {
   return recordsFor(
     teamProviderId,
     seasons,
@@ -324,7 +302,10 @@ function streakRecordsOf(
     label,
     (key) => readSeasonFor(key.competitionCode, key.seasonId, activeSeasonId, teamProviderId),
     competitionScope
-  );
+  ).catch((error) => {
+    logger.error({ err: error, teamProviderId }, "Unable to read the club's streak records");
+    return { status: "error" as const };
+  });
 }
 
 /**
@@ -336,7 +317,6 @@ export const getTeamSeasonSummary = teamSeasonSummary("football-data", {
   isLeague: isLeagueCompetition,
   read: (key, activeSeasonId, teamProviderId) =>
     readSeasonFor(key.competitionCode, key.seasonId, activeSeasonId, teamProviderId),
-  records: streakRecordsOf,
 });
 
 /**
