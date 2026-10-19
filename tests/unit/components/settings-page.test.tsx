@@ -10,6 +10,7 @@ import { NO_PREFERENCES, type Preferences } from "@/lib/regions";
  * decisions/024-account-settings.md
  * decisions/025-custom-avatar.md
  * decisions/271-saved-value-in-settings-dropdowns.md
+ * decisions/675-wait-for-the-control-not-the-notice.md
  */
 
 const { refetch } = vi.hoisted(() => ({ refetch: vi.fn(async () => {}) }));
