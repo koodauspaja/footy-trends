@@ -40,19 +40,19 @@ async function main(): Promise<void> {
     // versions of a season.
     const [matchRows, groupTeamRows, zoneRows] = await sql.begin(
       "read only isolation level repeatable read",
-      (tx) => [
-        tx<StoredMatch[]>`
+      async (tx) => [
+        await tx<StoredMatch[]>`
           select competition_id, category_id, season_id, taso_match_id, group_id, group_name,
             kickoff_at, matchday, status, winner, home_team_provider_id, home_team_name,
             away_team_provider_id, away_team_name, home_goals, away_goals, half_time_home,
             half_time_away
           from taso_matches`,
-        tx<StoredGroupTeam[]>`
+        await tx<StoredGroupTeam[]>`
           select competition_id, category_id, season_id, group_id, team_provider_id, team_name,
             starting_points, points, matches_played, matches_won, matches_tied, matches_lost,
             goals_for, goals_against, goals_diff, current_standing, final_group_standing
           from taso_group_teams`,
-        tx<StoredZone[]>`
+        await tx<StoredZone[]>`
           select competition_id, category_id, season_id, group_id, level, team_count, label
           from taso_group_zones`,
       ]
@@ -74,9 +74,10 @@ async function main(): Promise<void> {
     );
 
     const fixture = buildFixture({ matches, groupTeams, zones, categoryNames });
-    // Written beside the fixture and renamed over it, so an interrupted run
-    // leaves the old file whole.
-    const partial = `${OUTPUT}.partial`;
+    // Written beside the fixture, under this process's own name, and renamed
+    // over it: an interrupted run leaves the old file whole, and two runs at
+    // once never write the same file.
+    const partial = `${OUTPUT}.${process.pid}.partial`;
     writeFileSync(partial, gzipSync(JSON.stringify(fixture)));
     renameSync(partial, OUTPUT);
     process.stdout.write(
