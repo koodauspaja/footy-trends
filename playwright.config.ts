@@ -10,6 +10,7 @@
  * decisions/384-a-dom-only-where-a-test-needs-one.md
  * decisions/568-e2e-against-a-production-build.md
  * decisions/656-e2e-sends-nothing-to-sentry.md
+ * decisions/672-e2e-without-the-provider.md
  */
 
 import { existsSync } from "node:fs";
@@ -47,6 +48,24 @@ const target = e2eTarget(process.env.E2E_TARGET);
 const PORT = process.env.E2E_PORT ?? "3001";
 const BASE_URL = `http://localhost:${PORT}`;
 
+/**
+ * `E2E_TASO_STUB=1` points the app at a local stand-in for TASO, for while the
+ * provider refuses our requests. Unset, the suite reaches TASO as before.
+ *
+ * decisions/672-e2e-without-the-provider.md
+ */
+const TASO_STUB = process.env.E2E_TASO_STUB === "1";
+const TASO_PORT = process.env.E2E_TASO_PORT ?? "3002";
+const TASO_URL = `http://localhost:${TASO_PORT}`;
+
+const tasoStub = {
+  command: "node --import tsx tests/support/taso-stub-server.ts",
+  url: TASO_URL,
+  reuseExistingServer: false,
+  env: { ...process.env, E2E_TASO_PORT: TASO_PORT },
+  timeout: 30_000,
+};
+
 export default defineConfig({
   testDir: "./tests/e2e",
   globalSetup: "./tests/e2e/global-setup.ts",
@@ -75,20 +94,24 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
   ],
-  webServer: {
-    command: serverCommand(target, PORT),
-    url: BASE_URL,
-    // Never reused: a server already listening was started against the
-    // development database, or is a `next dev` where a build is under test.
-    reuseExistingServer: false,
-    // The test database, not the developer's, and no Sentry DSN; everything else
-    // is inherited. The analytics flag works only against a `_test` database,
-    // which this also sets: see `src/lib/e2e-analytics.ts`.
-    env: withoutSentry({
-      ...process.env,
-      DATABASE_URL: testDatabaseUrl(),
-      [E2E_ANALYTICS_FLAG]: "1",
-    }),
-    timeout: startUpTimeoutMs(target),
-  },
+  webServer: [
+    ...(TASO_STUB ? [tasoStub] : []),
+    {
+      command: serverCommand(target, PORT),
+      url: BASE_URL,
+      // Never reused: a server already listening was started against the
+      // development database, or is a `next dev` where a build is under test.
+      reuseExistingServer: false,
+      // The test database, not the developer's, and no Sentry DSN; everything else
+      // is inherited. The analytics flag works only against a `_test` database,
+      // which this also sets: see `src/lib/e2e-analytics.ts`.
+      env: withoutSentry({
+        ...process.env,
+        DATABASE_URL: testDatabaseUrl(),
+        ...(TASO_STUB ? { TASO_API_BASE_URL: TASO_URL } : {}),
+        [E2E_ANALYTICS_FLAG]: "1",
+      }),
+      timeout: startUpTimeoutMs(target),
+    },
+  ],
 });

@@ -24,6 +24,7 @@ import {
  * decisions/284-provider-id-validation.md
  * decisions/363-render-timeouts.md
  * decisions/063-competition-zones.md
+ * decisions/672-e2e-without-the-provider.md
  */
 
 const { loggerInfoMock, loggerErrorMock, loggerWarnMock, getCachedMock } = vi.hoisted(() => ({
@@ -595,6 +596,22 @@ describe("taso mapping", () => {
     expect(loggerInfoMock).toHaveBeenCalledWith(
       expect.objectContaining({ status: 200 }),
       "TASO request completed"
+    );
+  });
+
+  it("sends its requests to the server TASO_API_BASE_URL names, when it is set", async () => {
+    vi.stubEnv("TASO_API_KEY", "test-api-key");
+    vi.stubEnv("TASO_API_BASE_URL", "http://localhost:3002");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, status: 200, json: async () => ({ matches: [] }) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getSeasonMatches("spljp26", "VL", 2026);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:3002/getMatches?competition_id=spljp26&category_id=VL",
+      expect.anything()
     );
   });
 

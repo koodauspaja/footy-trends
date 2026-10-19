@@ -13,6 +13,17 @@ import { fetchProviderJson } from "./provider-request";
 const API_BASE_URL = "https://spl.torneopal.net/taso/rest";
 
 /**
+ * Where requests go: the provider, unless `TASO_API_BASE_URL` names another
+ * server. The e2e suite points it at a local stand-in, so no run of it reaches
+ * the provider.
+ *
+ * decisions/672-e2e-without-the-provider.md
+ */
+function apiBaseUrl(): string {
+  return process.env.TASO_API_BASE_URL ?? API_BASE_URL;
+}
+
+/**
  * How long a season's match list stays cached: long enough that a page does not
  * re-ask, short enough that a live result is not stale for long.
  *
@@ -72,7 +83,7 @@ function apiKey(): string {
 function request<T>(path: string, signal?: AbortSignal): Promise<T> {
   return fetchProviderJson<T>(
     "TASO",
-    API_BASE_URL,
+    apiBaseUrl(),
     path,
     () => ({
       Accept: `json/${apiKey()}`,
