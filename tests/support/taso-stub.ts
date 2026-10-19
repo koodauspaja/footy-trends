@@ -1,12 +1,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
+import type { RecordedFixture } from "../../scripts/record-taso-fixture-plan";
 
 /**
  * What the e2e suite's stand-in for TASO answers, as a pure function of the
- * request's URL. It replays recorded answers and nothing else: any other request
- * fails, as it does against the real provider when it refuses, so a page that
- * needs data the fixture lacks falls back to what is stored.
+ * request's URL: recorded answers, and for anything else the failure the real
+ * provider gives when it refuses, so a page falls back to what is stored.
  *
  * decisions/672-e2e-without-the-provider.md
  * decisions/674-e2e-on-an-empty-database.md
@@ -14,14 +14,9 @@ import { gunzipSync } from "node:zlib";
 
 type ByCategory<T> = Record<string, Record<string, T>>;
 
-type Fixture = {
-  /** `getCompetitions`, when recorded: what season discovery reads. */
-  competitions?: unknown[];
-  categories: ByCategory<string>;
-  matches: ByCategory<unknown[]>;
-  /** `getCategory`'s groups, when recorded. */
-  groups?: ByCategory<unknown[]>;
-};
+/** What the stand-in replays: the recorder's shape, competitions and groups optional. */
+type Fixture = Pick<RecordedFixture, "categories" | "matches"> &
+  Partial<Pick<RecordedFixture, "competitions" | "groups">>;
 
 export type StubAnswer = { status: number; body: unknown };
 
@@ -29,10 +24,8 @@ export type StubAnswer = { status: number; body: unknown };
 const REFUSED: StubAnswer = { status: 503, body: { error: "not in the fixture" } };
 
 /**
- * Every recorded answer, the two fixtures merged. The national-team one was
- * recorded from a development database and lists exactly the categories it has
- * matches for; the domestic one, written by `npm run test:e2e:record-taso`, from
- * the rows live runs stored. They never share a competition id.
+ * Every recorded answer: the national-team fixture and the domestic one that
+ * `npm run test:e2e:record-taso` writes, merged.
  *
  * decisions/672-e2e-without-the-provider.md
  * decisions/674-e2e-on-an-empty-database.md
@@ -59,10 +52,10 @@ export function mergeFixtures(national: Fixture, domestic: Required<Fixture>): F
   const shared = [...new Set(ids(domestic))].filter((id) => nationalIds.has(id));
   if (shared.length > 0) throw new Error(`Both fixtures record ${shared.join(", ")}`);
   return {
-    competitions: domestic.competitions,
+    competitions: [...(national.competitions ?? []), ...domestic.competitions],
     categories: { ...national.categories, ...domestic.categories },
     matches: { ...national.matches, ...domestic.matches },
-    groups: domestic.groups,
+    groups: { ...national.groups, ...domestic.groups },
   };
 }
 
@@ -114,17 +107,19 @@ export function answer(fixture: Fixture, path: string): StubAnswer {
 /** The Redis image `docker-compose.yml` runs, so the run's own matches development's. */
 export const STAND_IN_REDIS_IMAGE = "redis:8-alpine";
 
+/** The Docker volume the stand-in run's Redis keeps its data in between runs. */
+export const STAND_IN_REDIS_VOLUME = "footy-trends-e2e-redis";
+
 /**
- * A Redis of the run's own while the stand-in answers for TASO: a container that
- * Playwright starts empty on `port` and Docker removes when it stops, keeping
- * nothing on disk. The run never reads, writes or deletes anything in the Redis
- * development uses.
+ * The stand-in run's own Redis: a container on `port`, its data kept between runs
+ * in a named volume, never touching the Redis development uses.
  *
  * decisions/674-e2e-on-an-empty-database.md
  */
 export function standInRedis(port: number): { command: string; url: string } {
   return {
-    command: `docker run --rm -p 127.0.0.1:${port}:6379 ${STAND_IN_REDIS_IMAGE} redis-server --save "" --appendonly no`,
+    // Saved every minute with a change, and on the SIGTERM that stops it.
+    command: `docker run --rm -p 127.0.0.1:${port}:6379 -v ${STAND_IN_REDIS_VOLUME}:/data ${STAND_IN_REDIS_IMAGE} redis-server --save 60 1`,
     url: `redis://127.0.0.1:${port}`,
   };
 }

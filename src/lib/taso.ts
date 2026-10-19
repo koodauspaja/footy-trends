@@ -54,6 +54,15 @@ export function tasoCategoryCacheKey(competitionId: string, categoryId: string):
 }
 
 /**
+ * The Redis key one season's category names are cached under.
+ *
+ * decisions/013-more-finnish-competitions.md
+ */
+export function tasoCategoryNamesCacheKey(competitionId: string): string {
+  return `taso:categories:${competitionId}`;
+}
+
+/**
  * How long one TASO request waits before a page render gives up on it. Insurance
  * against a stalled provider, not a latency budget; `/api/health` passes its
  * own, shorter signal on top.

@@ -182,9 +182,8 @@ function toProviderTeam(row: StoredGroupTeam): TasoGroupTeam {
 
 /**
  * One category's groups as `getCategory` sent them: every group with a team row
- * or a zone, its teams in the order given, and its zones as the ten counts and
- * labels `normalizeGroupLevels` reads. A group's name comes from its matches when
- * it has any.
+ * or a zone, its teams in the order given, its zones as the ten counts and labels
+ * `normalizeGroupLevels` reads, and its name from its matches when it has any.
  */
 export function toProviderGroups(
   teams: StoredGroupTeam[],
@@ -237,13 +236,9 @@ function groupBy<T extends Row>(rows: T[]): Map<string, T[]> {
 }
 
 /**
- * The fixture for the rows given, already selected. A category's matches are
- * recorded when it has stored matches, and its groups when it has stored group
- * rows or zones: nothing shows TASO answered the rest with an empty list. Names
- * are Redis's where it holds them and the previous recording's where it no
- * longer does, and an empty set of names is not recorded, for the same reason.
- * Throws on no matches at all, and on a competition id spanning two seasons,
- * which the stand-in, keyed by competition and category, could not replay.
+ * The fixture for the rows given, already selected: only lists with stored rows,
+ * and names that are not empty, Redis's first and then the previous recording's.
+ * Throws on no matches, and on a competition id spanning two seasons.
  */
 export function buildFixture(input: {
   matches: StoredMatch[];
@@ -296,9 +291,12 @@ export function buildFixture(input: {
       })),
     // Built from entries, so every id is an own key, `__proto__` included.
     categories: Object.fromEntries(
-      Object.entries({ ...input.previousNames, ...input.categoryNames })
+      [...Object.entries(input.categoryNames), ...Object.entries(input.previousNames)]
+        .filter(([competitionId, names]) => seasons.has(competitionId) && hasNames(names))
+        // The first entry for an id wins: Redis's, unless it was empty.
         .filter(
-          ([competitionId, names]) => seasons.has(competitionId) && Object.keys(names).length > 0
+          ([competitionId], index, entries) =>
+            entries.findIndex(([id]) => id === competitionId) === index
         )
         .sort(([a], [b]) => a.localeCompare(b))
     ),
@@ -359,4 +357,53 @@ function toRecord<T>(lists: Map<string, Map<string, T>>): ByCategory<T> {
   return Object.fromEntries(
     [...lists].map(([competitionId, categories]) => [competitionId, Object.fromEntries(categories)])
   );
+}
+
+function hasNames(names: Record<string, string>): boolean {
+  return Object.keys(names).length > 0;
+}
+
+/** One competition and category's lists in a fixture, as `summariseChanges` compares them. */
+type Counts = { matches: number; groups: number };
+
+function countsOf(fixture: Pick<RecordedFixture, "matches" | "groups">): Map<string, Counts> {
+  const counts = new Map<string, Counts>();
+  const add = (record: ByCategory<unknown[]>, field: keyof Counts) => {
+    for (const [competitionId, categories] of Object.entries(record)) {
+      for (const [categoryId, list] of Object.entries(categories)) {
+        const id = `${competitionId}/${categoryId}`;
+        const entry = counts.get(id) ?? { matches: 0, groups: 0 };
+        entry[field] = list.length;
+        counts.set(id, entry);
+      }
+    }
+  };
+  add(fixture.matches, "matches");
+  add(fixture.groups, "groups");
+  return counts;
+}
+
+/**
+ * What a new recording changes against the one it replaces, one line per
+ * competition and category added, removed or recounted, for a person to check
+ * before committing: a season appearing unasked is an integration test's leftover.
+ */
+export function summariseChanges(
+  previous: Pick<RecordedFixture, "matches" | "groups"> | null,
+  next: Pick<RecordedFixture, "matches" | "groups">
+): string[] {
+  const before = previous === null ? new Map<string, Counts>() : countsOf(previous);
+  const after = countsOf(next);
+  const describe = (counts: Counts) => `${counts.matches} matches, ${counts.groups} groups`;
+  return [...new Set([...before.keys(), ...after.keys()])]
+    .sort((a, b) => a.localeCompare(b))
+    .flatMap((id) => {
+      const was = before.get(id);
+      // Every id is in one map or the other, so with `was` missing `now` is there.
+      const now = after.get(id);
+      if (was === undefined) return [`added ${id}: ${describe(now as Counts)}`];
+      if (now === undefined) return [`removed ${id}: ${describe(was)}`];
+      if (was.matches === now.matches && was.groups === now.groups) return [];
+      return [`changed ${id}: ${describe(was)} -> ${describe(now)}`];
+    });
 }

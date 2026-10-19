@@ -8,6 +8,7 @@ import {
   type StoredGroupTeam,
   type StoredMatch,
   type StoredZone,
+  summariseChanges,
   toProviderGroups,
   toProviderMatch,
 } from "../../../scripts/record-taso-fixture-plan";
@@ -417,6 +418,17 @@ describe("the recorded fixture", () => {
     });
   });
 
+  it("keeps the previous recording's names when Redis holds an empty set for the same competition", () => {
+    const fixture = buildFixture({
+      matches: [match],
+      groupTeams: [],
+      zones: [],
+      categoryNames: { spljp22: {} },
+      previousNames: { spljp22: { VL: "Veikkausliiga" } },
+    });
+    expect(fixture.categories).toEqual({ spljp22: { VL: "Veikkausliiga" } });
+  });
+
   it("records no names for a competition whose names are an empty set, from Redis or before", () => {
     const fixture = buildFixture({
       matches: [match, { ...match, competitionId: "spljp21", seasonId: 2021 }],
@@ -450,5 +462,42 @@ describe("the recorded fixture", () => {
         previousNames: {},
       })
     ).toThrow("spljp22 holds seasons 2022 and 2023; the stand-in replays one");
+  });
+});
+
+describe("what a recording changes against the previous one", () => {
+  const before = {
+    matches: { spljp22: { VL: [{}, {}] }, spljp21: { MSC: [{}] } },
+    groups: { spljp22: { VL: [{}] } },
+  };
+
+  it("names each competition and category added, removed or recounted, in order", () => {
+    const after = {
+      matches: { spljp22: { VL: [{}, {}, {}] }, spljp16: { VL: [{}] } },
+      groups: { spljp22: { VL: [{}] } },
+    };
+    expect(summariseChanges(before, after)).toEqual([
+      "added spljp16/VL: 1 matches, 0 groups",
+      "removed spljp21/MSC: 1 matches, 0 groups",
+      "changed spljp22/VL: 2 matches, 1 groups -> 3 matches, 1 groups",
+    ]);
+  });
+
+  it("names nothing when every count is the same", () => {
+    expect(summariseChanges(before, structuredClone(before))).toEqual([]);
+  });
+
+  it("counts a change in groups alone", () => {
+    const after = { ...before, groups: { spljp22: { VL: [{}, {}] } } };
+    expect(summariseChanges(before, after)).toEqual([
+      "changed spljp22/VL: 2 matches, 1 groups -> 2 matches, 2 groups",
+    ]);
+  });
+
+  it("lists everything as added when there was no previous recording", () => {
+    expect(summariseChanges(null, before)).toEqual([
+      "added spljp21/MSC: 1 matches, 0 groups",
+      "added spljp22/VL: 2 matches, 1 groups",
+    ]);
   });
 });

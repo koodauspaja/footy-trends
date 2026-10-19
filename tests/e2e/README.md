@@ -54,15 +54,20 @@ on an empty test database:
 It refuses every other request, as the provider does now. Playwright also
 starts a Redis of the run's own, a container of the image `docker-compose.yml`
 runs, on port 6380 (`E2E_REDIS_PORT` changes it), and points the server and the
-specs at it. It is empty when the run starts and removed when it ends, so no
-cached answer from an earlier run or from `npm run dev` decides a result, and
-nothing in development's Redis is read or deleted. If a run is killed hard, the
-container can outlive it and hold the port: `docker ps` shows it.
+specs at it, so nothing in development's Redis is read or deleted. Its data is
+kept between runs in the Docker volume `footy-trends-e2e-redis`, so football-data
+answers stay cached as they do for `npm run dev`, and the key staging and
+production share is not asked again each run. `docker volume rm
+footy-trends-e2e-redis` empties it. If a run is killed hard, the container can
+outlive it and hold the port: `docker ps` shows it.
 
-Remove the line from `.env` when TASO answers again.
+Remove the line from `.env` when TASO answers again; e2e tests against the real
+TASO connection then take this one's place.
 
 `npm run test:e2e:record-taso` rewrites the domestic fixture from the test
-database's TASO rows and the configured Redis. It only reads them; run it after
+database's TASO rows and the configured Redis. It only reads them, and prints
+what changes against the fixture it replaces: check it before committing, since
+a competition appearing unasked is an integration test's leftover. Run it after
 a live run has stored what a new spec needs.
 `decisions/672-e2e-without-the-provider.md` and
 `decisions/674-e2e-on-an-empty-database.md` have the reasons.

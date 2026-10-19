@@ -133,6 +133,20 @@ describe("the TASO stand-in", () => {
     );
   });
 
+  it("keeps groups and competitions the national-team fixture records, beside the domestic ones", () => {
+    const national = {
+      ...fixture,
+      competitions: [{ competition_id: "maajp2025" }],
+      groups: { maajp2025: { UNL: [{ group_id: "9" }] } },
+    };
+    const merged = mergeFixtures(national, domestic);
+    expect(merged.competitions).toEqual([
+      { competition_id: "maajp2025" },
+      ...domestic.competitions,
+    ]);
+    expect(merged.groups).toEqual({ maajp2025: { UNL: [{ group_id: "9" }] }, ...domestic.groups });
+  });
+
   it("refuses to merge fixtures that both name a competition", () => {
     expect(() =>
       mergeFixtures(fixture, { ...domestic, categories: { maajp2025: { UNL: "x" } } })
@@ -168,10 +182,10 @@ describe("the TASO stand-in", () => {
 });
 
 describe("the stand-in run's own Redis", () => {
-  it("is a container on the port asked, reachable only from this machine, keeping nothing", () => {
+  it("is a container on the port asked, reachable only from this machine, its data in the named volume", () => {
     expect(standInRedis(6390)).toEqual({
       command:
-        'docker run --rm -p 127.0.0.1:6390:6379 redis:8-alpine redis-server --save "" --appendonly no',
+        "docker run --rm -p 127.0.0.1:6390:6379 -v footy-trends-e2e-redis:/data redis:8-alpine redis-server --save 60 1",
       url: "redis://127.0.0.1:6390",
     });
   });

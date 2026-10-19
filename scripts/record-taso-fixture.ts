@@ -1,8 +1,9 @@
 import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { inspect } from "node:util";
 import { gunzipSync, gzipSync } from "node:zlib";
 import Redis from "ioredis";
 import postgres from "postgres";
-import { EARLIEST_TASO_SEASON } from "../src/lib/taso";
+import { EARLIEST_TASO_SEASON, tasoCategoryNamesCacheKey } from "../src/lib/taso";
 import { CATEGORY_ID, COMPETITION_ID, SEASON } from "../tests/e2e/fixtures/veikkausliiga-2017";
 import { testDatabaseUrl } from "../tests/support/test-database";
 import {
@@ -10,10 +11,12 @@ import {
   isProviderMatch,
   isRecorded,
   parseCategoryNames,
+  type RecordedFixture,
   type Selection,
   type StoredGroupTeam,
   type StoredMatch,
   type StoredZone,
+  summariseChanges,
 } from "./record-taso-fixture-plan";
 
 /**
@@ -63,27 +66,32 @@ async function main(): Promise<void> {
     const groupTeams = groupTeamRows.filter((row) => isRecorded(row, selection));
     const zones = zoneRows.filter((row) => isRecorded(row, selection));
 
-    // The key `getSeasonCategoryName` caches TASO's answer under.
     const competitionIds = [
       ...new Set([...matches, ...groupTeams, ...zones].map((row) => row.competitionId)),
     ];
-    const keys = competitionIds.map((id) => `taso:categories:${id}`);
+    const keys = competitionIds.map(tasoCategoryNamesCacheKey);
     // MGET refuses no keys; with no rows, `buildFixture` refuses the recording.
     const cached = keys.length === 0 ? [] : await redis.mget(keys);
     const categoryNames = Object.fromEntries(
       competitionIds.flatMap((id, index) => {
         const raw = cached[index];
         if (raw === null || raw === undefined) return [];
-        return [[id, parseCategoryNames(`taso:categories:${id}`, raw)]];
+        return [[id, parseCategoryNames(tasoCategoryNamesCacheKey(id), raw)]];
       })
     );
 
     // The fixture being replaced: its names stand in for entries Redis has since
-    // let expire.
-    const previousNames: Record<string, Record<string, string>> = existsSync(OUTPUT)
-      ? (JSON.parse(gunzipSync(readFileSync(OUTPUT)).toString("utf8")).categories ?? {})
-      : {};
-    const fixture = buildFixture({ matches, groupTeams, zones, categoryNames, previousNames });
+    // let expire, and what changes against it is printed for a person to check.
+    const previous: RecordedFixture | null = existsSync(OUTPUT)
+      ? JSON.parse(gunzipSync(readFileSync(OUTPUT)).toString("utf8"))
+      : null;
+    const fixture = buildFixture({
+      matches,
+      groupTeams,
+      zones,
+      categoryNames,
+      previousNames: previous?.categories ?? {},
+    });
     // Written beside the fixture, under this process's own name, and renamed
     // over it: an interrupted run leaves the old file whole, and two runs at
     // once never write the same file.
@@ -100,6 +108,12 @@ async function main(): Promise<void> {
         `${zones.length} zones, names for ${Object.keys(fixture.categories).length} competitions ` +
         `(${Object.keys(categoryNames).length} from Redis)\n`
     );
+    const changes = summariseChanges(previous, fixture);
+    process.stdout.write(
+      changes.length === 0
+        ? "No competition or category changed against the previous recording.\n"
+        : `Check before committing; against the previous recording:\n${changes.map((line) => `  ${line}\n`).join("")}`
+    );
   } finally {
     await sql.end();
     redis.disconnect();
@@ -107,6 +121,7 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  process.stderr.write(`${String(error)}\n`);
+  // The whole error, its cause and stack included.
+  process.stderr.write(`${inspect(error)}\n`);
   process.exitCode = 1;
 });
