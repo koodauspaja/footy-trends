@@ -125,7 +125,11 @@ function Sentence({
   );
 }
 
-// One fact per kind, and a run per direction, so a run is told apart by its own.
+/**
+ * One fact per kind, and a run per direction, so a run is told apart by its own.
+ *
+ * decisions/066-season-summary.md
+ */
 function factKey(fact: SummaryFact): string {
   return fact.kind === "run" ? `run-${fact.run}` : fact.kind;
 }

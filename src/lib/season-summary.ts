@@ -292,9 +292,12 @@ export async function seasonSummaryFor<T extends SeasonKey>(
         season.competitionCode === selected.competitionCode && season.seasonId < selected.seasonId
     )
     .toSorted((left, right) => right.seasonId - left.seasonId);
+  // Too few earlier seasons for a run fact: the records are not read, so their
+  // failure cannot hide the upset.
+  const noRecords: StreakRecordsSeries = { status: "unavailable" };
   const [earlierReads, records, upset] = await Promise.all([
     Promise.all(earlierKeys.map(readers.read)),
-    readers.records(seasons),
+    earlierKeys.length < MIN_EARLIER_SEASONS ? noRecords : readers.records(seasons),
     readers.upset(),
   ]);
   const earlier = readSeasons(earlierReads);

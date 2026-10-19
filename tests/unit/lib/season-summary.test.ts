@@ -619,6 +619,20 @@ describe("seasonSummaryFor", () => {
     expect(await seasonSummaryFor(summary)).toEqual({ status: "error" });
   });
 
+  it("does not read the records with too few earlier seasons, so their failure cannot hide the upset", async () => {
+    const summary = readers({
+      seasons: SEASONS.filter((season) => season.seasonId >= 2024),
+      records: vi.fn(async (): Promise<StreakRecordsSeries> => ({ status: "error" })),
+      upset: async () => upset(0.1),
+    });
+
+    expect(await seasonSummaryFor(summary)).toMatchObject({
+      status: "ok",
+      facts: [{ kind: "upset" }],
+    });
+    expect(summary.records).not.toHaveBeenCalled();
+  });
+
   it("has no run fact when the club has no records, and keeps the others", async () => {
     const summary = readers({ records: async () => ({ status: "unavailable" }) });
 
