@@ -51,11 +51,15 @@ on an empty test database:
 | `tests/e2e/fixtures/taso-national-teams.json` | The national-team buckets' categories and matches |
 | `tests/e2e/fixtures/taso-domestic.json.gz` | Every domestic season live runs stored: `getCompetitions`, matches, group tables, and the category names Redis still held |
 
-It refuses every other request, as the provider does now. The run's server, its
-specs and global setup use Redis database 15 instead of the configured one, and
-global setup empties it first, so no cached answer from an earlier run or from
-`npm run dev` decides a result. It empties it only when it is empty or marked by
-an earlier such run; keys anything else wrote there stop the run. Remove the line when TASO answers again.
+It refuses every other request, as the provider does now. Playwright also
+starts a Redis of the run's own, a container of the image `docker-compose.yml`
+runs, on port 6380 (`E2E_REDIS_PORT` changes it), and points the server and the
+specs at it. It is empty when the run starts and removed when it ends, so no
+cached answer from an earlier run or from `npm run dev` decides a result, and
+nothing in development's Redis is read or deleted. If a run is killed hard, the
+container can outlive it and hold the port: `docker ps` shows it.
+
+Remove the line from `.env` when TASO answers again.
 
 `npm run test:e2e:record-taso` rewrites the domestic fixture from the test
 database's TASO rows and the configured Redis. It only reads them; run it after
