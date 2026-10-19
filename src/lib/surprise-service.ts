@@ -116,7 +116,8 @@ async function tasoPredicted(code: string, seasonId: number): Promise<PredictedM
 
 /**
  * A competition-season's finished matches with Elo's backtest row, from the
- * provider's own table.
+ * provider's own table. The prediction's own competition code says which
+ * competition a row is of: a TASO match carries the season's TASO id instead.
  *
  * decisions/057-surprise-index.md
  */
