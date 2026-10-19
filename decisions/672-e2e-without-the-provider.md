@@ -24,8 +24,17 @@ On 2026-10-19, with TASO refusing:
 | State | Specs | Result |
 |---|---|---|
 | Before, the developer's database and Redis as earlier runs left them | 397 | 395 passed, 2 failed |
-| After, the same, `E2E_TASO_STUB=1` | 397 | see the pull request |
+| After, the same, `E2E_TASO_STUB=1` | 397 | 397 passed |
 | After, `mens-team`, `womens-team` and `national-team-analytics` on an empty test database and an empty Redis index | 28 | 28 passed |
+
+The suite's Redis is the one `npm run dev` uses, so the stand-in's answers are
+cached there as the provider's would be: for 15 minutes for a season's matches
+and `maajp2026`'s category names, a year for an older bucket's. Turning the
+switch off therefore takes effect for a page only once its entries expire, which
+also means a run with it off straight after one with it on proves nothing about
+the switch. The development server reads the same entries; for the older
+buckets they match what the provider sent, and `maajp2026`'s borrowed names last
+15 minutes.
 
 ## What this does not do
 
