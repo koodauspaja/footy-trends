@@ -17,10 +17,13 @@ type Fixture = {
 
 export type StubAnswer = { status: number; body: unknown };
 
+/** What the provider's refusal looks like to the app: a failed request. */
+const REFUSED: StubAnswer = { status: 503, body: { error: "not in the fixture" } };
+
 /**
  * Recorded from the national-team rows and category names a development
  * database held, so the pages show what the provider's own answers made them
- * show. A category with no matches in it is answered with none.
+ * show. Every listed category has an entry in `matches`, an empty one included.
  *
  * decisions/672-e2e-without-the-provider.md
  */
@@ -40,9 +43,9 @@ export function answer(fixture: Fixture, path: string): StubAnswer {
   if (url.pathname === "/") return { status: 200, body: "ok" };
 
   const competitionId = url.searchParams.get("competition_id") ?? "";
-  const known = fixture.categories[competitionId];
+  const known = ownEntry(fixture.categories, competitionId);
 
-  if (known === undefined) return { status: 503, body: { error: "not in the fixture" } };
+  if (known === undefined) return REFUSED;
 
   if (url.pathname === "/getCategories") {
     return {
@@ -57,13 +60,17 @@ export function answer(fixture: Fixture, path: string): StubAnswer {
   }
   if (url.pathname === "/getMatches") {
     const categoryId = url.searchParams.get("category_id") ?? "";
-    // Only a listed category is known to have no matches; an unlisted one is
+    const recorded = ownEntry(fixture.matches, competitionId);
+    // Only a recorded list is answered, an empty one included; anything else is
     // refused, so a refresh cannot replace stored rows with nothing.
-    if (!(categoryId in known)) return { status: 503, body: { error: "not in the fixture" } };
-    return {
-      status: 200,
-      body: { matches: fixture.matches[competitionId]?.[categoryId] ?? [] },
-    };
+    const matches = recorded === undefined ? undefined : ownEntry(recorded, categoryId);
+    if (matches === undefined) return REFUSED;
+    return { status: 200, body: { matches } };
   }
-  return { status: 503, body: { error: "not in the fixture" } };
+  return REFUSED;
+}
+
+/** `record[key]` when the record itself has it, so `constructor` is not an id. */
+function ownEntry<T>(record: Record<string, T>, key: string): T | undefined {
+  return Object.hasOwn(record, key) ? record[key] : undefined;
 }
