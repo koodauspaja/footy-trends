@@ -197,8 +197,9 @@ checkout of the commit that environment runs. It rewrites every row.
   (`STATEMENT_TIMEOUT_MS`, `src/db/index.ts`), a lock wait included, in every
   environment and in the scripts that share the client (`predictions`,
   `backfill`). The migrator and `npm run admin:role` open their own clients and
-  have none. A `?statement_timeout=` on `DATABASE_URL` would override it
-  (decisions/665).
+  set none in code. A `?statement_timeout=` on `DATABASE_URL` would override it,
+  and would reach the migrator too, which reads the same URL; no environment sets
+  one (decisions/665).
 - **Redis holds two things:** the cache (`getCached`, JSON, TTL per key) and
   better-auth's rate-limit counters (decisions/318). A Redis outage must not
   take sign-in down; that record says how it does not.
