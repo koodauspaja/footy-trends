@@ -305,18 +305,19 @@ export function buildFixture(input: {
  * than reaching the fixture as names.
  */
 export function parseCategoryNames(key: string, raw: string): Record<string, string> {
+  const refusal = `${key} in Redis is not a map of category names`;
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
-  } catch {
-    parsed = undefined;
+  } catch (error) {
+    throw new Error(refusal, { cause: error });
   }
   const isNames =
     typeof parsed === "object" &&
     parsed !== null &&
     !Array.isArray(parsed) &&
     Object.values(parsed).every((name) => typeof name === "string");
-  if (!isNames) throw new Error(`${key} in Redis is not a map of category names`);
+  if (!isNames) throw new Error(refusal);
   return parsed as Record<string, string>;
 }
 

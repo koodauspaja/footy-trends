@@ -267,8 +267,21 @@ describe("category names read from Redis", () => {
     });
   });
 
+  it("refuses an entry that is not JSON, keeping the parse error as its cause", () => {
+    let refusal: unknown;
+    try {
+      parseCategoryNames("taso:categories:spljp22", "{VL:");
+    } catch (error) {
+      refusal = error;
+    }
+    expect(refusal).toBeInstanceOf(Error);
+    expect((refusal as Error).message).toBe(
+      "taso:categories:spljp22 in Redis is not a map of category names"
+    );
+    expect((refusal as Error).cause).toBeInstanceOf(SyntaxError);
+  });
+
   it.each([
-    ["not JSON", "{VL:"],
     ["null", "null"],
     ["a list", '["Veikkausliiga"]'],
     ["a string", '"Veikkausliiga"'],
