@@ -127,8 +127,9 @@ export const STAND_IN_MARKER = "e2e:taso-stand-in";
 
 /**
  * Empties the stand-in's Redis database before a run, when it is empty or an
- * earlier run marked it. Keys anywhere else in it are someone else's, and stop
- * the run instead.
+ * earlier run marked it; keys in an unmarked one are someone else's, and stop the
+ * run. Check and flush are separate commands: nothing else writes to the database
+ * while global setup runs, before any server is started.
  *
  * decisions/674-e2e-on-an-empty-database.md
  */
