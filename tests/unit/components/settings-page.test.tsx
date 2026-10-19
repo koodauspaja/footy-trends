@@ -10,6 +10,7 @@ import { NO_PREFERENCES, type Preferences } from "@/lib/regions";
  * decisions/024-account-settings.md
  * decisions/025-custom-avatar.md
  * decisions/271-saved-value-in-settings-dropdowns.md
+ * decisions/675-wait-for-the-control-not-the-notice.md
  */
 
 const { refetch } = vi.hoisted(() => ({ refetch: vi.fn(async () => {}) }));
@@ -688,8 +689,14 @@ describe("Profiilikuva", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Tallenna kuva" }));
     await waitFor(() => expect(screen.getByText(STALE_PICTURE)).toBeInTheDocument());
+    // The notice can render while the save is still pending, and a disabled
+    // button ignores the click.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Tallenna kuva" })).toBeEnabled()
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Tallenna kuva" }));
+    expect(saveAvatarAction).toHaveBeenCalledTimes(2);
     await waitFor(() => expect(screen.queryByText(STALE_PICTURE)).not.toBeInTheDocument());
     expect(screen.getByText("Profiilikuva päivitetty.")).toBeInTheDocument();
   });
