@@ -54,7 +54,8 @@ on an empty test database:
 It refuses every other request, as the provider does now. The run's server, its
 specs and global setup use Redis database 15 instead of the configured one, and
 global setup empties it first, so no cached answer from an earlier run or from
-`npm run dev` decides a result. Remove the line when TASO answers again.
+`npm run dev` decides a result. It empties it only when it is empty or marked by
+an earlier such run; keys anything else wrote there stop the run. Remove the line when TASO answers again.
 
 `npm run test:e2e:record-taso` rewrites the domestic fixture from the test
 database's TASO rows and the configured Redis. It only reads them; run it after

@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import Redis from "ioredis";
 import postgres from "postgres";
-import { standInRedisUrl } from "../support/taso-stub";
+import { emptyStandInRedis, standInRedisUrl } from "../support/taso-stub";
 import { ensureTestDatabase } from "../support/test-database";
 import {
   CATEGORY_ID,
@@ -149,7 +149,7 @@ export default async function globalSetup() {
   if (process.env.E2E_TASO_STUB === "1") {
     const redis = new Redis(standInRedisUrl(process.env.REDIS_URL));
     try {
-      await redis.flushdb();
+      await emptyStandInRedis(redis);
     } finally {
       await redis.quit();
     }

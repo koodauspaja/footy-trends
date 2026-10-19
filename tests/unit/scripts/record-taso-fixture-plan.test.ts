@@ -278,16 +278,33 @@ describe("the recorded fixture", () => {
     ]);
   });
 
-  it("gives a category with group rows and no matches an empty match list, and the other way round", () => {
+  it("leaves unrecorded the list a category has no stored rows for, matches or groups", () => {
     const fixture = buildFixture({
       matches: [cup],
       groupTeams: [team],
       zones: [{ ...zone, categoryId: "M1" }],
       categoryNames: {},
     });
-    expect(fixture.matches.spljp22).toEqual({ M1: [], VL: [] });
-    expect(fixture.groups.Liigacup26).toEqual({ LC: [] });
+    expect(fixture.matches).toEqual({ Liigacup26: { LC: [toProviderMatch(cup)] } });
+    expect(Object.keys(fixture.groups)).toEqual(["spljp22"]);
+    expect(Object.keys(fixture.groups.spljp22 ?? {})).toEqual(["M1", "VL"]);
     expect(fixture.groups.spljp22?.M1?.[0]?.next_stage_levels).toBe("0,6,0,0,0,0,0,0,0,0");
+  });
+
+  it("records no names for a competition named after an inherited property", () => {
+    const fixture = buildFixture({
+      matches: [{ ...match, competitionId: "constructor" }],
+      groupTeams: [],
+      zones: [],
+      categoryNames: {},
+    });
+    expect(fixture.categories).toEqual({});
+  });
+
+  it("refuses to record no matches at all, so the fixture is not replaced by an empty one", () => {
+    expect(() =>
+      buildFixture({ matches: [], groupTeams: [team], zones: [], categoryNames: {} })
+    ).toThrow("No matches to record; the fixture is left as it is");
   });
 
   it("refuses a competition id that holds two seasons", () => {

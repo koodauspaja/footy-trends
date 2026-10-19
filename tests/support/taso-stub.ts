@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
+import type Redis from "ioredis";
 
 /**
  * What the e2e suite's stand-in for TASO answers, as a pure function of the
@@ -111,7 +112,7 @@ const STAND_IN_REDIS_DB = 15;
 /**
  * The Redis the app's server uses while the stand-in answers for TASO: the
  * configured one, on its own database, so its entries and development's never
- * meet. `global-setup.ts` empties it before each run.
+ * meet. `global-setup.ts` empties it before each run, through `emptyStandInRedis`.
  *
  * decisions/674-e2e-on-an-empty-database.md
  */
@@ -119,6 +120,29 @@ export function standInRedisUrl(configured: string | undefined): string {
   const url = new URL((configured ?? "").trim() || "redis://localhost:6379");
   url.pathname = `/${STAND_IN_REDIS_DB}`;
   return url.toString();
+}
+
+/** The key a stand-in run leaves in its Redis database, so the next one may empty it. */
+export const STAND_IN_MARKER = "e2e:taso-stand-in";
+
+/**
+ * Empties the stand-in's Redis database before a run, when it is empty or an
+ * earlier run marked it. Keys anywhere else in it are someone else's, and stop
+ * the run instead.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
+export async function emptyStandInRedis(
+  redis: Pick<Redis, "dbsize" | "exists" | "flushdb" | "set">
+): Promise<void> {
+  if ((await redis.dbsize()) > 0 && (await redis.exists(STAND_IN_MARKER)) === 0) {
+    throw new Error(
+      `Redis database ${STAND_IN_REDIS_DB} holds keys no run with E2E_TASO_STUB=1 wrote, ` +
+        "and the run empties it first; empty it yourself, or point REDIS_URL at another server."
+    );
+  }
+  await redis.flushdb();
+  await redis.set(STAND_IN_MARKER, "1");
 }
 
 function recorded<T>(record: ByCategory<T>, competitionId: string, categoryId: string) {

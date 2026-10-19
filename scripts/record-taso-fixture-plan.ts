@@ -179,8 +179,8 @@ export function toProviderGroups(
   return groupIds.map((groupId) => {
     const name = groupNames.get(groupId);
     const levels = zones.filter((zone) => zone.groupId === groupId);
-    const counts = Array<number>(LEVELS_PER_GROUP).fill(0);
-    const labels = Array<string>(LEVELS_PER_GROUP).fill("");
+    const counts = new Array<number>(LEVELS_PER_GROUP).fill(0);
+    const labels = new Array<string>(LEVELS_PER_GROUP).fill("");
     for (const zone of levels) {
       counts[zone.level - 1] = zone.teamCount;
       labels[zone.level - 1] = zone.label ?? "";
@@ -217,10 +217,11 @@ function groupBy<T extends Row>(rows: T[]): Map<string, T[]> {
 const SEASON_COMPETITION_ID = /^spljp\d{2}$/;
 
 /**
- * The fixture for the rows given, already selected. Every category recorded has
- * a match list and a group list, either of them possibly empty, since its season
- * was one TASO answered for. Throws when a competition id spans two seasons,
- * which the stand-in, keyed by competition and category, could not replay.
+ * The fixture for the rows given, already selected. A category's matches are
+ * recorded when it has stored matches, and its groups when it has stored group
+ * rows or zones: nothing shows TASO answered the rest with an empty list. Throws
+ * on no matches at all, and on a competition id spanning two seasons, which the
+ * stand-in, keyed by competition and category, could not replay.
  */
 export function buildFixture(input: {
   matches: StoredMatch[];
@@ -239,30 +240,48 @@ export function buildFixture(input: {
     seasons.set(row.competitionId, row.seasonId);
   }
 
+  if (input.matches.length === 0) {
+    throw new Error("No matches to record; the fixture is left as it is");
+  }
+
   const matches = groupBy(input.matches);
   const teams = groupBy(input.groupTeams);
   const zones = groupBy(input.zones);
-  const recorded = [...new Set([...matches.keys(), ...teams.keys(), ...zones.keys()])].sort();
+  const recorded = [...new Set([...matches.keys(), ...teams.keys(), ...zones.keys()])].sort(
+    (a, b) => a.localeCompare(b)
+  );
 
-  const fixture: RecordedFixture = { competitions: [], categories: {}, matches: {}, groups: {} };
+  const matchLists = new Map<string, Map<string, TasoProviderMatch[]>>();
+  const groupLists = new Map<string, Map<string, TasoGroup[]>>();
   for (const pair of recorded) {
     const [competitionId = "", categoryId = ""] = pair.split("\u0000");
     const categoryMatches = (matches.get(pair) ?? []).toSorted(
       (a, b) => a.tasoMatchId - b.tasoMatchId
     );
-    const groupNames = new Map(categoryMatches.map((row) => [row.groupId, row.groupName]));
-    fixture.matches[competitionId] = {
-      ...fixture.matches[competitionId],
-      [categoryId]: categoryMatches.map(toProviderMatch),
-    };
-    fixture.groups[competitionId] = {
-      ...fixture.groups[competitionId],
-      [categoryId]: toProviderGroups(teams.get(pair) ?? [], zones.get(pair) ?? [], groupNames),
-    };
+    if (categoryMatches.length > 0) {
+      put(matchLists, competitionId, categoryId, categoryMatches.map(toProviderMatch));
+    }
+    if (teams.has(pair) || zones.has(pair)) {
+      const groupNames = new Map(categoryMatches.map((row) => [row.groupId, row.groupName]));
+      put(
+        groupLists,
+        competitionId,
+        categoryId,
+        toProviderGroups(teams.get(pair) ?? [], zones.get(pair) ?? [], groupNames)
+      );
+    }
   }
 
+  const fixture: RecordedFixture = {
+    competitions: [],
+    categories: {},
+    matches: toRecord(matchLists),
+    groups: toRecord(groupLists),
+  };
   for (const [competitionId, seasonId] of [...seasons].sort(([a], [b]) => a.localeCompare(b))) {
-    const names = input.categoryNames[competitionId];
+    const names = Object.hasOwn(input.categoryNames, competitionId)
+      ? input.categoryNames[competitionId]
+      : undefined;
     if (names !== undefined) fixture.categories[competitionId] = names;
     if (SEASON_COMPETITION_ID.test(competitionId)) {
       fixture.competitions.push({
@@ -273,4 +292,21 @@ export function buildFixture(input: {
     }
   }
   return fixture;
+}
+
+function put<T>(
+  lists: Map<string, Map<string, T>>,
+  competitionId: string,
+  categoryId: string,
+  value: T
+) {
+  const categories = lists.get(competitionId) ?? new Map<string, T>();
+  categories.set(categoryId, value);
+  lists.set(competitionId, categories);
+}
+
+function toRecord<T>(lists: Map<string, Map<string, T>>): ByCategory<T> {
+  return Object.fromEntries(
+    [...lists].map(([competitionId, categories]) => [competitionId, Object.fromEntries(categories)])
+  );
 }

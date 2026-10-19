@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { existsSync, renameSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import Redis from "ioredis";
 import postgres from "postgres";
@@ -25,7 +25,7 @@ import {
 const OUTPUT = "tests/e2e/fixtures/taso-domestic.json.gz";
 
 async function main(): Promise<void> {
-  process.loadEnvFile(".env");
+  if (existsSync(".env")) process.loadEnvFile(".env");
   const selection: Selection = {
     earliestSeason: EARLIEST_TASO_SEASON,
     latestSeason: new Date().getFullYear(),
@@ -35,36 +35,49 @@ async function main(): Promise<void> {
   const sql = postgres(testDatabaseUrl(), { transform: postgres.camel });
   const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
   try {
-    const matches = (
-      await sql<StoredMatch[]>`
-        select competition_id, category_id, season_id, taso_match_id, group_id, group_name,
-          kickoff_at, matchday, status, winner, home_team_provider_id, home_team_name,
-          away_team_provider_id, away_team_name, home_goals, away_goals, half_time_home,
-          half_time_away
-        from taso_matches`
-    ).filter((row) => isRecorded(row, selection));
-    const groupTeams = (
-      await sql<StoredGroupTeam[]>`
-        select competition_id, category_id, season_id, group_id, team_provider_id, team_name,
-          starting_points, points, matches_played, matches_won, matches_tied, matches_lost,
-          goals_for, goals_against, goals_diff, current_standing, final_group_standing
-        from taso_group_teams`
-    ).filter((row) => isRecorded(row, selection));
-    const zones = (
-      await sql<StoredZone[]>`
-        select competition_id, category_id, season_id, group_id, level, team_count, label
-        from taso_group_zones`
-    ).filter((row) => isRecorded(row, selection));
+    // One snapshot, so a refresh landing between the reads cannot mix two
+    // versions of a season.
+    const [matchRows, groupTeamRows, zoneRows] = await sql.begin(
+      "read only isolation level repeatable read",
+      (tx) => [
+        tx<StoredMatch[]>`
+          select competition_id, category_id, season_id, taso_match_id, group_id, group_name,
+            kickoff_at, matchday, status, winner, home_team_provider_id, home_team_name,
+            away_team_provider_id, away_team_name, home_goals, away_goals, half_time_home,
+            half_time_away
+          from taso_matches`,
+        tx<StoredGroupTeam[]>`
+          select competition_id, category_id, season_id, group_id, team_provider_id, team_name,
+            starting_points, points, matches_played, matches_won, matches_tied, matches_lost,
+            goals_for, goals_against, goals_diff, current_standing, final_group_standing
+          from taso_group_teams`,
+        tx<StoredZone[]>`
+          select competition_id, category_id, season_id, group_id, level, team_count, label
+          from taso_group_zones`,
+      ]
+    );
+    const matches = matchRows.filter((row) => isRecorded(row, selection));
+    const groupTeams = groupTeamRows.filter((row) => isRecorded(row, selection));
+    const zones = zoneRows.filter((row) => isRecorded(row, selection));
 
     // The key `getSeasonCategoryName` caches TASO's answer under.
-    const categoryNames: Record<string, Record<string, string>> = {};
-    for (const competitionId of new Set(matches.map((row) => row.competitionId))) {
-      const cached = await redis.get(`taso:categories:${competitionId}`);
-      if (cached !== null) categoryNames[competitionId] = JSON.parse(cached);
-    }
+    const competitionIds = [
+      ...new Set([...matches, ...groupTeams, ...zones].map((row) => row.competitionId)),
+    ];
+    const cached = await redis.mget(competitionIds.map((id) => `taso:categories:${id}`));
+    const categoryNames = Object.fromEntries(
+      competitionIds.flatMap((id, index) => {
+        const names = cached[index];
+        return names === null || names === undefined ? [] : [[id, JSON.parse(names)]];
+      })
+    );
 
     const fixture = buildFixture({ matches, groupTeams, zones, categoryNames });
-    writeFileSync(OUTPUT, gzipSync(JSON.stringify(fixture)));
+    // Written beside the fixture and renamed over it, so an interrupted run
+    // leaves the old file whole.
+    const partial = `${OUTPUT}.partial`;
+    writeFileSync(partial, gzipSync(JSON.stringify(fixture)));
+    renameSync(partial, OUTPUT);
     process.stdout.write(
       `${OUTPUT}: ${matches.length} matches, ${groupTeams.length} group rows, ` +
         `${zones.length} zones, names for ${Object.keys(categoryNames).length} competitions\n`
