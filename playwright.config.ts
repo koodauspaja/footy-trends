@@ -11,12 +11,14 @@
  * decisions/568-e2e-against-a-production-build.md
  * decisions/656-e2e-sends-nothing-to-sentry.md
  * decisions/672-e2e-without-the-provider.md
+ * decisions/674-e2e-on-an-empty-database.md
  */
 
 import { existsSync } from "node:fs";
 import { defineConfig, devices } from "@playwright/test";
 import { e2eTarget, serverCommand, startUpTimeoutMs, withoutSentry } from "./scripts/e2e-target";
 import { E2E_ANALYTICS_FLAG } from "./src/lib/e2e-analytics";
+import { standInRedisUrl } from "./tests/support/taso-stub";
 import { testDatabaseUrl } from "./tests/support/test-database";
 
 // Evaluated before `global-setup.ts`, so the variables it reads are loaded
@@ -50,14 +52,19 @@ const BASE_URL = `http://localhost:${PORT}`;
 
 /**
  * `E2E_TASO_STUB=1` points the app at a local stand-in for TASO, for while the
- * provider refuses our requests. Unset, the suite reaches TASO as before.
+ * provider refuses our requests, and at a Redis database of its own. Unset, the
+ * suite reaches TASO as before.
  *
  * decisions/672-e2e-without-the-provider.md
+ * decisions/674-e2e-on-an-empty-database.md
  */
 const TASO_STUB = process.env.E2E_TASO_STUB === "1";
 if (!TASO_STUB && (process.env.E2E_TASO_STUB ?? "") !== "") {
   throw new Error("E2E_TASO_STUB is 1 or unset; anything else would leave the stand-in off.");
 }
+// Set for the whole run, not only the server: the specs that drop cache keys
+// must reach the database the server reads. Workers inherit it.
+if (TASO_STUB) process.env.REDIS_URL = standInRedisUrl(process.env.REDIS_URL);
 // Blank is unset, so the stand-in and the URL Playwright polls share one port.
 const TASO_PORT = (process.env.E2E_TASO_PORT ?? "").trim() || "3002";
 const TASO_URL = `http://localhost:${TASO_PORT}`;

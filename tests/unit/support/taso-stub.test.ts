@@ -1,10 +1,12 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { answer, loadFixture } from "../../support/taso-stub";
+import { answer, loadFixture, mergeFixtures, standInRedisUrl } from "../../support/taso-stub";
 
 /**
  * The e2e suite's stand-in for TASO: what it answers, and what it refuses.
  *
  * decisions/672-e2e-without-the-provider.md
+ * decisions/674-e2e-on-an-empty-database.md
  */
 
 const fixture = {
@@ -66,27 +68,102 @@ describe("the TASO stand-in", () => {
     expect(answer(fixture, path).status).toBe(503);
   });
 
-  it("refuses a request without a competition, an unknown competition and an unknown path", () => {
+  it("refuses what the fixture does not record: competitions, groups, a competition, a path", () => {
     expect(answer(fixture, "/getCompetitions").status).toBe(503);
     expect(answer(fixture, "/getMatches?competition_id=spljp26&category_id=VL").status).toBe(503);
     expect(answer(fixture, "/getCategory?competition_id=maajp2025&category_id=UNL").status).toBe(
       503
     );
+    expect(answer(fixture, "/getGroups?competition_id=maajp2025").status).toBe(503);
   });
 
-  it("loads the recorded national-team fixture from the repository", () => {
-    expect(Object.keys(loadFixture().categories)).toContain("maajp2025");
+  const domestic = {
+    competitions: [
+      { competition_id: "spljp26", competition_status: "published", season_id: "2026" },
+    ],
+    categories: {},
+    matches: { spljp26: { VL: [{ match_id: "2" }] } },
+    groups: { spljp26: { VL: [{ group_id: "1", teams: [] }] } },
+  };
+
+  it("answers getCompetitions with the recorded list", () => {
+    expect(answer(domestic, "/getCompetitions")).toEqual({
+      status: 200,
+      body: { competitions: domestic.competitions },
+    });
   });
 
-  it("records a match list, an empty one included, for exactly the categories it lists", () => {
-    const recorded = loadFixture();
-    const listed = (record: Record<string, Record<string, unknown>>) =>
+  it("answers a recorded category's matches though no names are recorded for its competition", () => {
+    expect(answer(domestic, "/getMatches?competition_id=spljp26&category_id=VL")).toEqual({
+      status: 200,
+      body: { matches: [{ match_id: "2" }] },
+    });
+    expect(answer(domestic, "/getCategories?competition_id=spljp26").status).toBe(503);
+  });
+
+  it("answers a recorded category's groups as getCategory does, and refuses the rest", () => {
+    expect(answer(domestic, "/getCategory?competition_id=spljp26&category_id=VL")).toEqual({
+      status: 200,
+      body: { category: { groups: [{ group_id: "1", teams: [] }] } },
+    });
+    expect(answer(domestic, "/getCategory?competition_id=spljp26&category_id=M1").status).toBe(503);
+    expect(answer(domestic, "/getCategory?competition_id=constructor&category_id=VL").status).toBe(
+      503
+    );
+  });
+
+  it("merges the two fixtures, the domestic one's competitions and groups included", () => {
+    expect(mergeFixtures(fixture, domestic)).toEqual({
+      competitions: domestic.competitions,
+      categories: fixture.categories,
+      matches: { ...fixture.matches, ...domestic.matches },
+      groups: domestic.groups,
+    });
+  });
+
+  it("refuses to merge fixtures that both record a competition", () => {
+    expect(() => mergeFixtures(fixture, { ...domestic, matches: fixture.matches })).toThrow(
+      "Both fixtures record maajp2025"
+    );
+  });
+
+  it("loads both recorded fixtures from the repository", () => {
+    const loaded = loadFixture();
+    expect(Object.keys(loaded.categories)).toContain("maajp2025");
+    expect(answer(loaded, "/getMatches?competition_id=spljp26&category_id=VL").status).toBe(200);
+    expect(answer(loaded, "/getCompetitions").status).toBe(200);
+  });
+
+  it("records a national-team match list, an empty one included, for exactly the categories it lists", () => {
+    const national = JSON.parse(
+      readFileSync("tests/e2e/fixtures/taso-national-teams.json", "utf8")
+    ) as { categories: Record<string, object>; matches: Record<string, object> };
+    const listed = (record: Record<string, object>) =>
       Object.entries(record)
         .map(([competition, categories]): [string, string[]] => [
           competition,
           Object.keys(categories).sort(),
         ])
         .sort(([a], [b]) => a.localeCompare(b));
-    expect(listed(recorded.matches)).toEqual(listed(recorded.categories));
+    expect(listed(national.matches)).toEqual(listed(national.categories));
+  });
+});
+
+describe("the stand-in's Redis", () => {
+  it.each([
+    ["the default server when none is configured", undefined, "redis://localhost:6379/15"],
+    ["the default server when the setting is blank", "  ", "redis://localhost:6379/15"],
+    [
+      "the configured server, its own database replaced",
+      "redis://cache:6380/0",
+      "redis://cache:6380/15",
+    ],
+    [
+      "the configured credentials",
+      "redis://user:secret@cache:6379",
+      "redis://user:secret@cache:6379/15",
+    ],
+  ])("is database 15 on %s", (_case, configured, expected) => {
+    expect(standInRedisUrl(configured)).toBe(expected);
   });
 });
