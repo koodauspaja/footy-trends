@@ -55,6 +55,9 @@ const BASE_URL = `http://localhost:${PORT}`;
  * decisions/672-e2e-without-the-provider.md
  */
 const TASO_STUB = process.env.E2E_TASO_STUB === "1";
+if (!TASO_STUB && (process.env.E2E_TASO_STUB ?? "") !== "") {
+  throw new Error("E2E_TASO_STUB is 1 or unset; anything else would leave the stand-in off.");
+}
 const TASO_PORT = process.env.E2E_TASO_PORT ?? "3002";
 const TASO_URL = `http://localhost:${TASO_PORT}`;
 

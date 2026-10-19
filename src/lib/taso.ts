@@ -14,13 +14,13 @@ const API_BASE_URL = "https://spl.torneopal.net/taso/rest";
 
 /**
  * Where requests go: the provider, unless `TASO_API_BASE_URL` names another
- * server. The e2e suite points it at a local stand-in, so no run of it reaches
- * the provider.
+ * server, which the e2e suite does when `E2E_TASO_STUB=1`. Blank is unset.
  *
  * decisions/672-e2e-without-the-provider.md
  */
 function apiBaseUrl(): string {
-  return process.env.TASO_API_BASE_URL ?? API_BASE_URL;
+  const override = (process.env.TASO_API_BASE_URL ?? "").trim();
+  return override === "" ? API_BASE_URL : override;
 }
 
 /**

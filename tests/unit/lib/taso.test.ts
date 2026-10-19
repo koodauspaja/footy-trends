@@ -615,6 +615,22 @@ describe("taso mapping", () => {
     );
   });
 
+  it("sends its requests to the provider when TASO_API_BASE_URL is blank", async () => {
+    vi.stubEnv("TASO_API_KEY", "test-api-key");
+    vi.stubEnv("TASO_API_BASE_URL", "  ");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, status: 200, json: async () => ({ matches: [] }) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getSeasonMatches("spljp26", "VL", 2026);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://spl.torneopal.net/taso/rest/getMatches?competition_id=spljp26&category_id=VL",
+      expect.anything()
+    );
+  });
+
   it("treats a response with no matches field as no matches", async () => {
     vi.stubEnv("TASO_API_KEY", "test-api-key");
     vi.stubGlobal(
