@@ -72,8 +72,8 @@ export function upsetSentence(fact: UpsetFact): { before: string; match: string;
 }
 
 /**
- * What the block is given: the summary, and where a match's page is. Only
- * `unavailable` on a page with no block at all, a national team's.
+ * What the block is given: the summary, and where a match's page is. Finland's
+ * national-team pages, which never have a block, give no link.
  *
  * decisions/066-season-summary.md
  */

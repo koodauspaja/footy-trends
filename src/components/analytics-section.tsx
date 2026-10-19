@@ -88,7 +88,7 @@ export async function AnalyticsSection({
    * not defaulted.
    */
   axis: AnalyticsAxis;
-  /** `Kausi lyhyesti`; `unavailable` on a national team's page, which has no such block. */
+  /** `Kausi lyhyesti`; `unavailable` wherever no sentence holds, a national team's page always. */
   loadSummary: () => Promise<SeasonSummaryPanelData>;
   loadPosition: () => Promise<PositionSeries>;
   loadForm: () => Promise<FormSeries>;
