@@ -8,6 +8,11 @@ import { homeAwayPanel } from "@/components/home-away-section";
 import { positionPanel } from "@/components/league-position-section";
 import { OPPONENTS_GROUP_HEADING, opponentsPanel } from "@/components/opponents-section";
 import { seasonComparisonPanel } from "@/components/season-comparison-section";
+import {
+  type SeasonSummaryPanelData,
+  SUMMARY_HEADING,
+  seasonSummaryPanel,
+} from "@/components/season-summary-section";
 import { SignInPrompt } from "@/components/sign-in-prompt";
 import { streakRecordsPanel } from "@/components/streak-records-section";
 import { streaksPanel } from "@/components/streaks-section";
@@ -32,11 +37,12 @@ import type { StreaksSeries } from "@/lib/streaks";
  */
 export const ANALYTICS_HEADING = "Analyysit";
 /**
- * The first of the group headings. The others name a period, so they come
- * from the page's axis: see `SEASON_AXIS` and `HISTORY_AXIS`.
+ * The by-match group's heading. The period groups' headings come from the
+ * page's axis: see `SEASON_AXIS` and `HISTORY_AXIS`.
  *
  * decisions/041-national-team-analytics.md
  * decisions/424-analytics-panel-groups.md
+ * decisions/066-season-summary.md
  */
 export const BY_MATCH_HEADING = "Ottelu ottelulta";
 /**
@@ -60,9 +66,11 @@ const HEADING_ID = "analytics";
  * decisions/045-bogey-teams.md
  * decisions/053-elo-ratings.md
  * decisions/424-analytics-panel-groups.md
+ * decisions/066-season-summary.md
  */
 export async function AnalyticsSection({
   axis,
+  loadSummary,
   loadPosition,
   loadForm,
   loadGoals,
@@ -80,6 +88,8 @@ export async function AnalyticsSection({
    * not defaulted.
    */
   axis: AnalyticsAxis;
+  /** `Kausi lyhyesti`; `unavailable` wherever no sentence holds, a national team's page always. */
+  loadSummary: () => Promise<SeasonSummaryPanelData>;
   loadPosition: () => Promise<PositionSeries>;
   loadForm: () => Promise<FormSeries>;
   loadGoals: () => Promise<GoalsSeries>;
@@ -103,6 +113,7 @@ export async function AnalyticsSection({
   }
 
   const [
+    summary,
     position,
     form,
     goals,
@@ -115,6 +126,7 @@ export async function AnalyticsSection({
     opponents,
     elo,
   ] = await Promise.all([
+    loadSummary(),
     loadPosition(),
     loadForm(),
     loadGoals(),
@@ -145,6 +157,12 @@ export async function AnalyticsSection({
   // The groups, in the order the page shows them: by the question a reader is
   // asking, not by the subject of the measure.
   const groups = [
+    {
+      // Its own group, so the block needs no heading of its own.
+      heading: SUMMARY_HEADING,
+      id: "analytics-summary",
+      panels: { summary: seasonSummaryPanel(summary) },
+    },
     {
       heading: BY_MATCH_HEADING,
       id: "analytics-by-match",

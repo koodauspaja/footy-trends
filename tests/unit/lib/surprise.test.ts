@@ -5,6 +5,7 @@ import {
   SURPRISE_LIMIT,
   seasonSurprises,
   surpriseOf,
+  teamUpset,
 } from "@/lib/surprise";
 
 /**
@@ -12,6 +13,7 @@ import {
  * the ranking and its ten, and the first stored season.
  *
  * decisions/057-surprise-index.md
+ * decisions/066-season-summary.md
  */
 
 function match(overrides: Partial<PredictedMatch> = {}): PredictedMatch {
@@ -151,5 +153,51 @@ describe("seasonSurprises", () => {
   it("says so when the season has no predicted match", () => {
     expect(seasonSurprises([], true)).toEqual({ status: "empty", inProgress: true });
     expect(seasonSurprises([], false)).toEqual({ status: "empty", inProgress: false });
+  });
+});
+
+describe("teamUpset", () => {
+  const TEAM = 10;
+
+  it("is the team's own win Elo gave least, at home or away", () => {
+    const matches = [
+      match({ providerMatchId: 1, home: 0.3 }),
+      // An away win for the team, at 18 %.
+      match({
+        providerMatchId: 2,
+        homeTeamProviderId: 30,
+        awayTeamProviderId: TEAM,
+        homeGoals: 0,
+        awayGoals: 2,
+        away: 0.18,
+      }),
+    ];
+
+    expect(teamUpset(matches, TEAM)).toMatchObject({ providerMatchId: 2, probability: 0.18 });
+  });
+
+  it("leaves out a defeat, however unlikely, and another team's win", () => {
+    const matches = [
+      match({ providerMatchId: 1, home: 0.4 }),
+      // The team lost at home, a result Elo gave 5 %.
+      match({ providerMatchId: 2, homeGoals: 0, awayGoals: 1, away: 0.05 }),
+      // Two other teams.
+      match({ providerMatchId: 3, homeTeamProviderId: 30, awayTeamProviderId: 40, home: 0.02 }),
+    ];
+
+    expect(teamUpset(matches, TEAM)?.providerMatchId).toBe(1);
+  });
+
+  it("leaves out a draw", () => {
+    expect(teamUpset([match({ homeGoals: 1, awayGoals: 1 })], TEAM)).toBeNull();
+  });
+
+  it("takes the earlier kickoff of two equal figures", () => {
+    const matches = [
+      match({ providerMatchId: 2, kickoffAt: new Date("2026-05-02T14:00:00Z"), home: 0.2 }),
+      match({ providerMatchId: 1, kickoffAt: new Date("2026-05-01T14:00:00Z"), home: 0.2 }),
+    ];
+
+    expect(teamUpset(matches, TEAM)?.providerMatchId).toBe(1);
   });
 });

@@ -2,7 +2,7 @@ import { eq, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { matches, predictions, tasoMatches } from "@/db/schema";
-import { getMatchSurprise, getSeasonSurprises } from "@/lib/surprise-service";
+import { getMatchSurprise, getSeasonSurprises, getTeamUpset } from "@/lib/surprise-service";
 
 /**
  * The surprise reads against a real Postgres, set in 1980 and 1981 so the
@@ -11,6 +11,7 @@ import { getMatchSurprise, getSeasonSurprises } from "@/lib/surprise-service";
  * at a time, so these rows are this suite's for as long as it needs them.
  *
  * decisions/057-surprise-index.md
+ * decisions/066-season-summary.md
  */
 
 const IDS = Array.from({ length: 12 }, (_, index) => 984_001 + index);
@@ -244,5 +245,87 @@ describe("getMatchSurprise against Postgres", () => {
     await expect(
       getMatchSurprise({ source: "taso", match: match as typeof tasoMatches.$inferSelect })
     ).resolves.toBeNull();
+  });
+});
+
+describe("getTeamUpset against Postgres", () => {
+  const TEAM = 984_201;
+
+  it("is the team's own win Elo gave least, in its competition-season only", async () => {
+    await db.insert(tasoMatches).values([
+      // The season before: 1981 is not the competition's first, and the team's
+      // 1 % win in it belongs to 1980.
+      tasoMatch(0, { seasonId: 1980, competitionCode: "spljp80", kickoffAt: kickoff(1, 1980) }),
+      // Won at home, 20 %.
+      tasoMatch(1),
+      // Won away, 10 %: the upset.
+      tasoMatch(2, {
+        homeTeamProviderId: 984_203,
+        homeTeamName: "Yllätys Muu",
+        awayTeamProviderId: TEAM,
+        awayTeamName: "Yllätys Koti",
+        homeGoals: 0,
+        awayGoals: 1,
+      }),
+      // Lost at home, a result Elo gave 5 %: the opponent's upset, not the team's.
+      tasoMatch(3, { homeGoals: 0, awayGoals: 1 }),
+      // Two other teams, 1 %.
+      tasoMatch(4, { homeTeamProviderId: 984_204, awayTeamProviderId: 984_205 }),
+    ]);
+    await db
+      .insert(predictions)
+      .values([
+        predicted(0, "taso", { homeProbability: 0.01 }),
+        predicted(1, "taso"),
+        predicted(2, "taso"),
+        predicted(3, "taso", { awayProbability: 0.05 }),
+        predicted(4, "taso", { homeProbability: 0.01 }),
+      ]);
+
+    await expect(getTeamUpset("taso", "VL", 1981, TEAM)).resolves.toMatchObject({
+      providerMatchId: id(2),
+      probability: 0.1,
+      awayTeamProviderId: TEAM,
+    });
+  });
+
+  it("reads a football-data team's win from Elo's backtest rows of its competition-season only", async () => {
+    const CLUB = 984_101;
+    await db.insert(matches).values([
+      // Every match a home win by the club. The season before, at 1 %.
+      footballDataMatch(0, { seasonId: 1980, kickoffAt: kickoff(1, 1980) }),
+      // 20 %: the upset, every lower figure below being another row's.
+      footballDataMatch(1),
+      footballDataMatch(2),
+      footballDataMatch(3),
+      footballDataMatch(4),
+      footballDataMatch(5),
+      // In play with a score so far.
+      footballDataMatch(6, { status: "IN_PLAY" }),
+    ]);
+    await db
+      .insert(predictions)
+      .values([
+        predicted(0, "football-data", { homeProbability: 0.01 }),
+        predicted(1, "football-data"),
+        predicted(2, "football-data", { kind: "live", homeProbability: 0.05 }),
+        predicted(3, "football-data", { model: "poisson-v1", homeProbability: 0.05 }),
+        predicted(4, "taso", { competitionCode: "PPL", homeProbability: 0.05 }),
+        predicted(5, "football-data", { competitionCode: "PL", homeProbability: 0.05 }),
+        predicted(6, "football-data", { homeProbability: 0.05 }),
+      ]);
+
+    await expect(getTeamUpset("football-data", "PPL", 1981, CLUB)).resolves.toMatchObject({
+      providerMatchId: id(1),
+      probability: 0.2,
+      homeTeamProviderId: CLUB,
+    });
+  });
+
+  it("has none in the competition's first stored season", async () => {
+    await db.insert(tasoMatches).values([tasoMatch(1)]);
+    await db.insert(predictions).values([predicted(1, "taso")]);
+
+    await expect(getTeamUpset("taso", "VL", 1981, TEAM)).resolves.toBeNull();
   });
 });

@@ -15,6 +15,7 @@ import {
   type SeasonReadResult,
   UNRANKED_MEASURES,
 } from "./season-comparison";
+import { teamSeasonSummary } from "./season-summary-service";
 import {
   calculateStandings,
   selectTeamMatches,
@@ -306,6 +307,17 @@ export function getTeamStreakRecords(
     return { status: "error" as const };
   });
 }
+
+/**
+ * The `Kausi lyhyesti` block for this club's season.
+ *
+ * decisions/066-season-summary.md
+ */
+export const getTeamSeasonSummary = teamSeasonSummary("football-data", {
+  isLeague: isLeagueCompetition,
+  read: (key, activeSeasonId, teamProviderId) =>
+    readSeasonFor(key.competitionCode, key.seasonId, activeSeasonId, teamProviderId),
+});
 
 /**
  * Which of the club's seasons belong beside this one: its league seasons across
