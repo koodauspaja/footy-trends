@@ -633,6 +633,21 @@ describe("seasonSummaryFor", () => {
     expect(summary.records).not.toHaveBeenCalled();
   });
 
+  it("reads the records with exactly three earlier seasons, and states their run", async () => {
+    const summary = readers({
+      seasons: SEASONS.filter((season) => season.seasonId >= 2023),
+      records: async () => ({
+        status: "ok",
+        records: { ...NO_RECORDS, wins: { length: 7, from: "2026", to: "2026" } },
+        scope: "Veikkausliiga",
+      }),
+    });
+
+    expect(await seasonSummaryFor(summary)).toMatchObject({
+      facts: expect.arrayContaining([{ kind: "run", run: "wins", length: 7 }]),
+    });
+  });
+
   it("has no run fact when the club has no records, and keeps the others", async () => {
     const summary = readers({ records: async () => ({ status: "unavailable" }) });
 
