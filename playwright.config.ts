@@ -71,21 +71,28 @@ if (!TASO_STUB && (process.env.E2E_TASO_STUB ?? "") !== "") {
 const TASO_PORT = e2ePort("E2E_TASO_PORT", process.env.E2E_TASO_PORT, 3002);
 const TASO_URL = `http://localhost:${TASO_PORT}`;
 
-// The run's own Redis, set for the whole run, not only the server: the specs
-// that drop cache keys must reach the one the server reads. Workers inherit it.
-const REDIS_PORT = e2ePort("E2E_REDIS_PORT", process.env.E2E_REDIS_PORT, 6380);
-const redis = standInRedis(REDIS_PORT);
-if (TASO_STUB) process.env.REDIS_URL = redis.url;
-
-const redisServer = {
-  command: redis.command,
-  port: REDIS_PORT,
-  reuseExistingServer: false,
-  // SIGTERM, which `docker run` passes on so the container stops and is removed;
-  // Playwright's default SIGKILL would leave it running.
-  gracefulShutdown: { signal: "SIGTERM" as const, timeout: 10_000 },
-  timeout: 60_000,
-};
+/**
+ * The run's own Redis while the stand-in is on, set for the whole run, not only
+ * the server: the specs that drop cache keys must reach the one the server reads.
+ * Workers inherit it. Read only then, so the variable cannot stop a live run.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
+function redisServer() {
+  const port = e2ePort("E2E_REDIS_PORT", process.env.E2E_REDIS_PORT, 6380);
+  const redis = standInRedis(port);
+  process.env.REDIS_URL = redis.url;
+  return {
+    command: redis.command,
+    port,
+    reuseExistingServer: false,
+    // SIGTERM, which `docker run` passes on so the container stops and is
+    // removed; Playwright's default SIGKILL would leave it running.
+    gracefulShutdown: { signal: "SIGTERM" as const, timeout: 10_000 },
+    // Room for the first pull of the image on a machine that lacks it.
+    timeout: 180_000,
+  };
+}
 
 const tasoStub = {
   command: "node --import tsx tests/support/taso-stub-server.ts",
@@ -124,7 +131,7 @@ export default defineConfig({
     },
   ],
   webServer: [
-    ...(TASO_STUB ? [redisServer, tasoStub] : []),
+    ...(TASO_STUB ? [redisServer(), tasoStub] : []),
     {
       command: serverCommand(target, PORT),
       url: BASE_URL,

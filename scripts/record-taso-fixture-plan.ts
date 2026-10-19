@@ -1,4 +1,12 @@
-import type { TasoCompetition, TasoGroup, TasoGroupTeam, TasoProviderMatch } from "../src/lib/taso";
+import { NATIONAL_TEAM_COMPETITION_PREFIX } from "../src/lib/match-source";
+import {
+  LEVELS_PER_GROUP,
+  SEASON_COMPETITION_ID,
+  type TasoCompetition,
+  type TasoGroup,
+  type TasoGroupTeam,
+  type TasoProviderMatch,
+} from "../src/lib/taso";
 
 /**
  * Turns stored TASO rows back into the answers TASO gave for them, for the e2e
@@ -90,7 +98,7 @@ type Row = { competitionId: string; categoryId: string; seasonId: number };
  */
 export function isRecorded(row: Row, selection: Selection): boolean {
   const { seeded } = selection;
-  if (row.competitionId.startsWith("maajp")) return false;
+  if (row.competitionId.startsWith(NATIONAL_TEAM_COMPETITION_PREFIX)) return false;
   if (row.seasonId < selection.earliestSeason || row.seasonId > selection.latestSeason) {
     return false;
   }
@@ -172,8 +180,6 @@ function toProviderTeam(row: StoredGroupTeam): TasoGroupTeam {
   };
 }
 
-const LEVELS_PER_GROUP = 10;
-
 /**
  * One category's groups as `getCategory` sent them: every group with a team row
  * or a zone, its teams in the order given, and its zones as the ten counts and
@@ -230,21 +236,21 @@ function groupBy<T extends Row>(rows: T[]): Map<string, T[]> {
   return grouped;
 }
 
-/** A season of Finnish football as a whole, which `getCompetitions` lists. */
-const SEASON_COMPETITION_ID = /^spljp\d{2}$/;
-
 /**
  * The fixture for the rows given, already selected. A category's matches are
  * recorded when it has stored matches, and its groups when it has stored group
- * rows or zones: nothing shows TASO answered the rest with an empty list. Throws
- * on no matches at all, and on a competition id spanning two seasons, which the
- * stand-in, keyed by competition and category, could not replay.
+ * rows or zones: nothing shows TASO answered the rest with an empty list. Names
+ * are Redis's where it holds them and the previous recording's where it no
+ * longer does, and an empty set of names is not recorded, for the same reason.
+ * Throws on no matches at all, and on a competition id spanning two seasons,
+ * which the stand-in, keyed by competition and category, could not replay.
  */
 export function buildFixture(input: {
   matches: StoredMatch[];
   groupTeams: StoredGroupTeam[];
   zones: StoredZone[];
   categoryNames: Record<string, Record<string, string>>;
+  previousNames: Record<string, Record<string, string>>;
 }): RecordedFixture {
   const seasons = seasonOfEachCompetition([...input.matches, ...input.groupTeams, ...input.zones]);
   if (input.matches.length === 0) {
@@ -290,8 +296,10 @@ export function buildFixture(input: {
       })),
     // Built from entries, so every id is an own key, `__proto__` included.
     categories: Object.fromEntries(
-      Object.entries(input.categoryNames)
-        .filter(([competitionId]) => seasons.has(competitionId))
+      Object.entries({ ...input.previousNames, ...input.categoryNames })
+        .filter(
+          ([competitionId, names]) => seasons.has(competitionId) && Object.keys(names).length > 0
+        )
         .sort(([a], [b]) => a.localeCompare(b))
     ),
     matches: toRecord(matchLists),

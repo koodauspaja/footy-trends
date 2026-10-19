@@ -1,5 +1,5 @@
-import { existsSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { gzipSync } from "node:zlib";
+import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { gunzipSync, gzipSync } from "node:zlib";
 import Redis from "ioredis";
 import postgres from "postgres";
 import { EARLIEST_TASO_SEASON } from "../src/lib/taso";
@@ -78,7 +78,12 @@ async function main(): Promise<void> {
       })
     );
 
-    const fixture = buildFixture({ matches, groupTeams, zones, categoryNames });
+    // The fixture being replaced: its names stand in for entries Redis has since
+    // let expire.
+    const previousNames: Record<string, Record<string, string>> = existsSync(OUTPUT)
+      ? (JSON.parse(gunzipSync(readFileSync(OUTPUT)).toString("utf8")).categories ?? {})
+      : {};
+    const fixture = buildFixture({ matches, groupTeams, zones, categoryNames, previousNames });
     // Written beside the fixture, under this process's own name, and renamed
     // over it: an interrupted run leaves the old file whole, and two runs at
     // once never write the same file.
@@ -92,7 +97,8 @@ async function main(): Promise<void> {
     }
     process.stdout.write(
       `${OUTPUT}: ${matches.length} matches, ${groupTeams.length} group rows, ` +
-        `${zones.length} zones, names for ${Object.keys(categoryNames).length} competitions\n`
+        `${zones.length} zones, names for ${Object.keys(fixture.categories).length} competitions ` +
+        `(${Object.keys(categoryNames).length} from Redis)\n`
     );
   } finally {
     await sql.end();

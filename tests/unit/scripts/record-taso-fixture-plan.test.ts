@@ -328,6 +328,7 @@ describe("the recorded fixture", () => {
       groupTeams: [team],
       zones: [],
       categoryNames: { spljp22: { VL: "Veikkausliiga" }, spljp21: { VL: "Veikkausliiga" } },
+      previousNames: {},
     });
     expect(fixture.matches.spljp22?.VL?.map((row) => row.match_id)).toEqual(["3001", "3002"]);
     expect(fixture.groups.spljp22?.VL?.[0]?.group_name).toBe("Runkosarja");
@@ -340,6 +341,7 @@ describe("the recorded fixture", () => {
       groupTeams: [],
       zones: [],
       categoryNames: {},
+      previousNames: {},
     });
     expect(fixture.competitions).toEqual([
       { competition_id: "spljp22", competition_status: "published", season_id: "2022" },
@@ -353,6 +355,7 @@ describe("the recorded fixture", () => {
       groupTeams: [team],
       zones: [{ ...zone, categoryId: "M1" }],
       categoryNames: {},
+      previousNames: {},
     });
     expect(fixture.matches).toEqual({ Liigacup26: { LC: [toProviderMatch(cup)] } });
     expect(Object.keys(fixture.groups)).toEqual(["spljp22"]);
@@ -366,6 +369,7 @@ describe("the recorded fixture", () => {
       groupTeams: [],
       zones: [],
       categoryNames: {},
+      previousNames: {},
     });
     expect(fixture.categories).toEqual({});
   });
@@ -376,6 +380,7 @@ describe("the recorded fixture", () => {
       groupTeams: [],
       zones: [],
       categoryNames: JSON.parse('{"__proto__": {"VL": "Veikkausliiga"}}'),
+      previousNames: {},
     });
     expect(Object.hasOwn(fixture.categories, "__proto__")).toBe(true);
     expect(JSON.parse(JSON.stringify(fixture.categories))).toEqual(
@@ -392,14 +397,46 @@ describe("the recorded fixture", () => {
       groupTeams: [],
       zones: [],
       categoryNames: {},
+      previousNames: {},
     });
     expect(Object.keys(fixture.matches).sort()).toEqual(["a", "a\u0000b"]);
     expect(Object.keys(fixture.matches.a ?? {})).toEqual(["b\u0000c"]);
   });
 
+  it("keeps the previous recording's names where Redis no longer holds them, and Redis's where it does", () => {
+    const fixture = buildFixture({
+      matches: [match, { ...match, competitionId: "spljp21", seasonId: 2021 }],
+      groupTeams: [],
+      zones: [],
+      categoryNames: { spljp22: { VL: "Veikkausliiga" } },
+      previousNames: { spljp21: { VL: "Veikkausliiga 2021" }, spljp22: { VL: "vanha" } },
+    });
+    expect(fixture.categories).toEqual({
+      spljp21: { VL: "Veikkausliiga 2021" },
+      spljp22: { VL: "Veikkausliiga" },
+    });
+  });
+
+  it("records no names for a competition whose names are an empty set, from Redis or before", () => {
+    const fixture = buildFixture({
+      matches: [match, { ...match, competitionId: "spljp21", seasonId: 2021 }],
+      groupTeams: [],
+      zones: [],
+      categoryNames: { spljp22: {} },
+      previousNames: { spljp21: {} },
+    });
+    expect(fixture.categories).toEqual({});
+  });
+
   it("refuses to record no matches at all, so the fixture is not replaced by an empty one", () => {
     expect(() =>
-      buildFixture({ matches: [], groupTeams: [team], zones: [], categoryNames: {} })
+      buildFixture({
+        matches: [],
+        groupTeams: [team],
+        zones: [],
+        categoryNames: {},
+        previousNames: {},
+      })
     ).toThrow("No matches to record; the fixture is left as it is");
   });
 
@@ -410,6 +447,7 @@ describe("the recorded fixture", () => {
         groupTeams: [],
         zones: [],
         categoryNames: {},
+        previousNames: {},
       })
     ).toThrow("spljp22 holds seasons 2022 and 2023; the stand-in replays one");
   });

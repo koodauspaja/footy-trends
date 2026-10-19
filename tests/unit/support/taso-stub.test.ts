@@ -127,6 +127,12 @@ describe("the TASO stand-in", () => {
     });
   });
 
+  it("refuses to merge fixtures when the national one records groups for a domestic competition", () => {
+    expect(() => mergeFixtures({ ...fixture, groups: { spljp26: { VL: [] } } }, domestic)).toThrow(
+      "Both fixtures record spljp26"
+    );
+  });
+
   it("refuses to merge fixtures that both name a competition", () => {
     expect(() =>
       mergeFixtures(fixture, { ...domestic, categories: { maajp2025: { UNL: "x" } } })
