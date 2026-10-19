@@ -48,9 +48,14 @@ export function loadFixture(root: string = process.cwd()): Fixture {
   return mergeFixtures(national, domestic);
 }
 
-/** Two fixtures as one, refusing a competition id both of them record. */
+/** Two fixtures as one, refusing a competition id both of them record or name. */
 export function mergeFixtures(national: Fixture, domestic: Required<Fixture>): Fixture {
-  const shared = Object.keys(domestic.matches).filter((id) => Object.hasOwn(national.matches, id));
+  const ids = (fixture: Fixture) => [
+    ...Object.keys(fixture.matches),
+    ...Object.keys(fixture.categories),
+  ];
+  const nationalIds = new Set(ids(national));
+  const shared = [...new Set(ids(domestic))].filter((id) => nationalIds.has(id));
   if (shared.length > 0) throw new Error(`Both fixtures record ${shared.join(", ")}`);
   return {
     competitions: domestic.competitions,

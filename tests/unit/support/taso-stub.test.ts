@@ -127,6 +127,12 @@ describe("the TASO stand-in", () => {
     });
   });
 
+  it("refuses to merge fixtures that both name a competition", () => {
+    expect(() =>
+      mergeFixtures(fixture, { ...domestic, categories: { maajp2025: { UNL: "x" } } })
+    ).toThrow("Both fixtures record maajp2025");
+  });
+
   it("refuses to merge fixtures that both record a competition", () => {
     expect(() => mergeFixtures(fixture, { ...domestic, matches: fixture.matches })).toThrow(
       "Both fixtures record maajp2025"

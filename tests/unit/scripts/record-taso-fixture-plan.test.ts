@@ -3,6 +3,7 @@ import {
   buildFixture,
   isProviderMatch,
   isRecorded,
+  parseCategoryNames,
   type Selection,
   type StoredGroupTeam,
   type StoredMatch,
@@ -256,6 +257,49 @@ describe("a category's stored groups as getCategory sent them", () => {
   });
 });
 
+describe("category names read from Redis", () => {
+  it("reads a map of names", () => {
+    expect(
+      parseCategoryNames("taso:categories:spljp22", '{"VL":"Veikkausliiga","M1":"Ykkösliiga"}')
+    ).toEqual({
+      VL: "Veikkausliiga",
+      M1: "Ykkösliiga",
+    });
+  });
+
+  it.each([
+    ["not JSON", "{VL:"],
+    ["null", "null"],
+    ["a list", '["Veikkausliiga"]'],
+    ["a string", '"Veikkausliiga"'],
+    ["a name that is not a string", '{"VL":1}'],
+  ])("refuses %s, naming the entry", (_case, raw) => {
+    expect(() => parseCategoryNames("taso:categories:spljp22", raw)).toThrow(
+      "taso:categories:spljp22 in Redis is not a map of category names"
+    );
+  });
+});
+
+describe("zone levels", () => {
+  it.each([0, 11])("refuses a zone at level %s, outside the ten TASO sends", (level) => {
+    expect(() => toProviderGroups([], [{ ...zone, level }], new Map())).toThrow(
+      `Zone level ${level} of group 7 is outside 1 to 10`
+    );
+  });
+
+  it("places the first and the tenth level at either end", () => {
+    const [group] = toProviderGroups(
+      [],
+      [
+        { ...zone, level: 1, teamCount: 2 },
+        { ...zone, level: 10, teamCount: 3 },
+      ],
+      new Map()
+    );
+    expect(group?.next_stage_levels).toBe("2,0,0,0,0,0,0,0,0,3");
+  });
+});
+
 describe("the recorded fixture", () => {
   const cup: StoredMatch = {
     ...match,
@@ -324,6 +368,20 @@ describe("the recorded fixture", () => {
     expect(JSON.parse(JSON.stringify(fixture.categories))).toEqual(
       JSON.parse('{"__proto__": {"VL": "Veikkausliiga"}}')
     );
+  });
+
+  it("keeps ids apart however they are spelled, a separator character included", () => {
+    const fixture = buildFixture({
+      matches: [
+        { ...match, competitionId: "a\u0000b", categoryId: "c" },
+        { ...match, competitionId: "a", categoryId: "b\u0000c", tasoMatchId: 3002 },
+      ],
+      groupTeams: [],
+      zones: [],
+      categoryNames: {},
+    });
+    expect(Object.keys(fixture.matches).sort()).toEqual(["a", "a\u0000b"]);
+    expect(Object.keys(fixture.matches.a ?? {})).toEqual(["b\u0000c"]);
   });
 
   it("refuses to record no matches at all, so the fixture is not replaced by an empty one", () => {

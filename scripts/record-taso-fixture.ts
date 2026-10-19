@@ -1,4 +1,4 @@
-import { existsSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import Redis from "ioredis";
 import postgres from "postgres";
@@ -9,6 +9,7 @@ import {
   buildFixture,
   isProviderMatch,
   isRecorded,
+  parseCategoryNames,
   type Selection,
   type StoredGroupTeam,
   type StoredMatch,
@@ -66,11 +67,14 @@ async function main(): Promise<void> {
     const competitionIds = [
       ...new Set([...matches, ...groupTeams, ...zones].map((row) => row.competitionId)),
     ];
-    const cached = await redis.mget(competitionIds.map((id) => `taso:categories:${id}`));
+    const keys = competitionIds.map((id) => `taso:categories:${id}`);
+    // MGET refuses no keys; with no rows, `buildFixture` refuses the recording.
+    const cached = keys.length === 0 ? [] : await redis.mget(keys);
     const categoryNames = Object.fromEntries(
       competitionIds.flatMap((id, index) => {
-        const names = cached[index];
-        return names === null || names === undefined ? [] : [[id, JSON.parse(names)]];
+        const raw = cached[index];
+        if (raw === null || raw === undefined) return [];
+        return [[id, parseCategoryNames(`taso:categories:${id}`, raw)]];
       })
     );
 
@@ -79,8 +83,13 @@ async function main(): Promise<void> {
     // over it: an interrupted run leaves the old file whole, and two runs at
     // once never write the same file.
     const partial = `${OUTPUT}.${process.pid}.partial`;
-    writeFileSync(partial, gzipSync(JSON.stringify(fixture)));
-    renameSync(partial, OUTPUT);
+    try {
+      writeFileSync(partial, gzipSync(JSON.stringify(fixture)));
+      renameSync(partial, OUTPUT);
+    } catch (error) {
+      rmSync(partial, { force: true });
+      throw error;
+    }
     process.stdout.write(
       `${OUTPUT}: ${matches.length} matches, ${groupTeams.length} group rows, ` +
         `${zones.length} zones, names for ${Object.keys(categoryNames).length} competitions\n`

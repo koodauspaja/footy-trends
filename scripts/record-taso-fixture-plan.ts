@@ -194,6 +194,11 @@ export function toProviderGroups(
     const counts = new Array<number>(LEVELS_PER_GROUP).fill(0);
     const labels = new Array<string>(LEVELS_PER_GROUP).fill("");
     for (const zone of levels) {
+      if (zone.level < 1 || zone.level > LEVELS_PER_GROUP) {
+        throw new Error(
+          `Zone level ${zone.level} of group ${groupId} is outside 1 to ${LEVELS_PER_GROUP}`
+        );
+      }
       counts[zone.level - 1] = zone.teamCount;
       labels[zone.level - 1] = zone.label ?? "";
     }
@@ -210,8 +215,9 @@ export function toProviderGroups(
   });
 }
 
+/** A competition and category as one key, however either id is spelled. */
 function key(row: Row): string {
-  return `${row.competitionId}\u0000${row.categoryId}`;
+  return JSON.stringify([row.competitionId, row.categoryId]);
 }
 
 function groupBy<T extends Row>(rows: T[]): Map<string, T[]> {
@@ -255,7 +261,7 @@ export function buildFixture(input: {
   const matchLists = new Map<string, Map<string, TasoProviderMatch[]>>();
   const groupLists = new Map<string, Map<string, TasoGroup[]>>();
   for (const pair of recorded) {
-    const [competitionId = "", categoryId = ""] = pair.split("\u0000");
+    const [competitionId, categoryId] = JSON.parse(pair) as [string, string];
     const categoryMatches = (matches.get(pair) ?? []).toSorted(
       (a, b) => a.tasoMatchId - b.tasoMatchId
     );
@@ -291,6 +297,27 @@ export function buildFixture(input: {
     matches: toRecord(matchLists),
     groups: toRecord(groupLists),
   };
+}
+
+/**
+ * The category names one Redis entry holds, as `getSeasonCategoryName` cached
+ * them: a JSON object of names. Anything else throws, naming the entry, rather
+ * than reaching the fixture as names.
+ */
+export function parseCategoryNames(key: string, raw: string): Record<string, string> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    parsed = undefined;
+  }
+  const isNames =
+    typeof parsed === "object" &&
+    parsed !== null &&
+    !Array.isArray(parsed) &&
+    Object.values(parsed).every((name) => typeof name === "string");
+  if (!isNames) throw new Error(`${key} in Redis is not a map of category names`);
+  return parsed as Record<string, string>;
 }
 
 /** Each competition id's one season, or a throw naming the competition that holds two. */
