@@ -688,9 +688,15 @@ describe("Profiilikuva", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Tallenna kuva" }));
     await waitFor(() => expect(screen.getByText(STALE_PICTURE)).toBeInTheDocument());
+    // The notice can render while the save is still pending, and a disabled
+    // button ignores the click.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Tallenna kuva" })).toBeEnabled()
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Tallenna kuva" }));
     await waitFor(() => expect(screen.queryByText(STALE_PICTURE)).not.toBeInTheDocument());
+    expect(saveAvatarAction).toHaveBeenCalledTimes(2);
     expect(screen.getByText("Profiilikuva päivitetty.")).toBeInTheDocument();
   });
 
