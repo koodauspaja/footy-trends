@@ -24,6 +24,7 @@ import {
  * decisions/284-provider-id-validation.md
  * decisions/363-render-timeouts.md
  * decisions/063-competition-zones.md
+ * decisions/672-e2e-without-the-provider.md
  */
 
 const { loggerInfoMock, loggerErrorMock, loggerWarnMock, getCachedMock } = vi.hoisted(() => ({
@@ -595,6 +596,30 @@ describe("taso mapping", () => {
     expect(loggerInfoMock).toHaveBeenCalledWith(
       expect.objectContaining({ status: 200 }),
       "TASO request completed"
+    );
+  });
+
+  it.each([
+    ["the server it names", "http://localhost:3002", "http://localhost:3002"],
+    [
+      "the server it names, trailing slashes dropped",
+      "http://localhost:3002//",
+      "http://localhost:3002",
+    ],
+    ["the provider, when it is blank", "  ", "https://spl.torneopal.net/taso/rest"],
+  ])("sends its requests, given TASO_API_BASE_URL, to %s", async (_case, override, base) => {
+    vi.stubEnv("TASO_API_KEY", "test-api-key");
+    vi.stubEnv("TASO_API_BASE_URL", override);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, status: 200, json: async () => ({ matches: [] }) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getSeasonMatches("spljp26", "VL", 2026);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${base}/getMatches?competition_id=spljp26&category_id=VL`,
+      expect.anything()
     );
   });
 

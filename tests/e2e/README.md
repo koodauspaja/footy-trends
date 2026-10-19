@@ -3,7 +3,8 @@
 Playwright tests that exercise the running application through a real
 Chromium browser, against a real Postgres/Redis and the live
 football-data.org API — the same setup used for local development
-(`npm run dev`), not a mocked provider.
+(`npm run dev`), not a mocked provider. While TASO refuses our requests,
+`E2E_TASO_STUB=1` swaps it for a stand-in; see below.
 
 ## The suite has its own database, and its own port
 
@@ -36,6 +37,17 @@ a knockout group showing its matches instead of a table, and the bracket built
 from them — depend on a shape TASO no longer produces through the endpoint the
 app reads. Seeding also costs nothing: a completed season with stored rows is
 never refetched, so those pages make no provider request at all.
+
+### `E2E_TASO_STUB=1`: a stand-in for TASO
+
+An emergency override, for while TASO refuses our requests. Set in `.env`, it
+makes `playwright.config.ts` start `tests/support/taso-stub-server.ts` on port
+3002 (`E2E_TASO_PORT` changes it) and point the app's server at it with
+`TASO_API_BASE_URL`. The stand-in answers `getCategories` and `getMatches` for
+the national-team buckets from `tests/e2e/fixtures/taso-national-teams.json`,
+and refuses every other request, as the provider does now, so a league or cup
+page falls back to the rows already stored. Remove the line when TASO answers
+again. `decisions/672-e2e-without-the-provider.md` has the reasons.
 
 ## Prerequisites
 
