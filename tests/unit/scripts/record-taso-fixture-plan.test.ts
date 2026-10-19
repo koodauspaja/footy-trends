@@ -166,11 +166,17 @@ describe("a stored match as TASO sent it", () => {
     expect(toProviderMatch({ ...match, winner }).winner).toBe(expected);
   });
 
-  it("passes a status and a winner it has no word for through as stored, and leaves out the winner", () => {
-    const postponed = toProviderMatch({ ...match, status: "Postponed", winner: "unknown" });
-    expect(postponed.status).toBe("Postponed");
-    expect(postponed).not.toHaveProperty("winner");
-  });
+  it.each([
+    ["a word of its own", "Postponed", "unknown"],
+    ["an inherited property's name", "toString", "constructor"],
+  ])(
+    "passes an unmapped status through and leaves out an unmapped winner: %s",
+    (_case, status, winner) => {
+      const sent = toProviderMatch({ ...match, status, winner });
+      expect(sent.status).toBe(status);
+      expect(sent).not.toHaveProperty("winner");
+    }
+  );
 });
 
 describe("a category's stored groups as getCategory sent them", () => {

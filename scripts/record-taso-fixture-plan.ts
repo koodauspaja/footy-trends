@@ -101,8 +101,15 @@ export function isRecorded(row: Row, selection: Selection): boolean {
   );
 }
 
-const STATUS: Record<string, string> = { FINISHED: "Played", SCHEDULED: "Fixture" };
-const WINNER: Record<string, string> = { home: "Home", away: "Away", tie: "Tie" };
+const STATUS = new Map([
+  ["FINISHED", "Played"],
+  ["SCHEDULED", "Fixture"],
+]);
+const WINNER = new Map([
+  ["home", "Home"],
+  ["away", "Away"],
+  ["tie", "Tie"],
+]);
 
 function text(value: number | null): string {
   return value === null ? "" : String(value);
@@ -114,10 +121,11 @@ function text(value: number | null): string {
  */
 export function toProviderMatch(row: StoredMatch): TasoProviderMatch {
   const iso = row.kickoffAt.toISOString();
+  const winner = row.winner === null ? undefined : WINNER.get(row.winner);
   return {
     match_id: String(row.tasoMatchId),
-    status: STATUS[row.status] ?? row.status,
-    ...(row.winner !== null && WINNER[row.winner] ? { winner: WINNER[row.winner] } : {}),
+    status: STATUS.get(row.status) ?? row.status,
+    ...(winner === undefined ? {} : { winner }),
     ...(row.matchday === null ? {} : { round_id: String(row.matchday) }),
     group_id: String(row.groupId),
     group_name: row.groupName,
@@ -197,7 +205,11 @@ function key(row: Row): string {
 
 function groupBy<T extends Row>(rows: T[]): Map<string, T[]> {
   const grouped = new Map<string, T[]>();
-  for (const row of rows) grouped.set(key(row), [...(grouped.get(key(row)) ?? []), row]);
+  for (const row of rows) {
+    const list = grouped.get(key(row));
+    if (list === undefined) grouped.set(key(row), [row]);
+    else list.push(row);
+  }
   return grouped;
 }
 
@@ -235,7 +247,9 @@ export function buildFixture(input: {
   const fixture: RecordedFixture = { competitions: [], categories: {}, matches: {}, groups: {} };
   for (const pair of recorded) {
     const [competitionId = "", categoryId = ""] = pair.split("\u0000");
-    const categoryMatches = (matches.get(pair) ?? []).sort((a, b) => a.tasoMatchId - b.tasoMatchId);
+    const categoryMatches = (matches.get(pair) ?? []).toSorted(
+      (a, b) => a.tasoMatchId - b.tasoMatchId
+    );
     const groupNames = new Map(categoryMatches.map((row) => [row.groupId, row.groupName]));
     fixture.matches[competitionId] = {
       ...fixture.matches[competitionId],
