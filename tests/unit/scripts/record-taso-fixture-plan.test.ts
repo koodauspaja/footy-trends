@@ -505,6 +505,18 @@ describe("what a recording changes against the previous one", () => {
     ]);
   });
 
+  it("names a renamed category and a corrected score, though no size changed", () => {
+    const after: RecordedFixture = {
+      ...before,
+      categories: { spljp22: { VL: "Veikkausliiga", M1: "Ykkönen" } },
+      matches: { ...before.matches, spljp22: { VL: [{}, { fs_A: "2" }] } },
+    };
+    expect(summariseChanges(before, after)).toEqual([
+      "changed matches spljp22/VL: 2, contents differ",
+      "changed names spljp22: 2, contents differ",
+    ]);
+  });
+
   it("names nothing when nothing changed", () => {
     expect(summariseChanges(before, structuredClone(before))).toEqual([]);
   });

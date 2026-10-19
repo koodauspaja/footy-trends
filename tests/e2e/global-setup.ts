@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import Redis from "ioredis";
 import postgres from "postgres";
-import { waitForRedis } from "../support/taso-stub";
+import { STAND_IN_TASO_KEYS } from "../support/taso-stub";
 import { ensureTestDatabase } from "../support/test-database";
 import {
   CATEGORY_ID,
@@ -109,6 +109,32 @@ async function seedFixtureSeason(url: string): Promise<void> {
 }
 
 /**
+ * Starts a stand-in run with no TASO data of its own, so every TASO answer comes
+ * from the recording: its database's TASO rows and its Redis's TASO keys go,
+ * football-data's stay. Both belong to the run alone (`playwright.config.ts`).
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
+async function clearStandInTaso(url: string): Promise<void> {
+  const sql = postgres(url);
+  try {
+    await sql`delete from taso_matches`;
+    await sql`delete from taso_group_teams`;
+    await sql`delete from taso_group_zones`;
+  } finally {
+    await sql.end();
+  }
+  const redis = new Redis(process.env.REDIS_URL ?? "");
+  try {
+    for await (const keys of redis.scanStream({ match: STAND_IN_TASO_KEYS, count: 500 })) {
+      if (keys.length > 0) await redis.del(...keys);
+    }
+  } finally {
+    redis.disconnect();
+  }
+}
+
+/**
  * Fails fast with a clear message when a provider API key is missing: this
  * suite runs against the real football-data.org and TASO APIs, not mocks. See
  * tests/e2e/README.md.
@@ -142,15 +168,6 @@ export default async function globalSetup() {
   // seeds it. The application server is pointed at the same URL by
   // `playwright.config.ts`.
   const url = await ensureTestDatabase();
+  if (process.env.E2E_TASO_STUB === "1") await clearStandInTaso(url);
   await seedFixtureSeason(url);
-
-  // The stand-in run's own Redis accepts connections before it answers.
-  if (process.env.E2E_TASO_STUB === "1") {
-    const redis = new Redis(process.env.REDIS_URL ?? "");
-    try {
-      await waitForRedis(redis);
-    } finally {
-      redis.disconnect();
-    }
-  }
 }

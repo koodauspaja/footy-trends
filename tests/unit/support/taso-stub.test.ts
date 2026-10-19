@@ -7,7 +7,6 @@ import {
   STAND_IN_REDIS_IMAGE,
   standInDatabaseUrl,
   standInRedis,
-  waitForRedis,
 } from "../../support/taso-stub";
 
 /**
@@ -199,43 +198,28 @@ describe("the stand-in run's own Redis", () => {
 });
 
 describe("the stand-in run's own database", () => {
-  it("puts _stand_in before the test database's _test, keeping everything else", () => {
-    expect(
-      standInDatabaseUrl("postgresql://postgres:secret@localhost:5432/footy-trends_test")
-    ).toBe("postgresql://postgres:secret@localhost:5432/footy-trends_stand_in_test");
+  const testUrl = "postgresql://postgres:secret@localhost:5432/footy-trends_test";
+
+  it("puts _stand_in and the app port before the test database's _test, keeping everything else", () => {
+    expect(standInDatabaseUrl(testUrl, 3001)).toBe(
+      "postgresql://postgres:secret@localhost:5432/footy-trends_stand_in_3001_test"
+    );
+  });
+
+  it("gives a run on another port another database", () => {
+    expect(standInDatabaseUrl(testUrl, 3011)).toBe(
+      "postgresql://postgres:secret@localhost:5432/footy-trends_stand_in_3011_test"
+    );
+  });
+
+  it("leaves a URL already derived for that port as it is, as each worker derives it again", () => {
+    const derived = standInDatabaseUrl(testUrl, 3001);
+    expect(standInDatabaseUrl(derived, 3001)).toBe(derived);
   });
 
   it("refuses a test database whose name does not end in _test, naming only the host", () => {
     expect(() =>
-      standInDatabaseUrl("postgresql://postgres:secret@localhost:5432/footy-trends")
+      standInDatabaseUrl("postgresql://postgres:secret@localhost:5432/footy-trends", 3001)
     ).toThrow("The test database name does not end in _test: localhost:5432");
-  });
-});
-
-describe("waiting for the stand-in run's Redis", () => {
-  function redisAnswering(answers: Array<string | Error>) {
-    let asked = 0;
-    return {
-      asked: () => asked,
-      ping: async () => {
-        const answer = answers[Math.min(asked++, answers.length - 1)];
-        if (answer instanceof Error) throw answer;
-        return answer as string;
-      },
-    };
-  }
-
-  it("resolves at the first PONG, after refusals and other answers", async () => {
-    const redis = redisAnswering([new Error("ECONNRESET"), "LOADING", "PONG"]);
-    await waitForRedis(redis, 5, 0);
-    expect(redis.asked()).toBe(3);
-  });
-
-  it("gives up after the attempts allowed, saying so", async () => {
-    const redis = redisAnswering([new Error("ECONNREFUSED")]);
-    await expect(waitForRedis(redis, 3, 0)).rejects.toThrow(
-      "The stand-in run's Redis did not answer PING after 3 tries"
-    );
-    expect(redis.asked()).toBe(3);
   });
 });

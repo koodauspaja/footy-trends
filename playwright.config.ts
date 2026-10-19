@@ -68,11 +68,9 @@ const TASO_STUB = process.env.E2E_TASO_STUB === "1";
 if (!TASO_STUB && (process.env.E2E_TASO_STUB ?? "") !== "") {
   throw new Error("E2E_TASO_STUB is 1 or unset; anything else would leave the stand-in off.");
 }
-// With the stand-in, a database of its own unless one is named, set for the
-// whole run as REDIS_URL is: global setup and the specs read it too.
-if (TASO_STUB && (process.env.TEST_DATABASE_URL ?? "").trim() === "") {
-  process.env.TEST_DATABASE_URL = standInDatabaseUrl(testDatabaseUrl());
-}
+// With the stand-in, a database of its own, set for the whole run as REDIS_URL
+// is: global setup and the specs read it too.
+if (TASO_STUB) process.env.TEST_DATABASE_URL = standInDatabaseUrl(testDatabaseUrl(), PORT);
 const TASO_PORT = e2ePort("E2E_TASO_PORT", process.env.E2E_TASO_PORT, 3002);
 const TASO_URL = `http://localhost:${TASO_PORT}`;
 
@@ -89,7 +87,9 @@ function redisServer() {
   process.env.REDIS_URL = redis.url;
   return {
     command: redis.command,
-    port,
+    // Its own word that it serves: Docker opens the port before Redis listens,
+    // and refuses a port already allocated, which stops the run.
+    wait: { stdout: /Ready to accept connections/ },
     reuseExistingServer: false,
     // SIGTERM, which `docker run` passes on so the container stops and is
     // removed; Playwright's default SIGKILL would leave it running.

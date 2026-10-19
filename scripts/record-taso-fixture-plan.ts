@@ -372,37 +372,48 @@ export function summariseChanges(
   previous: RecordedFixture | null,
   next: RecordedFixture
 ): string[] {
-  const before = previous === null ? new Map<string, string>() : describeEach(previous);
+  const before = previous === null ? new Map<string, Described>() : describeEach(previous);
   const after = describeEach(next);
   return [...new Set([...before.keys(), ...after.keys()])]
     .sort((a, b) => a.localeCompare(b))
     .flatMap((id) => {
       const was = before.get(id);
+      // Every id is in one map or the other, so with `was` missing `now` is there.
       const now = after.get(id);
-      if (was === undefined) return [`added ${id}: ${now}`];
-      if (now === undefined) return [`removed ${id}: ${was}`];
-      return was === now ? [] : [`changed ${id}: ${was} -> ${now}`];
+      if (was === undefined) return [`added ${id}: ${(now as Described).text}`];
+      if (now === undefined) return [`removed ${id}: ${was.text}`];
+      if (was.content === now.content) return [];
+      // Same size, different contents: a renamed category, a corrected score.
+      const sizes =
+        was.text === now.text ? `${now.text}, contents differ` : `${was.text} -> ${now.text}`;
+      return [`changed ${id}: ${sizes}`];
     });
 }
 
+/** One list, set of names or listed season: its size to show, its contents to compare. */
+type Described = { text: string; content: string };
+
 /** Each list, set of names and listed competition in a fixture, by a readable id. */
-function describeEach(fixture: RecordedFixture): Map<string, string> {
-  const described = new Map<string, string>();
+function describeEach(fixture: RecordedFixture): Map<string, Described> {
+  const described = new Map<string, Described>();
+  const add = (id: string, text: string, value: unknown) =>
+    described.set(id, { text, content: JSON.stringify(value) });
   for (const [competitionId, categories] of Object.entries(fixture.matches)) {
     for (const [categoryId, list] of Object.entries(categories)) {
-      described.set(`matches ${competitionId}/${categoryId}`, `${list.length}`);
+      add(`matches ${competitionId}/${categoryId}`, `${list.length}`, list);
     }
   }
   for (const [competitionId, categories] of Object.entries(fixture.groups)) {
     for (const [categoryId, list] of Object.entries(categories)) {
-      described.set(`groups ${competitionId}/${categoryId}`, `${list.length}`);
+      add(`groups ${competitionId}/${categoryId}`, `${list.length}`, list);
     }
   }
   for (const [competitionId, names] of Object.entries(fixture.categories)) {
-    described.set(`names ${competitionId}`, `${Object.keys(names).length}`);
+    const sorted = Object.entries(names).sort(([a], [b]) => a.localeCompare(b));
+    add(`names ${competitionId}`, `${sorted.length}`, sorted);
   }
   for (const competition of fixture.competitions) {
-    described.set(`season ${competition.competition_id}`, `${competition.season_id}`);
+    add(`season ${competition.competition_id}`, `${competition.season_id}`, competition);
   }
   return described;
 }

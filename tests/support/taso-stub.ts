@@ -107,8 +107,8 @@ export function answer(fixture: Fixture, path: string): StubAnswer {
 /** The Redis image `docker-compose.yml` runs, so the run's own matches development's. */
 export const STAND_IN_REDIS_IMAGE = "redis:8-alpine";
 
-/** The Docker volumes the stand-in run's Redis keeps its data in, one per port. */
-export const STAND_IN_REDIS_VOLUME = "footy-trends-e2e-redis";
+/** The start of the Docker volume names the stand-in run's Redis uses, one per port. */
+export const STAND_IN_REDIS_VOLUME_PREFIX = "footy-trends-e2e-redis";
 
 /**
  * The stand-in run's own Redis: a container on `port`, its data kept between runs
@@ -119,44 +119,31 @@ export const STAND_IN_REDIS_VOLUME = "footy-trends-e2e-redis";
 export function standInRedis(port: number): { command: string; url: string } {
   return {
     // Saved every minute with a change, and on the SIGTERM that stops it.
-    command: `docker run --rm -p 127.0.0.1:${port}:6379 -v ${STAND_IN_REDIS_VOLUME}-${port}:/data ${STAND_IN_REDIS_IMAGE} redis-server --save 60 1`,
+    command: `docker run --rm -p 127.0.0.1:${port}:6379 -v ${STAND_IN_REDIS_VOLUME_PREFIX}-${port}:/data ${STAND_IN_REDIS_IMAGE} redis-server --save 60 1`,
     url: `redis://127.0.0.1:${port}`,
   };
 }
 
 /**
- * The database a stand-in run uses: the test database's name with `_stand_in`
- * before its `_test`, so replayed answers never overwrite rows a live run stored.
+ * The database a stand-in run uses, one per app port: the test database's name
+ * with `_stand_in_<port>` before its `_test`, so it is never the recorder's source.
  *
  * decisions/674-e2e-on-an-empty-database.md
  */
-export function standInDatabaseUrl(testUrl: string): string {
+export function standInDatabaseUrl(testUrl: string, appPort: number): string {
   const url = new URL(testUrl);
-  url.pathname = url.pathname.replace(/_test$/, "_stand_in_test");
-  if (!url.pathname.endsWith("_stand_in_test")) {
+  const suffix = `_stand_in_${appPort}_test`;
+  // Already derived: Playwright evaluates its configuration again in each worker.
+  if (url.pathname.endsWith(suffix)) return url.toString();
+  if (!url.pathname.endsWith("_test")) {
     throw new Error(`The test database name does not end in _test: ${url.host}`);
   }
+  url.pathname = url.pathname.replace(/_test$/, suffix);
   return url.toString();
 }
 
-/**
- * Resolves once Redis answers PING, so no test meets one still starting; throws
- * after `attempts` tries `intervalMs` apart.
- *
- * decisions/674-e2e-on-an-empty-database.md
- */
-export async function waitForRedis(
-  redis: { ping(): Promise<string> },
-  attempts = 50,
-  intervalMs = 200
-): Promise<void> {
-  for (let attempt = 1; attempt <= attempts; attempt++) {
-    // A refused or failed PING means not ready yet: the next attempt asks again.
-    if ((await redis.ping().catch(() => "not ready")) === "PONG") return;
-    await new Promise((resolve) => setTimeout(resolve, intervalMs));
-  }
-  throw new Error(`The stand-in run's Redis did not answer PING after ${attempts} tries`);
-}
+/** The cache keys of TASO's answers, which a stand-in run clears before it starts. */
+export const STAND_IN_TASO_KEYS = "taso:*";
 
 function recorded<T>(record: ByCategory<T>, competitionId: string, categoryId: string) {
   const categories = ownEntry(record, competitionId);
