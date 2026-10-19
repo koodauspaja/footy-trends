@@ -5,7 +5,9 @@ import {
   loadFixture,
   mergeFixtures,
   STAND_IN_REDIS_IMAGE,
+  standInDatabaseUrl,
   standInRedis,
+  waitForRedis,
 } from "../../support/taso-stub";
 
 /**
@@ -182,10 +184,10 @@ describe("the TASO stand-in", () => {
 });
 
 describe("the stand-in run's own Redis", () => {
-  it("is a container on the port asked, reachable only from this machine, its data in the named volume", () => {
+  it("is a container on the port asked, reachable only from this machine, its data in that port's own volume", () => {
     expect(standInRedis(6390)).toEqual({
       command:
-        "docker run --rm -p 127.0.0.1:6390:6379 -v footy-trends-e2e-redis:/data redis:8-alpine redis-server --save 60 1",
+        "docker run --rm -p 127.0.0.1:6390:6379 -v footy-trends-e2e-redis-6390:/data redis:8-alpine redis-server --save 60 1",
       url: "redis://127.0.0.1:6390",
     });
   });
@@ -193,5 +195,47 @@ describe("the stand-in run's own Redis", () => {
   it("runs the Redis image docker-compose.yml runs for development", () => {
     const compose = readFileSync("docker-compose.yml", "utf8");
     expect(compose).toContain(`\n  redis:\n    image: ${STAND_IN_REDIS_IMAGE}\n`);
+  });
+});
+
+describe("the stand-in run's own database", () => {
+  it("puts _stand_in before the test database's _test, keeping everything else", () => {
+    expect(
+      standInDatabaseUrl("postgresql://postgres:secret@localhost:5432/footy-trends_test")
+    ).toBe("postgresql://postgres:secret@localhost:5432/footy-trends_stand_in_test");
+  });
+
+  it("refuses a test database whose name does not end in _test, naming only the host", () => {
+    expect(() =>
+      standInDatabaseUrl("postgresql://postgres:secret@localhost:5432/footy-trends")
+    ).toThrow("The test database name does not end in _test: localhost:5432");
+  });
+});
+
+describe("waiting for the stand-in run's Redis", () => {
+  function redisAnswering(answers: Array<string | Error>) {
+    let asked = 0;
+    return {
+      asked: () => asked,
+      ping: async () => {
+        const answer = answers[Math.min(asked++, answers.length - 1)];
+        if (answer instanceof Error) throw answer;
+        return answer as string;
+      },
+    };
+  }
+
+  it("resolves at the first PONG, after refusals and other answers", async () => {
+    const redis = redisAnswering([new Error("ECONNRESET"), "LOADING", "PONG"]);
+    await waitForRedis(redis, 5, 0);
+    expect(redis.asked()).toBe(3);
+  });
+
+  it("gives up after the attempts allowed, saying so", async () => {
+    const redis = redisAnswering([new Error("ECONNREFUSED")]);
+    await expect(waitForRedis(redis, 3, 0)).rejects.toThrow(
+      "The stand-in run's Redis did not answer PING after 3 tries"
+    );
+    expect(redis.asked()).toBe(3);
   });
 });

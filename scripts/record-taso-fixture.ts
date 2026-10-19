@@ -106,7 +106,7 @@ async function main(): Promise<void> {
     process.stdout.write(
       `${OUTPUT}: ${matches.length} matches, ${groupTeams.length} group rows, ` +
         `${zones.length} zones, names for ${Object.keys(fixture.categories).length} competitions ` +
-        `(${Object.keys(categoryNames).length} from Redis)\n`
+        `(${Object.values(categoryNames).filter((names) => Object.keys(names).length > 0).length} from Redis)\n`
     );
     const changes = summariseChanges(previous, fixture);
     process.stdout.write(

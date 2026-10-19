@@ -24,7 +24,7 @@ import {
   withoutSentry,
 } from "./scripts/e2e-target";
 import { E2E_ANALYTICS_FLAG } from "./src/lib/e2e-analytics";
-import { standInRedis } from "./tests/support/taso-stub";
+import { standInDatabaseUrl, standInRedis } from "./tests/support/taso-stub";
 import { testDatabaseUrl } from "./tests/support/test-database";
 
 // Evaluated before `global-setup.ts`, so the variables it reads are loaded
@@ -67,6 +67,11 @@ const BASE_URL = `http://localhost:${PORT}`;
 const TASO_STUB = process.env.E2E_TASO_STUB === "1";
 if (!TASO_STUB && (process.env.E2E_TASO_STUB ?? "") !== "") {
   throw new Error("E2E_TASO_STUB is 1 or unset; anything else would leave the stand-in off.");
+}
+// With the stand-in, a database of its own unless one is named, set for the
+// whole run as REDIS_URL is: global setup and the specs read it too.
+if (TASO_STUB && (process.env.TEST_DATABASE_URL ?? "").trim() === "") {
+  process.env.TEST_DATABASE_URL = standInDatabaseUrl(testDatabaseUrl());
 }
 const TASO_PORT = e2ePort("E2E_TASO_PORT", process.env.E2E_TASO_PORT, 3002);
 const TASO_URL = `http://localhost:${TASO_PORT}`;

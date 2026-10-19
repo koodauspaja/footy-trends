@@ -51,15 +51,19 @@ on an empty test database:
 | `tests/e2e/fixtures/taso-national-teams.json` | The national-team buckets' categories and matches |
 | `tests/e2e/fixtures/taso-domestic.json.gz` | Every domestic season live runs stored: `getCompetitions`, matches, group tables, and the category names Redis still held |
 
-It refuses every other request, as the provider does now. Playwright also
-starts a Redis of the run's own, a container of the image `docker-compose.yml`
-runs, on port 6380 (`E2E_REDIS_PORT` changes it), and points the server and the
-specs at it, so nothing in development's Redis is read or deleted. Its data is
-kept between runs in the Docker volume `footy-trends-e2e-redis`, so football-data
-answers stay cached as they do for `npm run dev`, and the key staging and
-production share is not asked again each run. `docker volume rm
-footy-trends-e2e-redis` empties it. If a run is killed hard, the container can
-outlive it and hold the port: `docker ps` shows it.
+It refuses every other request, as the provider does now. The run then uses
+its own database, `<your database>_stand_in_test` (unless `TEST_DATABASE_URL`
+names one), so replayed answers never overwrite rows a live run stored in
+`<your database>_test`, which the recorder reads. Playwright also starts a
+Redis of the run's own, a container of the image `docker-compose.yml` runs, on
+port 6380 (`E2E_REDIS_PORT` changes it), and points the server and the specs at
+it, so nothing in development's Redis is read or deleted. Its data is kept in
+the Docker volume `footy-trends-e2e-redis-<port>`, so runs close together reuse
+football-data answers for as long as the app caches them (15 minutes for
+matches, an hour for competitions) instead of asking the key staging and
+production share again. `docker volume rm footy-trends-e2e-redis-6380` empties
+it. If a run is killed hard, the container can outlive it and hold the port:
+`docker ps` shows it.
 
 Remove the line from `.env` when TASO answers again; e2e tests against the real
 TASO connection then take this one's place.
@@ -68,7 +72,8 @@ TASO connection then take this one's place.
 database's TASO rows and the configured Redis. It only reads them, and prints
 what changes against the fixture it replaces: check it before committing, since
 a competition appearing unasked is an integration test's leftover. Run it after
-a live run has stored what a new spec needs.
+a live run has stored what a new spec needs, then remove the stand-in Redis
+volume, which keeps the old category names for up to a year.
 `decisions/672-e2e-without-the-provider.md` and
 `decisions/674-e2e-on-an-empty-database.md` have the reasons.
 

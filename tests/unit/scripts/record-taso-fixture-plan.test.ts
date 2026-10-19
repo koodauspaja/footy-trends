@@ -4,6 +4,7 @@ import {
   isProviderMatch,
   isRecorded,
   parseCategoryNames,
+  type RecordedFixture,
   type Selection,
   type StoredGroupTeam,
   type StoredMatch,
@@ -466,38 +467,55 @@ describe("the recorded fixture", () => {
 });
 
 describe("what a recording changes against the previous one", () => {
-  const before = {
+  const before: RecordedFixture = {
+    competitions: [
+      { competition_id: "spljp22", competition_status: "published", season_id: "2022" },
+    ],
+    categories: { spljp22: { VL: "Veikkausliiga", M1: "Ykkösliiga" } },
     matches: { spljp22: { VL: [{}, {}] }, spljp21: { MSC: [{}] } },
     groups: { spljp22: { VL: [{}] } },
   };
 
-  it("names each competition and category added, removed or recounted, in order", () => {
-    const after = {
+  it("names each list added, removed or recounted, in order", () => {
+    const after: RecordedFixture = {
+      ...before,
       matches: { spljp22: { VL: [{}, {}, {}] }, spljp16: { VL: [{}] } },
-      groups: { spljp22: { VL: [{}] } },
     };
     expect(summariseChanges(before, after)).toEqual([
-      "added spljp16/VL: 1 matches, 0 groups",
-      "removed spljp21/MSC: 1 matches, 0 groups",
-      "changed spljp22/VL: 2 matches, 1 groups -> 3 matches, 1 groups",
+      "added matches spljp16/VL: 1",
+      "removed matches spljp21/MSC: 1",
+      "changed matches spljp22/VL: 2 -> 3",
     ]);
   });
 
-  it("names nothing when every count is the same", () => {
-    expect(summariseChanges(before, structuredClone(before))).toEqual([]);
-  });
-
-  it("counts a change in groups alone", () => {
-    const after = { ...before, groups: { spljp22: { VL: [{}, {}] } } };
+  it("names a change in groups, in names, and in the seasons getCompetitions lists", () => {
+    const after: RecordedFixture = {
+      ...before,
+      competitions: [
+        { competition_id: "spljp23", competition_status: "published", season_id: "2023" },
+      ],
+      categories: { spljp22: { VL: "Veikkausliiga" } },
+      groups: { spljp22: { VL: [{}, {}] } },
+    };
     expect(summariseChanges(before, after)).toEqual([
-      "changed spljp22/VL: 2 matches, 1 groups -> 2 matches, 2 groups",
+      "changed groups spljp22/VL: 1 -> 2",
+      "changed names spljp22: 2 -> 1",
+      "removed season spljp22: 2022",
+      "added season spljp23: 2023",
     ]);
+  });
+
+  it("names nothing when nothing changed", () => {
+    expect(summariseChanges(before, structuredClone(before))).toEqual([]);
   });
 
   it("lists everything as added when there was no previous recording", () => {
     expect(summariseChanges(null, before)).toEqual([
-      "added spljp21/MSC: 1 matches, 0 groups",
-      "added spljp22/VL: 2 matches, 1 groups",
+      "added groups spljp22/VL: 1",
+      "added matches spljp21/MSC: 1",
+      "added matches spljp22/VL: 2",
+      "added names spljp22: 2",
+      "added season spljp22: 2022",
     ]);
   });
 });

@@ -107,21 +107,55 @@ export function answer(fixture: Fixture, path: string): StubAnswer {
 /** The Redis image `docker-compose.yml` runs, so the run's own matches development's. */
 export const STAND_IN_REDIS_IMAGE = "redis:8-alpine";
 
-/** The Docker volume the stand-in run's Redis keeps its data in between runs. */
+/** The Docker volumes the stand-in run's Redis keeps its data in, one per port. */
 export const STAND_IN_REDIS_VOLUME = "footy-trends-e2e-redis";
 
 /**
  * The stand-in run's own Redis: a container on `port`, its data kept between runs
- * in a named volume, never touching the Redis development uses.
+ * in that port's volume, never touching the Redis development uses.
  *
  * decisions/674-e2e-on-an-empty-database.md
  */
 export function standInRedis(port: number): { command: string; url: string } {
   return {
     // Saved every minute with a change, and on the SIGTERM that stops it.
-    command: `docker run --rm -p 127.0.0.1:${port}:6379 -v ${STAND_IN_REDIS_VOLUME}:/data ${STAND_IN_REDIS_IMAGE} redis-server --save 60 1`,
+    command: `docker run --rm -p 127.0.0.1:${port}:6379 -v ${STAND_IN_REDIS_VOLUME}-${port}:/data ${STAND_IN_REDIS_IMAGE} redis-server --save 60 1`,
     url: `redis://127.0.0.1:${port}`,
   };
+}
+
+/**
+ * The database a stand-in run uses: the test database's name with `_stand_in`
+ * before its `_test`, so replayed answers never overwrite rows a live run stored.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
+export function standInDatabaseUrl(testUrl: string): string {
+  const url = new URL(testUrl);
+  url.pathname = url.pathname.replace(/_test$/, "_stand_in_test");
+  if (!url.pathname.endsWith("_stand_in_test")) {
+    throw new Error(`The test database name does not end in _test: ${url.host}`);
+  }
+  return url.toString();
+}
+
+/**
+ * Resolves once Redis answers PING, so no test meets one still starting; throws
+ * after `attempts` tries `intervalMs` apart.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
+export async function waitForRedis(
+  redis: { ping(): Promise<string> },
+  attempts = 50,
+  intervalMs = 200
+): Promise<void> {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    // A refused or failed PING means not ready yet: the next attempt asks again.
+    if ((await redis.ping().catch(() => "not ready")) === "PONG") return;
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  throw new Error(`The stand-in run's Redis did not answer PING after ${attempts} tries`);
 }
 
 function recorded<T>(record: ByCategory<T>, competitionId: string, categoryId: string) {

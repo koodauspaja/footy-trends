@@ -363,47 +363,46 @@ function hasNames(names: Record<string, string>): boolean {
   return Object.keys(names).length > 0;
 }
 
-/** One competition and category's lists in a fixture, as `summariseChanges` compares them. */
-type Counts = { matches: number; groups: number };
-
-function countsOf(fixture: Pick<RecordedFixture, "matches" | "groups">): Map<string, Counts> {
-  const counts = new Map<string, Counts>();
-  const add = (record: ByCategory<unknown[]>, field: keyof Counts) => {
-    for (const [competitionId, categories] of Object.entries(record)) {
-      for (const [categoryId, list] of Object.entries(categories)) {
-        const id = `${competitionId}/${categoryId}`;
-        const entry = counts.get(id) ?? { matches: 0, groups: 0 };
-        entry[field] = list.length;
-        counts.set(id, entry);
-      }
-    }
-  };
-  add(fixture.matches, "matches");
-  add(fixture.groups, "groups");
-  return counts;
-}
-
 /**
- * What a new recording changes against the one it replaces, one line per
- * competition and category added, removed or recounted, for a person to check
- * before committing: a season appearing unasked is an integration test's leftover.
+ * What a new recording changes against the one it replaces, a line per list,
+ * set of names or `getCompetitions` entry added, removed or recounted, for a
+ * person to check: a season appearing unasked is an integration test's leftover.
  */
 export function summariseChanges(
-  previous: Pick<RecordedFixture, "matches" | "groups"> | null,
-  next: Pick<RecordedFixture, "matches" | "groups">
+  previous: RecordedFixture | null,
+  next: RecordedFixture
 ): string[] {
-  const before = previous === null ? new Map<string, Counts>() : countsOf(previous);
-  const after = countsOf(next);
-  const describe = (counts: Counts) => `${counts.matches} matches, ${counts.groups} groups`;
+  const before = previous === null ? new Map<string, string>() : describeEach(previous);
+  const after = describeEach(next);
   return [...new Set([...before.keys(), ...after.keys()])]
     .sort((a, b) => a.localeCompare(b))
     .flatMap((id) => {
       const was = before.get(id);
-      // Every id is in one map or the other, so with `was` missing `now` is there.
       const now = after.get(id);
-      if (was === undefined) return [`added ${id}: ${describe(now as Counts)}`];
-      if (now === undefined) return [`removed ${id}: ${describe(was)}`];
-      if (was.matches === now.matches && was.groups === now.groups) return [];
-      return [`changed ${id}: ${describe(was)} -> ${describe(now)}`];
+      if (was === undefined) return [`added ${id}: ${now}`];
+      if (now === undefined) return [`removed ${id}: ${was}`];
+      return was === now ? [] : [`changed ${id}: ${was} -> ${now}`];
     });
+}
+
+/** Each list, set of names and listed competition in a fixture, by a readable id. */
+function describeEach(fixture: RecordedFixture): Map<string, string> {
+  const described = new Map<string, string>();
+  for (const [competitionId, categories] of Object.entries(fixture.matches)) {
+    for (const [categoryId, list] of Object.entries(categories)) {
+      described.set(`matches ${competitionId}/${categoryId}`, `${list.length}`);
+    }
+  }
+  for (const [competitionId, categories] of Object.entries(fixture.groups)) {
+    for (const [categoryId, list] of Object.entries(categories)) {
+      described.set(`groups ${competitionId}/${categoryId}`, `${list.length}`);
+    }
+  }
+  for (const [competitionId, names] of Object.entries(fixture.categories)) {
+    described.set(`names ${competitionId}`, `${Object.keys(names).length}`);
+  }
+  for (const competition of fixture.competitions) {
+    described.set(`season ${competition.competition_id}`, `${competition.season_id}`);
+  }
+  return described;
 }
