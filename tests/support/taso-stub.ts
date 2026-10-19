@@ -142,8 +142,14 @@ export function standInDatabaseUrl(testUrl: string, appPort: number): string {
   return url.toString();
 }
 
-/** The cache keys of TASO's answers, which a stand-in run clears before it starts. */
-export const STAND_IN_TASO_KEYS = "taso:*";
+/**
+ * Whether a key in the stand-in run's Redis outlives the clear before a run:
+ * football-data's answers only, which cost requests on the key staging and
+ * production share. Everything else is TASO's or computed from stored rows.
+ */
+export function keptBetweenRuns(key: string): boolean {
+  return key.startsWith("football-data:");
+}
 
 function recorded<T>(record: ByCategory<T>, competitionId: string, categoryId: string) {
   const categories = ownEntry(record, competitionId);

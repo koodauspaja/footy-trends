@@ -1,7 +1,12 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  footballDataCompetitionCacheKey,
+  footballDataMatchesCacheKey,
+} from "../../../src/lib/football-data";
+import {
   answer,
+  keptBetweenRuns,
   loadFixture,
   mergeFixtures,
   STAND_IN_REDIS_IMAGE,
@@ -221,5 +226,24 @@ describe("the stand-in run's own database", () => {
     expect(() =>
       standInDatabaseUrl("postgresql://postgres:secret@localhost:5432/footy-trends", 3001)
     ).toThrow("The test database name does not end in _test: localhost:5432");
+  });
+});
+
+describe("what the stand-in run's Redis keeps between runs", () => {
+  it("keeps football-data's answers, by the keys football-data.ts builds", () => {
+    expect(keptBetweenRuns(footballDataMatchesCacheKey("PL", 2024))).toBe(true);
+    expect(keptBetweenRuns(footballDataCompetitionCacheKey("PL"))).toBe(true);
+  });
+
+  it.each([
+    "taso:matches:spljp26:VL",
+    "taso:season-context:v2:VL",
+    "elo:v1:taso",
+    "forecast:v4:taso:VL:2025",
+    "quality:v3:taso:VL",
+    "poisson:v1:football-data",
+    "standings:PL",
+  ])("clears %s, TASO's or computed from stored rows", (key) => {
+    expect(keptBetweenRuns(key)).toBe(false);
   });
 });

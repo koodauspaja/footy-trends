@@ -56,8 +56,8 @@ what it touches:
 
 | | The run's own | Cleared before each run |
 |---|---|---|
-| Database | `<your test database>_stand_in_<E2E_PORT>_test`, never the `_test` one the recorder reads | its TASO rows |
-| Redis | a container of the image `docker-compose.yml` runs, on port 6380 (`E2E_REDIS_PORT`), data kept in the volume `footy-trends-e2e-redis-<port>` | its `taso:*` keys |
+| Database | `<name>_stand_in_<E2E_PORT>_test`, where the test database is `<name>_test`, which the recorder reads | its TASO rows and TASO predictions |
+| Redis | a container of the image `docker-compose.yml` runs, on port 6380 (`E2E_REDIS_PORT`), data kept in the volume `footy-trends-e2e-redis-<port>` | every key but football-data's answers |
 
 So every TASO answer a run uses comes from the recording, and nothing in
 development's database or Redis is read or deleted. football-data's rows and

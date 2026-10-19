@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import Redis from "ioredis";
 import postgres from "postgres";
 import { e2eAppPort, e2eRedisPort } from "../../scripts/e2e-target";
-import { STAND_IN_TASO_KEYS, standInDatabaseUrl, standInRedis } from "../support/taso-stub";
+import { keptBetweenRuns, standInDatabaseUrl, standInRedis } from "../support/taso-stub";
 import { ensureTestDatabase } from "../support/test-database";
 import {
   CATEGORY_ID,
@@ -111,24 +111,26 @@ async function seedFixtureSeason(url: string): Promise<void> {
 
 /**
  * Starts a stand-in run with no TASO data of its own, so every TASO answer comes
- * from the recording: its database's TASO rows and its Redis's TASO keys go,
- * football-data's stay. Both belong to the run alone (`playwright.config.ts`).
+ * from the recording: TASO's rows and predictions, and every cached value but
+ * football-data's answers, go. Both stores belong to the run alone.
  *
  * decisions/674-e2e-on-an-empty-database.md
  */
 async function clearStandInTaso(databaseUrl: string, redisUrl: string): Promise<void> {
   const sql = postgres(databaseUrl);
   try {
-    await sql`delete from taso_matches`;
-    await sql`delete from taso_group_teams`;
-    await sql`delete from taso_group_zones`;
+    await sql.begin(async (tx) => {
+      await tx`truncate taso_matches, taso_group_teams, taso_group_zones`;
+      await tx`delete from predictions where source = 'taso'`;
+    });
   } finally {
     await sql.end();
   }
   const redis = new Redis(redisUrl);
   try {
-    for await (const keys of redis.scanStream({ match: STAND_IN_TASO_KEYS, count: 500 })) {
-      if (keys.length > 0) await redis.del(...keys);
+    for await (const keys of redis.scanStream({ count: 500 }) as AsyncIterable<string[]>) {
+      const cleared = keys.filter((key) => !keptBetweenRuns(key));
+      if (cleared.length > 0) await redis.del(...cleared);
     }
   } finally {
     redis.disconnect();
@@ -169,13 +171,13 @@ export default async function globalSetup() {
   // seeds it. The application server is pointed at the same URL by
   // `playwright.config.ts`.
   const url = await ensureTestDatabase();
-  // Derived here as the config derives them, never read back from the
-  // environment: a missing variable must not point the deletes elsewhere.
   if (process.env.E2E_TASO_STUB === "1") {
-    await clearStandInTaso(
-      standInDatabaseUrl(url, e2eAppPort(process.env)),
-      standInRedis(e2eRedisPort(process.env)).url
-    );
+    // The database must be the stand-in's, derived as the config derives it,
+    // before anything is seeded or cleared; Redis is derived here, not inherited.
+    if (url !== standInDatabaseUrl(url, e2eAppPort(process.env))) {
+      throw new Error("A stand-in run must use its own database; the config did not set it.");
+    }
+    await clearStandInTaso(url, standInRedis(e2eRedisPort(process.env)).url);
   }
   await seedFixtureSeason(url);
 }

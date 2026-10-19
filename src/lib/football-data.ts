@@ -28,6 +28,15 @@ export function footballDataMatchesCacheKey(competitionCode: string, seasonId: n
   return `football-data:matches:${competitionCode}:${seasonId}`;
 }
 
+/**
+ * The Redis key a competition's details are cached under.
+ *
+ * decisions/001-premier-league-match-based-standings.md
+ */
+export function footballDataCompetitionCacheKey(competitionCode: string): string {
+  return `football-data:competition:${competitionCode}:v2`;
+}
+
 type ProviderTeam = { id?: number; name?: string };
 
 type ProviderScoreLine = { home?: number | null; away?: number | null };
@@ -107,7 +116,7 @@ export type SeasonContext = {
  */
 export const getSeasonContext = cache(async (competitionCode: string): Promise<SeasonContext> => {
   const competition = await getCached<CompetitionResponse>(
-    `football-data:competition:${competitionCode}:v2`,
+    footballDataCompetitionCacheKey(competitionCode),
     COMPETITION_CACHE_TTL_SECONDS,
     () => request<CompetitionResponse>(`/competitions/${competitionCode}`)
   );
