@@ -32,6 +32,8 @@ afterEach(async () => {
 
 describe("the statement timeout", { timeout: 30_000 }, () => {
   it("cancels a statement that runs past it", async () => {
+    // Connected first, so the clock times the statement and not the connection.
+    await db.execute(sql`select 1`);
     const started = Date.now();
 
     // 57014 is Postgres's query_canceled, which a statement timeout raises.
@@ -46,6 +48,8 @@ describe("the statement timeout", { timeout: 30_000 }, () => {
 
   it("shows a panel's failure line when its read waits on a lock past it", async () => {
     const holder = connect();
+    // Both connected first, so the clock times the lock wait and not the connections.
+    await Promise.all([holder`select 1`, db.execute(sql`select 1`)]);
     const started = Date.now();
 
     const series = await holder.begin(async (transaction) => {

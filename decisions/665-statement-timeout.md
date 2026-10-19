@@ -1,9 +1,9 @@
 # 665 — Every statement on the app's database client has a timeout: decisions
 
 Chore #665. No database read had a bound: a query that stalled instead of
-failing held a page's render for as long as it stalled, and every `Analyysit`
-panel awaits its read in one `Promise.all`, so one stalled read held the whole
-section. Raised by Sourcery on #662, and answered there as a class fix, since
+failing held a page's render for as long as it stalled, and every panel in the
+analytics section awaits its read in one `Promise.all`, so one stalled read held
+the whole section. Raised by Sourcery on #662, and answered there as a class fix, since
 every read on the page shares the property.
 
 | Decision | Why |
