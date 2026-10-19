@@ -30,18 +30,21 @@ describe("the TASO stand-in", () => {
   });
 
   it("answers a category's matches, and a category with none with an empty list", () => {
-    expect(answer(fixture, "/getMatches?competition_id=maajp2025&category_id=UNL").body).toEqual({
-      matches: [{ match_id: "1" }],
+    expect(answer(fixture, "/getMatches?competition_id=maajp2025&category_id=UNL")).toEqual({
+      status: 200,
+      body: { matches: [{ match_id: "1" }] },
     });
-    expect(answer(fixture, "/getMatches?competition_id=maajp2025&category_id=WCQ").body).toEqual({
-      matches: [],
+    expect(answer(fixture, "/getMatches?competition_id=maajp2025&category_id=WCQ")).toEqual({
+      status: 200,
+      body: { matches: [] },
     });
   });
 
   it("answers a competition the fixture has no matches for with an empty list", () => {
     const sparse = { categories: { maajp2024: { UNL: "x" } }, matches: {} };
-    expect(answer(sparse, "/getMatches?competition_id=maajp2024&category_id=UNL").body).toEqual({
-      matches: [],
+    expect(answer(sparse, "/getMatches?competition_id=maajp2024&category_id=UNL")).toEqual({
+      status: 200,
+      body: { matches: [] },
     });
   });
 

@@ -19,7 +19,8 @@ const API_BASE_URL = "https://spl.torneopal.net/taso/rest";
  * decisions/672-e2e-without-the-provider.md
  */
 function apiBaseUrl(): string {
-  const override = (process.env.TASO_API_BASE_URL ?? "").trim();
+  // Trailing slashes off: every path starts with one.
+  const override = (process.env.TASO_API_BASE_URL ?? "").trim().replace(/\/+$/, "");
   return override === "" ? API_BASE_URL : override;
 }
 

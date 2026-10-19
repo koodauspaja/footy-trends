@@ -615,6 +615,22 @@ describe("taso mapping", () => {
     );
   });
 
+  it("drops a trailing slash from TASO_API_BASE_URL, so no path starts with two", async () => {
+    vi.stubEnv("TASO_API_KEY", "test-api-key");
+    vi.stubEnv("TASO_API_BASE_URL", "http://localhost:3002//");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, status: 200, json: async () => ({ matches: [] }) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getSeasonMatches("spljp26", "VL", 2026);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:3002/getMatches?competition_id=spljp26&category_id=VL",
+      expect.anything()
+    );
+  });
+
   it("sends its requests to the provider when TASO_API_BASE_URL is blank", async () => {
     vi.stubEnv("TASO_API_KEY", "test-api-key");
     vi.stubEnv("TASO_API_BASE_URL", "  ");
