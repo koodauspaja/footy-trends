@@ -41,6 +41,12 @@ vi.mock("@/lib/logger", () => ({
 }));
 vi.mock("@/lib/cache", () => ({ getCached: getCachedMock }));
 
+// For every block, not one: a stubbed variable, a salt above all, must not reach
+// a test that runs after it in a shuffled order.
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe("taso mapping", () => {
   const originalApiKey = process.env.TASO_API_KEY;
 
