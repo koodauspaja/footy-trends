@@ -88,7 +88,7 @@ function apiKey(): string {
 /**
  * The path with the `hash` TASO checks, when `TASO_HASH_SALT` is set: a SHA-256
  * of the route without its slash, the salt and the query, in its frontend's shape.
- * Blank is unset, and the path goes unsigned. Temporary, until official access.
+ * Blank is unset, and the path goes unsigned.
  *
  * decisions/681-taso-request-signing.md
  */

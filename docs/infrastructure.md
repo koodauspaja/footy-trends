@@ -265,7 +265,7 @@ repos/:owner/:repo/rulesets` and its neighbours.
 
 Actions variables: `OWNER_USERNAME`, `COLLABORATOR_USERNAME`,
 `FIRST_RELEASE_VERSION`. Secrets: `SONAR_TOKEN`, `FOOTBALL_DATA_API_KEY`,
-`TASO_API_KEY`, `TASO_HASH_SALT` once set (decisions/681), and `CI_POSTGRES_PASSWORD`, the password of the Postgres
+`TASO_API_KEY`, `TASO_HASH_SALT` once set, which the release workflow's e2e and PR environments read (decisions/681), and `CI_POSTGRES_PASSWORD`, the password of the Postgres
 container a workflow run creates (any random value; nothing outside a run uses it). `SONAR_ORGANIZATION` and `SONAR_PROJECT_KEY` also exist as
 secrets and nothing reads them: the values are in `sonar-project.properties`.
 Workflows from forks need approval for all outside contributors.

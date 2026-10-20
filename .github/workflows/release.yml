@@ -154,6 +154,8 @@ jobs:
       # every spec time out against a generic error page.
       FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
       TASO_API_KEY: ${{ secrets.TASO_API_KEY }}
+      # Signs TASO requests once the secret is set; empty, they go unsigned.
+      TASO_HASH_SALT: ${{ secrets.TASO_HASH_SALT }}
       # Literals, not `vars.*`: an undefined variable expands to an empty string,
       # and the suite would then run against a season floor nobody chose.
       FOOTBALL_DATA_EARLIEST_SEASON: "2023"
