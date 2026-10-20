@@ -78,7 +78,8 @@ TASO_API_KEY=your_scraped_key_here
 ## Re-scraping when the key stops working
 
 The key is scraped, not a registered credential, so it can rotate or expire
-without notice.
+without notice. So can the signing salt (Step 3b), which lives in the same
+frontend bundle.
 
 ### How you find out
 
@@ -102,6 +103,7 @@ throws:
 | Failure | What you see |
 |---|---|
 | Stale or missing key | Cloudflare returns **403** with an HTML block page, before TASO's app sees it |
+| Missing, stale or rotated salt | **403** with an empty body (measured 2026-10-15 and 2026-10-20, decisions/681) |
 | Valid key, bad request | TASO returns **200** with `{"call":{"status":"error"}}` — parses fine, contains no usable season |
 
 The second reported healthy until #113: the probe awaited the season and never
@@ -115,11 +117,14 @@ looked at it, so a response with no data at all passed.
    deciding to block, which may mean a stale key — or their WAF reacting to
    something else entirely, such as IP reputation. Re-keying does not fix the
    second, and doing it reflexively hides it.
-3. If the key is the cause, repeat Step 1 against the live site and update the
+3. An empty 403 points at the salt: check `TASO_HASH_SALT` is set on the web
+   and `predictions` services, then compare it with the one the live site's
+   bundle signs with (Step 3b), and update it as the key below.
+4. If the key is the cause, repeat Step 1 against the live site and update the
    Railway variable in **both** environments — the key is shared between
    staging and production (`021-production-environment.md`), so a rotation
    breaks both at once and staging cannot act as an early warning.
-4. Re-run the workflow (*Actions → TASO key check → Run workflow*) to confirm
+5. Re-run the workflow (*Actions → TASO key check → Run workflow*) to confirm
    the fix, rather than waiting for tomorrow's schedule.
 
 ## Done when

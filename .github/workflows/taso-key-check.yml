@@ -1,6 +1,7 @@
 # Why each setting is as it is: decisions/531-configuration-files.md
-# The TASO key is scraped from Palloliitto's public frontend, not issued to us,
-# so it can stop working without notice. This checks it on a schedule.
+# The TASO key and the salt that signs each request are read from Palloliitto's
+# public frontend, not issued to us, so either can stop working without notice.
+# This checks them on a schedule.
 name: TASO key check
 
 on:
@@ -46,8 +47,9 @@ jobs:
           if [ "$taso" != "ok" ]; then
             echo
             echo "::error::TASO check reported '$taso'."
-            echo "Production's TASO key may have stopped working."
-            echo "Re-scrape it: docs/setup/020-taso-api-key.md, 'Re-scraping when the key stops working'."
+            echo "Production's TASO key, or its signing salt TASO_HASH_SALT, may have stopped working:"
+            echo "a missing, stale or rotated salt is refused the same way as a stale key."
+            echo "See docs/setup/020-taso-api-key.md, 'Re-scraping when the key stops working'."
             echo
             echo "A 403 from Cloudflare is the usual sign of a stale key, but it can also"
             echo "be their WAF blocking for another reason — check the body above before"
