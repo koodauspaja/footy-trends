@@ -732,10 +732,14 @@ describe("PredictionQualityPage's choice of the models its charts draw", () => {
   };
   const toggles = () =>
     within(screen.getByRole("list", { name: DRAWN_LABEL })).getAllByRole("listitem");
+  // A series counts as drawn only when its line has points.
   const drawnIn = (heading: string) =>
-    [...screen.getByRole("region", { name: heading }).querySelectorAll("[data-series]")].map(
-      (series) => series.getAttribute("data-series")
-    );
+    [...screen.getByRole("region", { name: heading }).querySelectorAll("[data-series]")]
+      .filter(
+        (series) =>
+          (series.querySelector("[data-part=line]")?.getAttribute("points") ?? "").trim() !== ""
+      )
+      .map((series) => series.getAttribute("data-series"));
   const legendOf = (heading: string) =>
     [...screen.getByRole("region", { name: heading }).querySelectorAll("li")]
       .filter((item) => item.querySelector("svg"))
