@@ -13,6 +13,7 @@ import Redis from "ioredis";
 import postgres from "postgres";
 import { EARLIEST_TASO_SEASON, tasoCategoryNamesCacheKey } from "../src/lib/taso";
 import { CATEGORY_ID, COMPETITION_ID, SEASON } from "../tests/e2e/fixtures/veikkausliiga-2017";
+import { liveRunRedisUrl } from "../tests/support/e2e-redis";
 import { databaseNameFor, testDatabaseUrl } from "../tests/support/test-database";
 import {
   buildFixture,
@@ -31,9 +32,10 @@ import {
 /**
  * Records the domestic TASO answers the e2e suite's stand-in replays, from the
  * rows live runs stored in the test database and the category names cached in
- * Redis. Reads both, writes only `tests/e2e/fixtures/taso-domestic.json.gz`.
+ * their Redis. Reads both, writes only `tests/e2e/fixtures/taso-domestic.json.gz`.
  *
  * decisions/674-e2e-on-an-empty-database.md
+ * decisions/615-e2e-own-redis.md
  */
 
 const OUTPUT = "tests/e2e/fixtures/taso-domestic.json.gz";
@@ -68,7 +70,7 @@ async function record(source: string): Promise<void> {
   };
 
   const sql = postgres(source, { transform: postgres.camel });
-  const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
+  const redis = new Redis(liveRunRedisUrl(process.env.REDIS_URL));
   try {
     // One snapshot, so a refresh landing between the reads cannot mix two
     // versions of a season.

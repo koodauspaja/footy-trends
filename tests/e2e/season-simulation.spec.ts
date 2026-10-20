@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
-import Redis from "ioredis";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
+import { dropCached } from "../support/e2e-redis";
 
 /**
  * `Kauden ennuste` on a league's standings page, end to end, on a real season
@@ -25,13 +25,7 @@ const CHANCE = /^(<\s1|>\s99|\d{1,3})\s%$/;
 // no such competition and the page no panel, so both are dropped once the
 // seasons are stored.
 async function dropCaches() {
-  const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
-  try {
-    const forecasts = await redis.keys("forecast:v4:football-data:*");
-    await redis.del("poisson:v1:football-data", ...forecasts);
-  } finally {
-    await redis.quit();
-  }
+  await dropCached("poisson:v1:football-data", "forecast:v4:football-data:*");
 }
 
 function seasonsOffered(page: Page) {
