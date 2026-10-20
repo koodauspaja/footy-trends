@@ -30,4 +30,5 @@ from it, with `_integration` before its `_test`.
 
 **Running Vitest on this directory directly is refused** (#479): it would read
 `.env`'s development `DATABASE_URL`. The suite's `globalSetup` stops the run
-unless the database name ends in `_integration_test`.
+unless `DATABASE_URL` is exactly the database derived for it, which only the
+wrapper arranges; a database merely named `…_integration_test` is refused.
