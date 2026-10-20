@@ -145,8 +145,7 @@ data. No personal data.
 | File | Minimal assertions |
 |---|---|
 | `tests/unit/lib/prediction-quality.test.ts` | `qualityHref` with and without a choice; the default omitted; slugs in model order |
-| `tests/unit/components/prediction-quality-page.test.tsx` | `parseQualityParams`' `mallit`: missing, default, unknown, all unknown, empty, repeated, reordered, duplicated. The charts draw only the chosen lines; the legends and screen-reader lists match; `Täydellinen kalibrointi` always drawn; the last shown toggle not a link; the switches and competition links carry the choice; no toggles on `NO_JUDGED` or `QUALITY_ERROR`; toggles shown when the rolling chart is not |
-| `tests/unit/lib/prediction-quality-service.test.ts` | The cache key unchanged by a choice |
+| `tests/unit/components/prediction-quality-page.test.tsx` | `parseQualityParams`' `mallit`: missing, default, unknown, all unknown, empty, repeated, reordered, duplicated. The charts draw only the chosen lines; the legends and screen-reader lists match; `Täydellinen kalibrointi` always drawn; the last shown toggle not a link; the switches and competition links carry the choice; no toggles on `NO_JUDGED` or `QUALITY_ERROR`; toggles shown when the rolling chart is not; the report read the same whatever is drawn, so a choice never reaches the cache key |
 | `tests/e2e/prediction-quality.spec.ts` | Toggling a model hides and shows its line, at 375 px; the choice survives switching kind |
 
 Every new test is mutation-checked before review, per `skills/self-review.md`.
