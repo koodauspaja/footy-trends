@@ -565,8 +565,7 @@ export async function storedForeignSeasons(competitionCode: string): Promise<Set
 }
 
 /**
- * Writes a provider snapshot over the stored matches, deleting none. Not
- * serialised: of two at once, the one written last stays.
+ * Writes a provider snapshot over the stored matches, deleting none.
  *
  * decisions/001-premier-league-match-based-standings.md
  * decisions/029-forced-season-refresh.md

@@ -653,8 +653,7 @@ const getSyncedSeasonMatches = cache(async function getSyncedSeasonMatches(
 });
 
 /**
- * Writes a TASO snapshot over the stored matches, deleting none. Not
- * serialised: of two at once, the one written last stays.
+ * Writes a TASO snapshot over the stored matches, deleting none.
  *
  * decisions/009-veikkausliiga.md
  * decisions/029-forced-season-refresh.md
