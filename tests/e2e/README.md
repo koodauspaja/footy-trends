@@ -74,6 +74,11 @@ and the name: `docker ps` shows it, `docker rm -f` removes it.
 Remove the line from `.env` when TASO answers again; e2e tests against the real
 TASO connection then take this one's place.
 
+`tests/e2e/taso.spec.ts` is the one spec that fails when TASO refuses: it asks the
+suite's own `/api/health?providers=1`, whose TASO check makes a real, signed
+request. It is skipped while `E2E_TASO_STUB=1`, and needs `TASO_HASH_SALT`
+(decisions/681).
+
 `npm run test:e2e:record-taso` rewrites the domestic fixture from the test
 database's TASO rows and the live run's Redis. It only reads them, and prints
 what changes against the fixture it replaces: check it before committing, since
