@@ -768,7 +768,7 @@ describe("seasonSummaryFor", () => {
 
   it("states the clean-sheet share against the earlier seasons, newest first", async () => {
     // 70 % beats 2025's 60, 2024's 50 and 2023's 40, then equals 2022's 70. Read
-    // oldest first it would beat none, and one season read four times all four.
+    // oldest first it would beat none, and 2025's read four times all four.
     const shares: Record<number, number> = { 2026: 7, 2025: 6, 2024: 5, 2023: 4, 2022: 7 };
     const summary = await seasonSummaryFor(
       readers({ read: async (key) => kept(key.seasonId, shares[key.seasonId] ?? 0) })

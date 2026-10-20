@@ -59,6 +59,9 @@ its ranking) and decisions/034 (`Nollapelit`).
   | 15 | The count without the selected season | `season-summary-section.test.tsx` |
   | 16 | `Paras` and `Heikoin` swapped | `season-summary-section.test.tsx` |
   | 17 | The block printing the fact as a home or away sentence | `season-summary-section.test.tsx` |
+  | 18 | The earlier seasons' shares read oldest first | `season-summary.test.ts` |
+  | 19, 20 | One earlier season's share used for all of them, the newest; the oldest | `season-summary.test.ts` |
+  | 21 | The selected season's share compared with 30 % for every earlier season | `season-summary.spec.ts`, end to end |
 
 - **End to end**, `tests/e2e/season-summary.spec.ts` seeds the second club and
   reads its block's one sentence, `Paras nollapeliosuus tallennetuilla kausilla:
