@@ -110,6 +110,8 @@ function main(): void {
       docker: dockerIsRunning(),
       footballDataKey: (process.env.FOOTBALL_DATA_API_KEY ?? "").trim() !== "",
       tasoKey: (process.env.TASO_API_KEY ?? "").trim() !== "",
+      tasoSigning:
+        (process.env.TASO_HASH_SALT ?? "").trim() !== "" || process.env.E2E_TASO_STUB === "1",
     }),
   });
 

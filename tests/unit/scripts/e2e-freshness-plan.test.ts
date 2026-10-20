@@ -144,7 +144,7 @@ function minutesAgo(minutes: number): Date {
   return new Date(NOW.getTime() - minutes * 60_000);
 }
 
-const READY = { docker: true, footballDataKey: true, tasoKey: true };
+const READY = { docker: true, footballDataKey: true, tasoKey: true, tasoSigning: true };
 
 function decide(overrides: Partial<Parameters<typeof decideFreshness>[0]> = {}) {
   return decideFreshness({
@@ -168,12 +168,18 @@ describe("missingPrerequisites", () => {
       /FOOTBALL_DATA_API_KEY/
     );
     expect(missingPrerequisites({ ...READY, tasoKey: false })[0]).toMatch(/TASO_API_KEY/);
+    expect(missingPrerequisites({ ...READY, tasoSigning: false })[0]).toMatch(/TASO_HASH_SALT/);
   });
 
-  it("names all three when none are available", () => {
+  it("names all four when none are available", () => {
     expect(
-      missingPrerequisites({ docker: false, footballDataKey: false, tasoKey: false })
-    ).toHaveLength(3);
+      missingPrerequisites({
+        docker: false,
+        footballDataKey: false,
+        tasoKey: false,
+        tasoSigning: false,
+      })
+    ).toHaveLength(4);
   });
 });
 

@@ -92,6 +92,8 @@ export type Prerequisites = {
   docker: boolean;
   footballDataKey: boolean;
   tasoKey: boolean;
+  /** `TASO_HASH_SALT` set, or the stand-in on, which needs none. */
+  tasoSigning: boolean;
 };
 
 export type Verdict = {
@@ -105,12 +107,16 @@ export type Verdict = {
  * these cannot run the suite at all: see `decideFreshness`.
  *
  * decisions/084-e2e-freshness-before-push.md
+ * decisions/681-taso-request-signing.md
  */
 export function missingPrerequisites(prerequisites: Prerequisites): string[] {
   const missing: string[] = [];
   if (!prerequisites.docker) missing.push("Docker is not running (`docker compose up -d`)");
   if (!prerequisites.footballDataKey) missing.push("FOOTBALL_DATA_API_KEY is not set");
   if (!prerequisites.tasoKey) missing.push("TASO_API_KEY is not set");
+  if (!prerequisites.tasoSigning) {
+    missing.push("TASO_HASH_SALT is not set, and E2E_TASO_STUB is not 1");
+  }
   return missing;
 }
 
