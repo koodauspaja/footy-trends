@@ -2,7 +2,8 @@
 
 ## Goal
 Obtain the TASO (`spl.torneopal.net/taso/rest/`) API key used to fetch
-Veikkausliiga data, and store it as a Railway environment variable. Unlike
+Veikkausliiga data, and the salt that signs each request (Step 3b), and store
+them as Railway environment variables. Unlike
 `FOOTBALL_DATA_API_KEY`, there is no registration flow — the key is scraped
 from the real tulospalvelu.palloliitto.fi frontend's own network requests.
 See specs/009-veikkausliiga.md.
