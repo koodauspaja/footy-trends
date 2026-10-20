@@ -1,4 +1,4 @@
-# 069 — Kausi lyhyesti: the clean-sheet fact: decisions
+# 069 — Season summary's clean-sheet fact (`Kausi lyhyesti`): decisions
 
 Implementation notes for `specs/069-season-summary-clean-sheets.md` (#663). The
 spec says what is shown; this says how, and where the build had to decide

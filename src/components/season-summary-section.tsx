@@ -44,8 +44,9 @@ export function sideSentence(fact: SideFact): string {
 }
 
 /**
- * `Paras nollapeliosuus 5 kauteen: 42 % otteluista.`: the share `Nollapelit`
- * prints, counted as a home or away record is.
+ * `Paras nollapeliosuus 5 kauteen: 42 % otteluista.`: the season's share over
+ * all its matches, as `Nollapelit` prints it, with the same count of seasons a
+ * home or away record gives.
  *
  * decisions/069-season-summary-clean-sheets.md
  */

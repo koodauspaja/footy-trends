@@ -70,8 +70,9 @@ export type SideFact = {
 };
 
 /**
- * The clean-sheet share as `Nollapelit` prints it, a whole percent, and how many
- * earlier seasons, newest first, it beats in a row, as a home or away record.
+ * The club's clean-sheet share over the season, home and away together, as
+ * `Nollapelit` prints it, and how many earlier seasons, newest first, it beats
+ * in a row: the same count a home or away record makes.
  *
  * decisions/066-season-summary.md
  * decisions/069-season-summary-clean-sheets.md
