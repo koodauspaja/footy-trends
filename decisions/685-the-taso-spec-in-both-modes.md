@@ -10,7 +10,7 @@ spec; its other decisions stand.
 
 | Decision | Why |
 |---|---|
-| The spec defines one test, unconditionally, requiring the health check's TASO result to be `ok` | A file with none is a spec the freshness check can never see covered, and a skipped test is a gap Sonar reports (`typescript:S1607`). Without the stand-in it is 681's test: signed requests answered by TASO. With it, it proves the stand-in is wired in and answering. |
+| The spec defines one test, unconditionally, requiring the health check's TASO result to be `ok` | A file with none is a spec the freshness check can never see covered, and a skipped test is a gap Sonar reports (`typescript:S1607`). Without the stand-in it is 681's test: signed requests answered by TASO. With it, it checks only that the request is answered: unsigned when the salt is blank, and a miswired run that reached TASO with a salt would pass too. |
 | Not a test that tells the stand-in from TASO | 681 assumed the stand-in refuses `getCompetitions`; since `decisions/674` it answers it, so the health check reads `ok` either way (measured: a stand-in test expecting `error` received `ok`). Telling them apart would need the health check to expose more than it does, for a check no failure has called for. |
 | `isFullRun` is unchanged | Letting it ignore a spec file that lists no tests would weaken what a full run means, which is the check the freshness hook rests on. |
 
