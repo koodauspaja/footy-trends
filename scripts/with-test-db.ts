@@ -1,6 +1,10 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { ensureTestDatabase, integrationDatabaseUrl } from "../tests/support/test-database";
+import {
+  ensureTestDatabase,
+  integrationDatabaseUrl,
+  testDatabaseUrl,
+} from "../tests/support/test-database";
 import { executableFor, exitCodeFor, parseInvocation } from "./with-test-db-plan";
 
 /**
@@ -36,7 +40,9 @@ async function main(command: string, args: string[]): Promise<void> {
 
   const child = spawn(executableFor(command, process.execPath), args, {
     stdio: "inherit",
-    env: { ...process.env, DATABASE_URL: url },
+    // The test database too, so the suite's guard derives `url` from it again:
+    // `DATABASE_URL` no longer holds what it was derived from.
+    env: { ...process.env, DATABASE_URL: url, TEST_DATABASE_URL: testDatabaseUrl() },
   });
 
   child.on("exit", (code) => {

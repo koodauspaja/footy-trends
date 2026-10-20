@@ -1,10 +1,10 @@
 /**
- * Whether a connection string names a test database: the one rule both the
- * e2e analytics override and the integration suite's guard apply. Imports
- * nothing.
+ * Whether a connection string names a test database, for the e2e analytics
+ * override, and whether it is the integration suite's own. Imports nothing.
  *
  * decisions/304-test-database.md
  * decisions/479-integration-suite-database-guard.md
+ * decisions/674-e2e-on-an-empty-database.md
  */
 
 /**
@@ -27,14 +27,6 @@ export function namesTestDatabase(url: string | undefined): boolean {
   return namesDatabaseEndingIn(url, TEST_DATABASE_SUFFIX);
 }
 
-/**
- * The integration suite's own database's suffix, so its rows never reach the
- * database the e2e suite and the TASO recorder use.
- *
- * decisions/674-e2e-on-an-empty-database.md
- */
-const INTEGRATION_DATABASE_SUFFIX = "_integration_test";
-
 function namesDatabaseEndingIn(url: string | undefined, suffix: string): boolean {
   if (url === undefined) return false;
 
@@ -48,22 +40,49 @@ function namesDatabaseEndingIn(url: string | undefined, suffix: string): boolean
 }
 
 /**
- * Why the integration suite must not run against this environment's database,
- * or `null` when it may: only its own, whose name ends `_integration_test`.
+ * Why the integration suite must not run against `actual`, or `null` when it
+ * may: only when it is exactly `expected`, the database derived for the suite,
+ * never one that merely looks like it.
  *
  * decisions/304-test-database.md
  * decisions/479-integration-suite-database-guard.md
  * decisions/674-e2e-on-an-empty-database.md
  */
-export function integrationDatabaseRefusal(env: NodeJS.Dict<string>): string | null {
-  const url = env.DATABASE_URL;
-  if (namesDatabaseEndingIn(url, INTEGRATION_DATABASE_SUFFIX)) return null;
+export function integrationDatabaseRefusal(
+  actual: string | undefined,
+  expected: string | null
+): string | null {
+  if (expected !== null && sameDatabase(actual, expected)) return null;
 
   return (
-    `Refusing to run the integration suite against ${describe(url)}: it is not the ` +
+    `Refusing to run the integration suite against ${describe(actual)}: it is not the ` +
     "suite's own database, and the suite creates and deletes rows. Run `npm run " +
     "test:integration`, which points it at that database."
   );
+}
+
+function sameDatabase(actual: string | undefined, expected: string): boolean {
+  if (actual === undefined) return false;
+  try {
+    return new URL(actual).href === new URL(expected).href;
+  } catch {
+    // Unparseable is never the suite's database.
+    return false;
+  }
+}
+
+/**
+ * A database URL parsed, or an error naming `what` and not the URL: Node's own
+ * error carries the input, password included, to whatever prints it.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
+export function parseDatabaseUrl(url: string, what: string): URL {
+  try {
+    return new URL(url);
+  } catch {
+    throw new Error(`${what} is not a valid URL.`);
+  }
 }
 
 /**

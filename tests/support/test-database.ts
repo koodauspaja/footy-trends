@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
+import { parseDatabaseUrl } from "../../src/lib/test-database-name";
 
 /**
  * The database the test suites use, which is not the development one: derived
@@ -32,7 +33,7 @@ export function testDatabaseUrl(): string {
   const override = (process.env.TEST_DATABASE_URL ?? "").trim();
   if (override !== "") return override;
 
-  // Trimmed, as the override is: a blank value would reach `new URL()`, which
+  // Trimmed, as the override is: a blank value would reach the parse, which
   // throws.
   const base = (process.env.DATABASE_URL ?? "").trim();
   if (base === "") {
@@ -42,7 +43,7 @@ export function testDatabaseUrl(): string {
     );
   }
 
-  const url = new URL(base);
+  const url = parseDatabaseUrl(base, "DATABASE_URL");
   // `pathname` is "/name"; an empty one names no database. The suffix is
   // appended to the encoded name, so the URL still round-trips.
   const encodedName = url.pathname.replace(/^\//, "");
@@ -64,7 +65,7 @@ export function testDatabaseUrl(): string {
  * decisions/304-test-database.md
  */
 export function databaseNameFor(url: string): string {
-  const parsed = new URL(url);
+  const parsed = parseDatabaseUrl(url, "The test database URL");
   const name = decodeURIComponent(parsed.pathname.replace(/^\//, ""));
   // Validated here, where the identifier is produced: an explicit
   // `TEST_DATABASE_URL` skips the derivation. The host only, as above.
@@ -82,7 +83,7 @@ export function databaseNameFor(url: string): string {
  * decisions/674-e2e-on-an-empty-database.md
  */
 export function integrationDatabaseUrl(): string {
-  const url = new URL(testDatabaseUrl());
+  const url = parseDatabaseUrl(testDatabaseUrl(), "The test database URL");
   if (!url.pathname.endsWith("_test")) {
     throw new Error(`The test database name does not end in _test: ${url.host}`);
   }
@@ -101,7 +102,7 @@ export function integrationDatabaseUrl(): string {
 export async function ensureTestDatabase(url: string = testDatabaseUrl()): Promise<string> {
   const name = databaseNameFor(url);
 
-  const adminUrl = new URL(url);
+  const adminUrl = parseDatabaseUrl(url, "The test database URL");
   adminUrl.pathname = "/postgres";
   const admin = postgres(adminUrl.toString(), { max: 1 });
   try {

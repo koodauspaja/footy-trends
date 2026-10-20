@@ -1,3 +1,4 @@
+import { inspect } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   databaseNameFor,
@@ -12,7 +13,21 @@ import {
  *
  * decisions/304-test-database.md
  * decisions/399-local-commands-start-the-database.md
+ * decisions/674-e2e-on-an-empty-database.md
  */
+
+/** Malformed, a space in the host, with a password that must never be printed. */
+const MALFORMED = "postgresql://postgres:hunter2@bad host:5432/footy-trends";
+
+/** The error `run` throws, as the recorder prints it: the whole object, `input` and cause included. */
+function printed(run: () => unknown): string {
+  try {
+    run();
+  } catch (error) {
+    return inspect(error);
+  }
+  throw new Error("expected it to throw");
+}
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -153,5 +168,26 @@ describe("databaseNameFor", () => {
     expect(databaseNameFor("postgresql://postgres@localhost:5432/footy-trends_test")).toBe(
       "footy-trends_test"
     );
+  });
+});
+
+describe("a malformed database URL", () => {
+  it("is refused from DATABASE_URL without printing it", () => {
+    vi.stubEnv("TEST_DATABASE_URL", undefined);
+    vi.stubEnv("DATABASE_URL", MALFORMED);
+
+    const error = printed(() => testDatabaseUrl());
+    expect(error).toContain("DATABASE_URL is not a valid URL.");
+    expect(error).not.toContain("hunter2");
+  });
+
+  it("is refused from TEST_DATABASE_URL without printing it", () => {
+    vi.stubEnv("TEST_DATABASE_URL", MALFORMED);
+
+    for (const run of [() => integrationDatabaseUrl(), () => databaseNameFor(MALFORMED)]) {
+      const error = printed(run);
+      expect(error).toContain("The test database URL is not a valid URL.");
+      expect(error).not.toContain("hunter2");
+    }
   });
 });

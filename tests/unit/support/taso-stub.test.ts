@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { inspect } from "node:util";
 import { describe, expect, it } from "vitest";
 import {
   footballDataCompetitionCacheKey,
@@ -234,6 +235,17 @@ describe("the stand-in run's own database", () => {
     expect(() =>
       standInDatabaseUrl("postgresql://postgres:secret@localhost:5432/footy-trends", 3001)
     ).toThrow("The test database name does not end in _test: localhost:5432");
+  });
+
+  it("refuses a malformed test database URL without printing it", () => {
+    let error: unknown;
+    try {
+      standInDatabaseUrl("postgresql://postgres:hunter2@bad host:5432/footy-trends_test", 3001);
+    } catch (thrown) {
+      error = thrown;
+    }
+    expect(inspect(error)).toContain("The test database URL is not a valid URL.");
+    expect(inspect(error)).not.toContain("hunter2");
   });
 });
 

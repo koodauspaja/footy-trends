@@ -122,6 +122,13 @@ async function record(source: string): Promise<void> {
       categoryNames,
       previousNames: previous?.categories ?? {},
     });
+    // Printed before the fixture is replaced, so no recording replaces it unreported.
+    const changes = summariseChanges(previous, fixture).map((line) => `  ${line}\n`);
+    process.stdout.write(
+      changes.length === 0
+        ? "No competition or category changed against the previous recording.\n"
+        : ["Check before committing; against the previous recording:\n", ...changes].join("")
+    );
     // Written beside the fixture, under this process's own name, and renamed
     // over it: an interrupted run leaves the old file whole, and two runs at
     // once never write the same file.
@@ -137,12 +144,6 @@ async function record(source: string): Promise<void> {
       `${OUTPUT}: ${matches.length} matches, ${groupTeams.length} group rows, ` +
         `${zones.length} zones, names for ${Object.keys(fixture.categories).length} competitions ` +
         `(${Object.values(categoryNames).filter((names) => Object.keys(names).length > 0).length} from Redis)\n`
-    );
-    const changes = summariseChanges(previous, fixture).map((line) => `  ${line}\n`);
-    process.stdout.write(
-      changes.length === 0
-        ? "No competition or category changed against the previous recording.\n"
-        : ["Check before committing; against the previous recording:\n", ...changes].join("")
     );
   } finally {
     await sql.end();

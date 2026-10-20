@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import type { RecordedFixture } from "../../scripts/record-taso-fixture-plan";
+import { parseDatabaseUrl } from "../../src/lib/test-database-name";
 
 /**
  * What the e2e suite's stand-in for TASO answers, as a pure function of the
@@ -135,7 +136,7 @@ export function standInRedis(port: number, appPort: number): { command: string; 
  * decisions/674-e2e-on-an-empty-database.md
  */
 export function standInDatabaseUrl(testUrl: string, appPort: number): string {
-  const url = new URL(testUrl);
+  const url = parseDatabaseUrl(testUrl, "The test database URL");
   const suffix = `_stand_in_${appPort}_test`;
   // Already derived: Playwright evaluates its configuration again in each worker.
   if (url.pathname.endsWith(suffix)) return url.toString();
