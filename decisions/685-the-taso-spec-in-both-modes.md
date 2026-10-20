@@ -22,4 +22,6 @@ On 2026-10-21, `E2E_TASO_STUB=1`, a full `npm run test:e2e`:
 |---|---|---|
 | As 681 left it (the control) | 410 passed | not written |
 | A first attempt, expecting `error` from the stand-in | 410 passed, 1 failed: `ok` received | not written |
-| With this change | see the pull request | |
+| With this change | 411 passed, the TASO spec among them, in `npm run verify` | written |
+
+Without the stand-in, the spec alone passed with the salt set; with it blank, global setup stopped the run before any spec, naming `TASO_HASH_SALT`.
