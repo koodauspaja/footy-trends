@@ -20,14 +20,16 @@ if the test does not share the database.
 
 | | |
 |---|---|
-| Database | `TEST_DATABASE_URL`, or `DATABASE_URL` with `_test` appended to the name |
+| Database | `TEST_DATABASE_URL`, whose name must end in `_test`, or `DATABASE_URL` with `_test` appended to the name |
 | Created and migrated | automatically, by `tests/e2e/global-setup.ts` |
 | Port | 3001, so `npm run dev` can keep running on 3000 |
 | Server reuse | never — a server already listening was started against the *development* database |
 
-`tests/integration` uses the same database, through
-`scripts/with-test-db.ts`. It creates and deletes rows, and used to do that in
-whatever database the developer was signed into.
+`tests/integration` uses a database of its own, `<your database>_integration_test`,
+through `scripts/with-test-db.ts`. It creates and deletes rows, and used to do
+that in whatever database the developer was signed into; kept apart from this
+one, a test interrupted before its cleanup leaves nothing the TASO recorder,
+which reads this database, would record.
 
 ### One season is seeded, not fetched
 
@@ -43,11 +45,41 @@ never refetched, so those pages make no provider request at all.
 An emergency override, for while TASO refuses our requests. Set in `.env`, it
 makes `playwright.config.ts` start `tests/support/taso-stub-server.ts` on port
 3002 (`E2E_TASO_PORT` changes it) and point the app's server at it with
-`TASO_API_BASE_URL`. The stand-in answers `getCategories` and `getMatches` for
-the national-team buckets from `tests/e2e/fixtures/taso-national-teams.json`,
-and refuses every other request, as the provider does now, so a league or cup
-page falls back to the rows already stored. Remove the line when TASO answers
-again. `decisions/672-e2e-without-the-provider.md` has the reasons.
+`TASO_API_BASE_URL`. The stand-in replays recorded answers, so the suite passes
+on an empty test database:
+
+| Fixture | What it holds |
+|---|---|
+| `tests/e2e/fixtures/taso-national-teams.json` | The national-team buckets' categories and matches |
+| `tests/e2e/fixtures/taso-domestic.json.gz` | Every domestic season live runs stored: `getCompetitions`, matches, group tables, and the category names Redis still held |
+
+It refuses every other request, as the provider does now. A stand-in run owns
+what it touches:
+
+| | The run's own | Cleared before each run |
+|---|---|---|
+| Database | `<name>_stand_in_<E2E_PORT>_test`, where the test database is `<name>_test`, which the recorder reads | its TASO rows and TASO predictions |
+| Redis | a container `footy-trends-e2e-stand-in-<E2E_PORT>` of the image `docker-compose.yml` runs, on port 6380 (`E2E_REDIS_PORT`), data kept in the volume `footy-trends-e2e-redis-<port>` | every key but football-data's answers |
+
+So every TASO answer a run uses comes from the recording, and nothing in
+development's database or Redis is read or deleted. football-data's rows and
+cache entries stay between runs, so runs close together do not ask the key
+staging and production share again (the cache holds matches for 15 minutes and
+competitions for an hour). A port already in use stops the run, and so does a
+second run on the same `E2E_PORT`, on Docker's refusal of the container's name.
+If a run is killed hard, its Redis container can outlive it and hold the port
+and the name: `docker ps` shows it, `docker rm -f` removes it.
+
+Remove the line from `.env` when TASO answers again; e2e tests against the real
+TASO connection then take this one's place.
+
+`npm run test:e2e:record-taso` rewrites the domestic fixture from the test
+database's TASO rows and the configured Redis. It only reads them, and prints
+what changes against the fixture it replaces: check it before committing, since
+a competition appearing unasked is an integration test's leftover. Run it after
+a live run has stored what a new spec needs.
+`decisions/672-e2e-without-the-provider.md` and
+`decisions/674-e2e-on-an-empty-database.md` have the reasons.
 
 ## Prerequisites
 

@@ -1,5 +1,10 @@
+import { inspect } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { databaseNameFor, testDatabaseUrl } from "../../support/test-database";
+import {
+  databaseNameFor,
+  integrationDatabaseUrl,
+  testDatabaseUrl,
+} from "../../support/test-database";
 
 /**
  * How the test database's URL is derived. It decides which database every suite
@@ -8,7 +13,21 @@ import { databaseNameFor, testDatabaseUrl } from "../../support/test-database";
  *
  * decisions/304-test-database.md
  * decisions/399-local-commands-start-the-database.md
+ * decisions/674-e2e-on-an-empty-database.md
  */
+
+/** Malformed, a space in the host, with a password that must never be printed. */
+const MALFORMED = "postgresql://postgres:hunter2@bad host:5432/footy-trends";
+
+/** The error `run` throws, as the recorder prints it: the whole object, `input` and cause included. */
+function printed(run: () => unknown): string {
+  try {
+    run();
+  } catch (error) {
+    return inspect(error);
+  }
+  throw new Error("expected it to throw");
+}
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -42,10 +61,10 @@ describe("testDatabaseUrl", () => {
   });
 
   it("trims a usable override rather than passing the spaces on", () => {
-    vi.stubEnv("TEST_DATABASE_URL", "  postgresql://postgres:x@localhost:5432/suite  ");
+    vi.stubEnv("TEST_DATABASE_URL", "  postgresql://postgres:x@localhost:5432/suite_test  ");
     vi.stubEnv("DATABASE_URL", "postgresql://postgres:secret@localhost:5432/footy-trends");
 
-    expect(testDatabaseUrl()).toBe("postgresql://postgres:x@localhost:5432/suite");
+    expect(testDatabaseUrl()).toBe("postgresql://postgres:x@localhost:5432/suite_test");
   });
 
   it("keeps a port, a password and query parameters", () => {
@@ -62,9 +81,17 @@ describe("testDatabaseUrl", () => {
 
   it("prefers an explicit override, so the derivation can be wrong without being fatal", () => {
     vi.stubEnv("DATABASE_URL", "postgresql://postgres@localhost:5432/footy-trends");
-    vi.stubEnv("TEST_DATABASE_URL", "postgresql://postgres@localhost:5432/somewhere-else");
+    vi.stubEnv("TEST_DATABASE_URL", "postgresql://postgres@localhost:5432/somewhere-else_test");
 
-    expect(testDatabaseUrl()).toBe("postgresql://postgres@localhost:5432/somewhere-else");
+    expect(testDatabaseUrl()).toBe("postgresql://postgres@localhost:5432/somewhere-else_test");
+  });
+
+  it("refuses an override whose name does not end in _test, naming only the host", () => {
+    vi.stubEnv("TEST_DATABASE_URL", "postgresql://ci:secret@db.example.com:5432/integration");
+
+    expect(() => testDatabaseUrl()).toThrow(
+      new Error("TEST_DATABASE_URL must name a database ending in _test: db.example.com:5432")
+    );
   });
 
   it("ignores an empty override rather than treating it as a URL", () => {
@@ -79,9 +106,12 @@ describe("testDatabaseUrl", () => {
     // Appending the suffix to nothing would produce `/_test` — a database
     // nobody meant, created on the first run.
     vi.stubEnv("TEST_DATABASE_URL", undefined);
-    vi.stubEnv("DATABASE_URL", "postgresql://postgres@localhost:5432");
+    vi.stubEnv("DATABASE_URL", "postgresql://postgres:hunter2@localhost:5432");
 
-    expect(() => testDatabaseUrl()).toThrow(/names no database/);
+    expect(() => testDatabaseUrl()).toThrow(
+      "DATABASE_URL names no database, so no test database can be derived: localhost:5432"
+    );
+    expect(() => testDatabaseUrl()).not.toThrow(/hunter2/);
   });
 
   it("says what to do when neither variable is set", () => {
@@ -89,6 +119,27 @@ describe("testDatabaseUrl", () => {
     vi.stubEnv("DATABASE_URL", undefined);
 
     expect(() => testDatabaseUrl()).toThrow(/docker compose up -d/);
+  });
+});
+
+describe("integrationDatabaseUrl", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("puts _integration before the test database's _test, keeping everything else", () => {
+    vi.stubEnv("TEST_DATABASE_URL", undefined);
+    vi.stubEnv("DATABASE_URL", "postgresql://postgres:secret@localhost:5432/footy-trends");
+    expect(integrationDatabaseUrl()).toBe(
+      "postgresql://postgres:secret@localhost:5432/footy-trends_integration_test"
+    );
+  });
+
+  it("derives from an explicit TEST_DATABASE_URL too", () => {
+    vi.stubEnv("TEST_DATABASE_URL", "postgresql://ci@db.example.com:5432/suites_test");
+    expect(integrationDatabaseUrl()).toBe(
+      "postgresql://ci@db.example.com:5432/suites_integration_test"
+    );
   });
 });
 
@@ -106,8 +157,11 @@ describe("databaseNameFor", () => {
     // `testDatabaseUrl` checks the derived path, but an explicit
     // `TEST_DATABASE_URL` never goes through it — and an empty name reaches
     // Postgres as `create database ""`.
-    expect(() => databaseNameFor("postgresql://postgres@localhost:5432")).toThrow(
-      /names no database/
+    expect(() => databaseNameFor("postgresql://postgres:hunter2@localhost:5432")).toThrow(
+      "The test database URL names no database: localhost:5432"
+    );
+    expect(() => databaseNameFor("postgresql://postgres:hunter2@localhost:5432")).not.toThrow(
+      /hunter2/
     );
   });
 
@@ -115,5 +169,32 @@ describe("databaseNameFor", () => {
     expect(databaseNameFor("postgresql://postgres@localhost:5432/footy-trends_test")).toBe(
       "footy-trends_test"
     );
+  });
+});
+
+describe("a malformed database URL", () => {
+  it("is refused from DATABASE_URL without printing it", () => {
+    vi.stubEnv("TEST_DATABASE_URL", undefined);
+    vi.stubEnv("DATABASE_URL", MALFORMED);
+
+    const error = printed(() => testDatabaseUrl());
+    expect(error).toContain("DATABASE_URL is not a valid URL.");
+    expect(error).not.toContain("hunter2");
+  });
+
+  it("is refused from TEST_DATABASE_URL without printing it", () => {
+    vi.stubEnv("TEST_DATABASE_URL", MALFORMED);
+
+    for (const run of [() => testDatabaseUrl(), () => integrationDatabaseUrl()]) {
+      const error = printed(run);
+      expect(error).toContain("TEST_DATABASE_URL is not a valid URL.");
+      expect(error).not.toContain("hunter2");
+    }
+  });
+
+  it("is refused when handed over directly, without printing it", () => {
+    const error = printed(() => databaseNameFor(MALFORMED));
+    expect(error).toContain("The test database URL is not a valid URL.");
+    expect(error).not.toContain("hunter2");
   });
 });

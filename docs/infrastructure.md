@@ -183,8 +183,8 @@ checkout of the commit that environment runs. It rewrites every row.
 
 | | Staging | Production | Local | Tests |
 |---|---|---|---|---|
-| Postgres | Railway, v18 | Railway, v18 | `docker-compose.yml`, `postgres:18-alpine` | the local server, database `<name>_test` (decisions/304) |
-| Redis | Railway, 8.2 | Railway, 8.2 | `docker-compose.yml`, `redis:8-alpine` | the local one; integration tests mock the cache |
+| Postgres | Railway, v18 | Railway, v18 | `docker-compose.yml`, `postgres:18-alpine` | the local server: e2e `<name>_test` (decisions/304), integration `<name>_integration_test` (decisions/674); `<name>_stand_in_<port>_test` for e2e with `E2E_TASO_STUB=1`, its TASO rows and TASO predictions cleared each run (decisions/674) |
+| Redis | Railway, 8.2 | Railway, 8.2 | `docker-compose.yml`, `redis:8-alpine` | the local one; integration tests mock the cache; with `E2E_TASO_STUB=1`, e2e starts its own `redis:8-alpine` container, `footy-trends-e2e-stand-in-<E2E_PORT>`, on `127.0.0.1:6380`, data kept in the volume `footy-trends-e2e-redis-<port>`, every key but football-data's answers cleared each run (decisions/674) |
 
 - **Schema:** `src/db/schema.ts`; migrations in `drizzle/`, named
   `<verb>_<what>`, never edited once applied anywhere (CLAUDE.md).
@@ -212,8 +212,13 @@ checkout of the commit that environment runs. It rewrites every row.
   on its next sync; a finished season is never refetched, so without the run
   its tables show no zones (decisions/063).
 - **The suites never touch the development database.** `npm run
-  test:integration` and `npm run test:e2e` create and migrate `<name>_test`;
-  e2e builds the application and serves that production build on port 3001.
+  test:integration` creates and migrates `<name>_integration_test`, and `npm
+  run test:e2e` `<name>_test`; e2e builds the application and serves that
+  production build on port 3001.
+  With `E2E_TASO_STUB=1`, a temporary override while TASO refuses our requests,
+  e2e answers TASO from recorded fixtures on port 3002 and uses its own database
+  and Redis container, so it reaches neither TASO nor development's Redis (decisions/672,
+  decisions/674).
 
 ## GitHub
 
@@ -345,7 +350,7 @@ A change to the thing on the left needs the script on the right checked.
 |---|---|
 | The board's status names | `scripts/release-pr-plan.ts` |
 | The local services in `docker-compose.yml` | `scripts/services-plan.ts`, `scripts/ensure-services.ts` |
-| The test database's name ending in `_test` | `scripts/with-test-db.ts`, the integration suite's global setup |
+| The test databases' names: `_test` for e2e, `_integration_test` for integration | `scripts/with-test-db.ts`, the integration suite's global setup |
 | The checkbox and reason shape on issues | `scripts/issue-boxes-plan.ts` |
 | Conventional commit subjects | `scripts/next-version.ts`, the release notes |
 | CI's stages | `npm run verify`, compared with the workflows by a unit test |

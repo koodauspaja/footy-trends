@@ -339,6 +339,14 @@ export const COMPOSE_POSTGRES_USER = "postgres";
 export const COMPOSE_TEST_DATABASE_NAME = `${COMPOSE_DATABASE_NAME}_test`;
 
 /**
+ * The integration suite's own database, as `integrationDatabaseUrl` derives it
+ * from the one above.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
+export const COMPOSE_INTEGRATION_DATABASE_NAME = `${COMPOSE_DATABASE_NAME}_integration_test`;
+
+/**
  * Whether this URL names the database compose creates, not merely one on its
  * server: safe to destroy and correct to migrate is true of exactly one.
  *
@@ -438,11 +446,12 @@ export async function waitFor(
 }
 
 /**
- * Why the test database may not be dropped, or `null` when it may. Laxer than
+ * Why a suite's database may not be dropped, or `null` when it may. Laxer than
  * `resetRefusal`: it refuses anything not on the compose server, and anything
- * but the one test database.
+ * but the suites' two databases.
  *
  * decisions/406-safe-and-destructive-resets.md
+ * decisions/674-e2e-on-an-empty-database.md
  */
 export function testResetRefusal(url: string | undefined): string | null {
   if (url === undefined || url.trim() === "") {
@@ -461,7 +470,7 @@ export function testResetRefusal(url: string | undefined): string | null {
   // A string by here, not `string | null`: `runsOnComposeServer` has already
   // parsed this URL.
   const name = databaseNameOf(url) as string;
-  if (name === COMPOSE_TEST_DATABASE_NAME) return null;
+  if ([COMPOSE_TEST_DATABASE_NAME, COMPOSE_INTEGRATION_DATABASE_NAME].includes(name)) return null;
 
   // One exact name, not "anything that is not the dev database". The development
   // database keeps its own message, as pointing this at it is the likely mistake.
@@ -475,7 +484,7 @@ export function testResetRefusal(url: string | undefined): string | null {
   }
 
   return [
-    `Refusing to drop ${name} — this command resets ${COMPOSE_TEST_DATABASE_NAME}, nothing else.`,
+    `Refusing to drop ${name} — this command resets ${COMPOSE_TEST_DATABASE_NAME} and ${COMPOSE_INTEGRATION_DATABASE_NAME}, nothing else.`,
     "",
     "Check TEST_DATABASE_URL. Anything else on that server, Postgres's own",
     "databases included, is left alone.",

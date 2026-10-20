@@ -54,6 +54,15 @@ export function tasoCategoryCacheKey(competitionId: string, categoryId: string):
 }
 
 /**
+ * The Redis key one season's category names are cached under.
+ *
+ * decisions/013-more-finnish-competitions.md
+ */
+export function tasoCategoryNamesCacheKey(competitionId: string): string {
+  return `taso:categories:${competitionId}`;
+}
+
+/**
  * How long one TASO request waits before a page render gives up on it. Insurance
  * against a stalled provider, not a latency budget; `/api/health` passes its
  * own, shorter signal on top.
@@ -386,7 +395,7 @@ type CompetitionsResponse = { competitions?: TasoCompetition[] };
  *
  * decisions/011-current-season-discovery.md
  */
-const SEASON_COMPETITION_ID = /^spljp\d{2}$/;
+export const SEASON_COMPETITION_ID = /^spljp\d{2}$/;
 
 /**
  * The newest published Finnish football season, or `null` when TASO
@@ -625,7 +634,7 @@ export type NormalizedTasoGroupLevel = {
   label: string | null;
 };
 
-const LEVELS_PER_GROUP = 10;
+export const LEVELS_PER_GROUP = 10;
 
 /**
  * The ten counts of `next_stage_levels`, or null when the string is not ten

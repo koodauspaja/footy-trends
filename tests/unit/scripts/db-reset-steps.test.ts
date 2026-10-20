@@ -174,7 +174,19 @@ describe("runTestReset", () => {
     // thing about to use it does anyway.
     expect(a.steps).toEqual([
       "drop",
-      "out:The test database is gone. The next test run recreates and migrates it.",
+      "out:footy-trends_test is gone. The next test run recreates and migrates it.",
+    ]);
+  });
+
+  it("drops the integration suite's database too, naming it", async () => {
+    const a = testActions({
+      url: "postgresql://postgres:x@localhost:5432/footy-trends_integration_test",
+    });
+
+    expect(await runTestReset(a)).toBe(0);
+    expect(a.steps).toEqual([
+      "drop",
+      "out:footy-trends_integration_test is gone. The next test run recreates and migrates it.",
     ]);
   });
 
@@ -197,7 +209,7 @@ describe("runTestReset", () => {
     const a = testActions({ dropDatabase: async () => false });
 
     expect(await runTestReset(a)).toBe(1);
-    expect(a.steps.at(-1)).toContain("Could not drop");
+    expect(a.steps.at(-1)).toBe("err:Could not drop footy-trends_test. Its error is above.");
   });
 });
 

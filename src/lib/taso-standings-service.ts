@@ -63,6 +63,7 @@ import {
   normalizeGroupTeams,
   parseProviderId,
   type TasoGroup,
+  tasoCategoryNamesCacheKey,
 } from "./taso";
 import type { TeamPanelMatches } from "./team-panels";
 import type { TeamSeason } from "./team-seasons";
@@ -505,7 +506,7 @@ export async function getSeasonCategoryName(
   const ttl = seasonId >= activeSeasonId ? CURRENT_SEASON_CACHE_TTL_SECONDS : 60 * 60 * 24 * 365;
   try {
     const names = await getCached<Record<string, string>>(
-      `taso:categories:${competitionId}`,
+      tasoCategoryNamesCacheKey(competitionId),
       ttl,
       () => getSeasonCategoryNames(competitionId)
     );
@@ -531,7 +532,7 @@ export function getSeasonCategoryNameMap(
   activeSeasonId: number
 ): Promise<Record<string, string>> {
   const ttl = seasonId >= activeSeasonId ? CURRENT_SEASON_CACHE_TTL_SECONDS : 60 * 60 * 24 * 365;
-  return getCached<Record<string, string>>(`taso:categories:${competitionId}`, ttl, () =>
+  return getCached<Record<string, string>>(tasoCategoryNamesCacheKey(competitionId), ttl, () =>
     getSeasonCategoryNames(competitionId)
   );
 }

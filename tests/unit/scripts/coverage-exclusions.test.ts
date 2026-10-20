@@ -93,6 +93,7 @@ describe("the coverage exclusion list", () => {
     "scripts/db-reset.ts",
     "scripts/predictions.ts",
     "scripts/railway-environment.ts",
+    "scripts/record-taso-fixture.ts",
     // The tooling's own configuration.
     "drizzle.config.ts",
     "next.config.ts",
