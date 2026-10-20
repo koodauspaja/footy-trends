@@ -162,6 +162,7 @@ more once the Sentry configs read their settings from the environment.
 | `FOOTBALL_DATA_EARLIEST_SEASON` | manual | Bounded by the football-data.org plan |
 | `FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS` | manual | |
 | `TASO_API_KEY` | manual | **Shared with staging**, and scraped — see *TASO key* below |
+| `TASO_HASH_SALT` | manual | **Shared with staging**; signs TASO requests, also on the `predictions` service — 020, decisions/681 |
 | `GOOGLE_CLIENT_ID` | manual | From the **production** Google Cloud project — a different project from the one local and staging use. Do 014's production half now: `docs/setup/014-google-oauth-setup.md` |
 | `GOOGLE_CLIENT_SECRET` | manual | Same project as above. Shown once at creation; see 014 |
 | `BETTER_AUTH_SECRET` | manual | `openssl rand -base64 32`, **its own** rather than staging's. Changing it invalidates every session cookie |
