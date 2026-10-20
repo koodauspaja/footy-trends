@@ -49,13 +49,12 @@ async function confirm(yes: boolean): Promise<ConfirmationOutcome> {
  * decisions/674-e2e-on-an-empty-database.md
  */
 function suiteDatabaseUrl(derive: () => string): string | undefined {
-  try {
-    return derive();
-  } catch {
-    // It throws when neither variable is set, which `testResetRefusal` reports
-    // better than a stack trace would.
-    return undefined;
-  }
+  const configured = [process.env.TEST_DATABASE_URL, process.env.DATABASE_URL].some(
+    (value) => (value ?? "").trim() !== ""
+  );
+  // Neither set: `testResetRefusal` says so better than the derivation would.
+  // Anything else it refuses, it says itself.
+  return configured ? derive() : undefined;
 }
 
 async function main(): Promise<void> {
@@ -97,4 +96,8 @@ async function main(): Promise<void> {
   });
 }
 
-void main();
+main().catch((error: unknown) => {
+  // The derivations' messages name a host at most, never a password.
+  err(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
+});

@@ -20,7 +20,7 @@ if the test does not share the database.
 
 | | |
 |---|---|
-| Database | `TEST_DATABASE_URL`, or `DATABASE_URL` with `_test` appended to the name |
+| Database | `TEST_DATABASE_URL`, whose name must end in `_test`, or `DATABASE_URL` with `_test` appended to the name |
 | Created and migrated | automatically, by `tests/e2e/global-setup.ts` |
 | Port | 3001, so `npm run dev` can keep running on 3000 |
 | Server reuse | never — a server already listening was started against the *development* database |

@@ -22,16 +22,25 @@ const SUFFIX = "_test";
 const MIGRATION_LOCK_KEY = 3_040_304;
 
 /**
- * `postgres://…/footy-trends` → `postgres://…/footy-trends_test`.
+ * `postgres://…/footy-trends` → `postgres://…/footy-trends_test`, or the
+ * override, whose name must end in `_test` too.
  *
  * decisions/304-test-database.md
  * decisions/399-local-commands-start-the-database.md
+ * decisions/674-e2e-on-an-empty-database.md
  */
 export function testDatabaseUrl(): string {
   // Blank counts as unset, trimmed: the rule the preflight's
   // `effectiveDatabaseUrl` applies to this variable.
   const override = (process.env.TEST_DATABASE_URL ?? "").trim();
-  if (override !== "") return override;
+  if (override !== "") {
+    // Every suite derives from the name, and e2e signs in only on such a one.
+    const url = parseDatabaseUrl(override, "TEST_DATABASE_URL");
+    if (!url.pathname.endsWith(SUFFIX)) {
+      throw new Error(`TEST_DATABASE_URL must name a database ending in _test: ${url.host}`);
+    }
+    return override;
+  }
 
   // Trimmed, as the override is: a blank value would reach the parse, which
   // throws.
@@ -83,10 +92,8 @@ export function databaseNameFor(url: string): string {
  * decisions/674-e2e-on-an-empty-database.md
  */
 export function integrationDatabaseUrl(): string {
+  // Ends in `_test`: `testDatabaseUrl` derives it so or refuses the override.
   const url = parseDatabaseUrl(testDatabaseUrl(), "The test database URL");
-  if (!url.pathname.endsWith("_test")) {
-    throw new Error(`The test database name does not end in _test: ${url.host}`);
-  }
   url.pathname = url.pathname.replace(/_test$/, "_integration_test");
   return url.toString();
 }

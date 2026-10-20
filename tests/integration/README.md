@@ -26,7 +26,8 @@ reads that one, and a test interrupted before its cleanup must not leave rows
 there to be recorded as TASO's.
 
 `TEST_DATABASE_URL` overrides the e2e suite's database, and this one is derived
-from it, with `_integration` before its `_test`.
+from it, with `_integration` before its `_test`; an override whose name does not
+end in `_test` is refused.
 
 **Running Vitest on this directory directly is refused** (#479): it would read
 `.env`'s development `DATABASE_URL`. The suite's `globalSetup` stops the run

@@ -61,10 +61,10 @@ describe("testDatabaseUrl", () => {
   });
 
   it("trims a usable override rather than passing the spaces on", () => {
-    vi.stubEnv("TEST_DATABASE_URL", "  postgresql://postgres:x@localhost:5432/suite  ");
+    vi.stubEnv("TEST_DATABASE_URL", "  postgresql://postgres:x@localhost:5432/suite_test  ");
     vi.stubEnv("DATABASE_URL", "postgresql://postgres:secret@localhost:5432/footy-trends");
 
-    expect(testDatabaseUrl()).toBe("postgresql://postgres:x@localhost:5432/suite");
+    expect(testDatabaseUrl()).toBe("postgresql://postgres:x@localhost:5432/suite_test");
   });
 
   it("keeps a port, a password and query parameters", () => {
@@ -81,9 +81,17 @@ describe("testDatabaseUrl", () => {
 
   it("prefers an explicit override, so the derivation can be wrong without being fatal", () => {
     vi.stubEnv("DATABASE_URL", "postgresql://postgres@localhost:5432/footy-trends");
-    vi.stubEnv("TEST_DATABASE_URL", "postgresql://postgres@localhost:5432/somewhere-else");
+    vi.stubEnv("TEST_DATABASE_URL", "postgresql://postgres@localhost:5432/somewhere-else_test");
 
-    expect(testDatabaseUrl()).toBe("postgresql://postgres@localhost:5432/somewhere-else");
+    expect(testDatabaseUrl()).toBe("postgresql://postgres@localhost:5432/somewhere-else_test");
+  });
+
+  it("refuses an override whose name does not end in _test, naming only the host", () => {
+    vi.stubEnv("TEST_DATABASE_URL", "postgresql://ci:secret@db.example.com:5432/integration");
+
+    expect(() => testDatabaseUrl()).toThrow(
+      new Error("TEST_DATABASE_URL must name a database ending in _test: db.example.com:5432")
+    );
   });
 
   it("ignores an empty override rather than treating it as a URL", () => {
@@ -133,13 +141,6 @@ describe("integrationDatabaseUrl", () => {
       "postgresql://ci@db.example.com:5432/suites_integration_test"
     );
   });
-
-  it("refuses a TEST_DATABASE_URL whose name does not end in _test, naming only the host", () => {
-    vi.stubEnv("TEST_DATABASE_URL", "postgresql://ci:secret@db.example.com:5432/integration");
-    expect(() => integrationDatabaseUrl()).toThrow(
-      "The test database name does not end in _test: db.example.com:5432"
-    );
-  });
 });
 
 describe("databaseNameFor", () => {
@@ -184,10 +185,16 @@ describe("a malformed database URL", () => {
   it("is refused from TEST_DATABASE_URL without printing it", () => {
     vi.stubEnv("TEST_DATABASE_URL", MALFORMED);
 
-    for (const run of [() => integrationDatabaseUrl(), () => databaseNameFor(MALFORMED)]) {
+    for (const run of [() => testDatabaseUrl(), () => integrationDatabaseUrl()]) {
       const error = printed(run);
-      expect(error).toContain("The test database URL is not a valid URL.");
+      expect(error).toContain("TEST_DATABASE_URL is not a valid URL.");
       expect(error).not.toContain("hunter2");
     }
+  });
+
+  it("is refused when handed over directly, without printing it", () => {
+    const error = printed(() => databaseNameFor(MALFORMED));
+    expect(error).toContain("The test database URL is not a valid URL.");
+    expect(error).not.toContain("hunter2");
   });
 });
