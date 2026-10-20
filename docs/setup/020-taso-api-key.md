@@ -35,7 +35,7 @@ every server-to-server request too:
 | `User-Agent` | A real desktop browser UA string |
 
 `Referer`/`Origin`/`User-Agent` are fixed constants in `src/lib/taso.ts`,
-not secrets — only the key itself needs an environment variable.
+not secrets — the key and the signing salt (Step 3b) need environment variables.
 
 ---
 
