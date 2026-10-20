@@ -73,8 +73,6 @@ if (!TASO_STUB && (process.env.E2E_TASO_STUB ?? "") !== "") {
 // With the stand-in, a database of its own, set for the whole run as REDIS_URL
 // is: global setup and the specs read it too.
 if (TASO_STUB) process.env.TEST_DATABASE_URL = standInDatabaseUrl(testDatabaseUrl(), PORT);
-const TASO_PORT = e2eTasoPort(process.env);
-const TASO_URL = `http://localhost:${TASO_PORT}`;
 
 /**
  * The run's own Redis while the stand-in is on, set for the whole run, not only
@@ -101,13 +99,28 @@ function redisServer() {
   };
 }
 
-const tasoStub = {
-  command: "node --import tsx tests/support/taso-stub-server.ts",
-  url: TASO_URL,
-  reuseExistingServer: false,
-  env: { ...process.env, E2E_TASO_PORT: String(TASO_PORT) },
-  timeout: 30_000,
-};
+/**
+ * The stand-in for TASO and the address the app's server is pointed at. Read only
+ * when the stand-in is on, so `E2E_TASO_PORT` cannot stop a live run.
+ *
+ * decisions/672-e2e-without-the-provider.md
+ * decisions/674-e2e-on-an-empty-database.md
+ */
+function tasoStub() {
+  const port = e2eTasoPort(process.env);
+  const url = `http://localhost:${port}`;
+  return {
+    url,
+    server: {
+      command: "node --import tsx tests/support/taso-stub-server.ts",
+      url,
+      reuseExistingServer: false,
+      env: { ...process.env, E2E_TASO_PORT: String(port) },
+      timeout: 30_000,
+    },
+  };
+}
+const stub = TASO_STUB ? tasoStub() : undefined;
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -138,7 +151,7 @@ export default defineConfig({
     },
   ],
   webServer: [
-    ...(TASO_STUB ? [redisServer(), tasoStub] : []),
+    ...(stub ? [redisServer(), stub.server] : []),
     {
       command: serverCommand(target, PORT),
       url: BASE_URL,
@@ -151,7 +164,7 @@ export default defineConfig({
       env: withoutSentry({
         ...process.env,
         DATABASE_URL: testDatabaseUrl(),
-        ...(TASO_STUB ? { TASO_API_BASE_URL: TASO_URL } : {}),
+        ...(stub ? { TASO_API_BASE_URL: stub.url } : {}),
         [E2E_ANALYTICS_FLAG]: "1",
       }),
       timeout: startUpTimeoutMs(target),

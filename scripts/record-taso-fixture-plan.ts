@@ -109,6 +109,16 @@ export function isRecorded(row: Row, selection: Selection): boolean {
   );
 }
 
+/**
+ * Refuses a stand-in run's database as the recording's source: its TASO rows are
+ * the recording replayed, and a stand-in run clears them before each run.
+ */
+export function refuseStandInSource(databaseName: string): void {
+  if (/_stand_in_\d+_test$/.test(databaseName)) {
+    throw new Error(`${databaseName} is a stand-in run's database; record from the test database`);
+  }
+}
+
 /** Where the e2e specs' own match ids start, far above any TASO uses. */
 const FIRST_SYNTHETIC_MATCH_ID = 999_000_000;
 

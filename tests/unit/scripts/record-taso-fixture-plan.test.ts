@@ -5,6 +5,7 @@ import {
   isRecorded,
   parseCategoryNames,
   type RecordedFixture,
+  refuseStandInSource,
   type Selection,
   type StoredGroupTeam,
   type StoredMatch,
@@ -121,6 +122,21 @@ describe("which stored rows are recorded", () => {
   ])("records %s: %s", (_case, row, expected) => {
     expect(isRecorded(row, selection)).toBe(expected);
   });
+});
+
+describe("the recording's source database", () => {
+  it.each(["footy-trends_test", "footy-trends_674_test"])("accepts %s", (name) => {
+    expect(() => refuseStandInSource(name)).not.toThrow();
+  });
+
+  it.each(["footy-trends_stand_in_3001_test", "footy-trends_674_stand_in_3011_test"])(
+    "refuses %s, a stand-in run's database",
+    (name) => {
+      expect(() => refuseStandInSource(name)).toThrow(
+        `${name} is a stand-in run's database; record from the test database`
+      );
+    }
+  );
 });
 
 describe("which stored matches came from TASO", () => {

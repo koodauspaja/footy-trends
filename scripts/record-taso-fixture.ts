@@ -1,17 +1,26 @@
-import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { inspect } from "node:util";
 import { gunzipSync, gzipSync } from "node:zlib";
 import Redis from "ioredis";
 import postgres from "postgres";
 import { EARLIEST_TASO_SEASON, tasoCategoryNamesCacheKey } from "../src/lib/taso";
 import { CATEGORY_ID, COMPETITION_ID, SEASON } from "../tests/e2e/fixtures/veikkausliiga-2017";
-import { testDatabaseUrl } from "../tests/support/test-database";
+import { databaseNameFor, testDatabaseUrl } from "../tests/support/test-database";
 import {
   buildFixture,
   isProviderMatch,
   isRecorded,
   parseCategoryNames,
   type RecordedFixture,
+  refuseStandInSource,
   type Selection,
   type StoredGroupTeam,
   type StoredMatch,
@@ -29,15 +38,36 @@ import {
 
 const OUTPUT = "tests/e2e/fixtures/taso-domestic.json.gz";
 
+/** Held for the whole recording, so a second one refuses to start rather than race it. */
+const LOCK = `${OUTPUT}.lock`;
+
 async function main(): Promise<void> {
   if (existsSync(".env")) process.loadEnvFile(".env");
+  const source = testDatabaseUrl();
+  refuseStandInSource(databaseNameFor(source));
+  try {
+    closeSync(openSync(LOCK, "wx"));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    throw new Error(
+      `${LOCK} exists: another recording is running, or one was killed; remove it if none is`
+    );
+  }
+  try {
+    await record(source);
+  } finally {
+    rmSync(LOCK, { force: true });
+  }
+}
+
+async function record(source: string): Promise<void> {
   const selection: Selection = {
     earliestSeason: EARLIEST_TASO_SEASON,
     latestSeason: new Date().getFullYear(),
     seeded: { competitionId: COMPETITION_ID, categoryId: CATEGORY_ID, seasonId: SEASON },
   };
 
-  const sql = postgres(testDatabaseUrl(), { transform: postgres.camel });
+  const sql = postgres(source, { transform: postgres.camel });
   const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
   try {
     // One snapshot, so a refresh landing between the reads cannot mix two
@@ -108,11 +138,11 @@ async function main(): Promise<void> {
         `${zones.length} zones, names for ${Object.keys(fixture.categories).length} competitions ` +
         `(${Object.values(categoryNames).filter((names) => Object.keys(names).length > 0).length} from Redis)\n`
     );
-    const changes = summariseChanges(previous, fixture);
+    const changes = summariseChanges(previous, fixture).map((line) => `  ${line}\n`);
     process.stdout.write(
       changes.length === 0
         ? "No competition or category changed against the previous recording.\n"
-        : `Check before committing; against the previous recording:\n${changes.map((line) => `  ${line}\n`).join("")}`
+        : ["Check before committing; against the previous recording:\n", ...changes].join("")
     );
   } finally {
     await sql.end();
