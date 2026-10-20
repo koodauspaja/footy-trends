@@ -1,7 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
-import Redis from "ioredis";
 import postgres from "postgres";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
+import { dropCached } from "../support/e2e-redis";
 import { testDatabaseUrl } from "../support/test-database";
 
 /**
@@ -86,21 +86,13 @@ async function remove(sql: postgres.Sql) {
 // Every cached read the seeded rows can reach: the replays over football-data's
 // stored matches, the backtest report, and the seasons' tables.
 async function dropCachedReads() {
-  const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
-  try {
-    const derived = [
-      ...(await redis.keys("forecast:v4:football-data:*")),
-      ...(await redis.keys("quality:v3:football-data:*")),
-    ];
-    await redis.del(
-      "elo:v1:football-data",
-      "poisson:v1:football-data",
-      ...[2020, 2021, 2022, 2023, 2024].map((seasonId) => `standings:PL:${seasonId}`),
-      ...derived
-    );
-  } finally {
-    await redis.quit();
-  }
+  await dropCached(
+    "elo:v1:football-data",
+    "poisson:v1:football-data",
+    ...[2020, 2021, 2022, 2023, 2024].map((seasonId) => `standings:PL:${seasonId}`),
+    "forecast:v4:football-data:*",
+    "quality:v3:football-data:*"
+  );
 }
 
 test.beforeAll(async () => {
@@ -120,6 +112,7 @@ test.beforeAll(async () => {
       kickoff_at: new Date(Date.UTC(2023, 8, 6, 15)),
     })}`;
   });
+  await dropCachedReads();
 });
 
 test.afterAll(async () => {

@@ -1,7 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
-import Redis from "ioredis";
 import postgres from "postgres";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
+import { dropCached } from "../support/e2e-redis";
 import { testDatabaseUrl } from "../support/test-database";
 
 /**
@@ -32,16 +32,10 @@ async function withDatabase(run: (sql: postgres.Sql) => Promise<unknown>) {
   }
 }
 
-// The domestic reports are cached for 15 minutes, so one made before the seed,
-// by an earlier run or another suite, would leave the seeded match out.
+// The domestic reports are cached for 15 minutes: one made before the seed
+// would leave the seeded match out, and one made with it would outlive it.
 async function dropReports() {
-  const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
-  try {
-    const reports = await redis.keys("quality:v3:taso:*");
-    if (reports.length > 0) await redis.del(...reports);
-  } finally {
-    await redis.quit();
-  }
+  await dropCached("quality:v3:taso:*");
 }
 
 async function clear(sql: postgres.Sql) {
@@ -90,6 +84,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await withDatabase(clear);
+  await dropReports();
 });
 
 function region(page: Page, name: string) {

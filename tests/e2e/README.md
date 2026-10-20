@@ -24,6 +24,7 @@ if the test does not share the database.
 | Created and migrated | automatically, by `tests/e2e/global-setup.ts` |
 | Port | 3001, so `npm run dev` can keep running on 3000 |
 | Server reuse | never — a server already listening was started against the *development* database |
+| Redis | database 1 on the server `REDIS_URL` names; with `E2E_TASO_STUB=1`, a container of its own (below). Specs drop cache entries through `dropCached` in `tests/support/e2e-redis.ts` |
 
 `tests/integration` uses a database of its own, `<your database>_integration_test`,
 through `scripts/with-test-db.ts`. It creates and deletes rows, and used to do
@@ -74,7 +75,7 @@ Remove the line from `.env` when TASO answers again; e2e tests against the real
 TASO connection then take this one's place.
 
 `npm run test:e2e:record-taso` rewrites the domestic fixture from the test
-database's TASO rows and the configured Redis. It only reads them, and prints
+database's TASO rows and the live run's Redis. It only reads them, and prints
 what changes against the fixture it replaces: check it before committing, since
 a competition appearing unasked is an integration test's leftover. Run it after
 a live run has stored what a new spec needs.

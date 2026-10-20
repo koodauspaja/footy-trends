@@ -12,6 +12,7 @@
  * decisions/656-e2e-sends-nothing-to-sentry.md
  * decisions/672-e2e-without-the-provider.md
  * decisions/674-e2e-on-an-empty-database.md
+ * decisions/615-e2e-own-redis.md
  */
 
 import { existsSync } from "node:fs";
@@ -26,6 +27,7 @@ import {
   withoutSentry,
 } from "./scripts/e2e-target";
 import { E2E_ANALYTICS_FLAG } from "./src/lib/e2e-analytics";
+import { e2eRedisUrl } from "./tests/support/e2e-redis";
 import { standInDatabaseUrl, standInRedis } from "./tests/support/taso-stub";
 import { testDatabaseUrl } from "./tests/support/test-database";
 
@@ -61,7 +63,7 @@ const BASE_URL = `http://localhost:${PORT}`;
 /**
  * `E2E_TASO_STUB=1` points the app at a local stand-in for TASO, for while the
  * provider refuses our requests, and at a Redis of its own. Unset, the suite
- * reaches TASO and the configured Redis as before.
+ * reaches TASO, and a database of its own on the configured Redis.
  *
  * decisions/672-e2e-without-the-provider.md
  * decisions/674-e2e-on-an-empty-database.md
@@ -70,23 +72,19 @@ const TASO_STUB = process.env.E2E_TASO_STUB === "1";
 if (!TASO_STUB && (process.env.E2E_TASO_STUB ?? "") !== "") {
   throw new Error("E2E_TASO_STUB is 1 or unset; anything else would leave the stand-in off.");
 }
-// With the stand-in, a database of its own, set for the whole run as REDIS_URL
-// is: global setup and the specs read it too.
+// With the stand-in, a database of its own, set for the whole run: global setup
+// and the specs read it too.
 if (TASO_STUB) process.env.TEST_DATABASE_URL = standInDatabaseUrl(testDatabaseUrl(), PORT);
 
 /**
- * The run's own Redis while the stand-in is on, set for the whole run, not only
- * the server: the specs that drop cache keys must reach the one the server reads.
- * Workers inherit it. Read only then, so the variable cannot stop a live run.
+ * The run's own Redis while the stand-in is on. Read only then, so the variable
+ * cannot stop a live run.
  *
  * decisions/674-e2e-on-an-empty-database.md
  */
 function redisServer() {
-  const port = e2eRedisPort(process.env);
-  const redis = standInRedis(port, PORT);
-  process.env.REDIS_URL = redis.url;
   return {
-    command: redis.command,
+    command: standInRedis(e2eRedisPort(process.env), PORT).command,
     // Its own word that it serves: Docker opens the port before Redis listens,
     // and refuses a port already allocated or a name in use, which stops the run.
     wait: { stdout: /Ready to accept connections/ },
@@ -164,6 +162,8 @@ export default defineConfig({
       env: withoutSentry({
         ...process.env,
         DATABASE_URL: testDatabaseUrl(),
+        // The specs drop cache entries from the same one, through `dropCached`.
+        REDIS_URL: e2eRedisUrl(process.env),
         ...(stub ? { TASO_API_BASE_URL: stub.url } : {}),
         [E2E_ANALYTICS_FLAG]: "1",
       }),

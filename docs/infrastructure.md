@@ -184,7 +184,7 @@ checkout of the commit that environment runs. It rewrites every row.
 | | Staging | Production | Local | Tests |
 |---|---|---|---|---|
 | Postgres | Railway, v18 | Railway, v18 | `docker-compose.yml`, `postgres:18-alpine` | the local server: e2e `<name>_test` (decisions/304), integration `<name>_integration_test` (decisions/674); `<name>_stand_in_<port>_test` for e2e with `E2E_TASO_STUB=1`, its TASO rows and TASO predictions cleared each run (decisions/674) |
-| Redis | Railway, 8.2 | Railway, 8.2 | `docker-compose.yml`, `redis:8-alpine` | the local one; integration tests mock the cache; with `E2E_TASO_STUB=1`, e2e starts its own `redis:8-alpine` container, `footy-trends-e2e-stand-in-<E2E_PORT>`, on `127.0.0.1:6380`, data kept in the volume `footy-trends-e2e-redis-<port>`, every key but football-data's answers cleared each run (decisions/674) |
+| Redis | Railway, 8.2 | Railway, 8.2 | `docker-compose.yml`, `redis:8-alpine` | the local one; integration tests mock the cache; e2e uses its database 1 (decisions/615), or with `E2E_TASO_STUB=1` starts its own `redis:8-alpine` container, `footy-trends-e2e-stand-in-<E2E_PORT>`, on `127.0.0.1:6380`, data kept in the volume `footy-trends-e2e-redis-<port>`, every key but football-data's answers cleared each run (decisions/674) |
 
 - **Schema:** `src/db/schema.ts`; migrations in `drizzle/`, named
   `<verb>_<what>`, never edited once applied anywhere (CLAUDE.md).
