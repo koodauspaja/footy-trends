@@ -465,6 +465,29 @@ export function LineChart({
 }
 
 /**
+ * A short sample of a line's style, as its legend shows it; faded for a line
+ * that is not drawn.
+ *
+ * decisions/032-goals-scored-vs-conceded.md
+ * decisions/068-model-choice-on-ennusteet.md
+ */
+export function LineSample({ faded = false, ...style }: Readonly<LineStyle & { faded?: boolean }>) {
+  return (
+    <svg aria-hidden="true" className="h-2 w-6" viewBox="0 0 24 8">
+      <line
+        className={faded ? "stroke-muted" : "stroke-foreground"}
+        strokeDasharray={dashArray(style)}
+        strokeWidth={2}
+        x1={0}
+        x2={24}
+        y1={4}
+        y2={4}
+      />
+    </svg>
+  );
+}
+
+/**
  * Which line is which, beneath a chart with more than one: a short sample of
  * each line's style beside its label.
  *
@@ -477,20 +500,10 @@ export function LineLegend({
 }>) {
   return (
     <ul className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-muted text-sm">
-      {items.map((item) => (
-        <li className="flex items-center gap-2" key={item.label}>
-          <svg aria-hidden="true" className="h-2 w-6" viewBox="0 0 24 8">
-            <line
-              className="stroke-foreground"
-              strokeDasharray={dashArray(item)}
-              strokeWidth={2}
-              x1={0}
-              x2={24}
-              y1={4}
-              y2={4}
-            />
-          </svg>
-          {item.label}
+      {items.map(({ label, ...style }) => (
+        <li className="flex items-center gap-2" key={label}>
+          <LineSample {...style} />
+          {label}
         </li>
       ))}
     </ul>

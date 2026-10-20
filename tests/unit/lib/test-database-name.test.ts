@@ -1,5 +1,10 @@
+import { inspect } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { integrationDatabaseRefusal, namesTestDatabase } from "@/lib/test-database-name";
+import {
+  integrationDatabaseRefusal,
+  namesTestDatabase,
+  parseDatabaseUrl,
+} from "@/lib/test-database-name";
 import guardIntegrationDatabase from "../../support/integration-database-guard";
 
 /**
@@ -8,10 +13,12 @@ import guardIntegrationDatabase from "../../support/integration-database-guard";
  *
  * decisions/479-integration-suite-database-guard.md
  * decisions/304-test-database.md
+ * decisions/674-e2e-on-an-empty-database.md
  */
 
 const TEST = "postgresql://postgres:secret@localhost:5432/footy-trends_test";
 const DEV = "postgresql://postgres:secret@localhost:5432/footy-trends";
+const INTEGRATION = "postgresql://postgres:secret@localhost:5432/footy-trends_integration_test";
 
 describe("namesTestDatabase", () => {
   it("accepts a database whose name ends in _test", () => {
@@ -31,46 +38,55 @@ describe("namesTestDatabase", () => {
   });
 });
 
-describe("integrationDatabaseRefusal", () => {
-  it("allows the test database", () => {
-    expect(integrationDatabaseRefusal({ DATABASE_URL: TEST })).toBeNull();
+describe("parseDatabaseUrl", () => {
+  it("parses a valid URL", () => {
+    expect(parseDatabaseUrl(TEST, "The test database URL").pathname).toBe("/footy-trends_test");
   });
 
-  it("refuses the development database, naming it without its password", () => {
-    const refusal = integrationDatabaseRefusal({ DATABASE_URL: DEV });
+  it("names what was malformed, and carries neither the URL nor Node's error with it", () => {
+    let error: unknown;
+    try {
+      parseDatabaseUrl("postgresql://postgres:hunter2@bad host/x", "DATABASE_URL");
+    } catch (thrown) {
+      error = thrown;
+    }
+    expect(error).toEqual(new Error("DATABASE_URL is not a valid URL."));
+    expect(inspect(error)).not.toContain("hunter2");
+  });
+});
 
-    expect(refusal).toContain("localhost:5432/footy-trends");
-    expect(refusal).toContain("npm run test:integration");
+describe("integrationDatabaseRefusal", () => {
+  it("allows exactly the database derived for the suite", () => {
+    expect(integrationDatabaseRefusal(INTEGRATION, INTEGRATION)).toBeNull();
+  });
+
+  it("refuses another database whose name ends as the suite's does, naming it without its password", () => {
+    const elsewhere = "postgresql://ops:secret@db.example.com:5432/footy-trends_integration_test";
+    const refusal = integrationDatabaseRefusal(elsewhere, INTEGRATION);
+
+    expect(refusal).toContain("db.example.com:5432/footy-trends_integration_test");
     expect(refusal).not.toContain("secret");
   });
 
   it.each([
-    ["no DATABASE_URL", {}, "no DATABASE_URL at all"],
-    ["a blank one", { DATABASE_URL: "  " }, "no DATABASE_URL at all"],
-    ["an unparseable one", { DATABASE_URL: "not a url" }, "an unparseable DATABASE_URL"],
-  ])("refuses %s, and says which", (_name, env, said) => {
-    expect(integrationDatabaseRefusal(env)).toContain(said);
+    ["the e2e suite's test database, which the TASO recorder reads", TEST],
+    ["the development database", DEV],
+  ])("refuses %s", (_name, url) => {
+    expect(integrationDatabaseRefusal(url, INTEGRATION)).toContain(
+      "Refusing to run the integration suite"
+    );
   });
 
-  it("allows an explicit TEST_DATABASE_URL override, whatever its name", () => {
-    const override = "postgresql://ci@db.example.com/integration";
-
-    expect(
-      integrationDatabaseRefusal({ DATABASE_URL: override, TEST_DATABASE_URL: ` ${override} ` })
-    ).toBeNull();
+  it("refuses even the suite's own name when nothing could be derived to compare it with", () => {
+    expect(integrationDatabaseRefusal(INTEGRATION, null)).toContain("npm run test:integration");
   });
 
-  it("does not let an override excuse a different database", () => {
-    expect(
-      integrationDatabaseRefusal({
-        DATABASE_URL: DEV,
-        TEST_DATABASE_URL: "postgresql://ci@db.example.com/integration",
-      })
-    ).not.toBeNull();
-    // A blank override is no override.
-    expect(
-      integrationDatabaseRefusal({ DATABASE_URL: DEV, TEST_DATABASE_URL: " " })
-    ).not.toBeNull();
+  it.each([
+    ["no DATABASE_URL", undefined, "no DATABASE_URL at all"],
+    ["a blank one", "  ", "no DATABASE_URL at all"],
+    ["an unparseable one", "not a url", "an unparseable DATABASE_URL"],
+  ])("refuses %s, and says which", (_name, url, said) => {
+    expect(integrationDatabaseRefusal(url, INTEGRATION)).toContain(said);
   });
 });
 
@@ -79,16 +95,40 @@ describe("the integration suite's globalSetup", () => {
     vi.unstubAllEnvs();
   });
 
-  it("stops the run on the development database", () => {
-    vi.stubEnv("DATABASE_URL", DEV);
-    vi.stubEnv("TEST_DATABASE_URL", "");
+  it("lets through the database npm run test:integration hands it", () => {
+    // What `scripts/with-test-db.ts` sets: the derived database, and the test
+    // database it was derived from.
+    vi.stubEnv("TEST_DATABASE_URL", TEST);
+    vi.stubEnv("DATABASE_URL", INTEGRATION);
+
+    expect(() => guardIntegrationDatabase()).not.toThrow();
+  });
+
+  it("stops a run pointed at another database named like the suite's", () => {
+    vi.stubEnv("TEST_DATABASE_URL", TEST);
+    vi.stubEnv("DATABASE_URL", "postgresql://ops:secret@db.example.com:5432/x_integration_test");
 
     expect(() => guardIntegrationDatabase()).toThrow(/Refusing to run the integration suite/);
   });
 
-  it("lets the test database through", () => {
-    vi.stubEnv("DATABASE_URL", TEST);
+  it("stops a run started without the wrapper, even on the suite's own database", () => {
+    vi.stubEnv("TEST_DATABASE_URL", "");
+    vi.stubEnv("DATABASE_URL", INTEGRATION);
 
-    expect(() => guardIntegrationDatabase()).not.toThrow();
+    expect(() => guardIntegrationDatabase()).toThrow(/Refusing to run the integration suite/);
+  });
+
+  it("stops the run on the development database", () => {
+    vi.stubEnv("TEST_DATABASE_URL", "");
+    vi.stubEnv("DATABASE_URL", DEV);
+
+    expect(() => guardIntegrationDatabase()).toThrow(/Refusing to run the integration suite/);
+  });
+
+  it("stops the run when nothing says where any database is", () => {
+    vi.stubEnv("TEST_DATABASE_URL", "");
+    vi.stubEnv("DATABASE_URL", "");
+
+    expect(() => guardIntegrationDatabase()).toThrow(/no DATABASE_URL at all/);
   });
 });

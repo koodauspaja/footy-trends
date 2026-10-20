@@ -6,11 +6,25 @@
  * decisions/013-more-finnish-competitions.md
  */
 
+import { createHash } from "node:crypto";
 import { getCached } from "./cache";
 import { logger } from "./logger";
 import { fetchProviderJson } from "./provider-request";
 
 const API_BASE_URL = "https://spl.torneopal.net/taso/rest";
+
+/**
+ * Where requests go: the provider, unless `TASO_API_BASE_URL` names another
+ * server, which the e2e suite does when `E2E_TASO_STUB=1`. Blank is unset.
+ *
+ * decisions/672-e2e-without-the-provider.md
+ */
+function apiBaseUrl(): string {
+  let override = (process.env.TASO_API_BASE_URL ?? "").trim();
+  // Trailing slashes off: every path starts with one.
+  while (override.endsWith("/")) override = override.slice(0, -1);
+  return override === "" ? API_BASE_URL : override;
+}
 
 /**
  * How long a season's match list stays cached: long enough that a page does not
@@ -41,6 +55,15 @@ export function tasoCategoryCacheKey(competitionId: string, categoryId: string):
 }
 
 /**
+ * The Redis key one season's category names are cached under.
+ *
+ * decisions/013-more-finnish-competitions.md
+ */
+export function tasoCategoryNamesCacheKey(competitionId: string): string {
+  return `taso:categories:${competitionId}`;
+}
+
+/**
  * How long one TASO request waits before a page render gives up on it. Insurance
  * against a stalled provider, not a latency budget; `/api/health` passes its
  * own, shorter signal on top.
@@ -63,17 +86,37 @@ function apiKey(): string {
 }
 
 /**
- * One TASO request, with the headers its origin check wants and a bound on how
- * long it waits.
+ * The path with the `hash` TASO checks, when `TASO_HASH_SALT` is set: a SHA-256
+ * of the route without its slash, the salt and the query, in its frontend's shape.
+ * Blank is unset, and the path goes unsigned.
+ *
+ * decisions/681-taso-request-signing.md
+ */
+function signedPath(path: string): string {
+  const salt = (process.env.TASO_HASH_SALT ?? "").trim();
+  if (salt === "") return path;
+
+  const queryAt = path.indexOf("?");
+  const route = (queryAt === -1 ? path : path.slice(0, queryAt)).replace(/^\//, "");
+  const query = queryAt === -1 ? "" : path.slice(queryAt + 1);
+  const signed = query === "" ? `${route}?${salt}` : `${route}?${salt}&${query}`;
+  const hash = createHash("sha256").update(signed).digest("hex");
+  return `${path}${query === "" ? "?" : "&"}hash=${hash}`;
+}
+
+/**
+ * One TASO request, with the headers its origin check wants, its signature, and
+ * a bound on how long it waits.
  *
  * decisions/009-veikkausliiga.md
  * decisions/363-render-timeouts.md
+ * decisions/681-taso-request-signing.md
  */
 function request<T>(path: string, signal?: AbortSignal): Promise<T> {
   return fetchProviderJson<T>(
     "TASO",
-    API_BASE_URL,
-    path,
+    apiBaseUrl(),
+    signedPath(path),
     () => ({
       Accept: `json/${apiKey()}`,
       Referer: REFERER,
@@ -373,7 +416,7 @@ type CompetitionsResponse = { competitions?: TasoCompetition[] };
  *
  * decisions/011-current-season-discovery.md
  */
-const SEASON_COMPETITION_ID = /^spljp\d{2}$/;
+export const SEASON_COMPETITION_ID = /^spljp\d{2}$/;
 
 /**
  * The newest published Finnish football season, or `null` when TASO
@@ -612,7 +655,7 @@ export type NormalizedTasoGroupLevel = {
   label: string | null;
 };
 
-const LEVELS_PER_GROUP = 10;
+export const LEVELS_PER_GROUP = 10;
 
 /**
  * The ten counts of `next_stage_levels`, or null when the string is not ten

@@ -41,6 +41,7 @@ import {
   type SeasonReadResult,
   UNRANKED_MEASURES,
 } from "./season-comparison";
+import { teamSeasonSummary } from "./season-summary-service";
 import { calculateStandings, selectTeamMatches, type TeamStanding } from "./standings";
 import { competitionScope, recordsFor, type StreakRecordsSeries } from "./streak-records";
 import {
@@ -62,6 +63,7 @@ import {
   normalizeGroupTeams,
   parseProviderId,
   type TasoGroup,
+  tasoCategoryNamesCacheKey,
 } from "./taso";
 import type { TeamPanelMatches } from "./team-panels";
 import type { TeamSeason } from "./team-seasons";
@@ -504,7 +506,7 @@ export async function getSeasonCategoryName(
   const ttl = seasonId >= activeSeasonId ? CURRENT_SEASON_CACHE_TTL_SECONDS : 60 * 60 * 24 * 365;
   try {
     const names = await getCached<Record<string, string>>(
-      `taso:categories:${competitionId}`,
+      tasoCategoryNamesCacheKey(competitionId),
       ttl,
       () => getSeasonCategoryNames(competitionId)
     );
@@ -530,7 +532,7 @@ export function getSeasonCategoryNameMap(
   activeSeasonId: number
 ): Promise<Record<string, string>> {
   const ttl = seasonId >= activeSeasonId ? CURRENT_SEASON_CACHE_TTL_SECONDS : 60 * 60 * 24 * 365;
-  return getCached<Record<string, string>>(`taso:categories:${competitionId}`, ttl, () =>
+  return getCached<Record<string, string>>(tasoCategoryNamesCacheKey(competitionId), ttl, () =>
     getSeasonCategoryNames(competitionId)
   );
 }
@@ -650,6 +652,13 @@ const getSyncedSeasonMatches = cache(async function getSyncedSeasonMatches(
   };
 });
 
+/**
+ * Writes a TASO snapshot over the stored matches, deleting none.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/029-forced-season-refresh.md
+ * decisions/678-stale-snapshot-written-last.md
+ */
 export async function synchronizeMatches(
   providerMatches: NormalizedTasoMatch[],
   /** The transaction to join, when a caller has one. Defaults to its own. */
@@ -710,6 +719,7 @@ export function dedupeByIdentity(rows: NormalizedTasoGroupTeam[]): NormalizedTas
  * decisions/196-concurrent-group-syncs.md
  * decisions/628-zeroed-continuation-tables.md
  * decisions/063-competition-zones.md
+ * decisions/678-stale-snapshot-written-last.md
  */
 export async function synchronizeGroupTeams(
   categoryId: string,
@@ -777,6 +787,7 @@ export async function synchronizeGroupTeams(
  * transaction. Only the competitions that show zones store any.
  *
  * decisions/063-competition-zones.md
+ * decisions/678-stale-snapshot-written-last.md
  */
 async function replaceGroupLevels(
   tx: Executor,
@@ -1557,6 +1568,17 @@ export function getTeamStreakRecords(
     return { status: "error" as const };
   });
 }
+
+/**
+ * The `Kausi lyhyesti` block for this club's season.
+ *
+ * decisions/066-season-summary.md
+ */
+export const getTeamSeasonSummary = teamSeasonSummary("taso", {
+  isLeague: isDomesticLeague,
+  read: (key, activeSeasonId, teamProviderId) =>
+    readTasoSeason(key.competitionCode, key.seasonId, activeSeasonId, teamProviderId),
+});
 
 /**
  * Which of the club's seasons belong beside this one: the league ones for a

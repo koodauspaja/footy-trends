@@ -1,6 +1,11 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ELO_HEADING, type EloPanelData } from "@/components/elo-section";
+import {
+  type SeasonSummaryPanelData,
+  SUMMARY_ERROR_MESSAGE,
+  SUMMARY_HEADING,
+} from "@/components/season-summary-section";
 import type { CleanSheetSeries } from "@/lib/clean-sheets";
 import type { ComebacksSeries } from "@/lib/comebacks";
 import type { FormSeries } from "@/lib/form-series";
@@ -125,10 +130,15 @@ async function renderSection(
   // group tests below keep asserting the three groups they describe.
   loadOpponents = vi.fn(async (): Promise<OpponentsSeries> => ({ status: "unavailable" })),
   // Absent unless a test asks for it, for the same reason.
-  loadElo = vi.fn(async (): Promise<EloPanelData> => ({ series: { status: "unavailable" } }))
+  loadElo = vi.fn(async (): Promise<EloPanelData> => ({ series: { status: "unavailable" } })),
+  // Absent unless a test asks for it, for the same reason.
+  loadSummary = vi.fn(
+    async (): Promise<SeasonSummaryPanelData> => ({ series: { status: "unavailable" } })
+  )
 ) {
   const view = await AnalyticsSection({
     axis,
+    loadSummary,
     loadPosition,
     loadForm,
     loadGoals,
@@ -152,6 +162,7 @@ async function renderSection(
     loadComebacks,
     loadOpponents,
     loadElo,
+    loadSummary,
     view,
   };
 }
@@ -466,5 +477,52 @@ describe("Joukkueen vahvuus (Elo)", () => {
 
     expect(loadElo).not.toHaveBeenCalled();
     expect(screen.queryByText(ELO_HEADING)).toBeNull();
+  });
+});
+
+describe("Kausi lyhyesti", () => {
+  beforeEach(() => {
+    canSeeAnalytics.mockReset().mockResolvedValue(true);
+  });
+
+  const withSummary = (data: SeasonSummaryPanelData) =>
+    renderSection(
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      SEASON_AXIS,
+      undefined,
+      undefined,
+      vi.fn(async (): Promise<SeasonSummaryPanelData> => data)
+    );
+
+  it("is its own group, first in Analyysit, above Ottelu ottelulta", async () => {
+    await withSummary({ series: { status: "error" }, matchHref: String });
+
+    const groups = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
+    expect(groups.slice(0, 2)).toEqual([SUMMARY_HEADING, BY_MATCH_HEADING]);
+    expect(screen.getByRole("region", { name: SUMMARY_HEADING })).toHaveTextContent(
+      SUMMARY_ERROR_MESSAGE
+    );
+  });
+
+  it("is absent when the page has no block", async () => {
+    await renderSection();
+
+    expect(screen.queryByRole("heading", { level: 3, name: SUMMARY_HEADING })).toBeNull();
+  });
+
+  it("is never loaded for a signed-out reader", async () => {
+    canSeeAnalytics.mockResolvedValue(false);
+    const { loadSummary } = await withSummary({ series: { status: "error" }, matchHref: String });
+
+    expect(loadSummary).not.toHaveBeenCalled();
+    expect(screen.queryByText(SUMMARY_HEADING)).toBeNull();
   });
 });

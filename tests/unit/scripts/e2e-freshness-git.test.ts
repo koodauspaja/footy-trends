@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  changedFromMain,
   defaultGitDeps,
   fingerprint,
   type GitDeps,
   type GitOutput,
 } from "../../../scripts/e2e-freshness-git";
-import { WATCHED_PATHS } from "../../../scripts/e2e-freshness-plan";
 
 /**
  * The fingerprint the pre-push hook rests on: what git is asked, and what is made
@@ -13,12 +13,13 @@ import { WATCHED_PATHS } from "../../../scripts/e2e-freshness-plan";
  * are the correctness argument: `-z`, and paths as arguments, not `--stdin-paths`.
  *
  * decisions/403-coverage-exclusions-that-earn-it.md
+ * decisions/661-e2e-freshness-skips-documentation.md
  */
 
 const BINARY = "/usr/bin/git";
 
 type Answers = {
-  /** Keyed by the first argument: `ls-files` or `hash-object`. */
+  /** Keyed by the first argument: `ls-files`, `hash-object` or `diff`. */
   [command: string]: GitOutput;
 };
 
@@ -59,7 +60,7 @@ describe("fingerprint", () => {
     expect(fingerprint(d)).toEqual(["aaa\tsrc/a.ts", "bbb\tsrc/b.ts"]);
   });
 
-  it("asks git for tracked and untracked files, NUL-separated, under the watched paths", () => {
+  it("asks git for every tracked and untracked file, NUL-separated", () => {
     // `-z` is load-bearing: without it git quotes a path needing escaping, so a
     // filename containing a newline comes back as a literal that matches no
     // file and drops out of the fingerprint silently.
@@ -67,15 +68,22 @@ describe("fingerprint", () => {
 
     fingerprint(d);
 
-    expect(d.calls[0]).toEqual([
+    expect(d.calls[0]).toEqual([BINARY, "ls-files", "-z", "-c", "-o", "--exclude-standard"]);
+  });
+
+  it("watches every file outside the non-code paths, wherever it is", () => {
+    const d = deps({
+      "ls-files": lsFiles("README.md", "drizzle/0001_add_x.sql", "specs/068-x.md", "package.json"),
+      "hash-object": hashes("h1", "h2"),
+    });
+
+    expect(fingerprint(d)).toEqual(["h1\tdrizzle/0001_add_x.sql", "h2\tpackage.json"]);
+    expect(d.calls[1]).toEqual([
       BINARY,
-      "ls-files",
-      "-z",
-      "-c",
-      "-o",
-      "--exclude-standard",
+      "hash-object",
       "--",
-      ...WATCHED_PATHS,
+      "drizzle/0001_add_x.sql",
+      "package.json",
     ]);
   });
 
@@ -210,6 +218,73 @@ describe("fingerprint", () => {
     const d = deps({ "ls-files": lsFiles(), "hash-object": hashes() });
 
     expect(fingerprint(d)).toEqual([]);
+  });
+});
+
+const SHA_A = "a".repeat(40);
+const SHA_B = "b".repeat(40);
+
+describe("changedFromMain", () => {
+  it("asks git what each commit changes since it left origin/main, with renames split", () => {
+    // Without `--no-renames`, moving `src/x.ts` to `docs/x.ts` would list only
+    // the docs path, and the push would skip a check it needs.
+    const d = deps({ diff: lsFiles("specs/068-x.md") });
+
+    changedFromMain([SHA_A], d);
+
+    expect(d.calls).toEqual([
+      [BINARY, "diff", "--name-only", "-z", "--no-renames", `origin/main...${SHA_A}`, "--"],
+    ]);
+  });
+
+  it("joins what every pushed commit changes, once each and in a fixed order", () => {
+    const answers: Record<string, GitOutput> = {
+      [SHA_A]: lsFiles("specs/b.md", "README.md"),
+      [SHA_B]: lsFiles("README.md", "src/a.ts"),
+    };
+    const d = deps(
+      {},
+      {
+        run: (_binary, args) => answers[(args[4] ?? "").replace("origin/main...", "")] ?? lsFiles(),
+      }
+    );
+
+    expect(changedFromMain([SHA_A, SHA_B], d)).toEqual(["README.md", "specs/b.md", "src/a.ts"]);
+  });
+
+  it("keeps a filename containing a newline whole", () => {
+    const d = deps({ diff: lsFiles("docs/od\nd.md") });
+
+    expect(changedFromMain([SHA_A], d)).toEqual(["docs/od\nd.md"]);
+  });
+
+  it("reports nothing when git cannot compare one of the commits", () => {
+    // No `origin/main`, or a commit git does not have: the full check runs.
+    let call = 0;
+    const d = deps(
+      {},
+      {
+        run: () => {
+          call += 1;
+          return call === 1 ? lsFiles("README.md") : { status: 128, stdout: "" };
+        },
+      }
+    );
+
+    expect(changedFromMain([SHA_A, SHA_B], d)).toBeNull();
+  });
+
+  it("reports nothing when git cannot be found", () => {
+    const d = deps({ diff: lsFiles("README.md") }, { find: () => null });
+
+    expect(changedFromMain([SHA_A], d)).toBeNull();
+  });
+
+  it("finds no changes when no commit is pushed", () => {
+    const d = deps({});
+
+    expect(changedFromMain([], d)).toEqual([]);
+    expect(d.calls).toEqual([]);
   });
 });
 

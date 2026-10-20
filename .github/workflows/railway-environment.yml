@@ -93,4 +93,5 @@ jobs:
           # dataset and Sentry's DSN are each environment's own, made by hand
           # in their consoles and set in Railway afterwards (docs/setup/026).
           TASO_API_KEY: ${{ secrets.TASO_API_KEY }}
+          TASO_HASH_SALT: ${{ secrets.TASO_HASH_SALT }}
         run: npm run railway:environment -- "--name=$ENVIRONMENT_NAME" "--branch=$ENVIRONMENT_BRANCH"

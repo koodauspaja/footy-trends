@@ -44,6 +44,7 @@ Reference the web service's values, do not copy them:
 | `REDIS_URL` | `${{Redis.REDIS_URL}}` |
 | `FOOTBALL_DATA_API_KEY` | as the web service |
 | `TASO_API_KEY` | as the web service |
+| `TASO_HASH_SALT` | as the web service, when it has one |
 | `FOOTBALL_DATA_EARLIEST_SEASON` | as the web service |
 | `AXIOM_DATASET`, `AXIOM_TOKEN` | as the web service |
 | `NODE_ENV` | `production` |

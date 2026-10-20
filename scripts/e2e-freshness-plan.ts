@@ -7,6 +7,7 @@
  * decisions/242-freshness-compares-content.md
  * decisions/292-sonar-zero-open-issues.md
  * decisions/568-e2e-against-a-production-build.md
+ * decisions/661-e2e-freshness-skips-documentation.md
  */
 
 /**
@@ -25,19 +26,64 @@ export const MARKER_PATH = ".e2e-freshness";
 export const MAX_AGE_MS = 12 * 60 * 60 * 1000;
 
 /**
- * What a passing e2e run is taken to have exercised: the application, the
- * specs, and the files that decide which server they ran against.
+ * The directories nothing an e2e run exercises lives in. Every other path is
+ * watched, so a file added anywhere else is watched without being listed.
  *
- * decisions/084-e2e-freshness-before-push.md
- * decisions/568-e2e-against-a-production-build.md
+ * decisions/661-e2e-freshness-skips-documentation.md
  */
-export const WATCHED_PATHS = [
-  "src",
-  "tests/e2e",
-  "next.config.ts",
-  "playwright.config.ts",
-  "scripts/e2e-target.ts",
-];
+export const NON_CODE_DIRECTORIES = ["specs", "decisions", "docs", "skills"];
+
+/**
+ * Whether a repository path is outside what an e2e run exercises: under one of
+ * `NON_CODE_DIRECTORIES`, or a `.md` file at the repository root.
+ *
+ * decisions/661-e2e-freshness-skips-documentation.md
+ */
+export function isNonCodePath(path: string): boolean {
+  if (!path.includes("/")) return path.endsWith(".md");
+  return NON_CODE_DIRECTORIES.some((directory) => path.startsWith(`${directory}/`));
+}
+
+/**
+ * The commits a push sends, read from the `<local ref> <local sha> <remote ref>
+ * <remote sha>` lines git gives a pre-push hook. A deleted ref sends none.
+ * `null` when a line is not in that shape.
+ *
+ * decisions/661-e2e-freshness-skips-documentation.md
+ */
+export function pushedCommits(stdin: string): string[] | null {
+  const commits: string[] = [];
+  for (const line of stdin.split("\n")) {
+    if (line.trim() === "") continue;
+    const localSha = /^\S+ ([0-9a-f]{40,64}) \S+ [0-9a-f]{40,64}$/.exec(line.trim())?.[1];
+    if (localSha === undefined) return null;
+    if (/^0+$/.test(localSha)) continue;
+    commits.push(localSha);
+  }
+  return commits;
+}
+
+/**
+ * Whether every file a push changes from `origin/main` is a non-code path, so
+ * no e2e run is needed. Never for `null` or an empty list: what cannot be
+ * worked out goes to the full check.
+ *
+ * decisions/661-e2e-freshness-skips-documentation.md
+ */
+export function isDocumentationOnly(changedFromMain: string[] | null): changedFromMain is string[] {
+  if (changedFromMain === null || changedFromMain.length === 0) return false;
+  return changedFromMain.every(isNonCodePath);
+}
+
+/**
+ * The line the hook prints when it skips the check.
+ *
+ * decisions/661-e2e-freshness-skips-documentation.md
+ */
+export function describeDocumentationSkip(changed: number): string {
+  const directories = NON_CODE_DIRECTORIES.map((directory) => `${directory}/`).join(", ");
+  return `e2e freshness check skipped: the ${changed} file(s) this push changes from origin/main are all under ${directories} or root .md files.`;
+}
 
 export const RUN_COMMAND = "npm run test:e2e";
 export const ESCAPE_HATCH = "git push --no-verify";
@@ -46,6 +92,8 @@ export type Prerequisites = {
   docker: boolean;
   footballDataKey: boolean;
   tasoKey: boolean;
+  /** `TASO_HASH_SALT` set, or the stand-in on, which needs none. */
+  tasoSigning: boolean;
 };
 
 export type Verdict = {
@@ -59,12 +107,16 @@ export type Verdict = {
  * these cannot run the suite at all: see `decideFreshness`.
  *
  * decisions/084-e2e-freshness-before-push.md
+ * decisions/681-taso-request-signing.md
  */
 export function missingPrerequisites(prerequisites: Prerequisites): string[] {
   const missing: string[] = [];
   if (!prerequisites.docker) missing.push("Docker is not running (`docker compose up -d`)");
   if (!prerequisites.footballDataKey) missing.push("FOOTBALL_DATA_API_KEY is not set");
   if (!prerequisites.tasoKey) missing.push("TASO_API_KEY is not set");
+  if (!prerequisites.tasoSigning) {
+    missing.push("TASO_HASH_SALT is not set, and E2E_TASO_STUB is not 1");
+  }
   return missing;
 }
 

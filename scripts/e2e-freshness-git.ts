@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { lstatSync, readlinkSync } from "node:fs";
-import { inFixedOrder, WATCHED_PATHS } from "./e2e-freshness-plan";
+import { inFixedOrder, isNonCodePath } from "./e2e-freshness-plan";
 import { executablePath } from "./executable";
 
 /**
@@ -13,6 +13,7 @@ import { executablePath } from "./executable";
  * decisions/242-freshness-compares-content.md
  * decisions/292-sonar-zero-open-issues.md
  * decisions/403-coverage-exclusions-that-earn-it.md
+ * decisions/661-e2e-freshness-skips-documentation.md
  */
 
 /**
@@ -95,25 +96,21 @@ function symlinkEntry(deps: GitDeps, path: string): string | null {
 }
 
 /**
- * Every watched file that exists on disk, tracked and untracked, with
+ * Every file on disk outside the non-code paths, tracked and untracked, with
  * `.gitignore` respected. Asked with `-z`, so a path needing escaping comes
  * back as raw bytes.
  *
  * decisions/220-freshness-notices-deletions.md
  * decisions/242-freshness-compares-content.md
+ * decisions/661-e2e-freshness-skips-documentation.md
  */
 function watchedPaths(deps: GitDeps): string[] | null {
-  const out = git(deps, [
-    "ls-files",
-    "-z",
-    "-c",
-    "-o",
-    "--exclude-standard",
-    "--",
-    ...WATCHED_PATHS,
-  ]);
+  const out = git(deps, ["ls-files", "-z", "-c", "-o", "--exclude-standard"]);
   if (out === null) return null;
-  return out.split("\0").filter(Boolean);
+  return out
+    .split("\0")
+    .filter(Boolean)
+    .filter((path) => !isNonCodePath(path));
 }
 
 /**
@@ -172,4 +169,31 @@ export function fingerprint(deps: GitDeps = defaultGitDeps): string[] | null {
   // — see the reasoning there. This list is compared against one another run
   // wrote, so the order has to be the same everywhere.
   return inFixedOrder(entries);
+}
+
+/**
+ * Every file the given commits change since they left `origin/main`, sorted,
+ * or `null` when git cannot say for any one of them. `--no-renames`, so a
+ * file moved out of `src/` counts as a deletion there.
+ *
+ * decisions/661-e2e-freshness-skips-documentation.md
+ */
+export function changedFromMain(
+  commits: string[],
+  deps: GitDeps = defaultGitDeps
+): string[] | null {
+  const changed = new Set<string>();
+  for (const commit of commits) {
+    const out = git(deps, [
+      "diff",
+      "--name-only",
+      "-z",
+      "--no-renames",
+      `origin/main...${commit}`,
+      "--",
+    ]);
+    if (out === null) return null;
+    for (const path of out.split("\0").filter(Boolean)) changed.add(path);
+  }
+  return inFixedOrder([...changed]);
 }

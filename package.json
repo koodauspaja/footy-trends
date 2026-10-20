@@ -42,6 +42,7 @@
     "verify:sentry": "tsx scripts/verify-sentry.ts",
     "verify": "tsx scripts/verify.ts",
     "test:e2e:ui": "playwright test --ui",
+    "test:e2e:record-taso": "tsx scripts/record-taso-fixture.ts",
     "pretest:e2e:ui": "tsx scripts/ensure-services.ts --test"
   },
   "dependencies": {
@@ -53,14 +54,14 @@
     "next": "16.4.0",
     "pino": "10.4.0",
     "postgres": "3.4.9",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
     "sharp": "0.35.5",
     "tsx": "4.23.15"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
-    "@playwright/test": "1.64.0",
+    "@playwright/test": "1.64.1",
     "@tailwindcss/postcss": "4.3.3",
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/react": "16.3.3",
@@ -68,14 +69,14 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.2",
-    "@vitest/coverage-v8": "5.0.3",
+    "@vitest/coverage-v8": "5.0.5",
     "drizzle-kit": "0.31.11",
     "husky": "9.1.7",
-    "jsdom": "30.1.2",
-    "railway": "3.13.1",
+    "jsdom": "30.1.3",
+    "railway": "3.16.0",
     "tailwindcss": "4.3.3",
     "typescript": "6.0.3",
-    "vitest": "5.0.3"
+    "vitest": "5.0.5"
   },
   "engines": {
     "node": ">=24"

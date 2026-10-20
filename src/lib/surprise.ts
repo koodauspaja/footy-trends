@@ -93,7 +93,36 @@ export function seasonSurprises(
 ): SeasonSurprises {
   if (matches.length === 0) return { status: "empty", inProgress };
 
-  const surprises = matches
+  const surprises = ranked(matches).slice(0, SURPRISE_LIMIT);
+  return surprises.length === 0
+    ? { status: "all-drawn", inProgress }
+    : { status: "ok", surprises, inProgress };
+}
+
+/**
+ * The team's own win Elo thought least likely, or `null` when it won none. A
+ * win is the final score's, so a shoot-out won is a draw, as everywhere here.
+ *
+ * decisions/057-surprise-index.md
+ * decisions/066-season-summary.md
+ */
+export function teamUpset(matches: readonly PredictedMatch[], teamId: number): Surprise | null {
+  const won = matches.filter(
+    (match) =>
+      (match.homeTeamProviderId === teamId && match.homeGoals > match.awayGoals) ||
+      (match.awayTeamProviderId === teamId && match.awayGoals > match.homeGoals)
+  );
+  return ranked(won)[0] ?? null;
+}
+
+/**
+ * Every win, by the probability Elo gave it, smallest first, the earlier
+ * kickoff first among equals.
+ *
+ * decisions/057-surprise-index.md
+ */
+function ranked(matches: readonly PredictedMatch[]): Surprise[] {
+  return matches
     .flatMap((match) => {
       const probability = surpriseOf(match);
       return probability === null ? [] : [{ ...match, probability }];
@@ -103,9 +132,5 @@ export function seasonSurprises(
         left.probability - right.probability ||
         left.kickoffAt.getTime() - right.kickoffAt.getTime() ||
         left.providerMatchId - right.providerMatchId
-    )
-    .slice(0, SURPRISE_LIMIT);
-  return surprises.length === 0
-    ? { status: "all-drawn", inProgress }
-    : { status: "ok", surprises, inProgress };
+    );
 }

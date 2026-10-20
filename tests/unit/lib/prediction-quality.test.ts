@@ -5,17 +5,21 @@ import {
   calibrationOf,
   commonMatches,
   competitionsOf,
+  DEFAULT_DRAWN,
   inCompetition,
   type JudgedPrediction,
   LOG_LOSS_FLOOR,
   logLossOf,
   lowestOf,
+  parseDrawn,
   pickOf,
+  qualityHref,
   qualityReport,
   ROLLING_POINTS,
   ROLLING_WINDOW,
   rollingOf,
   SCORE_DECIMALS,
+  toggleDrawn,
 } from "@/lib/prediction-quality";
 
 /**
@@ -25,6 +29,7 @@ import {
  * decisions/054-prediction-quality.md
  * decisions/056-accuracy-by-competition.md
  * decisions/059-cup-predictions.md
+ * decisions/068-model-choice-on-ennusteet.md
  */
 
 const day = (n: number) => new Date(Date.UTC(2024, 0, 1) + n * 86_400_000);
@@ -440,5 +445,66 @@ describe("qualityReport with competitions kept apart", () => {
     const report = qualityReport(predictions, ["a", "b"], ["VL", "MSC"]);
 
     expect(report.status === "ok" && report.matches).toBe(3);
+  });
+});
+
+describe("the drawn models", () => {
+  const BASE = "/ennusteet?alue=kotimaa&tyyppi=jalkikateen";
+
+  it("draws the baseline, Elo and Poisson by default", () => {
+    expect(DEFAULT_DRAWN).toEqual(["home-baseline-v1", "elo-v1", "poisson-v1"]);
+    expect(parseDrawn(undefined)).toEqual(DEFAULT_DRAWN);
+  });
+
+  it("reads each model's slug, in the models' order whatever the order or repeats given", () => {
+    expect(parseDrawn("perustaso,elo,elo-vire,elo-kotietu,poisson")).toEqual([
+      "home-baseline-v1",
+      "elo-v1",
+      "elo-form-v1",
+      "elo-home-v1",
+      "poisson-v1",
+    ]);
+    expect(parseDrawn("poisson,elo-vire,poisson")).toEqual(["elo-form-v1", "poisson-v1"]);
+    expect(parseDrawn("elo-kotietu")).toEqual(["elo-home-v1"]);
+  });
+
+  it("ignores an unknown slug beside known ones", () => {
+    expect(parseDrawn("elo,mars,Poisson, poisson")).toEqual(["elo-v1"]);
+  });
+
+  it("falls back to the default when it names no known model, is empty or is repeated", () => {
+    expect(parseDrawn("mars")).toEqual(DEFAULT_DRAWN);
+    expect(parseDrawn("")).toEqual(DEFAULT_DRAWN);
+    expect(parseDrawn(["elo", "elo"])).toEqual(DEFAULT_DRAWN);
+  });
+
+  it("hides a shown model and shows a hidden one, in the models' order", () => {
+    expect(toggleDrawn(DEFAULT_DRAWN, "elo-v1")).toEqual(["home-baseline-v1", "poisson-v1"]);
+    expect(toggleDrawn(DEFAULT_DRAWN, "elo-form-v1")).toEqual([
+      "home-baseline-v1",
+      "elo-v1",
+      "elo-form-v1",
+      "poisson-v1",
+    ]);
+  });
+
+  it("leaves the default out of the address, in any order", () => {
+    expect(qualityHref("taso", "backtest")).toBe(BASE);
+    expect(
+      qualityHref("taso", "backtest", null, ["poisson-v1", "elo-v1", "home-baseline-v1"])
+    ).toBe(BASE);
+  });
+
+  it("names any other choice after the competition, in the models' order", () => {
+    expect(qualityHref("taso", "backtest", null, ["poisson-v1", "elo-v1"])).toBe(
+      `${BASE}&mallit=elo,poisson`
+    );
+    expect(qualityHref("football-data", "live", "PL", ["elo-home-v1"])).toBe(
+      "/ennusteet?alue=ulkomaat&tyyppi=ennakkoon&kilpailu=PL&mallit=elo-kotietu"
+    );
+    // The default and one more is not the default.
+    expect(qualityHref("taso", "backtest", null, [...DEFAULT_DRAWN, "elo-form-v1"])).toBe(
+      `${BASE}&mallit=perustaso,elo,elo-vire,poisson`
+    );
   });
 });

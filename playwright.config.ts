@@ -10,12 +10,25 @@
  * decisions/384-a-dom-only-where-a-test-needs-one.md
  * decisions/568-e2e-against-a-production-build.md
  * decisions/656-e2e-sends-nothing-to-sentry.md
+ * decisions/672-e2e-without-the-provider.md
+ * decisions/674-e2e-on-an-empty-database.md
+ * decisions/615-e2e-own-redis.md
  */
 
 import { existsSync } from "node:fs";
 import { defineConfig, devices } from "@playwright/test";
-import { e2eTarget, serverCommand, startUpTimeoutMs, withoutSentry } from "./scripts/e2e-target";
+import {
+  e2eAppPort,
+  e2eRedisPort,
+  e2eTarget,
+  e2eTasoPort,
+  serverCommand,
+  startUpTimeoutMs,
+  withoutSentry,
+} from "./scripts/e2e-target";
 import { E2E_ANALYTICS_FLAG } from "./src/lib/e2e-analytics";
+import { e2eRedisUrl } from "./tests/support/e2e-redis";
+import { standInDatabaseUrl, standInRedis } from "./tests/support/taso-stub";
 import { testDatabaseUrl } from "./tests/support/test-database";
 
 // Evaluated before `global-setup.ts`, so the variables it reads are loaded
@@ -44,8 +57,68 @@ const target = e2eTarget(process.env.E2E_TARGET);
  *
  * decisions/304-test-database.md
  */
-const PORT = process.env.E2E_PORT ?? "3001";
+const PORT = e2eAppPort(process.env);
 const BASE_URL = `http://localhost:${PORT}`;
+
+/**
+ * `E2E_TASO_STUB=1` points the app at a local stand-in for TASO, for while the
+ * provider refuses our requests, and at a Redis of its own. Unset, the suite
+ * reaches TASO, and a database of its own on the configured Redis.
+ *
+ * decisions/672-e2e-without-the-provider.md
+ * decisions/674-e2e-on-an-empty-database.md
+ */
+const TASO_STUB = process.env.E2E_TASO_STUB === "1";
+if (!TASO_STUB && (process.env.E2E_TASO_STUB ?? "") !== "") {
+  throw new Error("E2E_TASO_STUB is 1 or unset; anything else would leave the stand-in off.");
+}
+// With the stand-in, a database of its own, set for the whole run: global setup
+// and the specs read it too.
+if (TASO_STUB) process.env.TEST_DATABASE_URL = standInDatabaseUrl(testDatabaseUrl(), PORT);
+
+/**
+ * The run's own Redis while the stand-in is on. Read only then, so the variable
+ * cannot stop a live run.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
+function redisServer() {
+  return {
+    command: standInRedis(e2eRedisPort(process.env), PORT).command,
+    // Its own word that it serves: Docker opens the port before Redis listens,
+    // and refuses a port already allocated or a name in use, which stops the run.
+    wait: { stdout: /Ready to accept connections/ },
+    reuseExistingServer: false,
+    // SIGTERM, which `docker run` passes on so the container stops and is
+    // removed; Playwright's default SIGKILL would leave it running.
+    gracefulShutdown: { signal: "SIGTERM" as const, timeout: 10_000 },
+    // Room for the first pull of the image on a machine that lacks it.
+    timeout: 180_000,
+  };
+}
+
+/**
+ * The stand-in for TASO and the address the app's server is pointed at. Read only
+ * when the stand-in is on, so `E2E_TASO_PORT` cannot stop a live run.
+ *
+ * decisions/672-e2e-without-the-provider.md
+ * decisions/674-e2e-on-an-empty-database.md
+ */
+function tasoStub() {
+  const port = e2eTasoPort(process.env);
+  const url = `http://localhost:${port}`;
+  return {
+    url,
+    server: {
+      command: "node --import tsx tests/support/taso-stub-server.ts",
+      url,
+      reuseExistingServer: false,
+      env: { ...process.env, E2E_TASO_PORT: String(port) },
+      timeout: 30_000,
+    },
+  };
+}
+const stub = TASO_STUB ? tasoStub() : undefined;
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -75,20 +148,26 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
   ],
-  webServer: {
-    command: serverCommand(target, PORT),
-    url: BASE_URL,
-    // Never reused: a server already listening was started against the
-    // development database, or is a `next dev` where a build is under test.
-    reuseExistingServer: false,
-    // The test database, not the developer's, and no Sentry DSN; everything else
-    // is inherited. The analytics flag works only against a `_test` database,
-    // which this also sets: see `src/lib/e2e-analytics.ts`.
-    env: withoutSentry({
-      ...process.env,
-      DATABASE_URL: testDatabaseUrl(),
-      [E2E_ANALYTICS_FLAG]: "1",
-    }),
-    timeout: startUpTimeoutMs(target),
-  },
+  webServer: [
+    ...(stub ? [redisServer(), stub.server] : []),
+    {
+      command: serverCommand(target, PORT),
+      url: BASE_URL,
+      // Never reused: a server already listening was started against the
+      // development database, or is a `next dev` where a build is under test.
+      reuseExistingServer: false,
+      // The test database, not the developer's, and no Sentry DSN; everything else
+      // is inherited. The analytics flag works only against a `_test` database,
+      // which this also sets: see `src/lib/e2e-analytics.ts`.
+      env: withoutSentry({
+        ...process.env,
+        DATABASE_URL: testDatabaseUrl(),
+        // The specs drop cache entries from the same one, through `dropCached`.
+        REDIS_URL: e2eRedisUrl(process.env),
+        ...(stub ? { TASO_API_BASE_URL: stub.url } : {}),
+        [E2E_ANALYTICS_FLAG]: "1",
+      }),
+      timeout: startUpTimeoutMs(target),
+    },
+  ],
 });

@@ -15,6 +15,7 @@ import {
   type SeasonReadResult,
   UNRANKED_MEASURES,
 } from "./season-comparison";
+import { teamSeasonSummary } from "./season-summary-service";
 import {
   calculateStandings,
   selectTeamMatches,
@@ -308,6 +309,17 @@ export function getTeamStreakRecords(
 }
 
 /**
+ * The `Kausi lyhyesti` block for this club's season.
+ *
+ * decisions/066-season-summary.md
+ */
+export const getTeamSeasonSummary = teamSeasonSummary("football-data", {
+  isLeague: isLeagueCompetition,
+  read: (key, activeSeasonId, teamProviderId) =>
+    readSeasonFor(key.competitionCode, key.seasonId, activeSeasonId, teamProviderId),
+});
+
+/**
  * Which of the club's seasons belong beside this one: its league seasons across
  * divisions, or for a cup only that cup's.
  *
@@ -552,6 +564,13 @@ export async function storedForeignSeasons(competitionCode: string): Promise<Set
   return new Set(rows.map((row) => row.seasonId));
 }
 
+/**
+ * Writes a provider snapshot over the stored matches, deleting none.
+ *
+ * decisions/001-premier-league-match-based-standings.md
+ * decisions/029-forced-season-refresh.md
+ * decisions/678-stale-snapshot-written-last.md
+ */
 export async function synchronizeMatches(
   providerMatches: NormalizedProviderMatch[],
   /** The transaction to join, when a caller has one. Defaults to its own. */

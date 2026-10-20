@@ -9,14 +9,26 @@ let client: ReturnType<typeof postgres> | undefined;
 let database: Database | undefined;
 
 /**
+ * How long one statement may run, a lock wait included, before Postgres cancels
+ * it, so a stalled query fails instead of holding a page. Every caller of `db`
+ * shares it, the scripts too.
+ *
+ * decisions/665-statement-timeout.md
+ */
+export const STATEMENT_TIMEOUT_MS = 10_000;
+
+/**
  * The real client, made the first time the database is used, not when this
  * module is imported. `DATABASE_URL` is required at that first query.
  *
  * decisions/536-database-url-required.md
+ * decisions/665-statement-timeout.md
  */
 function connected(): Database {
   if (database === undefined) {
-    client = postgres(requireDatabaseUrl());
+    client = postgres(requireDatabaseUrl(), {
+      connection: { statement_timeout: STATEMENT_TIMEOUT_MS },
+    });
     database = drizzle(client, { schema });
   }
   return database;

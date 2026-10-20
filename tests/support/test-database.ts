@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
+import { parseDatabaseUrl } from "../../src/lib/test-database-name";
 
 /**
  * The database the test suites use, which is not the development one: derived
@@ -21,18 +22,27 @@ const SUFFIX = "_test";
 const MIGRATION_LOCK_KEY = 3_040_304;
 
 /**
- * `postgres://…/footy-trends` → `postgres://…/footy-trends_test`.
+ * `postgres://…/footy-trends` → `postgres://…/footy-trends_test`, or the
+ * override, whose name must end in `_test` too.
  *
  * decisions/304-test-database.md
  * decisions/399-local-commands-start-the-database.md
+ * decisions/674-e2e-on-an-empty-database.md
  */
 export function testDatabaseUrl(): string {
   // Blank counts as unset, trimmed: the rule the preflight's
   // `effectiveDatabaseUrl` applies to this variable.
   const override = (process.env.TEST_DATABASE_URL ?? "").trim();
-  if (override !== "") return override;
+  if (override !== "") {
+    // Every suite derives from the name, and e2e signs in only on such a one.
+    const url = parseDatabaseUrl(override, "TEST_DATABASE_URL");
+    if (!url.pathname.endsWith(SUFFIX)) {
+      throw new Error(`TEST_DATABASE_URL must name a database ending in _test: ${url.host}`);
+    }
+    return override;
+  }
 
-  // Trimmed, as the override is: a blank value would reach `new URL()`, which
+  // Trimmed, as the override is: a blank value would reach the parse, which
   // throws.
   const base = (process.env.DATABASE_URL ?? "").trim();
   if (base === "") {
@@ -42,12 +52,15 @@ export function testDatabaseUrl(): string {
     );
   }
 
-  const url = new URL(base);
+  const url = parseDatabaseUrl(base, "DATABASE_URL");
   // `pathname` is "/name"; an empty one names no database. The suffix is
   // appended to the encoded name, so the URL still round-trips.
   const encodedName = url.pathname.replace(/^\//, "");
   if (encodedName === "") {
-    throw new Error(`DATABASE_URL names no database, so no test database can be derived: ${base}`);
+    // The host only: the URL carries the password, and this message reaches logs.
+    throw new Error(
+      `DATABASE_URL names no database, so no test database can be derived: ${url.host}`
+    );
   }
 
   url.pathname = `/${encodedName}${SUFFIX}`;
@@ -61,27 +74,42 @@ export function testDatabaseUrl(): string {
  * decisions/304-test-database.md
  */
 export function databaseNameFor(url: string): string {
-  const name = decodeURIComponent(new URL(url).pathname.replace(/^\//, ""));
+  const parsed = parseDatabaseUrl(url, "The test database URL");
+  const name = decodeURIComponent(parsed.pathname.replace(/^\//, ""));
   // Validated here, where the identifier is produced: an explicit
-  // `TEST_DATABASE_URL` skips the derivation.
+  // `TEST_DATABASE_URL` skips the derivation. The host only, as above.
   if (name === "") {
-    throw new Error(`The test database URL names no database: ${url}`);
+    throw new Error(`The test database URL names no database: ${parsed.host}`);
   }
   return name;
 }
 
 /**
- * Creates the test database if it is not there, then migrates it. Issued from
- * the server's `postgres` database: `create database` cannot run inside the
- * one being created. It already existing is the ordinary case.
+ * The integration suite's own database: the test database's name with
+ * `_integration` before its `_test`, so its rows never reach the database the
+ * TASO recorder reads.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
+export function integrationDatabaseUrl(): string {
+  // Ends in `_test`: `testDatabaseUrl` derives it so or refuses the override.
+  const url = parseDatabaseUrl(testDatabaseUrl(), "The test database URL");
+  url.pathname = url.pathname.replace(/_test$/, "_integration_test");
+  return url.toString();
+}
+
+/**
+ * Creates a test database, the e2e one unless another is named, if it is not
+ * there, then migrates it. Issued from the server's `postgres` database:
+ * `create database` cannot run inside the one being created.
  *
  * decisions/304-test-database.md
+ * decisions/674-e2e-on-an-empty-database.md
  */
-export async function ensureTestDatabase(): Promise<string> {
-  const url = testDatabaseUrl();
+export async function ensureTestDatabase(url: string = testDatabaseUrl()): Promise<string> {
   const name = databaseNameFor(url);
 
-  const adminUrl = new URL(url);
+  const adminUrl = parseDatabaseUrl(url, "The test database URL");
   adminUrl.pathname = "/postgres";
   const admin = postgres(adminUrl.toString(), { max: 1 });
   try {

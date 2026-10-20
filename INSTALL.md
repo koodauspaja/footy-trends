@@ -51,6 +51,7 @@ generated. These two come from outside the repository:
 |---|---|
 | `FOOTBALL_DATA_API_KEY` | Free registration at [football-data.org](https://www.football-data.org/client/register) — `docs/setup/007-football-data-api.md` |
 | `TASO_API_KEY` | Read from tulospalvelu.palloliitto.fi's own requests — `docs/setup/020-taso-api-key.md` |
+| `TASO_HASH_SALT` | Optional: signs TASO requests, which TASO checks since 2026-10-15 — `docs/setup/020-taso-api-key.md` |
 
 Without them the dev server still starts, and every page that has data stored
 renders. What does not work is fetching: foreign leagues (`/ulkomaat`) and the
@@ -141,7 +142,7 @@ next deploy — add a new migration instead. Renaming is safe, as long as the
 `.sql` and its journal tag move together and the SQL is untouched.
 
 `npm run db:push` syncs the schema without a migration, for local experiments
-only. `npm run db:reset` drops the test database; `npm run db:reset:dev`
+only. `npm run db:reset` drops the test databases; `npm run db:reset:dev`
 destroys the development one, and asks first.
 
 ## Troubleshooting

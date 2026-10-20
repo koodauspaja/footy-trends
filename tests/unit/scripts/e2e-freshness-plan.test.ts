@@ -5,14 +5,18 @@ import {
   decideFreshness,
   describeAge,
   describeChange,
+  describeDocumentationSkip,
   hashFromEntry,
   inFixedOrder,
+  isDocumentationOnly,
   isFullRun,
+  isNonCodePath,
   MAX_AGE_MS,
   missingPrerequisites,
+  NON_CODE_DIRECTORIES,
   parseMarker,
   pathFromEntry,
-  WATCHED_PATHS,
+  pushedCommits,
 } from "../../../scripts/e2e-freshness-plan";
 
 /**
@@ -24,17 +28,113 @@ import {
  * decisions/242-freshness-compares-content.md
  * decisions/292-sonar-zero-open-issues.md
  * decisions/568-e2e-against-a-production-build.md
+ * decisions/661-e2e-freshness-skips-documentation.md
  */
 
-describe("WATCHED_PATHS", () => {
-  it.each(["src", "tests/e2e", "next.config.ts", "playwright.config.ts", "scripts/e2e-target.ts"])(
-    "watches %s, which exists",
-    (watched) => {
-      // A renamed file would otherwise drop out of every fingerprint unnoticed.
-      expect(WATCHED_PATHS).toContain(watched);
-      expect(existsSync(watched)).toBe(true);
-    }
-  );
+describe("NON_CODE_DIRECTORIES", () => {
+  it.each(NON_CODE_DIRECTORIES)("names %s, which exists", (directory) => {
+    // A renamed directory would otherwise leave a stale entry that skips nothing.
+    expect(existsSync(directory)).toBe(true);
+  });
+});
+
+describe("isNonCodePath", () => {
+  it.each([
+    "specs/068-model-choice-on-ennusteet.md",
+    "decisions/084-e2e-freshness-before-push.md",
+    "docs/infrastructure.md",
+    "docs/setup/README.md",
+    "skills/open-pr.md",
+    "README.md",
+    "CLAUDE.md",
+  ])("skips %s", (path) => {
+    expect(isNonCodePath(path)).toBe(true);
+  });
+
+  it.each([
+    "src/app/page.tsx",
+    "tests/e2e/standings.spec.ts",
+    "tests/e2e/README.md",
+    "drizzle/0001_add_matches.sql",
+    "package.json",
+    "package-lock.json",
+    "public/favicon.ico",
+    ".nvmrc",
+    "sentry.server.config.ts",
+    "scripts/e2e-target.ts",
+    "specs.ts",
+    "docs.md/page.tsx",
+    "specsheet/a.md",
+  ])("watches %s", (path) => {
+    expect(isNonCodePath(path)).toBe(false);
+  });
+});
+
+const SHA_A = "a".repeat(40);
+const SHA_B = "b".repeat(40);
+const ZERO = "0".repeat(40);
+
+describe("pushedCommits", () => {
+  it("reads the local sha of each ref git hands the hook", () => {
+    const stdin = [
+      `refs/heads/one ${SHA_A} refs/heads/one ${ZERO}`,
+      `refs/heads/two ${SHA_B} refs/heads/two ${SHA_A}`,
+      "",
+    ].join("\n");
+
+    expect(pushedCommits(stdin)).toEqual([SHA_A, SHA_B]);
+  });
+
+  it("sends no commit for a deleted ref", () => {
+    expect(pushedCommits(`(delete) ${ZERO} refs/heads/gone ${SHA_A}\n`)).toEqual([]);
+  });
+
+  it("reads nothing from empty input", () => {
+    expect(pushedCommits("")).toEqual([]);
+  });
+
+  it("accepts a SHA-256 object name", () => {
+    const sha256 = "c".repeat(64);
+
+    expect(pushedCommits(`refs/heads/x ${sha256} refs/heads/x ${ZERO}`)).toEqual([sha256]);
+  });
+
+  it.each([
+    ["a single word", "garbage"],
+    ["too few fields", `refs/heads/x ${SHA_A} refs/heads/x`],
+    ["too many fields", `refs/heads/x ${SHA_A} refs/heads/x ${ZERO} extra`],
+    ["a sha that is not hex", `refs/heads/x ${"g".repeat(40)} refs/heads/x ${ZERO}`],
+    ["a sha too short to be one", `refs/heads/x abc123 refs/heads/x ${ZERO}`],
+    ["a remote sha that is not one", `refs/heads/x ${SHA_A} refs/heads/x nothex`],
+  ])("gives up on %s rather than skip a ref", (_name, line) => {
+    expect(pushedCommits(`refs/heads/ok ${SHA_A} refs/heads/ok ${ZERO}\n${line}\n`)).toBeNull();
+  });
+});
+
+describe("isDocumentationOnly", () => {
+  it("skips a push that changes only non-code paths", () => {
+    expect(isDocumentationOnly(["README.md", "specs/068-x.md"])).toBe(true);
+  });
+
+  it("checks a push that changes one other file among them", () => {
+    expect(isDocumentationOnly(["specs/068-x.md", "drizzle/0001_add_x.sql"])).toBe(false);
+  });
+
+  it("checks a push whose changes could not be worked out", () => {
+    expect(isDocumentationOnly(null)).toBe(false);
+  });
+
+  it("checks a push that changes nothing from origin/main", () => {
+    expect(isDocumentationOnly([])).toBe(false);
+  });
+});
+
+describe("describeDocumentationSkip", () => {
+  it("says how many files and why they need no run", () => {
+    expect(describeDocumentationSkip(3)).toBe(
+      "e2e freshness check skipped: the 3 file(s) this push changes from origin/main are all under specs/, decisions/, docs/, skills/ or root .md files."
+    );
+  });
 });
 
 const NOW = new Date("2026-08-30T12:00:00.000Z");
@@ -44,7 +144,7 @@ function minutesAgo(minutes: number): Date {
   return new Date(NOW.getTime() - minutes * 60_000);
 }
 
-const READY = { docker: true, footballDataKey: true, tasoKey: true };
+const READY = { docker: true, footballDataKey: true, tasoKey: true, tasoSigning: true };
 
 function decide(overrides: Partial<Parameters<typeof decideFreshness>[0]> = {}) {
   return decideFreshness({
@@ -68,12 +168,18 @@ describe("missingPrerequisites", () => {
       /FOOTBALL_DATA_API_KEY/
     );
     expect(missingPrerequisites({ ...READY, tasoKey: false })[0]).toMatch(/TASO_API_KEY/);
+    expect(missingPrerequisites({ ...READY, tasoSigning: false })[0]).toMatch(/TASO_HASH_SALT/);
   });
 
-  it("names all three when none are available", () => {
+  it("names all four when none are available", () => {
     expect(
-      missingPrerequisites({ docker: false, footballDataKey: false, tasoKey: false })
-    ).toHaveLength(3);
+      missingPrerequisites({
+        docker: false,
+        footballDataKey: false,
+        tasoKey: false,
+        tasoSigning: false,
+      })
+    ).toHaveLength(4);
   });
 });
 

@@ -106,6 +106,7 @@ By name; no value is in the repository. The lists are in `.railway/railway.ts`.
 | `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` | set | set | per environment |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | set | set | from that environment's Google project |
 | `FOOTBALL_DATA_API_KEY`, `TASO_API_KEY` | set | set | **the same key in both** |
+| `TASO_HASH_SALT` | absent | absent | signs each TASO request when set; absent sends them unsigned, which TASO refuses since 2026-10-15. Temporary, until official access (decisions/681) |
 | `FOOTBALL_DATA_EARLIEST_SEASON`, `FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS` | `2023`, `3600` | `2023`, `3600` | how far back history is stored, and how old stored matches may be before a refresh |
 | `AXIOM_TOKEN`, `AXIOM_DATASET` | dataset `footy-trends` | dataset `footy-trends-prod` | a token per environment |
 | `NEXT_PUBLIC_SENTRY_DSN` | set | set | per environment |
@@ -115,7 +116,7 @@ By name; no value is in the repository. The lists are in `.railway/railway.ts`.
 | `SENTRY_TRACES_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` | absent | set | production: 0.1. Absent means the in-code default, also 0.1 (decisions/656). What an event carries is not a variable: `DATA_COLLECTION` in `src/lib/sentry-config.ts`, every environment (decisions/565) |
 
 The `predictions` service holds its own: `DATABASE_URL`, `REDIS_URL`, the two
-provider keys, `FOOTBALL_DATA_EARLIEST_SEASON`, `AXIOM_TOKEN`, `AXIOM_DATASET`
+provider keys, `TASO_HASH_SALT` when the web service has it, `FOOTBALL_DATA_EARLIEST_SEASON`, `AXIOM_TOKEN`, `AXIOM_DATASET`
 and `NODE_ENV`.
 
 ### Staging sleeps
@@ -183,8 +184,8 @@ checkout of the commit that environment runs. It rewrites every row.
 
 | | Staging | Production | Local | Tests |
 |---|---|---|---|---|
-| Postgres | Railway, v18 | Railway, v18 | `docker-compose.yml`, `postgres:18-alpine` | the local server, database `<name>_test` (decisions/304) |
-| Redis | Railway, 8.2 | Railway, 8.2 | `docker-compose.yml`, `redis:8-alpine` | the local one; integration tests mock the cache |
+| Postgres | Railway, v18 | Railway, v18 | `docker-compose.yml`, `postgres:18-alpine` | the local server: e2e `<name>_test` (decisions/304), integration `<name>_integration_test` (decisions/674); `<name>_stand_in_<port>_test` for e2e with `E2E_TASO_STUB=1`, its TASO rows and TASO predictions cleared each run (decisions/674) |
+| Redis | Railway, 8.2 | Railway, 8.2 | `docker-compose.yml`, `redis:8-alpine` | the local one; integration tests mock the cache; e2e uses its database 1 (decisions/615), or with `E2E_TASO_STUB=1` starts its own `redis:8-alpine` container, `footy-trends-e2e-stand-in-<E2E_PORT>`, on `127.0.0.1:6380`, data kept in the volume `footy-trends-e2e-redis-<port>`, every key but football-data's answers cleared each run (decisions/674) |
 
 - **Schema:** `src/db/schema.ts`; migrations in `drizzle/`, named
   `<verb>_<what>`, never edited once applied anywhere (CLAUDE.md).
@@ -193,6 +194,13 @@ checkout of the commit that environment runs. It rewrites every row.
   variable; neither falls back to `localhost` or the `PG*` variables, which is
   what postgres.js does when handed nothing. The client is made on first use,
   so `next build` needs no database (#536).
+- **Every statement on the app's client is cancelled after 10 s**
+  (`STATEMENT_TIMEOUT_MS`, `src/db/index.ts`), a lock wait included, in every
+  environment and in the scripts that share the client (`predictions`,
+  `backfill`). The migrator and `npm run admin:role` open their own clients and
+  set none in code. A `?statement_timeout=` on `DATABASE_URL` would override it,
+  and would reach the migrator too, which reads the same URL; no environment sets
+  one (decisions/665).
 - **Redis holds two things:** the cache (`getCached`, JSON, TTL per key) and
   better-auth's rate-limit counters (decisions/318). A Redis outage must not
   take sign-in down; that record says how it does not.
@@ -205,8 +213,13 @@ checkout of the commit that environment runs. It rewrites every row.
   on its next sync; a finished season is never refetched, so without the run
   its tables show no zones (decisions/063).
 - **The suites never touch the development database.** `npm run
-  test:integration` and `npm run test:e2e` create and migrate `<name>_test`;
-  e2e builds the application and serves that production build on port 3001.
+  test:integration` creates and migrates `<name>_integration_test`, and `npm
+  run test:e2e` `<name>_test`; e2e builds the application and serves that
+  production build on port 3001.
+  With `E2E_TASO_STUB=1`, a temporary override while TASO refuses our requests,
+  e2e answers TASO from recorded fixtures on port 3002 and uses its own database
+  and Redis container, so it reaches neither TASO nor development's Redis (decisions/672,
+  decisions/674).
 
 ## GitHub
 
@@ -252,7 +265,7 @@ repos/:owner/:repo/rulesets` and its neighbours.
 
 Actions variables: `OWNER_USERNAME`, `COLLABORATOR_USERNAME`,
 `FIRST_RELEASE_VERSION`. Secrets: `SONAR_TOKEN`, `FOOTBALL_DATA_API_KEY`,
-`TASO_API_KEY`, and `CI_POSTGRES_PASSWORD`, the password of the Postgres
+`TASO_API_KEY`, `TASO_HASH_SALT` once set, which the release workflow's e2e and PR environments read (decisions/681), and `CI_POSTGRES_PASSWORD`, the password of the Postgres
 container a workflow run creates (any random value; nothing outside a run uses it). `SONAR_ORGANIZATION` and `SONAR_PROJECT_KEY` also exist as
 secrets and nothing reads them: the values are in `sonar-project.properties`.
 Workflows from forks need approval for all outside contributors.
@@ -298,7 +311,7 @@ Organization project `Footy Trends` (number 2), private. Status: `Backlog`,
 | Sourcery | rules in its dashboard, mirrored and explained in `REVIEW_RULES.md`; `.sourcery.yaml` only enables the defaults | Pro plan: 300 000 diff characters per pull request, 1 500 000 per seat per rolling 7 days. Out of budget it posts a notice and its check-run reads `skipped`, which a required check accepts. A later push gets the quick check, a review whose whole body is `### Sourcery assessment` and `**Approved.**`, which is not a full review; `npm run check:sourcery -- <PR>` says which the head has, and a bare `@sourcery-ai review` comment forces a full one (`docs/setup/004`, `skills/open-pr.md`) |
 | SonarCloud | `sonar-project.properties`, `sonarcloud.yml` | indexes the whole repository, so a source file no test imports scores 0%; `npm run test:unit` fails on such a file first (CLAUDE.md). The gate judges new code only, and the built-in profile gains rules without notice, so open issues can appear on `main` with the gate green. One rule, `await` in a loop, is ignored in five named files, and no security rule is ignored anywhere (`decisions/592-sonar-zero-open-issues-again.md`) |
 | Renovate | `renovate.json` | Mondays before 07:00 Helsinki, at most 10 open, no automerge. TypeScript is held below 7 (#43) |
-| Local gate | `npm run verify`, the pre-commit hook (lint, typecheck) and the pre-push hook (a fresh e2e run, against a production build, for changed files) | the stages are checked against the workflows by a unit test |
+| Local gate | `npm run verify`, the pre-commit hook (lint, typecheck) and the pre-push hook (a fresh e2e run, against a production build, unless the push changes only `specs/`, `decisions/`, `docs/`, `skills/` or root `.md` files) | the stages are checked against the workflows by a unit test |
 
 ## Observability
 
@@ -338,7 +351,7 @@ A change to the thing on the left needs the script on the right checked.
 |---|---|
 | The board's status names | `scripts/release-pr-plan.ts` |
 | The local services in `docker-compose.yml` | `scripts/services-plan.ts`, `scripts/ensure-services.ts` |
-| The test database's name ending in `_test` | `scripts/with-test-db.ts`, the integration suite's global setup |
+| The test databases' names: `_test` for e2e, `_integration_test` for integration | `scripts/with-test-db.ts`, the integration suite's global setup |
 | The checkbox and reason shape on issues | `scripts/issue-boxes-plan.ts` |
 | Conventional commit subjects | `scripts/next-version.ts`, the release notes |
 | CI's stages | `npm run verify`, compared with the workflows by a unit test |

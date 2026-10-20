@@ -5,19 +5,23 @@
  *
  * decisions/084-e2e-freshness-before-push.md
  * decisions/242-freshness-compares-content.md
+ * decisions/661-e2e-freshness-skips-documentation.md
  */
 import { existsSync, readFileSync } from "node:fs";
 import { dockerIsRunning } from "./docker";
-import { fingerprint } from "./e2e-freshness-git";
+import { changedFromMain, fingerprint } from "./e2e-freshness-git";
 import {
   changedBetweenFingerprints,
   decideFreshness,
   describeChange,
+  describeDocumentationSkip,
+  isDocumentationOnly,
   MARKER_PATH,
   MAX_AGE_MS,
   type Marker,
   missingPrerequisites,
   parseMarker,
+  pushedCommits,
 } from "./e2e-freshness-plan";
 
 /**
@@ -57,7 +61,41 @@ function readMarker(): string | null {
   return existsSync(MARKER_PATH) ? readFileSync(MARKER_PATH, "utf8") : null;
 }
 
+/**
+ * The ref lines git writes to a pre-push hook's stdin, or `null` when there
+ * are none to read: run by hand from a terminal, or stdin unreadable.
+ *
+ * decisions/661-e2e-freshness-skips-documentation.md
+ */
+function readPushedRefs(): string | null {
+  if (process.stdin.isTTY) return null;
+  try {
+    return readFileSync(0, "utf8");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * What the push changes from `origin/main`, or `null` when that cannot be
+ * worked out and the full check has to run.
+ *
+ * decisions/661-e2e-freshness-skips-documentation.md
+ */
+function changedByPush(): string[] | null {
+  const refs = readPushedRefs();
+  if (refs === null) return null;
+  const commits = pushedCommits(refs);
+  return commits === null ? null : changedFromMain(commits);
+}
+
 function main(): void {
+  const changed = changedByPush();
+  if (isDocumentationOnly(changed)) {
+    out(describeDocumentationSkip(changed.length));
+    return;
+  }
+
   if (existsSync(".env")) {
     process.loadEnvFile(".env");
   }
@@ -72,6 +110,8 @@ function main(): void {
       docker: dockerIsRunning(),
       footballDataKey: (process.env.FOOTBALL_DATA_API_KEY ?? "").trim() !== "",
       tasoKey: (process.env.TASO_API_KEY ?? "").trim() !== "",
+      tasoSigning:
+        (process.env.TASO_HASH_SALT ?? "").trim() !== "" || process.env.E2E_TASO_STUB === "1",
     }),
   });
 

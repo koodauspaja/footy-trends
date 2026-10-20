@@ -8,6 +8,7 @@
  */
 import {
   COMPOSE_DATABASE_NAME,
+  databaseNameOf,
   nonInteractiveRefusal,
   postgresUnreachableMessage,
   resetRefusal,
@@ -109,7 +110,7 @@ export async function runReset(actions: ResetActions): Promise<number> {
 }
 
 export type TestResetActions = {
-  /** The suites' database, derived or overridden. */
+  /** One of the suites' databases, derived or overridden. */
   url: string | undefined;
   /** Drops it, resolving false when the drop itself failed. */
   dropDatabase: (url: string) => Promise<boolean>;
@@ -118,10 +119,11 @@ export type TestResetActions = {
 };
 
 /**
- * Drops the suites' database and stops: no containers, no volume, no
+ * Drops one of the suites' databases and stops: no containers, no volume, no
  * migrations.
  *
  * decisions/406-safe-and-destructive-resets.md
+ * decisions/674-e2e-on-an-empty-database.md
  */
 export async function runTestReset(actions: TestResetActions): Promise<number> {
   const refusal = testResetRefusal(actions.url);
@@ -132,11 +134,13 @@ export async function runTestReset(actions: TestResetActions): Promise<number> {
 
   const url = actions.url as string;
 
+  // A string by here: `testResetRefusal` has parsed the URL and checked its name.
+  const name = databaseNameOf(url) as string;
   if (!(await actions.dropDatabase(url))) {
-    actions.err("Could not drop the test database. Its error is above.");
+    actions.err(`Could not drop ${name}. Its error is above.`);
     return 1;
   }
 
-  actions.out("The test database is gone. The next test run recreates and migrates it.");
+  actions.out(`${name} is gone. The next test run recreates and migrates it.`);
   return 0;
 }

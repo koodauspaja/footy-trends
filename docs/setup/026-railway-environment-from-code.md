@@ -26,6 +26,7 @@ Have these before the first run:
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | yes | 014: the Testing project's client, unless this is production |
 | `AUTH_ALLOWED_EMAILS` | yes, except for an environment named `production` | who may sign in, comma-separated |
 | `TASO_API_KEY` | no | 020 |
+| `TASO_HASH_SALT` | no | 020 |
 | `AXIOM_TOKEN`, `AXIOM_DATASET` | no; the workflow does not pass them | 009 |
 | `NEXT_PUBLIC_SENTRY_DSN` | no; the workflow does not pass it | 017 |
 

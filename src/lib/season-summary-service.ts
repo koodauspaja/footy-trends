@@ -1,0 +1,97 @@
+/**
+ * The `Kausi lyhyesti` block's one read path for both providers: each passes
+ * its own season reader and league rule; the records and the upset are read here.
+ *
+ * decisions/066-season-summary.md
+ */
+import { logger } from "./logger";
+import type { MatchSource } from "./match-source";
+import type { SeasonKey, SeasonReadResult } from "./season-comparison";
+import { type SeasonSummarySeries, type SummaryReaders, seasonSummaryFor } from "./season-summary";
+import { competitionScope, recordsFor } from "./streak-records";
+import { getTeamUpset } from "./surprise-service";
+import type { TeamSeason } from "./team-seasons";
+
+/**
+ * The block for one club and season, or `error` with one line logged, whether a
+ * read failed or a detector or a read threw.
+ *
+ * decisions/066-season-summary.md
+ */
+export async function getSeasonSummary<T extends SeasonKey>(
+  source: MatchSource["kind"],
+  readers: Omit<SummaryReaders<T>, "upset">
+): Promise<SeasonSummarySeries> {
+  const { teamId, selected } = readers;
+  let series: SeasonSummarySeries = { status: "error" };
+  // The error itself when one was thrown; a read that reports failure has none.
+  let thrown: { err?: unknown } = {};
+  try {
+    series = await seasonSummaryFor({
+      ...readers,
+      upset: () => getTeamUpset(source, selected.competitionCode, selected.seasonId, teamId),
+    });
+  } catch (error) {
+    thrown = { err: error };
+  }
+  // A failed season lookup has logged itself already.
+  if (series.status === "error" && readers.seasons !== null) {
+    logger.error(
+      {
+        source,
+        teamProviderId: teamId,
+        competitionCode: selected.competitionCode,
+        seasonId: selected.seasonId,
+        ...thrown,
+      },
+      "Unable to summarise the season"
+    );
+  }
+  return series;
+}
+
+/**
+ * What a provider supplies: which competitions are leagues, and how one of its
+ * seasons is read.
+ *
+ * decisions/066-season-summary.md
+ */
+export type SummaryProvider = {
+  isLeague: (competitionCode: string) => boolean;
+  read: (
+    key: SeasonKey,
+    activeSeasonId: number,
+    teamProviderId: number
+  ) => Promise<SeasonReadResult>;
+};
+
+/**
+ * A provider's `getTeamSeasonSummary`, over the same reads as `Tämä kausi
+ * verrattuna`. The records are `Ennätykset`' own call on a league page: the same
+ * league rule, reader and labels, unlogged, so a failure is the block's one line.
+ *
+ * decisions/066-season-summary.md
+ */
+export function teamSeasonSummary(source: MatchSource["kind"], provider: SummaryProvider) {
+  return (
+    competitionCode: string,
+    teamProviderId: number,
+    seasonId: number,
+    activeSeasonId: number,
+    seasons: readonly TeamSeason[] | null,
+    label: (seasonId: number) => string
+  ): Promise<SeasonSummarySeries> => {
+    const read = (key: SeasonKey) => provider.read(key, activeSeasonId, teamProviderId);
+    return getSeasonSummary(source, {
+      teamId: teamProviderId,
+      selected: { competitionCode, seasonId },
+      activeSeasonId,
+      seasons,
+      isLeague: provider.isLeague,
+      label,
+      read,
+      records: (stored) =>
+        recordsFor(teamProviderId, stored, provider.isLeague, label, read, competitionScope),
+    });
+  };
+}

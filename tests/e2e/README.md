@@ -3,7 +3,8 @@
 Playwright tests that exercise the running application through a real
 Chromium browser, against a real Postgres/Redis and the live
 football-data.org API — the same setup used for local development
-(`npm run dev`), not a mocked provider.
+(`npm run dev`), not a mocked provider. While TASO refuses our requests,
+`E2E_TASO_STUB=1` swaps it for a stand-in; see below.
 
 ## The suite has its own database, and its own port
 
@@ -19,14 +20,17 @@ if the test does not share the database.
 
 | | |
 |---|---|
-| Database | `TEST_DATABASE_URL`, or `DATABASE_URL` with `_test` appended to the name |
+| Database | `TEST_DATABASE_URL`, whose name must end in `_test`, or `DATABASE_URL` with `_test` appended to the name |
 | Created and migrated | automatically, by `tests/e2e/global-setup.ts` |
 | Port | 3001, so `npm run dev` can keep running on 3000 |
 | Server reuse | never — a server already listening was started against the *development* database |
+| Redis | database 1 on the server `REDIS_URL` names; with `E2E_TASO_STUB=1`, a container of its own (below). Specs drop cache entries through `dropCached` in `tests/support/e2e-redis.ts` |
 
-`tests/integration` uses the same database, through
-`scripts/with-test-db.ts`. It creates and deletes rows, and used to do that in
-whatever database the developer was signed into.
+`tests/integration` uses a database of its own, `<your database>_integration_test`,
+through `scripts/with-test-db.ts`. It creates and deletes rows, and used to do
+that in whatever database the developer was signed into; kept apart from this
+one, a test interrupted before its cleanup leaves nothing the TASO recorder,
+which reads this database, would record.
 
 ### One season is seeded, not fetched
 
@@ -37,13 +41,60 @@ from them — depend on a shape TASO no longer produces through the endpoint the
 app reads. Seeding also costs nothing: a completed season with stored rows is
 never refetched, so those pages make no provider request at all.
 
+### `E2E_TASO_STUB=1`: a stand-in for TASO
+
+An emergency override, for while TASO refuses our requests. Set in `.env`, it
+makes `playwright.config.ts` start `tests/support/taso-stub-server.ts` on port
+3002 (`E2E_TASO_PORT` changes it) and point the app's server at it with
+`TASO_API_BASE_URL`. The stand-in replays recorded answers, so the suite passes
+on an empty test database:
+
+| Fixture | What it holds |
+|---|---|
+| `tests/e2e/fixtures/taso-national-teams.json` | The national-team buckets' categories and matches |
+| `tests/e2e/fixtures/taso-domestic.json.gz` | Every domestic season live runs stored: `getCompetitions`, matches, group tables, and the category names Redis still held |
+
+It refuses every other request, as the provider does now. A stand-in run owns
+what it touches:
+
+| | The run's own | Cleared before each run |
+|---|---|---|
+| Database | `<name>_stand_in_<E2E_PORT>_test`, where the test database is `<name>_test`, which the recorder reads | its TASO rows and TASO predictions |
+| Redis | a container `footy-trends-e2e-stand-in-<E2E_PORT>` of the image `docker-compose.yml` runs, on port 6380 (`E2E_REDIS_PORT`), data kept in the volume `footy-trends-e2e-redis-<port>` | every key but football-data's answers |
+
+So every TASO answer a run uses comes from the recording, and nothing in
+development's database or Redis is read or deleted. football-data's rows and
+cache entries stay between runs, so runs close together do not ask the key
+staging and production share again (the cache holds matches for 15 minutes and
+competitions for an hour). A port already in use stops the run, and so does a
+second run on the same `E2E_PORT`, on Docker's refusal of the container's name.
+If a run is killed hard, its Redis container can outlive it and hold the port
+and the name: `docker ps` shows it, `docker rm -f` removes it.
+
+Remove the line from `.env` when TASO answers again; e2e tests against the real
+TASO connection then take this one's place.
+
+`tests/e2e/taso.spec.ts` is the one spec that fails when TASO refuses: it asks the
+suite's own `/api/health?providers=1`, whose TASO check makes a real, signed
+request. It is not defined while `E2E_TASO_STUB=1`, and needs `TASO_HASH_SALT`
+(decisions/681).
+
+`npm run test:e2e:record-taso` rewrites the domestic fixture from the test
+database's TASO rows and the live run's Redis. It only reads them, and prints
+what changes against the fixture it replaces: check it before committing, since
+a competition appearing unasked is an integration test's leftover. Run it after
+a live run has stored what a new spec needs.
+`decisions/672-e2e-without-the-provider.md` and
+`decisions/674-e2e-on-an-empty-database.md` have the reasons.
+
 ## Prerequisites
 
 - Postgres and Redis running locally — `npm run test:e2e` starts them itself
   if they are down (#399)
 - A configured `.env` with a working `FOOTBALL_DATA_API_KEY` **and**
   `TASO_API_KEY` (see `INSTALL.md` and
-  `docs/setup/020-taso-api-key.md`). `global-setup.ts` fails fast on either
+  `docs/setup/020-taso-api-key.md`), and `TASO_HASH_SALT` unless
+  `E2E_TASO_STUB=1`. `global-setup.ts` fails fast on any of them
   being missing, rather than letting every spec time out against a generic
   error page
 - Chromium installed for Playwright: `npm run test:e2e:browser`
@@ -189,6 +240,18 @@ and blocks, when nothing vouches for what you are pushing (#84).
 It is installed by `npm install` — Husky's `prepare` script wires
 `core.hooksPath` to `.husky/`, so a fresh clone gets it with no manual step.
 
+### A push of only documentation needs no run
+
+When every file the pushed commits change from `origin/main` is under `specs/`,
+`decisions/`, `docs/` or `skills/`, or is a `.md` file at the repository root,
+the hook prints that it skipped the check and the push proceeds, whatever the
+marker says. Nothing e2e runs reads those files.
+
+Any other file in the diff, and anything the hook cannot work out (no
+`origin/main`, a commit git cannot compare, nothing pushed), goes to the full
+check below. A file moved out of `src/` into `docs/` still counts as a change
+under `src/`.
+
 ### What it checks
 
 A full, passing run writes `.e2e-freshness` (gitignored). The hook blocks when:
@@ -197,16 +260,20 @@ A full, passing run writes `.e2e-freshness` (gitignored). The hook blocks when:
 |---|---|
 | No marker | `No passing full e2e run has been recorded` |
 | Older than **12 hours** | `The last passing e2e run finished 13 h 0 min ago` |
-| A watched file modified since the marker: anything under `src/` or `tests/e2e/`, `next.config.ts`, `playwright.config.ts` or `scripts/e2e-target.ts` | `3 file(s) changed since the last passing e2e run: …` |
+| A watched file added, modified or deleted since the marker | `3 file(s) changed since the last passing e2e run: …` |
+
+Every file is watched except the documentation paths above: `drizzle/`,
+`package-lock.json`, `public/` and the config files as much as `src/` and
+`tests/e2e/`, and an untracked file `.gitignore` does not cover as well. A
+file added anywhere later is watched without anyone listing it.
 
 The file comparison is the load-bearing one — a run is stale the moment the
 code it exercised changes. The twelve-hour window is a backstop for what that
-cannot see: a dependency bump, a `.env` edit, a provider changing its data.
+cannot see: a `.env` edit, a provider changing its data.
 
-Modification times are read from the working tree rather than from the commits
-being pushed, because what matters is whether the code on disk is the code the
-suite ran against. An uncommitted edit breaks that just as thoroughly as a
-commit does.
+The comparison reads the working tree rather than the commits being pushed,
+because what matters is whether the code on disk is the code the suite ran
+against. An uncommitted edit breaks that just as thoroughly as a commit does.
 
 ### It warns instead of blocking without local infrastructure
 
@@ -221,8 +288,8 @@ everyone routinely bypasses stops being a gate.
 git push --no-verify
 ```
 
-Skips the hook entirely. Reach for it when you know the suite is irrelevant to
-what you are pushing — a docs-only change, say.
+Skips the hook entirely, a code change included. A push of only documentation
+does not need it: the hook passes that on its own.
 
 ### Only a full run counts
 

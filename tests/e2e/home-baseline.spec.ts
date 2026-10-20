@@ -1,7 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
-import Redis from "ioredis";
 import postgres from "postgres";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
+import { dropCached } from "../support/e2e-redis";
 import { testDatabaseUrl } from "../support/test-database";
 
 /**
@@ -30,12 +30,7 @@ const PATH = (id: number) => `/kotimaa/ottelu/${id}`;
 // before these fixtures were stored, they rate neither cup side, and a cup tie
 // is predicted only between rated sides; so both are dropped once seeded.
 async function dropModelCaches() {
-  const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
-  try {
-    await redis.del("elo:v1:taso", "poisson:v1:taso");
-  } finally {
-    await redis.quit();
-  }
+  await dropCached("elo:v1:taso", "poisson:v1:taso");
 }
 
 async function withDatabase(run: (sql: postgres.Sql) => Promise<unknown>) {
