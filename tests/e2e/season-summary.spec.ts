@@ -112,6 +112,7 @@ test.beforeAll(async () => {
       kickoff_at: new Date(Date.UTC(2023, 8, 6, 15)),
     })}`;
   });
+  await dropCachedReads();
 });
 
 test.afterAll(async () => {
