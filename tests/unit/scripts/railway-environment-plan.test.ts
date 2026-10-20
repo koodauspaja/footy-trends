@@ -207,12 +207,20 @@ describe("variablesFor", () => {
   it("adds the optional keys that are set, and leaves out the ones that are blank", () => {
     const planned = variablesFor(
       "pr-123",
-      { ...KEYS, TASO_API_KEY: "taso", AXIOM_TOKEN: "  ", AXIOM_DATASET: "logs" },
+      {
+        ...KEYS,
+        TASO_API_KEY: "taso",
+        TASO_HASH_SALT: "salt",
+        AXIOM_TOKEN: "  ",
+        AXIOM_DATASET: "logs",
+      },
       "generated"
     );
 
-    const names = planned.ok ? planned.variables.map((variable) => variable.name) : [];
-    expect(names.slice(-2)).toEqual(["TASO_API_KEY", "AXIOM_DATASET"]);
+    const variables = planned.ok ? planned.variables : [];
+    const names = variables.map((variable) => variable.name);
+    expect(names.slice(-3)).toEqual(["TASO_API_KEY", "TASO_HASH_SALT", "AXIOM_DATASET"]);
+    expect(variables.find((variable) => variable.name === "TASO_HASH_SALT")?.value).toBe("salt");
     expect(names).not.toContain("AXIOM_TOKEN");
     expect(names).not.toContain("NEXT_PUBLIC_SENTRY_DSN");
   });

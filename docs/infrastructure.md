@@ -106,6 +106,7 @@ By name; no value is in the repository. The lists are in `.railway/railway.ts`.
 | `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` | set | set | per environment |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | set | set | from that environment's Google project |
 | `FOOTBALL_DATA_API_KEY`, `TASO_API_KEY` | set | set | **the same key in both** |
+| `TASO_HASH_SALT` | absent | absent | signs each TASO request when set; absent sends them unsigned, which TASO refuses since 2026-10-15. Temporary, until official access (decisions/681) |
 | `FOOTBALL_DATA_EARLIEST_SEASON`, `FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS` | `2023`, `3600` | `2023`, `3600` | how far back history is stored, and how old stored matches may be before a refresh |
 | `AXIOM_TOKEN`, `AXIOM_DATASET` | dataset `footy-trends` | dataset `footy-trends-prod` | a token per environment |
 | `NEXT_PUBLIC_SENTRY_DSN` | set | set | per environment |
@@ -115,7 +116,7 @@ By name; no value is in the repository. The lists are in `.railway/railway.ts`.
 | `SENTRY_TRACES_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` | absent | set | production: 0.1. Absent means the in-code default, also 0.1 (decisions/656). What an event carries is not a variable: `DATA_COLLECTION` in `src/lib/sentry-config.ts`, every environment (decisions/565) |
 
 The `predictions` service holds its own: `DATABASE_URL`, `REDIS_URL`, the two
-provider keys, `FOOTBALL_DATA_EARLIEST_SEASON`, `AXIOM_TOKEN`, `AXIOM_DATASET`
+provider keys, `TASO_HASH_SALT` when the web service has it, `FOOTBALL_DATA_EARLIEST_SEASON`, `AXIOM_TOKEN`, `AXIOM_DATASET`
 and `NODE_ENV`.
 
 ### Staging sleeps
@@ -264,7 +265,7 @@ repos/:owner/:repo/rulesets` and its neighbours.
 
 Actions variables: `OWNER_USERNAME`, `COLLABORATOR_USERNAME`,
 `FIRST_RELEASE_VERSION`. Secrets: `SONAR_TOKEN`, `FOOTBALL_DATA_API_KEY`,
-`TASO_API_KEY`, and `CI_POSTGRES_PASSWORD`, the password of the Postgres
+`TASO_API_KEY`, `TASO_HASH_SALT` once set, which the release workflow's e2e and PR environments read (decisions/681), and `CI_POSTGRES_PASSWORD`, the password of the Postgres
 container a workflow run creates (any random value; nothing outside a run uses it). `SONAR_ORGANIZATION` and `SONAR_PROJECT_KEY` also exist as
 secrets and nothing reads them: the values are in `sonar-project.properties`.
 Workflows from forks need approval for all outside contributors.

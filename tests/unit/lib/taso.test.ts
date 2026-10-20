@@ -25,6 +25,7 @@ import {
  * decisions/363-render-timeouts.md
  * decisions/063-competition-zones.md
  * decisions/672-e2e-without-the-provider.md
+ * decisions/681-taso-request-signing.md
  */
 
 const { loggerInfoMock, loggerErrorMock, loggerWarnMock, getCachedMock } = vi.hoisted(() => ({
@@ -39,6 +40,12 @@ vi.mock("@/lib/logger", () => ({
   logger: { info: loggerInfoMock, error: loggerErrorMock, warn: loggerWarnMock },
 }));
 vi.mock("@/lib/cache", () => ({ getCached: getCachedMock }));
+
+// For every block, not one: a stubbed variable, a salt above all, must not reach
+// a test that runs after it in a shuffled order.
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe("taso mapping", () => {
   const originalApiKey = process.env.TASO_API_KEY;
@@ -621,6 +628,47 @@ describe("taso mapping", () => {
       `${base}/getMatches?competition_id=spljp26&category_id=VL`,
       expect.anything()
     );
+  });
+
+  // The digests are SHA-256 of `getMatches?test-salt&competition_id=spljp26&category_id=VL`
+  // and `getCompetitions?test-salt`, worked out once, so the shape is pinned and not
+  // recomputed by the test.
+  const PROVIDER = "https://spl.torneopal.net/taso/rest";
+  const SEASON_QUERY = "competition_id=spljp26&category_id=VL";
+  const SEASON_HASH = "017d26a9ba96689f818a6e40fc7bd6153b97cf52c7fc1888ef039b7ae87a086a";
+  const COMPETITIONS_HASH = "e9037f59074685091419b8367f8dd72fd72066e15e883774feb31ea5bf1b009f";
+  const seasonMatches = () => getSeasonMatches("spljp26", "VL", 2026);
+  const currentSeason = () => getCurrentSeason();
+
+  it.each([
+    [
+      "a request with a query, its hash appended",
+      "test-salt",
+      seasonMatches,
+      `${PROVIDER}/getMatches?${SEASON_QUERY}&hash=${SEASON_HASH}`,
+    ],
+    [
+      "a request without one, its hash as the query",
+      "test-salt",
+      currentSeason,
+      `${PROVIDER}/getCompetitions?hash=${COMPETITIONS_HASH}`,
+    ],
+    [
+      "the same, the salt's surrounding space ignored",
+      "  test-salt  ",
+      seasonMatches,
+      `${PROVIDER}/getMatches?${SEASON_QUERY}&hash=${SEASON_HASH}`,
+    ],
+    ["no hash, when it is blank", "  ", seasonMatches, `${PROVIDER}/getMatches?${SEASON_QUERY}`],
+  ])("signs, given TASO_HASH_SALT, %s", async (_case, salt, call, url) => {
+    vi.stubEnv("TASO_API_KEY", "test-api-key");
+    vi.stubEnv("TASO_HASH_SALT", salt);
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await call();
+
+    expect(fetchMock).toHaveBeenCalledWith(url, expect.anything());
   });
 
   it("treats a response with no matches field as no matches", async () => {

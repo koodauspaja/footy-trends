@@ -39,6 +39,7 @@ const SHARED_VARIABLES = [
   "NEXT_PUBLIC_SENTRY_DSN",
   "REDIS_URL",
   "TASO_API_KEY",
+  "TASO_HASH_SALT",
 ];
 
 /**

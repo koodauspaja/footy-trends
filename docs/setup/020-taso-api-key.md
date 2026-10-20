@@ -2,7 +2,8 @@
 
 ## Goal
 Obtain the TASO (`spl.torneopal.net/taso/rest/`) API key used to fetch
-Veikkausliiga data, and store it as a Railway environment variable. Unlike
+Veikkausliiga data, and the salt that signs each request (Step 3b), and store
+them as Railway environment variables. Unlike
 `FOOTBALL_DATA_API_KEY`, there is no registration flow — the key is scraped
 from the real tulospalvelu.palloliitto.fi frontend's own network requests.
 See specs/009-veikkausliiga.md.
@@ -35,7 +36,7 @@ every server-to-server request too:
 | `User-Agent` | A real desktop browser UA string |
 
 `Referer`/`Origin`/`User-Agent` are fixed constants in `src/lib/taso.ts`,
-not secrets — only the key itself needs an environment variable.
+not secrets — the key and the signing salt (Step 3b) need environment variables.
 
 ---
 
@@ -47,6 +48,19 @@ not secrets — only the key itself needs an environment variable.
 3. Name: `TASO_API_KEY`
 4. Value: paste the scraped key
 5. Save — Railway will redeploy automatically
+
+---
+
+## Step 3b — Store the signing salt
+
+Since 2026-10-15 TASO also checks a `hash` on each request, which its frontend
+computes from a salt in its own bundle.
+
+1. Store the salt as `TASO_HASH_SALT`, beside the key: Railway's web service in
+   each environment, the `predictions` service (024), and your local `.env`
+2. Blank or absent sends requests unsigned
+
+Temporary, until official access: decisions/681.
 
 ---
 
@@ -65,7 +79,8 @@ TASO_API_KEY=your_scraped_key_here
 ## Re-scraping when the key stops working
 
 The key is scraped, not a registered credential, so it can rotate or expire
-without notice.
+without notice. So can the signing salt (Step 3b), which lives in the same
+frontend bundle.
 
 ### How you find out
 
@@ -89,6 +104,7 @@ throws:
 | Failure | What you see |
 |---|---|
 | Stale or missing key | Cloudflare returns **403** with an HTML block page, before TASO's app sees it |
+| Missing, stale or rotated salt | **403** with an empty body (measured 2026-10-15 and 2026-10-20, decisions/681) |
 | Valid key, bad request | TASO returns **200** with `{"call":{"status":"error"}}` — parses fine, contains no usable season |
 
 The second reported healthy until #113: the probe awaited the season and never
@@ -102,11 +118,14 @@ looked at it, so a response with no data at all passed.
    deciding to block, which may mean a stale key — or their WAF reacting to
    something else entirely, such as IP reputation. Re-keying does not fix the
    second, and doing it reflexively hides it.
-3. If the key is the cause, repeat Step 1 against the live site and update the
+3. An empty 403 points at the salt: check `TASO_HASH_SALT` is set on the web
+   and `predictions` services, then compare it with the one the live site's
+   bundle signs with (Step 3b), and update it as the key below.
+4. If the key is the cause, repeat Step 1 against the live site and update the
    Railway variable in **both** environments — the key is shared between
    staging and production (`021-production-environment.md`), so a rotation
    breaks both at once and staging cannot act as an early warning.
-4. Re-run the workflow (*Actions → TASO key check → Run workflow*) to confirm
+5. Re-run the workflow (*Actions → TASO key check → Run workflow*) to confirm
    the fix, rather than waiting for tomorrow's schedule.
 
 ## Done when

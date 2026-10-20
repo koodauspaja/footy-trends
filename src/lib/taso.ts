@@ -6,6 +6,7 @@
  * decisions/013-more-finnish-competitions.md
  */
 
+import { createHash } from "node:crypto";
 import { getCached } from "./cache";
 import { logger } from "./logger";
 import { fetchProviderJson } from "./provider-request";
@@ -85,17 +86,37 @@ function apiKey(): string {
 }
 
 /**
- * One TASO request, with the headers its origin check wants and a bound on how
- * long it waits.
+ * The path with the `hash` TASO checks, when `TASO_HASH_SALT` is set: a SHA-256
+ * of the route without its slash, the salt and the query, in its frontend's shape.
+ * Blank is unset, and the path goes unsigned.
+ *
+ * decisions/681-taso-request-signing.md
+ */
+function signedPath(path: string): string {
+  const salt = (process.env.TASO_HASH_SALT ?? "").trim();
+  if (salt === "") return path;
+
+  const queryAt = path.indexOf("?");
+  const route = (queryAt === -1 ? path : path.slice(0, queryAt)).replace(/^\//, "");
+  const query = queryAt === -1 ? "" : path.slice(queryAt + 1);
+  const signed = query === "" ? `${route}?${salt}` : `${route}?${salt}&${query}`;
+  const hash = createHash("sha256").update(signed).digest("hex");
+  return `${path}${query === "" ? "?" : "&"}hash=${hash}`;
+}
+
+/**
+ * One TASO request, with the headers its origin check wants, its signature, and
+ * a bound on how long it waits.
  *
  * decisions/009-veikkausliiga.md
  * decisions/363-render-timeouts.md
+ * decisions/681-taso-request-signing.md
  */
 function request<T>(path: string, signal?: AbortSignal): Promise<T> {
   return fetchProviderJson<T>(
     "TASO",
     apiBaseUrl(),
-    path,
+    signedPath(path),
     () => ({
       Accept: `json/${apiKey()}`,
       Referer: REFERER,

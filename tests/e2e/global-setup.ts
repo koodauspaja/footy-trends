@@ -172,6 +172,15 @@ export default async function globalSetup() {
     );
   }
 
+  // Against live TASO, an unsigned request is refused; the stand-in needs no salt.
+  if (process.env.E2E_TASO_STUB !== "1" && (process.env.TASO_HASH_SALT ?? "").trim() === "") {
+    throw new Error(
+      "TASO_HASH_SALT is not set. Against live TASO every request must be signed — " +
+        "set it in .env (docs/setup/020-taso-api-key.md, Step 3b), or run with " +
+        "E2E_TASO_STUB=1."
+    );
+  }
+
   // Creates and migrates the suite's own database if it is not there, then
   // seeds it. The application server is pointed at the same URL by
   // `playwright.config.ts`.
