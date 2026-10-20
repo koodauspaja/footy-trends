@@ -1,8 +1,9 @@
 # 069 — Kausi lyhyesti: the clean-sheet fact
 
-> **Status: Q1–Q6 answered by Miikka on 2026-10-15 (Settled decisions); awaiting
-> the go.** Written for #663. Builds on specs/066 (`Kausi lyhyesti`, #356, PR
-> #662), which must merge first. Strings may be fine-tuned during implementation.
+> **Status: Q1–Q6 answered by Miikka on 2026-10-15 (Settled decisions), and the
+> spec confirmed the same day. Strings may be fine-tuned during
+> implementation.** Written for #663. Builds on specs/066 (`Kausi lyhyesti`,
+> #356, PR #662).
 
 ## Summary
 
@@ -93,7 +94,7 @@ one `error` line, `Unable to summarise the season`.
 |---|---|
 | `tests/unit/lib/season-summary.test.ts` | The detector at its boundaries: two and three earlier seasons; equal at a whole percent; best and worst; every season beaten; the ranking with the other facts |
 | `tests/unit/components/season-summary-section.test.tsx` | Both sentences and `tallennetuilla kausilla` as exact strings |
-| `tests/e2e/season-summary.spec.ts` | On the seeded club, the sentence's percentage equals `Nollapelit`'s last figure |
+| `tests/e2e/season-summary.spec.ts` | On a second seeded club, whose only fact it is, the sentence's percentage equals `Nollapelit`'s last figure |
 
 Every new test is mutation-checked before review.
 
