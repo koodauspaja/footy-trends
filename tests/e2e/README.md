@@ -93,7 +93,8 @@ a live run has stored what a new spec needs.
   if they are down (#399)
 - A configured `.env` with a working `FOOTBALL_DATA_API_KEY` **and**
   `TASO_API_KEY` (see `INSTALL.md` and
-  `docs/setup/020-taso-api-key.md`). `global-setup.ts` fails fast on either
+  `docs/setup/020-taso-api-key.md`), and `TASO_HASH_SALT` unless
+  `E2E_TASO_STUB=1`. `global-setup.ts` fails fast on any of them
   being missing, rather than letting every spec time out against a generic
   error page
 - Chromium installed for Playwright: `npm run test:e2e:browser`
