@@ -14,6 +14,7 @@ import { testDatabaseUrl } from "../support/test-database";
  * decisions/055-poisson-goal-model.md
  * decisions/056-accuracy-by-competition.md
  * decisions/060-elo-variants.md
+ * decisions/068-model-choice-on-ennusteet.md
  */
 
 const HEADING = "Ennusteiden osuvuus";
@@ -108,8 +109,10 @@ test.describe("Prediction quality, signed in", () => {
     await expect(page.getByRole("heading", { level: 1, name: HEADING })).toBeVisible();
   });
 
-  test("judges all five models on the domestic backtest by default", async ({ page }) => {
-    await page.goto("/ennusteet");
+  test("judges all five models on the default domestic backtest, all five drawn when chosen", async ({
+    page,
+  }) => {
+    await page.goto("/ennusteet?mallit=perustaso,elo,elo-vire,elo-kotietu,poisson");
 
     await expect(page.getByRole("link", { name: "Kotimaa" })).toHaveAttribute(
       "aria-current",
@@ -194,8 +197,82 @@ test.describe("Prediction quality, signed in", () => {
     await expect(page.getByText(/^Näytetään vain kilpailu/)).toHaveCount(0);
   });
 
+  test("draws the baseline, Elo and Poisson by default, and a toggle shows or hides a model", async ({
+    page,
+  }) => {
+    await page.goto("/ennusteet");
+    const calibration = region(page, "Kalibrointi");
+    // The diagonal and the three default models.
+    await expect(calibration.locator("[data-part=line]")).toHaveCount(4);
+    await expect(calibration.locator('[data-series="elo-form-v1"]')).toHaveCount(0);
+
+    await page.getByRole("link", { name: "Elo + vire, piilotettu kaavioista" }).click();
+    await expect(page).toHaveURL(
+      /\/ennusteet\?alue=kotimaa&tyyppi=jalkikateen&mallit=perustaso,elo,elo-vire,poisson$/
+    );
+    await expect(region(page, "Kalibrointi").locator("[data-part=line]")).toHaveCount(5);
+
+    await page.getByRole("link", { name: "Elo, näytetään kaavioissa" }).click();
+    await expect(page).toHaveURL(/&mallit=perustaso,elo-vire,poisson$/);
+    await expect(region(page, "Kalibrointi").locator('[data-series="elo-v1"]')).toHaveCount(0);
+    // The figures in words keep all five.
+    await expect(
+      region(page, "Osumatarkkuus").getByText(/^Perustaso \d{1,3}\u00a0% · Elo \d{1,3}\u00a0% · /)
+    ).toBeVisible();
+
+    // The kind switch keeps the choice.
+    await page.getByRole("link", { name: "Ennakkoon tehdyt" }).click();
+    await expect(page).toHaveURL(
+      /\/ennusteet\?alue=kotimaa&tyyppi=ennakkoon&mallit=perustaso,elo-vire,poisson$/
+    );
+    // Seeded as backtest rows only, so the live tab may be empty: back to the backtest.
+    await page.getByRole("link", { name: "Jälkikäteen lasketut" }).click();
+    await expect(page).toHaveURL(/&mallit=perustaso,elo-vire,poisson$/);
+    await expect(page.getByRole("link", { name: "Elo, piilotettu kaavioista" })).toBeVisible();
+  });
+
+  test("keeps the last shown model from being hidden", async ({ page }) => {
+    await page.goto("/ennusteet?mallit=poisson");
+
+    await expect(page.getByText("Poisson, näytetään kaavioissa")).toBeVisible();
+    await expect(page.getByRole("link", { name: /^Poisson, / })).toHaveCount(0);
+    await expect(region(page, "Kalibrointi").locator("[data-part=line]")).toHaveCount(2);
+  });
+
+  for (const colorScheme of ["light", "dark"] as const) {
+    test(`tells a shown toggle from a hidden one by weight, in ${colorScheme}`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme });
+      await page.goto("/ennusteet");
+
+      const weight = (name: string) =>
+        page
+          .getByRole("link", { name })
+          .evaluate((element) => Number(getComputedStyle(element).fontWeight));
+      expect(await weight("Elo, näytetään kaavioissa")).toBeGreaterThanOrEqual(600);
+      expect(await weight("Elo + vire, piilotettu kaavioista")).toBeLessThan(600);
+    });
+  }
+
   test.describe("at 375 px", () => {
     test.use({ viewport: { width: 375, height: 800 } });
+
+    test("wraps the toggles within the page, and they still choose", async ({ page }) => {
+      await page.goto("/ennusteet");
+      const toggles = page.getByRole("list", { name: "Kaavioissa näytetään:" });
+      await expect(toggles.getByRole("listitem")).toHaveCount(5);
+
+      const box = await toggles.boundingBox();
+      expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(375);
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+      );
+      expect(overflow).toBeLessThanOrEqual(0);
+
+      await page.getByRole("link", { name: "Elo + kotietu, piilotettu kaavioista" }).click();
+      await expect(page).toHaveURL(/&mallit=perustaso,elo,elo-kotietu,poisson$/);
+    });
 
     test("scrolls the five-column tables within their boxes, never the page", async ({ page }) => {
       await page.goto("/ennusteet");
