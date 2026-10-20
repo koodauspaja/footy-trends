@@ -50,6 +50,19 @@ not secrets — only the key itself needs an environment variable.
 
 ---
 
+## Step 3b — Store the signing salt
+
+Since 2026-10-15 TASO also checks a `hash` on each request, which its frontend
+computes from a salt in its own bundle.
+
+1. Store the salt as `TASO_HASH_SALT`, beside the key: Railway's web service in
+   each environment, the `predictions` service (024), and your local `.env`
+2. Blank or absent sends requests unsigned
+
+Temporary, until official access: decisions/681.
+
+---
+
 ## Step 4 — Store the key locally for development
 
 Add to your local `.env` (not committed):
