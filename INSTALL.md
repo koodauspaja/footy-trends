@@ -141,7 +141,7 @@ next deploy — add a new migration instead. Renaming is safe, as long as the
 `.sql` and its journal tag move together and the SQL is untouched.
 
 `npm run db:push` syncs the schema without a migration, for local experiments
-only. `npm run db:reset` drops the test database; `npm run db:reset:dev`
+only. `npm run db:reset` drops the test databases; `npm run db:reset:dev`
 destroys the development one, and asks first.
 
 ## Troubleshooting

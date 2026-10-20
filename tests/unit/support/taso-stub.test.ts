@@ -189,11 +189,19 @@ describe("the TASO stand-in", () => {
 
 describe("the stand-in run's own Redis", () => {
   it("is a container on the port asked, reachable only from this machine, its data in that port's own volume", () => {
-    expect(standInRedis(6390)).toEqual({
+    expect(standInRedis(6390, 3011)).toEqual({
       command:
-        "docker run --rm -p 127.0.0.1:6390:6379 -v footy-trends-e2e-redis-6390:/data redis:8-alpine redis-server --save 60 1",
+        "docker run --rm --name footy-trends-e2e-stand-in-3011 -p 127.0.0.1:6390:6379 -v footy-trends-e2e-redis-6390:/data redis:8-alpine redis-server --save 60 1",
       url: "redis://127.0.0.1:6390",
     });
+  });
+
+  it("is named for the app port, as the stand-in database is, whatever the Redis port", () => {
+    const named = (redisPort: number, appPort: number) =>
+      standInRedis(redisPort, appPort).command.match(/--name (\S+)/)?.[1];
+
+    expect(named(6390, 3011)).toBe(named(6391, 3011));
+    expect(named(6390, 3011)).not.toBe(named(6390, 3012));
   });
 
   it("runs the Redis image docker-compose.yml runs for development", () => {

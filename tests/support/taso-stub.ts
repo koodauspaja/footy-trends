@@ -110,16 +110,20 @@ export const STAND_IN_REDIS_IMAGE = "redis:8-alpine";
 /** The start of the Docker volume names the stand-in run's Redis uses, one per port. */
 export const STAND_IN_REDIS_VOLUME_PREFIX = "footy-trends-e2e-redis";
 
+/** The start of the container's name, one per app port and so per stand-in database. */
+export const STAND_IN_CONTAINER_PREFIX = "footy-trends-e2e-stand-in";
+
 /**
  * The stand-in run's own Redis: a container on `port`, its data kept between runs
- * in that port's volume, never touching the Redis development uses.
+ * in that port's volume, never touching the Redis development uses. Named for
+ * `appPort`, so Docker refuses a second run on the same stand-in database.
  *
  * decisions/674-e2e-on-an-empty-database.md
  */
-export function standInRedis(port: number): { command: string; url: string } {
+export function standInRedis(port: number, appPort: number): { command: string; url: string } {
   return {
     // Saved every minute with a change, and on the SIGTERM that stops it.
-    command: `docker run --rm -p 127.0.0.1:${port}:6379 -v ${STAND_IN_REDIS_VOLUME_PREFIX}-${port}:/data ${STAND_IN_REDIS_IMAGE} redis-server --save 60 1`,
+    command: `docker run --rm --name ${STAND_IN_CONTAINER_PREFIX}-${appPort} -p 127.0.0.1:${port}:6379 -v ${STAND_IN_REDIS_VOLUME_PREFIX}-${port}:/data ${STAND_IN_REDIS_IMAGE} redis-server --save 60 1`,
     url: `redis://127.0.0.1:${port}`,
   };
 }

@@ -179,10 +179,11 @@ export default async function globalSetup() {
   if (process.env.E2E_TASO_STUB === "1") {
     // The database must be the stand-in's, derived as the config derives it,
     // before anything is seeded or cleared; Redis is derived here, not inherited.
-    if (url !== standInDatabaseUrl(url, e2eAppPort(process.env))) {
+    const appPort = e2eAppPort(process.env);
+    if (url !== standInDatabaseUrl(url, appPort)) {
       throw new Error("A stand-in run must use its own database; the config did not set it.");
     }
-    await clearStandInTaso(url, standInRedis(e2eRedisPort(process.env)).url);
+    await clearStandInTaso(url, standInRedis(e2eRedisPort(process.env), appPort).url);
   }
   await seedFixtureSeason(url);
 }

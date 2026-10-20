@@ -83,12 +83,12 @@ if (TASO_STUB) process.env.TEST_DATABASE_URL = standInDatabaseUrl(testDatabaseUr
  */
 function redisServer() {
   const port = e2eRedisPort(process.env);
-  const redis = standInRedis(port);
+  const redis = standInRedis(port, PORT);
   process.env.REDIS_URL = redis.url;
   return {
     command: redis.command,
     // Its own word that it serves: Docker opens the port before Redis listens,
-    // and refuses a port already allocated, which stops the run.
+    // and refuses a port already allocated or a name in use, which stops the run.
     wait: { stdout: /Ready to accept connections/ },
     reuseExistingServer: false,
     // SIGTERM, which `docker run` passes on so the container stops and is

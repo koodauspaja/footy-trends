@@ -59,15 +59,16 @@ what it touches:
 | | The run's own | Cleared before each run |
 |---|---|---|
 | Database | `<name>_stand_in_<E2E_PORT>_test`, where the test database is `<name>_test`, which the recorder reads | its TASO rows and TASO predictions |
-| Redis | a container of the image `docker-compose.yml` runs, on port 6380 (`E2E_REDIS_PORT`), data kept in the volume `footy-trends-e2e-redis-<port>` | every key but football-data's answers |
+| Redis | a container `footy-trends-e2e-stand-in-<E2E_PORT>` of the image `docker-compose.yml` runs, on port 6380 (`E2E_REDIS_PORT`), data kept in the volume `footy-trends-e2e-redis-<port>` | every key but football-data's answers |
 
 So every TASO answer a run uses comes from the recording, and nothing in
 development's database or Redis is read or deleted. football-data's rows and
 cache entries stay between runs, so runs close together do not ask the key
 staging and production share again (the cache holds matches for 15 minutes and
-competitions for an hour). A port already in use stops the run. If a run is
-killed hard, its Redis container can outlive it and hold the port: `docker ps`
-shows it.
+competitions for an hour). A port already in use stops the run, and so does a
+second run on the same `E2E_PORT`, on Docker's refusal of the container's name.
+If a run is killed hard, its Redis container can outlive it and hold the port
+and the name: `docker ps` shows it, `docker rm -f` removes it.
 
 Remove the line from `.env` when TASO answers again; e2e tests against the real
 TASO connection then take this one's place.

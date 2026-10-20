@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   COMPOSE_DATABASE_NAME,
+  COMPOSE_INTEGRATION_DATABASE_NAME,
   COMPOSE_POSTGRES_PORT,
   COMPOSE_POSTGRES_USER,
   COMPOSE_TEST_DATABASE_NAME,
@@ -27,6 +28,7 @@ import {
   testResetRefusal,
   waitFor,
 } from "../../../scripts/services-plan";
+import { integrationDatabaseUrl } from "../../support/test-database";
 
 /**
  * The decisions behind the local commands' database handling: which database a
@@ -37,6 +39,7 @@ import {
  * decisions/400-one-command-setup.md
  * decisions/404-reset-only-the-compose-database.md
  * decisions/406-safe-and-destructive-resets.md
+ * decisions/674-e2e-on-an-empty-database.md
  */
 
 const LOCAL = "postgresql://postgres:secret@localhost:5432/footy-trends";
@@ -726,8 +729,18 @@ describe("databaseNameOf", () => {
 describe("testResetRefusal", () => {
   const onCompose = (name: string) => `postgresql://postgres:x@localhost:5432/${name}`;
 
-  it("allows exactly the suites' database", () => {
+  it("allows exactly the suites' two databases", () => {
     expect(testResetRefusal(onCompose(COMPOSE_TEST_DATABASE_NAME))).toBeNull();
+    expect(testResetRefusal(onCompose(COMPOSE_INTEGRATION_DATABASE_NAME))).toBeNull();
+  });
+
+  it("names the integration database as the integration suite derives it", () => {
+    vi.stubEnv("TEST_DATABASE_URL", onCompose(COMPOSE_TEST_DATABASE_NAME));
+    try {
+      expect(databaseNameOf(integrationDatabaseUrl())).toBe(COMPOSE_INTEGRATION_DATABASE_NAME);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("refuses any other database on that server", () => {
@@ -736,7 +749,9 @@ describe("testResetRefusal", () => {
     // whatever it named.
     const refusal = testResetRefusal(onCompose("footy-trends_scratch"));
 
-    expect(refusal).toContain(`this command resets ${COMPOSE_TEST_DATABASE_NAME}`);
+    expect(refusal).toContain(
+      `this command resets ${COMPOSE_TEST_DATABASE_NAME} and ${COMPOSE_INTEGRATION_DATABASE_NAME}, nothing else`
+    );
   });
 
   it.each(["postgres", "template0", "template1"])("refuses Postgres's own %s database", (name) => {
