@@ -753,36 +753,45 @@ describe("seasonSummaryFor", () => {
     });
   });
 
+  // Every season alike at home and away, so only the clean-sheet share differs:
+  // the number of `V`/`T` results that kept one, out of ten.
+  const kept = (seasonId: number, clean: number): SeasonReadResult => {
+    const results = [..."VVTHHVTHVT"];
+    let left = clean;
+    const marked = results.map((result) => {
+      if (result === "H" || left === 0) return result;
+      left -= 1;
+      return result.toLowerCase();
+    });
+    return read(finished(seasonId, marked.slice(0, 5).join(""), marked.slice(5).join("")));
+  };
+
   it("states the clean-sheet share against the earlier seasons, newest first", async () => {
-    // Every season alike at home and away; 2026 keeps seven clean sheets in ten,
-    // the earlier seasons none.
+    // 70 % beats 2025's 60, 2024's 50 and 2023's 40, then equals 2022's 70. Read
+    // oldest first it would beat none, and one season read four times all four.
+    const shares: Record<number, number> = { 2026: 7, 2025: 6, 2024: 5, 2023: 4, 2022: 7 };
     const summary = await seasonSummaryFor(
-      readers({
-        read: async (key) =>
-          key.seasonId === 2026
-            ? read(finished(2026, "vvtHH", "vtHvt"))
-            : stored({ ...key, seasonId: 2025 }),
-      })
+      readers({ read: async (key) => kept(key.seasonId, shares[key.seasonId] ?? 0) })
     );
 
     expect(summary).toMatchObject({
       status: "ok",
-      facts: [{ kind: "cleanSheets", direction: "best", share: 70, beaten: 4, everySeason: true }],
+      facts: [{ kind: "cleanSheets", direction: "best", share: 70, beaten: 3, everySeason: false }],
     });
   });
 
   it("leaves out of the clean-sheet count an earlier season the club played no match in", async () => {
+    // 2025 left out: 70 % beats 2024's 60, 2023's 50 and 2022's 40, every compared season.
+    const shares: Record<number, number> = { 2026: 7, 2024: 6, 2023: 5, 2022: 4 };
     const summary = await seasonSummaryFor(
       readers({
-        read: async (key) => {
-          if (key.seasonId === 2026) return read(finished(2026, "vvtHH", "vtHvt"));
-          return key.seasonId === 2025 ? read([]) : stored({ ...key, seasonId: 2025 });
-        },
+        read: async (key) =>
+          key.seasonId === 2025 ? read([]) : kept(key.seasonId, shares[key.seasonId] ?? 0),
       })
     );
 
     expect(summary).toMatchObject({
-      facts: [{ kind: "cleanSheets", beaten: 3, everySeason: true }],
+      facts: [{ kind: "cleanSheets", share: 70, beaten: 3, everySeason: true }],
     });
   });
 
