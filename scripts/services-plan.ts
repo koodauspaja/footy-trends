@@ -470,8 +470,7 @@ export function testResetRefusal(url: string | undefined): string | null {
   // A string by here, not `string | null`: `runsOnComposeServer` has already
   // parsed this URL.
   const name = databaseNameOf(url) as string;
-  if (name === COMPOSE_TEST_DATABASE_NAME || name === COMPOSE_INTEGRATION_DATABASE_NAME)
-    return null;
+  if ([COMPOSE_TEST_DATABASE_NAME, COMPOSE_INTEGRATION_DATABASE_NAME].includes(name)) return null;
 
   // One exact name, not "anything that is not the dev database". The development
   // database keeps its own message, as pointing this at it is the likely mistake.
