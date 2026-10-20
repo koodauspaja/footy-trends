@@ -76,7 +76,7 @@ TASO connection then take this one's place.
 
 `tests/e2e/taso.spec.ts` is the one spec that fails when TASO refuses: it asks the
 suite's own `/api/health?providers=1`, whose TASO check makes a real, signed
-request. It is skipped while `E2E_TASO_STUB=1`, and needs `TASO_HASH_SALT`
+request. It is not defined while `E2E_TASO_STUB=1`, and needs `TASO_HASH_SALT`
 (decisions/681).
 
 `npm run test:e2e:record-taso` rewrites the domestic fixture from the test
