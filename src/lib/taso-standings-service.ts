@@ -652,6 +652,14 @@ const getSyncedSeasonMatches = cache(async function getSyncedSeasonMatches(
   };
 });
 
+/**
+ * Writes a TASO snapshot over the stored matches, deleting none. Not
+ * serialised: of two at once, the one written last stays.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/029-forced-season-refresh.md
+ * decisions/678-stale-snapshot-written-last.md
+ */
 export async function synchronizeMatches(
   providerMatches: NormalizedTasoMatch[],
   /** The transaction to join, when a caller has one. Defaults to its own. */
@@ -712,6 +720,7 @@ export function dedupeByIdentity(rows: NormalizedTasoGroupTeam[]): NormalizedTas
  * decisions/196-concurrent-group-syncs.md
  * decisions/628-zeroed-continuation-tables.md
  * decisions/063-competition-zones.md
+ * decisions/678-stale-snapshot-written-last.md
  */
 export async function synchronizeGroupTeams(
   categoryId: string,
@@ -779,6 +788,7 @@ export async function synchronizeGroupTeams(
  * transaction. Only the competitions that show zones store any.
  *
  * decisions/063-competition-zones.md
+ * decisions/678-stale-snapshot-written-last.md
  */
 async function replaceGroupLevels(
   tx: Executor,

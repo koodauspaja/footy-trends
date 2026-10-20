@@ -564,6 +564,14 @@ export async function storedForeignSeasons(competitionCode: string): Promise<Set
   return new Set(rows.map((row) => row.seasonId));
 }
 
+/**
+ * Writes a provider snapshot over the stored matches, deleting none. Not
+ * serialised: of two at once, the one written last stays.
+ *
+ * decisions/001-premier-league-match-based-standings.md
+ * decisions/029-forced-season-refresh.md
+ * decisions/678-stale-snapshot-written-last.md
+ */
 export async function synchronizeMatches(
   providerMatches: NormalizedProviderMatch[],
   /** The transaction to join, when a caller has one. Defaults to its own. */
