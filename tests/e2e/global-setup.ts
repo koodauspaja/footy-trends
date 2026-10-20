@@ -128,10 +128,12 @@ async function clearStandInTaso(databaseUrl: string, redisUrl: string): Promise<
   }
   const redis = new Redis(redisUrl);
   try {
+    // Every key gathered first and deleted after, so no delete runs mid-scan.
+    const cleared: string[] = [];
     for await (const keys of redis.scanStream({ count: 500 }) as AsyncIterable<string[]>) {
-      const cleared = keys.filter((key) => !keptBetweenRuns(key));
-      if (cleared.length > 0) await redis.del(...cleared);
+      cleared.push(...keys.filter((key) => !keptBetweenRuns(key)));
     }
+    if (cleared.length > 0) await redis.del(...cleared);
   } finally {
     redis.disconnect();
   }
@@ -144,6 +146,7 @@ async function clearStandInTaso(databaseUrl: string, redisUrl: string): Promise<
  *
  * decisions/009-veikkausliiga.md
  * decisions/304-test-database.md
+ * decisions/672-e2e-without-the-provider.md
  * decisions/674-e2e-on-an-empty-database.md
  */
 export default async function globalSetup() {
@@ -159,6 +162,8 @@ export default async function globalSetup() {
     );
   }
 
+  // Required with the stand-in on too: it changes where TASO requests go and
+  // nothing else.
   if (!process.env.TASO_API_KEY) {
     throw new Error(
       "TASO_API_KEY is not set. tests/e2e runs against the real TASO API " +

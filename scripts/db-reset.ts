@@ -1,14 +1,15 @@
 /**
  * The two resets, and which one you get: `npm run db:reset` drops the suites'
- * database; `npm run db:reset:dev --` destroys the developer's, with the
+ * databases; `npm run db:reset:dev --` destroys the developer's, with the
  * compose volume, and asks first. Wiring only.
  *
  * decisions/399-local-commands-start-the-database.md
  * decisions/406-safe-and-destructive-resets.md
+ * decisions/674-e2e-on-an-empty-database.md
  */
 import { existsSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
-import { testDatabaseUrl } from "../tests/support/test-database";
+import { integrationDatabaseUrl, testDatabaseUrl } from "../tests/support/test-database";
 import { type ConfirmationOutcome, runReset, runTestReset } from "./db-reset-steps";
 import { destroyContainers, dockerAvailable, dockerIsRunning, startContainers } from "./docker";
 import { confirmationPrompt, decideConfirmation, isAffirmative, waitFor } from "./services-plan";
@@ -42,13 +43,14 @@ async function confirm(yes: boolean): Promise<ConfirmationOutcome> {
 }
 
 /**
- * The suites' database, or `undefined` when nothing says where it is.
+ * One of the suites' databases, or `undefined` when nothing says where it is.
  *
  * decisions/406-safe-and-destructive-resets.md
+ * decisions/674-e2e-on-an-empty-database.md
  */
-function suiteDatabaseUrl(): string | undefined {
+function suiteDatabaseUrl(derive: () => string): string | undefined {
   try {
-    return testDatabaseUrl();
+    return derive();
   } catch {
     // It throws when neither variable is set, which `testResetRefusal` reports
     // better than a stack trace would.
@@ -64,12 +66,14 @@ async function main(): Promise<void> {
   const args = new Set(process.argv.slice(2));
 
   if (!args.has("--dev")) {
-    process.exitCode = await runTestReset({
-      url: suiteDatabaseUrl(),
-      dropDatabase,
-      out,
-      err,
-    });
+    // The e2e suite's database, then the integration suite's own.
+    for (const derive of [testDatabaseUrl, integrationDatabaseUrl]) {
+      const code = await runTestReset({ url: suiteDatabaseUrl(derive), dropDatabase, out, err });
+      if (code !== 0) {
+        process.exitCode = code;
+        return;
+      }
+    }
     return;
   }
 

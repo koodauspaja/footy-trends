@@ -1,15 +1,16 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { ensureTestDatabase } from "../tests/support/test-database";
+import { ensureTestDatabase, integrationDatabaseUrl } from "../tests/support/test-database";
 import { executableFor, exitCodeFor, parseInvocation } from "./with-test-db-plan";
 
 /**
- * Runs a command against the test database, creating and migrating it first.
- * A wrapper, because the database has to exist before the first test imports
- * `@/db`. Behind a coverage exclusion: importing it would do all of that.
+ * Runs a command against the integration suite's database, creating and
+ * migrating it first: it has to exist before the first test imports `@/db`.
+ * Behind a coverage exclusion: importing it would do all of that.
  *
  * decisions/304-test-database.md
  * decisions/403-coverage-exclusions-that-earn-it.md
+ * decisions/674-e2e-on-an-empty-database.md
  */
 if (existsSync(".env")) {
   process.loadEnvFile(".env");
@@ -31,7 +32,7 @@ if (!invocation.ok) {
 }
 
 async function main(command: string, args: string[]): Promise<void> {
-  const url = await ensureTestDatabase();
+  const url = await ensureTestDatabase(integrationDatabaseUrl());
 
   const child = spawn(executableFor(command, process.execPath), args, {
     stdio: "inherit",

@@ -75,14 +75,30 @@ export function databaseNameFor(url: string): string {
 }
 
 /**
- * Creates the test database if it is not there, then migrates it. Issued from
- * the server's `postgres` database: `create database` cannot run inside the
- * one being created. It already existing is the ordinary case.
+ * The integration suite's own database: the test database's name with
+ * `_integration` before its `_test`, so its rows never reach the database the
+ * TASO recorder reads.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
+export function integrationDatabaseUrl(): string {
+  const url = new URL(testDatabaseUrl());
+  if (!url.pathname.endsWith("_test")) {
+    throw new Error(`The test database name does not end in _test: ${url.host}`);
+  }
+  url.pathname = url.pathname.replace(/_test$/, "_integration_test");
+  return url.toString();
+}
+
+/**
+ * Creates a test database, the e2e one unless another is named, if it is not
+ * there, then migrates it. Issued from the server's `postgres` database:
+ * `create database` cannot run inside the one being created.
  *
  * decisions/304-test-database.md
+ * decisions/674-e2e-on-an-empty-database.md
  */
-export async function ensureTestDatabase(): Promise<string> {
-  const url = testDatabaseUrl();
+export async function ensureTestDatabase(url: string = testDatabaseUrl()): Promise<string> {
   const name = databaseNameFor(url);
 
   const adminUrl = new URL(url);

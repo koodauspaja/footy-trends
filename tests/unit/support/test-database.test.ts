@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { databaseNameFor, testDatabaseUrl } from "../../support/test-database";
+import {
+  databaseNameFor,
+  integrationDatabaseUrl,
+  testDatabaseUrl,
+} from "../../support/test-database";
 
 /**
  * How the test database's URL is derived. It decides which database every suite
@@ -92,6 +96,34 @@ describe("testDatabaseUrl", () => {
     vi.stubEnv("DATABASE_URL", undefined);
 
     expect(() => testDatabaseUrl()).toThrow(/docker compose up -d/);
+  });
+});
+
+describe("integrationDatabaseUrl", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("puts _integration before the test database's _test, keeping everything else", () => {
+    vi.stubEnv("TEST_DATABASE_URL", undefined);
+    vi.stubEnv("DATABASE_URL", "postgresql://postgres:secret@localhost:5432/footy-trends");
+    expect(integrationDatabaseUrl()).toBe(
+      "postgresql://postgres:secret@localhost:5432/footy-trends_integration_test"
+    );
+  });
+
+  it("derives from an explicit TEST_DATABASE_URL too", () => {
+    vi.stubEnv("TEST_DATABASE_URL", "postgresql://ci@db.example.com:5432/suites_test");
+    expect(integrationDatabaseUrl()).toBe(
+      "postgresql://ci@db.example.com:5432/suites_integration_test"
+    );
+  });
+
+  it("refuses a TEST_DATABASE_URL whose name does not end in _test, naming only the host", () => {
+    vi.stubEnv("TEST_DATABASE_URL", "postgresql://ci:secret@db.example.com:5432/integration");
+    expect(() => integrationDatabaseUrl()).toThrow(
+      "The test database name does not end in _test: db.example.com:5432"
+    );
   });
 });
 

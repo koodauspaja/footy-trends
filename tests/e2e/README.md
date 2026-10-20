@@ -25,9 +25,11 @@ if the test does not share the database.
 | Port | 3001, so `npm run dev` can keep running on 3000 |
 | Server reuse | never — a server already listening was started against the *development* database |
 
-`tests/integration` uses the same database, through
-`scripts/with-test-db.ts`. It creates and deletes rows, and used to do that in
-whatever database the developer was signed into.
+`tests/integration` uses a database of its own, `<your database>_integration_test`,
+through `scripts/with-test-db.ts`. It creates and deletes rows, and used to do
+that in whatever database the developer was signed into; kept apart from this
+one, a test interrupted before its cleanup leaves nothing the TASO recorder,
+which reads this database, would record.
 
 ### One season is seeded, not fetched
 
