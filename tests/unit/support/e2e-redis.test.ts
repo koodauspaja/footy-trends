@@ -53,6 +53,8 @@ describe("liveRunRedisUrl", () => {
       "REDIS_URL names database 1, which live e2e runs use: localhost:6379"
     );
     expect(() => liveRunRedisUrl("redis://localhost:6379?db=1")).toThrow(/names database 1/);
+    expect(() => liveRunRedisUrl("redis://localhost:6379/01")).toThrow(/names database 1/);
+    expect(() => liveRunRedisUrl("redis://localhost:6379?db=01")).toThrow(/names database 1/);
   });
 
   it("names REDIS_URL, never its value, when it is not a URL", () => {

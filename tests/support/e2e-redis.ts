@@ -20,7 +20,7 @@ export const LIVE_RUN_DATABASE = 1;
 export function liveRunRedisUrl(redisUrl: string | undefined): string {
   const url = parseDatabaseUrl((redisUrl ?? "").trim() || "redis://localhost:6379", "REDIS_URL");
   const named = url.searchParams.get("db") ?? url.pathname.replace(/^\//, "");
-  if (named === String(LIVE_RUN_DATABASE)) {
+  if (Number(named) === LIVE_RUN_DATABASE) {
     throw new Error(
       `REDIS_URL names database ${LIVE_RUN_DATABASE}, which live e2e runs use: ${url.host}`
     );
