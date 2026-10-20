@@ -94,3 +94,13 @@ branch before it was pushed. What they changed:
   followed by a hidden suffix reads `Elo , näytetään kaavioissa` in Chromium,
   which jsdom does not reproduce. The end-to-end tests that find a toggle by
   its name failed on that first version, which is how it was found.
+
+## After the review
+
+Sourcery's first full review of #668, on the head rebased onto `main` at
+`e2b913d`, found two things.
+
+| Finding | Outcome |
+|---|---|
+| A report cached before the variants existed, with a `mallit` naming one, gives the charts no lines | Not reachable: a `quality:v3` report is cached for 15 minutes (`CACHE_TTL_SECONDS` in `prediction-quality-service.ts`), and production has served five-model reports since v1.17.0 (2026-10-15), which carries specs/060. An `ok` report is over the matches every model predicted, so its `models` is always `QUALITY_MODELS` whole. A later model added to that list decides its cache key in its own change, as decisions/060 did |
+| Two toggles clicked before the first page arrives keep only the second | Not changed: each toggle is a link naming a whole choice (S2, S4: no scripting, as the page's other switches are), so the second click navigates from the page on screen and wins. The page shown always matches its address, and the reader toggles again from it. Keeping a pending choice across clicks needs client state, which the spec ruled out |
