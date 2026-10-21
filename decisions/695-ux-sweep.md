@@ -14,10 +14,11 @@ the findings into `skills/ui-review.md`.
 | How the pages are seen | `npm run ux:screenshots`: its own Playwright config on top of `playwright.config.ts`, so the same server, TASO stand-in, port and test database, run from `tests/ux` with the list reporter alone | The e2e suite's setup already has data on every page. Its freshness reporter would record a screenshot run as a passing e2e run, which the pre-push hook trusts, so the sweep uses no reporter but the list |
 | Which pages | One of each kind, 28, in `tests/support/ux-pages.ts`, shared by the screenshots and the e2e test | A list kept twice drifts. One of each kind is enough, because pages of a kind share their components |
 | Which views | 375 px and 1 024 px, light and dark, signed in and out: eight per page | A phone's width and a laptop's, as the specs' acceptance criteria name them, and signed in is where the analytics are |
-| Signed in | The e2e suite's header, `x-e2e-analytics: signed-in`, which counts only with `E2E_ANALYTICS_OVERRIDE` and a test database (decisions/030, decisions/304) | Miikka allowed lifting the analytics' sign-in requirement locally for this, but never pushed. The header made lifting it unnecessary |
+| Signed in | A real session: `tests/support/e2e-session.ts` stores a reader, and an admin for `/yllapito`, in the test database, and signs their session cookie with the server's `BETTER_AUTH_SECRET` as better-call signs one. A unit test checks the signature against better-call's own | Miikka allowed lifting the analytics' sign-in requirement locally for this, but never pushed. The first run used the e2e header, `x-e2e-analytics`, which needs no change either, but reaches the analytics only: `/asetukset` and `/yllapito` read the session on the server and showed signed out. A real session reaches every page as a reader sees it |
+| Which statuses | Every page 200 but the 404 page; the admin page shows a not-found page to anyone but an admin, still 200 | decisions/028: a streamed response's status is sent before `notFound()` runs |
 | Tall pages | Screenshotted in slices of 1 600 px | A reader, human or model, can see a slice whole. MSC 2025's standings page is fifteen of them at 375 px |
-| What a test can check | No page scrolls sideways, at 375 px and 1 024 px signed in: `tests/e2e/no-sideways-scroll.spec.ts` | The sweep measured it on all 224 views, and found none. A rule only written down is not a check (`skills/self-review.md`, section 8) |
-| What the sweep cannot see | `/asetukset` and `/yllapito` signed in | Both read the session on the server, and the e2e session helper intercepts only the client's call |
+| A run | Starts with the services check e2e has, always with the TASO stand-in, clears its output first, and records a view that fails and goes on; the run fails at the end if any view failed or answered an unexpected status | Recorded data only, so the provider's state or quota never decides a sweep. A stale screenshot beside fresh ones would mislead |
+| What a test can check | No page scrolls sideways, at 375 px and 1 024 px signed in, each page answering its expected status: `tests/e2e/no-sideways-scroll.spec.ts`. Sideways is the document's scroll width past its client width, which leaves out a scrollbar | The sweep measured it on all 224 views, and found none. A rule only written down is not a check (`skills/self-review.md`, section 8) |
 
 ## Findings
 
@@ -27,7 +28,7 @@ page the first one left. Each group is filed: #696 headings and spacing, #697
 hiding and showing panels (a feature), #698 long lists open by default, #699
 tables on a phone, #700 charts, #701 links and switches, #702 the surprises
 panel's empty line (a bug), #703 wording. The list, and the cases the completion
-pass added to them, are on #695.
+pass and the real-session run added to them, are on #695 and the issues.
 
 ## The skill
 

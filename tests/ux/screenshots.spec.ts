@@ -1,8 +1,8 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { type Page, test } from "@playwright/test";
-import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
-import { UX_PAGES } from "../support/ux-pages";
+import { type BrowserContext, expect, type Page, test } from "@playwright/test";
+import { SESSION_COOKIE, storeSignedInReader } from "../support/e2e-session";
+import { expectedStatus, UX_PAGES } from "../support/ux-pages";
 
 /**
  * Every kind of page in eight views: 375 px and 1 024 px, light and dark,
@@ -36,29 +36,57 @@ async function shoot(page: Page, name: string): Promise<number> {
   return slices;
 }
 
-test("every page in every view", async ({ browser }) => {
-  mkdirSync(OUT, { recursive: true });
-  const report: Record<string, unknown>[] = [];
+// The admin page for the admin, every other page for a reader.
+async function signIn(context: BrowserContext, cookie: string, url: string) {
+  await context.clearCookies({ name: SESSION_COOKIE });
+  await context.addCookies([{ name: SESSION_COOKIE, value: cookie, url }]);
+}
 
-  for (const view of VIEWS) {
-    const context = await browser.newContext({
-      viewport: { width: view.width, height: 900 },
-      colorScheme: view.scheme,
-      extraHTTPHeaders: view.signedIn ? { [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN } : {},
-    });
-    const page = await context.newPage();
-    for (const [name, path] of UX_PAGES) {
-      const response = await page.goto(path);
-      await page.waitForLoadState("networkidle");
-      const sideways = await page.evaluate(
-        () => document.documentElement.scrollWidth - window.innerWidth
-      );
-      const file = `${name}-${view.width}-${view.scheme}-${view.signedIn ? "in" : "out"}`;
-      const slices = await shoot(page, file);
-      report.push({ file, path, status: response?.status(), sideways, slices });
+test("every page in every view", async ({ browser, baseURL }) => {
+  rmSync(OUT, { recursive: true, force: true });
+  mkdirSync(OUT, { recursive: true });
+  const url = baseURL as string;
+  const reader = await storeSignedInReader("user");
+  const admin = await storeSignedInReader("admin");
+  const report: Record<string, unknown>[] = [];
+  const failed: string[] = [];
+
+  try {
+    for (const view of VIEWS) {
+      const context = await browser.newContext({
+        baseURL: url,
+        viewport: { width: view.width, height: 900 },
+        colorScheme: view.scheme,
+      });
+      const page = await context.newPage();
+      for (const [name, path] of UX_PAGES) {
+        const file = `${name}-${view.width}-${view.scheme}-${view.signedIn ? "in" : "out"}`;
+        try {
+          if (view.signedIn) {
+            await signIn(context, name === "admin" ? admin.cookie : reader.cookie, url);
+          }
+          const response = await page.goto(path);
+          await page.waitForLoadState("networkidle");
+          const sideways = await page.evaluate(
+            () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+          );
+          const status = response?.status();
+          const slices = await shoot(page, file);
+          report.push({ file, path, status, sideways, slices });
+          if (status !== expectedStatus(name)) failed.push(`${file}: ${status}`);
+        } catch (error) {
+          // Recorded, and the sweep goes on to the next view.
+          report.push({ file, path, error: String(error) });
+          failed.push(`${file}: ${String(error)}`);
+        }
+      }
+      await context.close();
     }
-    await context.close();
+  } finally {
+    writeFileSync(join(OUT, "report.json"), `${JSON.stringify(report, null, 2)}\n`);
+    await reader.remove();
+    await admin.remove();
   }
 
-  writeFileSync(join(OUT, "report.json"), `${JSON.stringify(report, null, 2)}\n`);
+  expect(failed).toEqual([]);
 });

@@ -34,3 +34,15 @@ export const UX_PAGES: ReadonlyArray<readonly [string, string]> = [
   ["terms", "/kayttoehdot"],
   ["not-found", "/ei-ole-olemassa"],
 ];
+
+/**
+ * The status a listed page answers with: the 404 page 404, and every other
+ * page 200. The admin page shows a not-found page to anyone but an admin, still
+ * with 200, because its response streams before `notFound()` runs.
+ *
+ * decisions/028-admin-tools-and-roles.md
+ * decisions/695-ux-sweep.md
+ */
+export function expectedStatus(name: string): number {
+  return name === "not-found" ? 404 : 200;
+}

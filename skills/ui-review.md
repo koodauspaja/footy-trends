@@ -28,9 +28,9 @@ When to use
 4. `tests/e2e/no-sideways-scroll.spec.ts` runs in the e2e suite, in
    `npm run verify`. It is the one class a test checks for you.
 
-`/asetukset` and `/yllapito` read the session on the server, so the
-screenshots show them signed out only. Check a change to them in a browser,
-signed in.
+Signed in is a real session: `tests/support/e2e-session.ts` stores a reader,
+and an admin for `/yllapito`, in the test database and signs their cookie, so
+pages that read the session on the server show what a signed-in reader sees.
 
 ## The classes
 
@@ -100,7 +100,9 @@ share a line with "there is nothing" (`skills/self-review.md`, section 5).
 ### 8. Words that work against each other (#703)
 
 **What it looks like.** A title said twice; "none found" directly above a
-link counting four; a number in a format that reads as another.
+link counting four; a number in a format that reads as another; the
+browser's own English, such as a file input's `Choose File`, in a Finnish
+page.
 
 **The counter.** Read the page's lines in order, as a reader would, and check
 that no two of them contradict each other or say the same thing twice.
