@@ -7,7 +7,6 @@ import {
   chanceText,
   EXPECTED_POINTS_HEADER,
   FORECAST_ERROR_MESSAGE,
-  FORECAST_TEAM_HEADER,
   NO_FIXTURES_MESSAGE,
   POINTS_WIDTH,
   TITLE_HEADER,
@@ -46,7 +45,6 @@ export function tieText(tie: TieChance): string {
 }
 
 const LEAGUE_PHASE_COLUMNS: ChanceColumn<ForecastRow>[] = [
-  { key: "team", header: FORECAST_TEAM_HEADER, text: (row) => row.teamName },
   {
     key: "points",
     header: EXPECTED_POINTS_HEADER,
@@ -70,7 +68,6 @@ const LEAGUE_PHASE_COLUMNS: ChanceColumn<ForecastRow>[] = [
 const ROUND_WIDTH = 136;
 
 const KNOCKOUT_COLUMNS: ChanceColumn<KnockoutRow>[] = [
-  { key: "team", header: FORECAST_TEAM_HEADER, text: (row) => row.teamName },
   ...REACHED_STAGES.map((stage, index) => ({
     key: stage,
     header: getStageName(stage),

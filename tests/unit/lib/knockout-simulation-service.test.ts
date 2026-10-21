@@ -263,6 +263,12 @@ describe("storedTies", () => {
     ]);
   });
 
+  it("counts an awarded leg's score as played", () => {
+    const ties = storedTies([stored("LAST_16", 9, 1, [3, 0], { status: "AWARDED" })]);
+
+    expect(ties.get("LAST_16")?.[0]?.legs[0]?.score).toEqual({ home: 3, away: 0 });
+  });
+
   it("leaves out a tie with a side not yet known", () => {
     const ties = storedTies([stored("LAST_16", 0, 1, null), stored("LAST_16", 9, 2, null)]);
 

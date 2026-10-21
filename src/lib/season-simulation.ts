@@ -215,8 +215,8 @@ function count(
 }
 
 /**
- * What a run hands on: its final order, places of the current table best first,
- * and the generator, for a caller that plays on from that table.
+ * What a run hands on: its own final order, places of the current table best
+ * first, and the generator, for a caller that plays on from that table.
  *
  * decisions/067-knockout-simulation.md
  */
@@ -275,7 +275,7 @@ export function simulateTable(
     // Points, then the current order: a position is its place in that order.
     order.sort((one, other) => (points[other] as number) - (points[one] as number) || one - other);
     count(tally, order, points, zones);
-    onRun?.(order, random);
+    onRun?.([...order], random);
   }
 
   return table.map((row, position) => {

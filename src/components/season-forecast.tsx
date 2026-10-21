@@ -56,8 +56,8 @@ export function chanceText(chance: Chance): string {
 }
 
 /**
- * One column: its heading, what a row prints in it, and its width in pixels.
- * The team's column has none and takes what is left. A zone's column has a
+ * One column of figures: its heading, what a row prints in it, and its width in
+ * pixels; the team's own column takes what is left. A zone's column has a
  * `subheader` too, the places it covers, under its label.
  *
  * decisions/061-season-simulation.md
@@ -68,7 +68,7 @@ export type ChanceColumn<Row> = {
   key: string;
   header: string;
   subheader?: string;
-  width?: number;
+  width: number;
   text: (row: Row) => string;
 };
 
@@ -119,7 +119,6 @@ function columnsFor(
   zones: readonly Zone[]
 ): ForecastColumn[] {
   const shared: ForecastColumn[] = [
-    { key: "team", header: FORECAST_TEAM_HEADER, text: (row) => row.teamName },
     {
       key: "points",
       header: EXPECTED_POINTS_HEADER,
@@ -175,7 +174,7 @@ function columnsFor(
  * decisions/064-season-simulation-zones.md
  * decisions/067-knockout-simulation.md
  */
-export function ChanceTable<Row extends { teamProviderId: number }>({
+export function ChanceTable<Row extends { teamProviderId: number; teamName: string }>({
   columns,
   rows,
   heading = null,
@@ -184,22 +183,16 @@ export function ChanceTable<Row extends { teamProviderId: number }>({
   rows: readonly Row[];
   heading?: string | null;
 }>) {
-  const [team, ...figures] = columns as [ChanceColumn<Row>, ...ChanceColumn<Row>[]];
-  const minWidth = figures.reduce(
-    (total, column) => total + (column.width as number),
-    TEAM_MINIMUM
-  );
+  const minWidth = columns.reduce((total, column) => total + column.width, TEAM_MINIMUM);
   return (
     <div className="mt-2">
       {heading === null ? null : <h5 className="mb-1 font-medium text-sm">{heading}</h5>}
       <div className="overflow-x-auto">
         <table className="w-full table-fixed text-sm" style={{ minWidth: `${minWidth}px` }}>
           <colgroup>
+            <col />
             {columns.map((column) => (
-              <col
-                key={column.key}
-                style={column.width === undefined ? undefined : { width: `${column.width}px` }}
-              />
+              <col key={column.key} style={{ width: `${column.width}px` }} />
             ))}
           </colgroup>
           <thead>
@@ -208,9 +201,9 @@ export function ChanceTable<Row extends { teamProviderId: number }>({
                 className="sticky left-0 bg-background py-2 pr-2 text-left align-bottom font-medium"
                 scope="col"
               >
-                {team.header}
+                {FORECAST_TEAM_HEADER}
               </th>
-              {figures.map((column) => (
+              {columns.map((column) => (
                 <th
                   className="py-2 pl-2 text-right align-bottom font-medium"
                   key={column.key}
@@ -231,9 +224,9 @@ export function ChanceTable<Row extends { teamProviderId: number }>({
                   className="sticky left-0 bg-background py-2 pr-2 text-left font-semibold"
                   scope="row"
                 >
-                  {team.text(row)}
+                  {row.teamName}
                 </th>
-                {figures.map((column) => (
+                {columns.map((column) => (
                   <td className="py-2 pl-2 text-right tabular-nums" key={column.key}>
                     {column.text(row)}
                   </td>

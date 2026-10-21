@@ -109,16 +109,19 @@ export type Odds = {
  * decisions/067-knockout-simulation.md
  */
 export function oddsOf(model: GoalModel): Odds {
-  const atGround = (home: number, away: number) => differences(model(home, away).grid);
-  const extra = (home: number, away: number) => {
-    const { homeGoals, awayGoals } = model(home, away);
+  // At the first side's ground; a neutral one is the mean of both sides' grounds.
+  const atGround = (first: number, second: number) => differences(model(first, second).grid);
+  const extra = (first: number, second: number) => {
+    const { homeGoals, awayGoals } = model(first, second);
     return differences(scoreGrid(homeGoals * EXTRA_TIME_SHARE, awayGoals * EXTRA_TIME_SHARE, 1));
   };
-  const leg = remembered((home, away, atNeutralGround) =>
-    atNeutralGround ? neutral(atGround(home, away), atGround(away, home)) : atGround(home, away)
+  const leg = remembered((first, second, atNeutralGround) =>
+    atNeutralGround
+      ? neutral(atGround(first, second), atGround(second, first))
+      : atGround(first, second)
   );
-  const extraTime = remembered((home, away, atNeutralGround) =>
-    atNeutralGround ? neutral(extra(home, away), extra(away, home)) : extra(home, away)
+  const extraTime = remembered((first, second, atNeutralGround) =>
+    atNeutralGround ? neutral(extra(first, second), extra(second, first)) : extra(first, second)
   );
   return { leg, extraTime };
 }
@@ -301,7 +304,7 @@ export const LEAGUE_PHASE_ZONES: readonly Zone[] = [
 
 /**
  * A round's stored ties, when the provider holds every pairing of it between two
- * known sides; otherwise the round is drawn.
+ * known sides, each with both legs before the final; otherwise the round is drawn.
  *
  * decisions/067-knockout-simulation.md
  */
@@ -310,8 +313,10 @@ function storedRound(
   stage: string
 ): readonly StoredTie[] | null {
   const ties = rounds.get(stage) ?? [];
-  const expected = TIES_PER_STAGE[KNOCKOUT_STAGES.indexOf(stage)];
-  return ties.length === expected ? ties : null;
+  const at = KNOCKOUT_STAGES.indexOf(stage);
+  const legs = at === KNOCKOUT_STAGES.length - 1 ? 1 : 2;
+  const whole = ties.length === TIES_PER_STAGE[at] && ties.every((tie) => tie.legs.length === legs);
+  return whole ? ties : null;
 }
 
 /**

@@ -38,7 +38,12 @@ const KNOCKOUT_CACHE_TTL_SECONDS = 15 * 60;
  */
 const CHAMPIONS_LEAGUE = "CL";
 
-const FINISHED_STATUS = "FINISHED";
+/**
+ * A leg's result stands once it is finished, or awarded with a score.
+ *
+ * decisions/067-knockout-simulation.md
+ */
+const SETTLED_STATUSES: ReadonlySet<string> = new Set(["FINISHED", "AWARDED"]);
 
 /**
  * A knockout competition's forecast, or why there is none: the final played, no
@@ -77,7 +82,7 @@ type SeasonMatch = BracketSourceMatch &
  */
 export function storedTies(matches: readonly SeasonMatch[]): Map<string, StoredTie[]> {
   const finished = new Map(
-    matches.map((match) => [match.providerMatchId, match.status === FINISHED_STATUS])
+    matches.map((match) => [match.providerMatchId, SETTLED_STATUSES.has(match.status)])
   );
   const known = (team: number | null) => team !== null && team !== PLACEHOLDER_TEAM_ID;
   return new Map(

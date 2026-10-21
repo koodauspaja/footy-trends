@@ -17,6 +17,7 @@ import {
  *
  * decisions/061-season-simulation.md
  * decisions/064-season-simulation-zones.md
+ * decisions/067-knockout-simulation.md
  */
 
 function row(teamProviderId: number, points: number): TableRow {
@@ -71,6 +72,27 @@ describe("simulateTable", () => {
     expect(SIMULATION_SEED).toBe(61);
     expect(simulateTable(table, fixtures)).toEqual(simulateTable(table, fixtures, 10_000, 61));
     expect(simulateTable(table, fixtures)).not.toEqual(simulateTable(table, fixtures, 9_999, 61));
+  });
+
+  it("tells an observer each run's own order, with the generator", () => {
+    // A coin of a fixture between level sides: the order changes from run to run.
+    const orders: Array<readonly number[]> = [];
+    const generators = new Set<() => number>();
+    simulateTable(
+      [row(1, 0), row(2, 0)],
+      [fixture(1, 2, [0.5, 0, 0.5])],
+      40,
+      61,
+      [],
+      (order, random) => {
+        orders.push(order);
+        generators.add(random);
+      }
+    );
+
+    expect(orders).toHaveLength(40);
+    expect(new Set(orders.map((order) => order.join())).size).toBe(2);
+    expect(generators.size).toBe(1);
   });
 
   it("gives a home win three points to the home side", () => {
