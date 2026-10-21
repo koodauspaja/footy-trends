@@ -451,17 +451,23 @@ function decideBySeed(run: Run, one: number, other: number, half: number): numbe
  * decisions/067-knockout-simulation.md
  */
 function storedQuarterFinalHalves(run: Run, ties: readonly StoredTie[]): number[] {
-  const sides = (tie: StoredTie) => [tie.home.teamProviderId, tie.away.teamProviderId];
-  const ranked = bySeed(run, ties.flatMap(sides));
+  const ranked = bySeed(run, ties.flatMap(sidesOf));
   const outer = new Set([...ranked.slice(0, 2), ...ranked.slice(6, 8)]);
-  const isOuter = (tie: StoredTie) => sides(tie).some((team) => outer.has(team));
-  const inner = ties.filter((tie) => !isOuter(tie));
+  const isOuter = (tie: StoredTie) => sidesOf(tie).some((team) => outer.has(team));
   const best = ranked[0] as number;
   const swap = run.random() < 0.5 ? 1 : 0;
-  return ties.map((tie) => {
-    if (isOuter(tie)) return sides(tie).includes(best) ? 0 : 1;
-    return inner.indexOf(tie) === 0 ? swap : 1 - swap;
-  });
+  // Outer ties first, the best seed's leading; then the others, one each way.
+  const order = ties.toSorted(
+    (left, right) =>
+      Number(isOuter(right)) - Number(isOuter(left)) ||
+      Number(sidesOf(right).includes(best)) - Number(sidesOf(left).includes(best))
+  );
+  const halves = [0, 1, swap, 1 - swap];
+  return ties.map((tie) => halves[order.indexOf(tie)] as number);
+}
+
+function sidesOf(tie: StoredTie): number[] {
+  return [tie.home.teamProviderId, tie.away.teamProviderId];
 }
 
 /**
@@ -500,19 +506,21 @@ function playKnockout(
   const reach = (stage: number, sides: readonly number[]) => {
     for (const team of sides) count(stage, team);
   };
+  // A stored round's sides are the ones that reached it.
+  const entered = (stage: number, ties: readonly StoredTie[] | null, drawn: readonly number[]) =>
+    reach(stage, ties === null ? drawn : ties.flatMap(sidesOf));
   const direct = teams.slice(0, 8);
   const playoffs = stored(PLAYOFFS);
   const qualified =
     playoffs === null ? drawPlayoffs(run, teams.slice(8, 24)) : playStored(run, playoffs);
 
-  let entrants = [...direct, ...qualified];
-  reach(0, entrants);
   const lastSixteen = stored("LAST_16");
-  entrants =
+  entered(0, lastSixteen, [...direct, ...qualified]);
+  let entrants =
     lastSixteen === null ? drawLastSixteen(run, direct, qualified) : playStored(run, lastSixteen);
 
-  reach(1, entrants);
   const quarterFinals = stored("QUARTER_FINALS");
+  entered(1, quarterFinals, entrants);
   if (quarterFinals === null) entrants = drawQuarterFinals(run, entrants);
   else {
     // The halves first: playing a tie moves the seeds they are read from.
@@ -523,12 +531,12 @@ function playKnockout(
     });
   }
 
-  reach(2, entrants);
   const semiFinals = stored("SEMI_FINALS");
+  entered(2, semiFinals, entrants);
   entrants = semiFinals === null ? drawSemiFinals(run, entrants) : playStored(run, semiFinals);
 
-  reach(3, entrants);
   const final = stored("FINAL");
+  entered(3, final, entrants);
   const [one, other] = entrants as [number, number];
   return final === null
     ? decide(run, neutralMatch(one, other))
