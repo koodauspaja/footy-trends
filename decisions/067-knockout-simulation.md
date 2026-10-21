@@ -201,7 +201,7 @@ decisions stand; these are the cups' own.
   strings, the headers by round, a row as printed, the rounds left only, the
   ties after the table, the lines, before the round of 16, the two failure
   lines; after `Pudotuspelit`, signed in only.
-- **Mutations**, applied alone and restored from a commit: 49, 47 caught. Two
+- **Mutations**, applied alone and restored from a commit: 50, 48 caught. Two
   were equivalent, and their code is gone: a stop after the final, which a
   round that does not halve already makes, and the "before" filter's undecided
   check, which `tieChances` already makes.
@@ -218,6 +218,7 @@ decisions stand; these are the cups' own.
   | 43, 44 | A stored tie kept with a side the run no longer has; a part-stored round drawn whole | `knockout-simulation.test.ts` |
   | 45–48 | A round sized by its known ties; a called-off match kept; a round of 16 forecast with a side unknown; every round's ties shown before it | `knockout-simulation-service.test.ts` |
   | 49 | The sides read in two queries | `taso-standings-service.test.ts` |
+  | 50 | No round with a tie undecided, read as one | `knockout-simulation-service.test.ts` |
 
 - **End to end**, `tests/e2e/cup-forecast.spec.ts`: the recorded cups are
   finished, so MSC 2026 is seeded, with eight league sides who have played each
