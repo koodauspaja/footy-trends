@@ -162,9 +162,9 @@ function answerCacheKeys(choice: CompetitionChoice, seasonId: number): string[] 
 }
 
 /**
- * The entries computed from the stored rows: the table, and the season forecast
- * with the levels. Cleared by the refetch and again once the write has
- * committed, or a request between the two caches the old rows' figures.
+ * The entries computed from the stored rows: the table, the season forecast with
+ * the levels, and the knockout forecast. Cleared by the refetch and again once the
+ * write has committed, or a request between the two caches the old rows' figures.
  *
  * decisions/029-forced-season-refresh.md
  * decisions/064-season-simulation-zones.md
