@@ -146,6 +146,7 @@ describe("getKnockoutForecast", () => {
     const row = (team: number) =>
       result.leaguePhase?.find((candidate) => candidate.teamProviderId === team);
     expect(row(2)?.expectedPoints).toBe(3);
+    expect(row(10)?.expectedPoints).toBe(3);
     expect(row(36)?.zones[0]).toEqual({ share: 0, settled: true });
     expect(row(36)?.zones[1]?.settled).toBe(false);
   });

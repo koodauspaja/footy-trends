@@ -222,6 +222,15 @@ const betterWins: GoalModel = (home, away) => ({
   grid: grid(home < away ? 3 : -3),
 });
 
+// The later place wins every leg by three: every tie an upset.
+const worseWins: GoalModel = (home, away) => betterWins(away, home);
+
+// 2 beats everyone; between any others, the better place wins.
+const twoIsBest: GoalModel = (home, away) => {
+  if (home === 2 || away === 2) return betterWins(home === 2 ? 0 : 99, away === 2 ? 0 : 99);
+  return betterWins(home, away);
+};
+
 // The home side wins every leg by one, and extra time without fail.
 const homeWins: GoalModel = () => ({ homeGoals: 300, awayGoals: 0, grid: grid(1) });
 
@@ -314,6 +323,17 @@ describe("forecastChampionsLeague's draw", () => {
     expect(first?.teamProviderId).toBe(1);
     expect(second?.teamProviderId).toBe(2);
     expect(second?.reached[3]?.share).toBe(1);
+  });
+});
+
+describe("forecastChampionsLeague's seeds", () => {
+  it("gives a drawn play-off's winner the seed it beat, and that seed's last 16 opponents", () => {
+    // Every unseeded side wins its play-off and takes over 9 to 16: 17 and 18,
+    // which beat 15 and 16, meet 1 and 2.
+    const { met, recording } = recorded(worseWins);
+    forecastChampionsLeague(NO_ROUNDS, recording, 100);
+
+    expect(opponentsOf(met, 1).filter((other) => other > 8)).toEqual([17, 18]);
   });
 });
 
@@ -500,6 +520,42 @@ describe("forecastChampionsLeague's stored rounds", () => {
     expect(forecast.rows.some((row) => row.teamProviderId === 99)).toBe(false);
   });
 
+  it("reads stored quarter-finals' halves before they are played", () => {
+    // 8 has knocked out 1 and taken its seed. Read afterwards, the seeds would
+    // put the 3–6 tie, listed first, beside 8 and the 2–7 tie with it.
+    const quarterFinals = [
+      decided("QUARTER_FINALS", 8, 1, 8),
+      decided("QUARTER_FINALS", 6, 3, null),
+      decided("QUARTER_FINALS", 7, 2, null),
+      decided("QUARTER_FINALS", 5, 4, null),
+    ];
+    const { met, recording } = recorded(betterWins);
+    forecastChampionsLeague(
+      { ...NO_ROUNDS, rounds: new Map([["QUARTER_FINALS", quarterFinals]]) },
+      recording,
+      400
+    );
+
+    expect(opponentsOf(met, 8).filter((other) => other <= 4)).toEqual([3, 4]);
+  });
+
+  it("counts a stored round's own sides as the ones that reached it", () => {
+    // 20 is stored in 16's place: 16 would have won its drawn play-off.
+    const lastSixteen = [
+      decided("LAST_16", 20, 1, null),
+      ...[2, 3, 4, 5, 6, 7, 8].map((seeded, index) =>
+        decided("LAST_16", [15, 14, 13, 12, 11, 10, 9][index] as number, seeded, null)
+      ),
+    ];
+    const forecast = forecastChampionsLeague(
+      { ...NO_ROUNDS, rounds: new Map([["LAST_16", lastSixteen]]) },
+      betterWins,
+      100
+    );
+
+    expect(forecast.rows.find((row) => row.teamProviderId === 16)?.reached[0]?.share).toBe(0);
+  });
+
   it("places stored quarter-finals in the tree: the best seed's tie apart from the other 1/2 tie", () => {
     const quarterFinals = [
       decided("QUARTER_FINALS", 8, 1, null),
@@ -532,9 +588,9 @@ describe("forecastChampionsLeague's figures", () => {
   });
 
   it("orders the sides by their chance of winning, then of each later round", () => {
-    const forecast = forecastChampionsLeague(NO_ROUNDS, betterWins, 100);
+    const forecast = forecastChampionsLeague(NO_ROUNDS, twoIsBest, 100);
 
-    expect(forecast.rows.slice(0, 4).map((row) => row.teamProviderId)).toEqual([1, 2, 3, 4]);
+    expect(forecast.rows.slice(0, 2).map((row) => row.teamProviderId)).toEqual([2, 1]);
   });
 
   it("shows the league phase while it has a fixture left, with its three stretches of places", () => {
