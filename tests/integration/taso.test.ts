@@ -2,9 +2,14 @@ import { and, between, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db";
 import { tasoGroupTeams, tasoMatches } from "@/db/schema";
+import { categoryIdForSeason, competitionIdForSeason } from "@/lib/domestic-competitions";
 import { calculateStandings } from "@/lib/standings";
 import type { NormalizedTasoMatch } from "@/lib/taso";
-import { synchronizeGroupTeams } from "@/lib/taso-standings-service";
+import {
+  storedSeasonSides,
+  synchronizeGroupTeams,
+  synchronizeMatches,
+} from "@/lib/taso-standings-service";
 
 /**
  * The TASO sync and the reads over its rows, against a real Postgres. Carry-over
@@ -17,6 +22,7 @@ import { synchronizeGroupTeams } from "@/lib/taso-standings-service";
  * decisions/196-concurrent-group-syncs.md
  * decisions/644-stored-table-behind-results.md
  * decisions/666-taso-fixtures-cleared-file-wide.md
+ * decisions/067-knockout-simulation.md
  */
 
 vi.mock("@/lib/taso", async (importOriginal) => {
@@ -719,5 +725,33 @@ describe("a stored TASO table behind the stored results", () => {
     ]);
 
     expect((await group())?.kind).toBe("pass-through");
+  });
+});
+
+describe("storedSeasonSides", () => {
+  const season = 901102;
+  const stored = (code: string, seasonOf: number, id: number, home: number, away: number) =>
+    buildMatch({
+      providerMatchId: id,
+      categoryId: categoryIdForSeason(code, seasonOf),
+      competitionCode: competitionIdForSeason(code, seasonOf),
+      seasonId: seasonOf,
+      homeTeamProviderId: home,
+      awayTeamProviderId: away,
+    });
+
+  it("reads the competition's own season from its stored rows, home and away sides alike", async () => {
+    try {
+      await synchronizeMatches([
+        stored("VL", season, 901201, 9101, 9102),
+        stored("VL", season, 901202, 9102, 9103),
+        stored("M2", season, 901203, 9201, 9202),
+        stored("VL", season + 1, 901204, 9301, 9302),
+      ]);
+
+      expect([...(await storedSeasonSides("VL", season))].toSorted()).toEqual([9101, 9102, 9103]);
+    } finally {
+      await db.delete(tasoMatches).where(between(tasoMatches.seasonId, season, season + 1));
+    }
   });
 });

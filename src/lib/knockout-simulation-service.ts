@@ -347,6 +347,11 @@ export function fromLastSixteen(
   return chosen;
 }
 
+/**
+ * A cup's season as its standings page reads it; nothing stored is no rounds.
+ *
+ * decisions/067-knockout-simulation.md
+ */
 async function readSeason(code: string, seasonId: number, activeSeasonId: number) {
   const season = await getSeasonTables(
     categoryIdForSeason(code, seasonId),
@@ -486,7 +491,8 @@ export async function getCupForecast(
           getPoissonFit("taso"),
           readSeason(code, seasonId, activeSeasonId),
         ]);
-        if (fitted.status === "error") throw new Error("The Poisson fit could not be read");
+        // The fit has logged its own failure; a figure from no fit is not kept.
+        if (fitted.status === "error") return { value: { status: "error" }, degraded: true };
         const rounds = season.tables.map(cupTies).filter((ties) => ties.length > 0);
         if (rounds.length === 0 || !fitted.fit.competitions.has(code)) {
           return { value: { status: "unavailable" }, degraded: season.refreshFailed };

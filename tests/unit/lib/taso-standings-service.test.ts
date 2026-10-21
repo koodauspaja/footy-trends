@@ -21,6 +21,7 @@ import {
   needsRefresh,
   parseTasoRoundParam,
   resolveTasoSeasonContext,
+  storedSeasonSides,
   synchronizeGroupLevels,
   synchronizeGroupTeams,
   synchronizeMatches,
@@ -5630,5 +5631,20 @@ describe("a cup's table behind its results", () => {
 
   it("renders the same rows of a league group as our own table", async () => {
     expect(await kindFor(CATEGORY_ID)).toBe("own-calculated");
+  });
+});
+
+describe("storedSeasonSides", () => {
+  it("lists every side the season's stored rows have, home or away, once each", async () => {
+    const answers = [
+      [{ side: 1 }, { side: 2 }],
+      [{ side: 2 }, { side: 3 }],
+    ];
+    dbMock.selectDistinct.mockImplementation(() => ({
+      from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(answers.shift()) }),
+    }));
+
+    expect([...(await storedSeasonSides("M2", 2026))].toSorted()).toEqual([1, 2, 3]);
+    expect(getSeasonMatchesMock).not.toHaveBeenCalled();
   });
 });

@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PoissonFitResult } from "@/lib/poisson-service";
 import type { SyncedSeasonMatches } from "@/lib/standings-service";
+import type { SeasonTable } from "@/lib/taso-standings-service";
 
 /**
  * The knockout forecast's service: which seasons have one, what it reads, the
- * stored ties it hands the simulation, the cache, and failure as its own case
- * with its log line.
+ * stored ties it hands the simulation, a Suomen Cup's round of 16 and its
+ * stand-in, the cache, and failure as its own case with its log line.
  *
  * decisions/067-knockout-simulation.md
  */
@@ -16,6 +17,8 @@ const mocks = vi.hoisted(() => ({
   getLeagueSeasonMatches:
     vi.fn<(code: string, season: number, active: number) => Promise<SyncedSeasonMatches>>(),
   loggerError: vi.fn(),
+  getSeasonTables: vi.fn(),
+  storedSeasonSides: vi.fn<(code: string, season: number) => Promise<Set<number>>>(),
 }));
 
 vi.mock("@/lib/cache", () => ({ getCachedUnlessDegraded: mocks.getCachedUnlessDegraded }));
@@ -24,12 +27,22 @@ vi.mock("@/lib/standings-service", () => ({
   getLeagueSeasonMatches: mocks.getLeagueSeasonMatches,
 }));
 vi.mock("@/lib/logger", () => ({ logger: { error: mocks.loggerError } }));
+vi.mock("@/lib/taso-standings-service", () => ({
+  getSeasonTables: mocks.getSeasonTables,
+  storedSeasonSides: mocks.storedSeasonSides,
+}));
 
+import { categoryIdForSeason, competitionIdForSeason } from "@/lib/domestic-competitions";
 import {
+  cupTies,
+  fromLastSixteen,
+  getCupForecast,
   getKnockoutForecast,
+  hasCupForecast,
   knockoutCacheKey,
   storedTies,
 } from "@/lib/knockout-simulation-service";
+import { PLACEHOLDER_TEAM_ID } from "@/lib/match-detail";
 import type { PoissonFit } from "@/lib/poisson";
 
 const SEASON = 2026;
@@ -336,4 +349,344 @@ describe("storedTies", () => {
 
     expect(ties.get("FINAL")?.[0]?.winner).toBe(2);
   });
+});
+
+type CupMatch = SeasonTable["matches"][number];
+let nextCupMatch = 1;
+
+// A cup match at its listed home side's ground; `winner` once TASO has played it.
+function cupMatch(
+  home: number,
+  away: number,
+  winner: "home" | "away" | null = null,
+  score: [number, number] = winner === "home" ? [1, 0] : [0, 1]
+): CupMatch {
+  nextCupMatch += 1;
+  return {
+    providerMatchId: nextCupMatch,
+    status: winner === null ? "SCHEDULED" : "FINISHED",
+    homeTeamProviderId: home,
+    homeTeamName: `Seura ${home}`,
+    awayTeamProviderId: away,
+    awayTeamName: `Seura ${away}`,
+    homeGoals: winner === null ? null : score[0],
+    awayGoals: winner === null ? null : score[1],
+    winner,
+  } as CupMatch;
+}
+
+function round(groupId: number, matches: CupMatch[]): SeasonTable {
+  return { groupId, groupName: `Kierros ${groupId}`, matches } as SeasonTable;
+}
+
+// Each pair's first side its tie's home side, decided for it when `winner` is.
+function pairs(sides: readonly number[], winner: "home" | "away" | null = null): CupMatch[] {
+  return Array.from({ length: sides.length / 2 }, (_, index) =>
+    cupMatch(sides[2 * index] as number, sides[2 * index + 1] as number, winner)
+  );
+}
+
+const range = (from: number, count: number) => Array.from({ length: count }, (_, i) => from + i);
+
+// The round of 32, its home sides through, and the round of 16 to play: 101 to
+// 116, the first six Veikkausliiga's.
+const ROUND_OF_32 = round(
+  1,
+  pairs(
+    range(101, 32).flatMap((side, i) => (i < 16 ? [side, side + 16] : [])),
+    "home"
+  )
+);
+const ROUND_OF_16 = round(2, pairs(range(101, 16)));
+const TOP_DIVISION = new Set(range(101, 6));
+const STAND_INS = [201, 202];
+
+function cupFit(rated: readonly number[], standIn = { attack: 0, defence: 0 }): PoissonFit {
+  const sides = [...rated, ...STAND_INS];
+  const strength = (side: number, value: number) =>
+    [side, STAND_INS.includes(side) ? value : 0] as [number, number];
+  return {
+    competitions: new Map([
+      ["MSC", { base: 0.2, drawFactor: 1, cup: true }],
+      ["NSC", { base: 0.2, drawFactor: 1, cup: true }],
+    ]),
+    home: 0.1,
+    attack: new Map(sides.map((side) => strength(side, standIn.attack))),
+    defence: new Map(sides.map((side) => strength(side, standIn.defence))),
+  };
+}
+
+function storedSides(bySeason: Record<string, readonly number[]>) {
+  mocks.storedSeasonSides.mockImplementation(
+    async (code, season) => new Set(bySeason[`${code}:${season}`] ?? [])
+  );
+}
+
+function cupSeason(tables: SeasonTable[], refreshFailed = false) {
+  mocks.getSeasonTables.mockResolvedValue({ status: "ok", tables, refreshFailed });
+}
+
+const cupForecast = (code = "MSC") => getCupForecast(code, SEASON, SEASON);
+
+function cupFitted(rated: readonly number[], standIn?: { attack: number; defence: number }) {
+  mocks.getPoissonFit.mockResolvedValue({ status: "ok", fit: cupFit(rated, standIn) });
+}
+
+describe("cupTies", () => {
+  it("makes each match a tie, TASO's verdict its winner and its score once finished", () => {
+    const [tie] = cupTies(round(3, [cupMatch(1, 2, "home", [2, 1])]));
+
+    expect(tie).toEqual({
+      key: `3:${nextCupMatch}`,
+      home: { teamProviderId: 1, teamName: "Seura 1" },
+      away: { teamProviderId: 2, teamName: "Seura 2" },
+      winner: 1,
+      legs: [{ home: 1, away: 2, score: { home: 2, away: 1 } }],
+    });
+  });
+
+  it("reads a tie level after normal time from TASO's winner", () => {
+    expect(cupTies(round(3, [cupMatch(1, 2, "away", [1, 1])]))[0]?.winner).toBe(2);
+  });
+
+  it("leaves a match not yet played undecided, with no score", () => {
+    const [tie] = cupTies(round(3, [cupMatch(1, 2)]));
+
+    expect(tie?.winner).toBeNull();
+    expect(tie?.legs).toEqual([{ home: 1, away: 2, score: null }]);
+  });
+
+  it("leaves out a match with a side not yet known", () => {
+    expect(
+      cupTies(round(3, [cupMatch(PLACEHOLDER_TEAM_ID, 2), cupMatch(1, PLACEHOLDER_TEAM_ID)]))
+    ).toEqual([]);
+  });
+});
+
+describe("fromLastSixteen", () => {
+  const ties = (table: SeasonTable) => cupTies(table);
+
+  it("starts at the first round of sixteen sides or fewer with a top-division side, and takes each round that halves", () => {
+    const quarterFinals = round(3, pairs(range(101, 8)));
+    const rounds = [ROUND_OF_32, ROUND_OF_16, quarterFinals].map(ties);
+
+    expect(fromLastSixteen(rounds, TOP_DIVISION)).toEqual(rounds.slice(1));
+  });
+
+  it("skips an early round of sixteen with no top-division side", () => {
+    const early = round(1, pairs(range(301, 16)));
+    const rounds = [early, ROUND_OF_32, ROUND_OF_16].map(ties);
+
+    expect(fromLastSixteen(rounds, TOP_DIVISION)).toEqual([rounds[2]]);
+  });
+
+  it("skips a round whose sides are not a power of two", () => {
+    const rounds = [round(1, pairs(range(101, 12))), ROUND_OF_16].map(ties);
+
+    expect(fromLastSixteen(rounds, TOP_DIVISION)).toEqual([rounds[1]]);
+  });
+
+  it("has nothing before the round of 16", () => {
+    expect(fromLastSixteen([ROUND_OF_32].map(ties), TOP_DIVISION)).toEqual([]);
+  });
+
+  it("stops at a round that does not halve, and after the final", () => {
+    const rounds = [ROUND_OF_16, round(3, pairs(range(101, 16)))].map(ties);
+    const final = [round(5, pairs([101, 102])), round(6, pairs([101, 102]))].map(ties);
+
+    expect(fromLastSixteen(rounds, TOP_DIVISION)).toEqual([rounds[0]]);
+    expect(fromLastSixteen(final, TOP_DIVISION)).toEqual([final[0]]);
+  });
+});
+
+describe("getCupForecast", () => {
+  beforeEach(() => {
+    cupSeason([ROUND_OF_32, ROUND_OF_16]);
+    cupFitted(range(101, 32));
+    storedSides({
+      "VL:2026": [...TOP_DIVISION],
+      "NL:2026": [...TOP_DIVISION],
+      "M2:2026": STAND_INS,
+      "N1:2026": STAND_INS,
+    });
+  });
+
+  it("is had by the two Suomen Cups only", () => {
+    expect(["MSC", "NSC", "VL", "LCM"].map(hasCupForecast)).toEqual([true, true, false, false]);
+  });
+
+  it.each([
+    ["VL", SEASON],
+    ["MSC", SEASON - 1],
+  ] as const)("has no section for %s %i, and reads nothing", async (code, season) => {
+    expect(await getCupForecast(code, season, SEASON)).toEqual({ status: "unavailable" });
+    expect(mocks.getSeasonTables).not.toHaveBeenCalled();
+    expect(mocks.getPoissonFit).not.toHaveBeenCalled();
+  });
+
+  it("reads the cup as its standings page reads it, and TASO's fit, cached for 15 minutes", async () => {
+    await cupForecast();
+
+    expect(mocks.getSeasonTables).toHaveBeenCalledWith(
+      categoryIdForSeason("MSC", SEASON),
+      competitionIdForSeason("MSC", SEASON),
+      SEASON,
+      SEASON
+    );
+    expect(mocks.getPoissonFit).toHaveBeenCalledWith("taso");
+    expect(mocks.getCachedUnlessDegraded).toHaveBeenCalledWith(
+      "knockout:v1:taso:MSC:2026",
+      900,
+      expect.any(Function)
+    );
+  });
+
+  it("forecasts from the round of 16: every side's chance of each round and of the cup", async () => {
+    const result = await cupForecast();
+
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") return;
+    expect(result.roundSizes).toEqual([16, 8, 4, 2]);
+    expect(result.rows).toHaveLength(16);
+    expect(result.ties).toHaveLength(8);
+    expect(result.standIn).toBeNull();
+    expect(mocks.storedSeasonSides).toHaveBeenCalledWith("VL", SEASON);
+  });
+
+  it("before the round of 16, gives only the undecided ties between two rated sides", async () => {
+    cupSeason([round(1, [cupMatch(101, 117), cupMatch(102, 999), cupMatch(103, 118, "home")])]);
+
+    const result = await cupForecast();
+
+    expect(result.status).toBe("before");
+    if (result.status !== "before") return;
+    expect(result.ties.map((tie) => [tie.home.teamProviderId, tie.away.teamProviderId])).toEqual([
+      [101, 117],
+    ]);
+  });
+
+  it("gives a tie with an unrated side no figure, and names the division it counts as", async () => {
+    cupFitted(range(101, 15));
+
+    const result = await cupForecast();
+
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") return;
+    expect(result.standIn).toBe("M2");
+    expect(result.rows).toHaveLength(16);
+    expect(result.ties.some((tie) => tie.away.teamProviderId === 116)).toBe(false);
+    expect(result.ties).toHaveLength(7);
+    const women = await cupForecast("NSC");
+    expect(women.status === "ok" && women.standIn).toBe("N1");
+  });
+
+  it("plays an unrated side as the stand-in division's average side", async () => {
+    // Kakkonen's sides far stronger than every rated side: 116 counts as one.
+    cupFitted(range(101, 15), { attack: 3, defence: -3 });
+
+    const result = await cupForecast();
+
+    expect(result.status === "ok" && result.rows[0]?.teamProviderId).toBe(116);
+  });
+
+  it("looks back for the stand-in division's latest season in the fit, as far as the fit reaches", async () => {
+    cupFitted(range(101, 15), { attack: 3, defence: -3 });
+    storedSides({ "VL:2026": [...TOP_DIVISION], "M2:2022": STAND_INS });
+
+    const result = await cupForecast();
+
+    expect(result.status === "ok" && result.rows[0]?.teamProviderId).toBe(116);
+    storedSides({ "VL:2026": [...TOP_DIVISION] });
+    await cupForecast();
+    const seasons = mocks.storedSeasonSides.mock.calls
+      .filter(([code]) => code === "M2")
+      .map(([, season]) => season);
+    expect(Math.min(...seasons)).toBe(2021);
+  });
+
+  it("names no division once every unrated side is out", async () => {
+    cupFitted(range(101, 15));
+    cupSeason([ROUND_OF_32, round(2, [...pairs(range(101, 14)), cupMatch(115, 116, "home")])]);
+
+    const result = await cupForecast();
+
+    expect(result.status === "ok" && result.standIn).toBeNull();
+  });
+
+  it("says nothing is left once the final is decided", async () => {
+    const rounds = [
+      ROUND_OF_32,
+      round(2, pairs(range(101, 16), "home")),
+      round(3, pairs([101, 103, 105, 107, 109, 111, 113, 115], "home")),
+      round(4, pairs([101, 105, 109, 113], "home")),
+      round(5, pairs([101, 109], "home")),
+    ];
+    cupSeason(rounds);
+
+    expect(await cupForecast()).toEqual({ status: "no-fixtures" });
+  });
+
+  it.each([
+    ["nothing is stored", () => mocks.getSeasonTables.mockResolvedValue({ status: "empty" })],
+    [
+      "the fit has no match of the cup",
+      () =>
+        mocks.getPoissonFit.mockResolvedValue({
+          status: "ok",
+          fit: { ...cupFit([]), competitions: new Map() },
+        }),
+    ],
+  ])("has no section when %s", async (_case, arrange) => {
+    arrange();
+
+    expect(await cupForecast()).toEqual({ status: "unavailable" });
+  });
+
+  it("fails without a line of its own when the fit could not be read, which has logged it", async () => {
+    mocks.getPoissonFit.mockResolvedValue({ status: "error" });
+
+    expect(await cupForecast()).toEqual({ status: "error" });
+    expect(mocks.loggerError).not.toHaveBeenCalled();
+  });
+
+  it("fails, with one error line, when the cup could not be read", async () => {
+    mocks.getSeasonTables.mockResolvedValue({ status: "error" });
+
+    expect(await cupForecast()).toEqual({ status: "error" });
+    expect(mocks.loggerError).toHaveBeenCalledTimes(1);
+    expect(mocks.loggerError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: "taso",
+        code: "MSC",
+        seasonId: SEASON,
+        err: expect.any(Error),
+      }),
+      "Unable to simulate the knockout"
+    );
+  });
+
+  it.each([
+    [false, false],
+    [true, true],
+  ])(
+    "marks a forecast from rows TASO could not refresh as not to be kept (refresh failed: %s)",
+    async (failed, degraded) => {
+      cupSeason([ROUND_OF_32, ROUND_OF_16], failed);
+      let seen: boolean | undefined;
+      mocks.getCachedUnlessDegraded.mockImplementation(
+        async (
+          _key: string,
+          _ttl: number,
+          fetcher: () => Promise<{ value: unknown; degraded: boolean }>
+        ) => {
+          const fetched = await fetcher();
+          seen = fetched.degraded;
+          return fetched.value;
+        }
+      );
+
+      await cupForecast();
+      expect(seen).toBe(degraded);
+    }
+  );
 });
