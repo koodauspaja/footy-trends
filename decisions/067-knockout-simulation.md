@@ -49,8 +49,82 @@ Asked in chat on 2026-10-21, each answered with the recommended option:
 | A pairing the fit cannot predict | The run fails, with the panel's failure line and one `error` line | For the Champions League every known pairing has a prediction (specs/055 S4). One without would mean the fit treats the competition as a cup; inventing a figure for it would be worse than saying so |
 | The cache | `knockout:v1:${kind}:${code}:${seasonId}`, 15 minutes; a forced refresh clears it beside the forecast's | S6. Cleared for every football-data competition, as the forecast's is: one key that is never there costs nothing |
 
+## What the tests prove, and how
+
+- **The engine**, `tests/unit/lib/knockout-simulation.test.ts`: a tie by hand
+  with odds that leave one outcome, the aggregate from each leg's home side, a
+  played first leg, extra time at the last leg's ground, the shoot-out at even
+  odds; a stored tie's legs counted from its first side; a neutral match as the
+  mean of both grounds; extra time at a third of the goals on the plain grid.
+  The draw under a model where the better place always wins, which makes every
+  pairing S9 allows, and only those, appear: the play-offs' four sections, the
+  last 16's, the quarter-final tree and 1 and 2 meeting only in the final. The
+  venues under a model where the home side always wins, which sends every tie to
+  extra time at the second leg's ground. Stored rounds used as they are, a part-
+  stored one drawn, decided ties' losers out and winners through with the seed
+  they beat, stored quarter-finals' halves, a stored side the table lacks. The
+  figures: the top eight settled, 25 to 36 left out, the order, the league phase
+  shown while it has a fixture left, each run's own league order, repeatability.
+- **The service**, `tests/unit/lib/knockout-simulation-service.test.ts`: which
+  seasons have a panel and what they read; the cache key and its 15 minutes; the
+  league phase from its own matches only; the provider's verdict on a tie; the
+  final played; the group-stage format; the fit without the competition; nothing
+  stored; a stale read not kept; each failure's one `error` line.
+- **The panel**, `knockout-forecast.test.tsx` and `competition-analytics.test.tsx`:
+  both tables' headers and a row of each as printed, `Kierroksen parit` between
+  them, the note and the link, the two lines; first in `Tämä kausi`, the failure
+  line in its own panel, not asked for signed out or where `Analyysit` has none.
+- **Mutations.** Each applied alone, the five test files run, and the source
+  restored from a commit. 34 were caught; five survived the first tests and each
+  now has one that fails without it (marked \*). One was equivalent and its code
+  is gone: which half the best seed's quarter-final goes into, since the halves
+  are only labels.
+
+  | # | Mutation | Caught by |
+  |---|---|---|
+  | 1 | Extra time a whole match | `knockout-simulation.test.ts` |
+  | 2 | A neutral ground read as the first side's | the same |
+  | 3 | The shoot-out at 60–40 | the same |
+  | 4 | No extra time | the same |
+  | 5 | The worse seed hosting the second leg | the same |
+  | 6, 7 | The play-offs' or the last 16's sections wrong | the same |
+  | 8, 9 | The quarter-finals 1/2 against 3/4; 1 and 2 in one half | the same |
+  | 10\* | A drawn tie's winner keeping its own seed | the same |
+  | 11 | A part-stored round used | the same |
+  | 12 | A decided stored tie played again | the same |
+  | 13 | The top eight never settled | the same |
+  | 14, 15 | A side put out, or one in 25–36, kept in the table | the same |
+  | 16\* | The table not ordered | the same |
+  | 17 | The league phase never shown | the same |
+  | 18 | A tie's chance counted from its away side | the same |
+  | 19\* | Stored quarter-finals' halves read after they are played | the same |
+  | 20\* | A stored round's sides not the ones counted | the same |
+  | 21 | `onRun` never called | the same, and `season-simulation.test.ts` passes either way |
+  | 22–30 | The service keeping a placeholder's tie, scoring an unfinished leg, without `no-fixtures`, keeping the group-stage format, a knockout fixture\* counted in the league phase, caching a stale read, rewording its line, any season | `knockout-simulation-service.test.ts` |
+  | 31–33 | The panel's tie sides swapped, no ties' list, no league-phase table | `knockout-forecast.test.tsx` |
+  | 34 | The panel left out of `Tämä kausi` | `competition-analytics.test.tsx` |
+
+- **End to end**, `tests/e2e/knockout-simulation.spec.ts`, on the e2e
+  database's 2026/27 season (45 of 144 league-phase matches played): the panel
+  first in `Tämä kausi`, both tables' headers, 36 league-phase rows, every open
+  chance a whole percent and never `0 %` or `100 %`, the note and the link; no
+  panel for 2024/25, which is finished; nothing in a signed-out reader's HTML.
+- **By eye**, screenshots of a production build at 375 px and 1 024 px, light
+  and dark: neither page scrolls sideways, the tables scroll inside it with the
+  names in view. The first screenshots showed `Neljännesvälierät` running into
+  `Puolivälierät`: a round's column is now 136 px, and no header overflows its
+  cell at either width.
+
 ## Measured
 
-On a laptop, the engine alone, a 36-team league phase with 99 fixtures left and
-no knockout stored, 10 000 runs: about 190 ms, of which the league phase is
-about 37 ms (decisions/061's simulation) and the knockout the rest.
+The engine alone, today's Champions League (the 2026/27 table and its 99
+remaining league-phase fixtures, the test database's fit), 10 000 runs, nine
+times each, bundled into one file that needs only Node:
+
+| Where | 99 fixtures left | The league phase over |
+|---|---|---|
+| Laptop, Node 24.16.0 | 147 ms median, 167 ms slowest | 89 ms, 91 ms |
+| Railway, staging's web container | To be measured | To be measured |
+
+decisions/061 found Railway about twice the laptop. A miss is at most once per
+competition per 15 minutes.
