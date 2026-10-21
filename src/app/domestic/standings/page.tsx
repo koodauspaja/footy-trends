@@ -315,7 +315,7 @@ export default async function DomesticStandingsPage({
     seasonLabel: String,
   });
 
-  // A Suomen Cup's forecast, signed in only; the gate is asked on no other page.
+  // A Suomen Cup's forecast, signed in only; the gate is asked only for a cup that has one.
   const cupForecast =
     hasCupForecast(competitionCode) && (await canSeeAnalytics())
       ? await getCupForecast(competitionCode, seasonId, currentSeason)
