@@ -60,6 +60,11 @@ Asked in chat on 2026-10-21, each answered with the recommended option:
 | A decided tie in a round the simulation draws, because the round is stored only in part, is still settled: its loser out, its winner through | It is what happened. The runs redraw the round meanwhile, so the other sides' chances in it are approximate until the next refresh stores the rest, which is how a round comes to be stored in part |
 | A forced refresh whose cache delete fails leaves the old forecast for up to 15 minutes | decisions/029's refresh, the same for every entry it clears: the table, the season forecast and this one |
 | An `AWARDED` league-phase match is neither in the table nor simulated | The table is the standings page's own, which counts finished matches; the forecast agrees with the page beside it. Counting awarded matches is a change to the table, not to this feature |
+| A match being played is drawn as a whole match, and the table counts finished ones only | decisions/061's rule (specs/061 S13), as the league forecast reads it, and the table beside the panel agrees |
+| A tie whose return leg is not stored has its round drawn, its first leg's score with it | Deliberate: otherwise the first leg alone would decide it. football-data lists a tie's two legs together |
+| Concurrent misses each compute, and an instance from before a deploy does not know this key | S6, as the season forecast: computed on a page view and cached for 15 minutes; both shared with every computed entry |
+| A decided final with an unreadable fit shows the failure line, not the no-fixtures one | Both at once is needed; the line stands for at most the fit's 15 minutes, after the season's last match |
+| An explicit `{ id: null }` side fails football-data's refresh | `normalizeMatch` rejects only an absent id: a bug for every competition, outside this feature, offered as one of its own |
 | A forced refresh does not clear the Poisson fit's cache, so a forecast recomputed after it can use the old fit for up to 15 minutes | The same for the season forecast and the match page's `Ennuste` since decisions/055: the fit is the provider's, refitted every 15 minutes from every competition's matches. Clearing it from one competition's refresh is a change to that rule, not to this feature |
 
 ## What the tests prove, and how
@@ -88,7 +93,7 @@ Asked in chat on 2026-10-21, each answered with the recommended option:
   them, the note and the link, the two lines; first in `Tämä kausi`, the failure
   line in its own panel, not asked for signed out or where `Analyysit` has none.
 - **Mutations.** Each applied alone, the five test files run, and the source
-  restored from a commit. 42 were caught; five survived the first tests and each
+  restored from a commit. 44 were caught; five survived the first tests and each
   now has one that fails without it (marked \*). One was equivalent and its code
   is gone: which half the best seed's quarter-final goes into, since the halves
   are only labels.
@@ -119,6 +124,7 @@ Asked in chat on 2026-10-21, each answered with the recommended option:
   | 35–37 | A two-legged round taken without its return legs; an awarded leg replayed; every run handed one shared order | `knockout-simulation.test.ts`, `knockout-simulation-service.test.ts`, `season-simulation.test.ts` |
   | 38–41 | A called-off leg kept; a tie settled by its scores left without a winner; a level one given one; a failed fit logged again | `knockout-simulation-service.test.ts` |
   | 42 | A tie missing a leg read as decided by its scores | `knockout-simulation-service.test.ts` |
+  | 43, 44 | The observer handed each run's order reversed; every goal difference drawn as 0, which fails 21 tests | `season-simulation.test.ts`, `knockout-simulation.test.ts` |
 
 - **End to end**, `tests/e2e/knockout-simulation.spec.ts`, on the e2e
   database's 2026/27 season (45 of 144 league-phase matches played): the panel
