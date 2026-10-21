@@ -216,6 +216,9 @@ does sits between them, never across one.
   defect classes measured from this repository's own review history, with the
   counter to each. `npm run review:findings` re-measures them, and the list
   changes when it does.
+- The pass for a change a reader can see: `skills/ui-review.md` — the classes
+  the UX sweep of every page found (#695), with `npm run ux:screenshots` to see
+  every page in eight views.
 - Release workflow (promoting `main` to `release`): `skills/release.md`.
 - Bug workflow (no new spec; reference the existing one it violates; a
   decision record when it changes something meaningful): `skills/bug-workflow.md`.

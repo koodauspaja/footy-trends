@@ -98,6 +98,7 @@ describe("the coverage exclusion list", () => {
     "drizzle.config.ts",
     "next.config.ts",
     "playwright.config.ts",
+    "playwright.ux.config.ts",
     "postcss.config.mjs",
     "sentry.edge.config.ts",
     "sentry.server.config.ts",

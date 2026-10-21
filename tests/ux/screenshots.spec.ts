@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
+import { UX_PAGES } from "../support/ux-pages";
 
 /**
  * Every kind of page in eight views: 375 px and 1 024 px, light and dark,
@@ -13,38 +14,6 @@ import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics
 
 const OUT = "ux-screenshots";
 const SLICE = 1_600;
-
-/** Each page by a short name; the e2e stand-in's data is on every one. */
-const PAGES: ReadonlyArray<readonly [string, string]> = [
-  ["front", "/"],
-  ["domestic", "/kotimaa"],
-  ["foreign", "/ulkomaat"],
-  ["national", "/maajoukkueet"],
-  ["vl-standings", "/kotimaa/sarjataulukko?kilpailu=VL&kausi=2026"],
-  ["vl-2017-knockout", "/kotimaa/sarjataulukko?kausi=2017"],
-  ["msc-standings", "/kotimaa/sarjataulukko?kilpailu=MSC&kausi=2025"],
-  ["liigacup-standings", "/kotimaa/sarjataulukko?kilpailu=LC&kausi=2023"],
-  ["pl-standings", "/ulkomaat/sarjataulukko?kilpailu=PL"],
-  ["pl-2024-standings", "/ulkomaat/sarjataulukko?kilpailu=PL&kausi=2024"],
-  ["cl-standings", "/ulkomaat/sarjataulukko?kilpailu=CL"],
-  ["wc-standings", "/maajoukkueet/sarjataulukko?kilpailu=WC&kausi=2026"],
-  ["vl-matches", "/kotimaa/ottelut?kilpailu=VL&kausi=2026"],
-  ["foreign-matches", "/ulkomaat/ottelut"],
-  ["inter-team", "/kotimaa/joukkue/60987"],
-  ["arsenal-team", "/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024"],
-  ["arsenal-cl-team", "/ulkomaat/joukkue/57?kilpailu=CL&kausi=2024"],
-  ["huuhkajat", "/maajoukkueet/huuhkajat"],
-  ["helmarit", "/maajoukkueet/helmarit"],
-  ["played-match", "/kotimaa/ottelu/4036852"],
-  ["upcoming-match", "/kotimaa/ottelu/4353547"],
-  ["rivalry", "/kotimaa/kohtaamiset/60901/60987"],
-  ["predictions", "/ennusteet"],
-  ["settings", "/asetukset"],
-  ["admin", "/yllapito"],
-  ["privacy", "/tietosuoja"],
-  ["terms", "/kayttoehdot"],
-  ["not-found", "/ei-ole-olemassa"],
-];
 
 const VIEWS = [375, 1024].flatMap((width) =>
   (["light", "dark"] as const).flatMap((scheme) =>
@@ -78,7 +47,7 @@ test("every page in every view", async ({ browser }) => {
       extraHTTPHeaders: view.signedIn ? { [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN } : {},
     });
     const page = await context.newPage();
-    for (const [name, path] of PAGES) {
+    for (const [name, path] of UX_PAGES) {
       const response = await page.goto(path);
       await page.waitForLoadState("networkidle");
       const sideways = await page.evaluate(
