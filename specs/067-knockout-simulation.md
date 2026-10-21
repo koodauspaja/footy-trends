@@ -144,7 +144,7 @@ On the cup's standings page, signed in, for the season in progress, after
 | Knockout ties | `buildBracket` (`cup-bracket.ts`): legs, aggregates, decisions, winners; a TASO tie decided on penalties read from its `winner` (decisions/015) |
 | A remaining fixture | specs/061 S13's rule (`isRemainingFixture`): a placeholder side, `CANCELLED`, `AWARDED` and `Abandoned` are not |
 | Probabilities | The provider's cached Poisson fit (`getPoissonFit`); `predictPoisson`'s `prediction` for a league-phase fixture and `grid` for a leg (S1). In the Champions League an absent team is an average side (specs/055 S4) |
-| An unrated cup side | The mean of the fit's strengths over the teams of `M2` (MSC) or `N1` (NSC) in their latest season in the fit (S10); specs/059's `isRated` decides who is unrated |
+| An unrated cup side | A side the Poisson fit has no match of, as `predictPoisson` already refuses a cup tie with one (Miikka, 2026-10-21; decisions/067 A1). In the simulation, the mean of the fit's strengths over the teams of `M2` (MSC) or `N1` (NSC) in that division's most recent season in the fit (S10; decisions/067 A2) |
 | Extra time | The pairing's expected goals scaled by 30/90, on the plain grid (S8) |
 | A run | The league phase as specs/061; then each round in order: the stored pairings, or a draw (S9, S15); each tie played (S8, S14) |
 | Figures | Over 10 000 runs: league-phase expected points and zone shares; per team the share reaching each round and winning; per stored tie between rated sides each side's share going through, a played first leg counted |
