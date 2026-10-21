@@ -18,7 +18,8 @@ const STANDINGS = `/kotimaa/sarjataulukko?kilpailu=MSC&kausi=${SEASON}`;
 const HEADING = "Cupin ennuste";
 const CHANCE = /^(<\s1|>\s99|\d{1,3})\s%$/;
 const SHARE = String.raw`(?:[<>]\s)?\d{1,3}\s%`;
-const TIE = new RegExp(String.raw`^E2E Seura \d+ – E2E Seura \d+: jatkoon ${SHARE} – ${SHARE}$`);
+const tie = (home: number, away: number) =>
+  new RegExp(String.raw`^E2E Seura ${home} – E2E Seura ${away}: jatkoon ${SHARE} – ${SHARE}$`);
 
 // Veikkausliiga's sides, 1 to 8, and eight the fit has no league match of.
 const league = (side: number) => 999_067_100 + side;
@@ -171,7 +172,8 @@ test.describe("Suomen Cup forecast, signed in", () => {
     await page.goto(STANDINGS);
     const ties = section(page).getByRole("listitem");
 
-    await expect(ties).toHaveText([TIE, TIE]);
+    // The two still to play between league sides, 4 against 5 and 7 against 8.
+    await expect(ties).toHaveText([tie(104, 105), tie(107, 108)]);
   });
 
   test("says what the figures are, and the division an unrated side counts as", async ({

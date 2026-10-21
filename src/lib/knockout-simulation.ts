@@ -383,6 +383,30 @@ function decide(run: Run, tie: TieInPlay): number {
   return winner;
 }
 
+/**
+ * Each stored, undecided tie over the runs: how often it was played and how
+ * often its listed home side went through, its chance a share of the runs it
+ * was in.
+ *
+ * decisions/067-knockout-simulation.md
+ */
+function tieTally() {
+  const counts = new Map<string, { played: number; through: number }>();
+  return {
+    count: (key: string, firstWent: boolean) => {
+      const seen = counts.get(key) ?? { played: 0, through: 0 };
+      counts.set(key, { played: seen.played + 1, through: seen.through + Number(firstWent) });
+    },
+    chances: (ties: readonly StoredTie[]): TieChance[] =>
+      ties.flatMap((tie) => {
+        const seen = counts.get(tie.key);
+        if (seen === undefined) return [];
+        const homeThrough = seen.through / seen.played;
+        return [{ key: tie.key, home: tie.home, away: tie.away, homeThrough }];
+      }),
+  };
+}
+
 function playStored(run: Run, ties: readonly StoredTie[]): number[] {
   return ties.map((tie) => {
     if (tie.winner !== null) {
@@ -679,7 +703,7 @@ export function forecastChampionsLeague(
     const at = places.get(team);
     if (at !== undefined) counts[at] = (counts[at] as number) + 1;
   };
-  const storedTies = new Map<string, number>();
+  const tieCounts = tieTally();
   const odds = oddsOf(model);
 
   const leaguePhase = simulateTable(
@@ -695,8 +719,7 @@ export function forecastChampionsLeague(
         halves: new Map(),
         odds,
         random,
-        onStoredTie: (key, firstWent) =>
-          storedTies.set(key, (storedTies.get(key) ?? 0) + (firstWent ? 1 : 0)),
+        onStoredTie: tieCounts.count,
       };
       const champion = playKnockout(run, teams, rounds, (stage, team) =>
         add(tally.reached[stage] as number[], team)
@@ -730,13 +753,7 @@ export function forecastChampionsLeague(
   });
   rows.sort(byChances);
 
-  const ties = KNOCKOUT_STAGES.flatMap((stage) =>
-    (rounds.get(stage) ?? []).flatMap((tie): TieChance[] => {
-      const through = storedTies.get(tie.key);
-      if (through === undefined) return [];
-      return [{ key: tie.key, home: tie.home, away: tie.away, homeThrough: through / runs }];
-    })
-  );
+  const ties = KNOCKOUT_STAGES.flatMap((stage) => tieCounts.chances(rounds.get(stage) ?? []));
 
   return { leaguePhase: fixtures.length > 0 ? leaguePhase : null, rows, ties };
 }
@@ -825,7 +842,7 @@ export function forecastCup(
     const at = places.get(team) as number;
     counts[at] = (counts[at] as number) + 1;
   };
-  const storedTies = new Map<string, number>();
+  const tieCounts = tieTally();
   const odds = oddsOf(model);
   const random = generator(seed);
 
@@ -835,8 +852,7 @@ export function forecastCup(
       halves: new Map(),
       odds,
       random,
-      onStoredTie: (key, firstWent) =>
-        storedTies.set(key, (storedTies.get(key) ?? 0) + (firstWent ? 1 : 0)),
+      onStoredTie: tieCounts.count,
     };
     let left = sides;
     for (let round = 0; round < rounds; round += 1) {
@@ -866,13 +882,7 @@ export function forecastCup(
   });
   rows.sort(byChances);
 
-  const ties = input.rounds.flatMap((round) =>
-    round.flatMap((tie): TieChance[] => {
-      const through = storedTies.get(tie.key);
-      if (through === undefined) return [];
-      return [{ key: tie.key, home: tie.home, away: tie.away, homeThrough: through / runs }];
-    })
-  );
+  const ties = input.rounds.flatMap((round) => tieCounts.chances(round));
   return { rows, ties };
 }
 

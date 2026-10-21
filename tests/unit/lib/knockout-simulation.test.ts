@@ -717,6 +717,22 @@ describe("forecastCup", () => {
     expect(forecast.ties.map((tie) => tie.key)).toContain("cup:1-2");
   });
 
+  it("counts a later stored tie's chance over the runs it is played in", () => {
+    // 1 reaches its stored quarter-final in about half the runs, and wins it
+    // whenever it does.
+    const evenAgainstNine: GoalModel = (home, away) =>
+      home === 9 && away === 1
+        ? { homeGoals: 1, awayGoals: 1, grid: scoreGrid(1, 1, 1) }
+        : betterWins(home, away);
+    const forecast = forecastCup(
+      { rounds: [CUP_LAST_SIXTEEN, [cupTie(1, 2)]] },
+      evenAgainstNine,
+      400
+    );
+
+    expect(forecast.ties.find((tie) => tie.key === "cup:1-2")?.homeThrough).toBe(1);
+  });
+
   it("draws a stored tie's sides afresh in a run that no longer has one of them", () => {
     // 1 is stored in the quarter-finals, but the round of 16 it is still to
     // win puts it out under this model.
