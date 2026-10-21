@@ -26,30 +26,38 @@ export function signedSessionCookie(token: string, secret: string): string {
 }
 
 /**
- * A stored reader with the given role, signed in for an hour: the cookie's
- * value, and how to remove the reader again, sessions with it.
+ * A stored reader with the given role, signed in for an hour: the name the
+ * header shows, the cookie's value, and how to remove the reader again,
+ * sessions with it. Each call is a reader of its own, so concurrent runs never
+ * share one.
  *
  * decisions/695-ux-sweep.md
  */
 export async function storeSignedInReader(
   role: "user" | "admin"
-): Promise<{ cookie: string; remove: () => Promise<void> }> {
+): Promise<{ name: string; cookie: string; remove: () => Promise<void> }> {
   const secret = process.env.BETTER_AUTH_SECRET;
   if (secret === undefined || secret === "") {
     throw new Error("BETTER_AUTH_SECRET signs the session cookie, and it is not set.");
   }
-  const id = `e2e-ux-${role}`;
+  const id = `e2e-ux-${role}-${randomUUID()}`;
+  const name = `E2E ${role}`;
   const token = randomUUID();
-  const remove = () => withDatabase((sql) => sql`delete from "user" where id = ${id}`);
 
-  await remove();
-  await withDatabase(async (sql) => {
-    await sql`insert into "user" (id, name, email, email_verified, role)
-      values (${id}, ${`E2E ${role}`}, ${`${id}@example.com`}, true, ${role})`;
-    await sql`insert into session (id, token, expires_at, user_id)
-      values (${randomUUID()}, ${token}, ${new Date(Date.now() + 3_600_000)}, ${id})`;
-  });
-  return { cookie: signedSessionCookie(token, secret), remove };
+  // One transaction: a reader is stored with its session, or not at all.
+  await withDatabase((sql) =>
+    sql.begin(async (tx) => {
+      await tx`insert into "user" (id, name, email, email_verified, role)
+        values (${id}, ${name}, ${`${id}@example.com`}, true, ${role})`;
+      await tx`insert into session (id, token, expires_at, user_id)
+        values (${randomUUID()}, ${token}, ${new Date(Date.now() + 3_600_000)}, ${id})`;
+    })
+  );
+  return {
+    name,
+    cookie: signedSessionCookie(token, secret),
+    remove: () => withDatabase((sql) => sql`delete from "user" where id = ${id}`),
+  };
 }
 
 async function withDatabase(run: (sql: postgres.Sql) => Promise<unknown>): Promise<void> {

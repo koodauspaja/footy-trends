@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { SESSION_COOKIE, storeSignedInReader } from "../support/e2e-session";
-import { expectedStatus, UX_PAGES } from "../support/ux-pages";
+import { expectedStatus, isAdminPage, UX_PAGES } from "../support/ux-pages";
 
 /**
  * No page scrolls sideways, at a phone's width or a laptop's, signed in, where a
@@ -29,14 +29,16 @@ for (const width of [375, 1024]) {
 
     for (const [name, path] of UX_PAGES) {
       test(`${name} stays within the window`, async ({ page, baseURL }) => {
-        const cookie = name === "admin" ? admin.cookie : reader.cookie;
+        const signedIn = isAdminPage(name) ? admin : reader;
         await page
           .context()
-          .addCookies([{ name: SESSION_COOKIE, value: cookie, url: baseURL as string }]);
+          .addCookies([{ name: SESSION_COOKIE, value: signedIn.cookie, url: baseURL as string }]);
         const response = await page.goto(path);
         await page.waitForLoadState("networkidle");
 
         expect(response?.status()).toBe(expectedStatus(name));
+        // Signed in for real: the header names the reader.
+        await expect(page.getByText(signedIn.name, { exact: true }).first()).toBeVisible();
         const sideways = await page.evaluate(
           () => document.documentElement.scrollWidth - document.documentElement.clientWidth
         );

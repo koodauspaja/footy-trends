@@ -19,6 +19,7 @@ export const UX_PAGES: ReadonlyArray<readonly [string, string]> = [
   ["wc-standings", "/maajoukkueet/sarjataulukko?kilpailu=WC&kausi=2026"],
   ["vl-matches", "/kotimaa/ottelut?kilpailu=VL&kausi=2026"],
   ["foreign-matches", "/ulkomaat/ottelut"],
+  ["national-matches", "/maajoukkueet/ottelut"],
   ["inter-team", "/kotimaa/joukkue/60987"],
   ["arsenal-team", "/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024"],
   ["arsenal-cl-team", "/ulkomaat/joukkue/57?kilpailu=CL&kausi=2024"],
@@ -28,8 +29,10 @@ export const UX_PAGES: ReadonlyArray<readonly [string, string]> = [
   ["upcoming-match", "/kotimaa/ottelu/4353547"],
   ["rivalry", "/kotimaa/kohtaamiset/60901/60987"],
   ["predictions", "/ennusteet"],
+  ["favourites", "/suosikit"],
   ["settings", "/asetukset"],
   ["admin", "/yllapito"],
+  ["admin-data", "/yllapito/data"],
   ["privacy", "/tietosuoja"],
   ["terms", "/kayttoehdot"],
   ["not-found", "/ei-ole-olemassa"],
@@ -44,5 +47,16 @@ export const UX_PAGES: ReadonlyArray<readonly [string, string]> = [
  * decisions/695-ux-sweep.md
  */
 export function expectedStatus(name: string): number {
+  // The admin's data page answers as the admin page does.
   return name === "not-found" ? 404 : 200;
+}
+
+/**
+ * Whether a listed page is the admin's, signed in as the admin rather than a
+ * reader.
+ *
+ * decisions/695-ux-sweep.md
+ */
+export function isAdminPage(name: string): boolean {
+  return name === "admin" || name === "admin-data";
 }

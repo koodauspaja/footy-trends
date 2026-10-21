@@ -2,7 +2,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import { SESSION_COOKIE, storeSignedInReader } from "../support/e2e-session";
-import { expectedStatus, UX_PAGES } from "../support/ux-pages";
+import { expectedStatus, isAdminPage, UX_PAGES } from "../support/ux-pages";
 
 /**
  * Every kind of page in eight views: 375 px and 1 024 px, light and dark,
@@ -46,12 +46,14 @@ test("every page in every view", async ({ browser, baseURL }) => {
   rmSync(OUT, { recursive: true, force: true });
   mkdirSync(OUT, { recursive: true });
   const url = baseURL as string;
-  const reader = await storeSignedInReader("user");
-  const admin = await storeSignedInReader("admin");
   const report: Record<string, unknown>[] = [];
   const failed: string[] = [];
+  let reader: Awaited<ReturnType<typeof storeSignedInReader>> | undefined;
+  let admin: Awaited<ReturnType<typeof storeSignedInReader>> | undefined;
 
   try {
+    reader = await storeSignedInReader("user");
+    admin = await storeSignedInReader("admin");
     for (const view of VIEWS) {
       const context = await browser.newContext({
         baseURL: url,
@@ -62,9 +64,8 @@ test("every page in every view", async ({ browser, baseURL }) => {
       for (const [name, path] of UX_PAGES) {
         const file = `${name}-${view.width}-${view.scheme}-${view.signedIn ? "in" : "out"}`;
         try {
-          if (view.signedIn) {
-            await signIn(context, name === "admin" ? admin.cookie : reader.cookie, url);
-          }
+          const signedIn = (isAdminPage(name) ? admin : reader) as NonNullable<typeof reader>;
+          if (view.signedIn) await signIn(context, signedIn.cookie, url);
           const response = await page.goto(path);
           await page.waitForLoadState("networkidle");
           const sideways = await page.evaluate(
@@ -74,6 +75,9 @@ test("every page in every view", async ({ browser, baseURL }) => {
           const slices = await shoot(page, file);
           report.push({ file, path, status, sideways, slices });
           if (status !== expectedStatus(name)) failed.push(`${file}: ${status}`);
+          // A signed-in view whose header does not name the reader was signed out.
+          const named = await page.getByText(signedIn.name, { exact: true }).count();
+          if (view.signedIn && named === 0) failed.push(`${file}: not signed in`);
         } catch (error) {
           // Recorded, and the sweep goes on to the next view.
           report.push({ file, path, error: String(error) });
@@ -84,8 +88,8 @@ test("every page in every view", async ({ browser, baseURL }) => {
     }
   } finally {
     writeFileSync(join(OUT, "report.json"), `${JSON.stringify(report, null, 2)}\n`);
-    await reader.remove();
-    await admin.remove();
+    await reader?.remove();
+    await admin?.remove();
   }
 
   expect(failed).toEqual([]);
