@@ -61,18 +61,26 @@ const LEAGUE_PHASE_COLUMNS: ChanceColumn<ForecastRow>[] = [
   })),
 ];
 
+/**
+ * A knockout round's column: wide enough for `Neljännesvälierät`, which does not
+ * break, in the heading's type.
+ *
+ * decisions/067-knockout-simulation.md
+ */
+const ROUND_WIDTH = 136;
+
 const KNOCKOUT_COLUMNS: ChanceColumn<KnockoutRow>[] = [
   { key: "team", header: FORECAST_TEAM_HEADER, text: (row) => row.teamName },
   ...REACHED_STAGES.map((stage, index) => ({
     key: stage,
     header: getStageName(stage),
-    width: WIDE_CHANCE_WIDTH,
+    width: ROUND_WIDTH,
     text: (row: KnockoutRow) => chanceText(row.reached[index] as Chance),
   })),
   {
     key: "won",
     header: TITLE_HEADER,
-    width: WIDE_CHANCE_WIDTH,
+    width: ROUND_WIDTH,
     text: (row) => chanceText(row.won),
   },
 ];
