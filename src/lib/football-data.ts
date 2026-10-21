@@ -37,7 +37,8 @@ export function footballDataCompetitionCacheKey(competitionCode: string): string
   return `football-data:competition:${competitionCode}:v2`;
 }
 
-type ProviderTeam = { id?: number; name?: string };
+/** Both null on a knockout fixture whose sides are not known yet. */
+type ProviderTeam = { id?: number | null; name?: string | null };
 
 type ProviderScoreLine = { home?: number | null; away?: number | null };
 
@@ -265,10 +266,10 @@ export function normalizeMatch(
     match.id === undefined ||
     match.status === undefined ||
     match.utcDate === undefined ||
-    match.homeTeam?.id === undefined ||
-    match.homeTeam.name === undefined ||
-    match.awayTeam?.id === undefined ||
-    match.awayTeam.name === undefined
+    match.homeTeam?.id == null ||
+    match.homeTeam.name == null ||
+    match.awayTeam?.id == null ||
+    match.awayTeam.name == null
   )
     return null;
 
