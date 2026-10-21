@@ -150,3 +150,84 @@ times each, bundled into one file that needs only Node:
 
 decisions/061 found Railway about twice the laptop. A miss is at most once per
 competition per 15 minutes.
+
+## Part 2: the Suomen Cups
+
+The second pull request: the Miesten and Naisten Suomen Cup from their round of
+16 (S15), and before it the ties between rated sides (S16). The first part's
+decisions stand; these are the cups' own.
+
+| Decision | Choice | Why |
+|---|---|---|
+| A cup's rounds | Each stored group of the season a round, in TASO's order; a match a tie of one leg at its listed home side's ground, TASO's `winner` its verdict (decisions/015), its score once `FINISHED` (`Played` or `Forfeited`). A side not yet known is no tie | S14 and the spec's "a tie TASO decided on penalties: read from its `winner`" |
+| The round of 16 (S15) | The first round of 16 sides or fewer, a power of two, with a side of the season's top division, and each later round that holds half as many | The spec's rule. An early round of 16 with no top-division side is skipped |
+| The top division's sides, and the stand-in's | Read from the stored rows only, `storedSeasonSides`, which never asks TASO | The standings page's own read refreshes a stale season from TASO. Through it, a cup page view would have asked for Veikkausliiga's and Kakkonen's seasons, against the spec's "no provider request of its own" |
+| A drawn round | The sides left shuffled from the run's generator, paired in order, each tie one match at a neutral ground | S15: "drawn uniformly at random from the sides left, each tie a single match at a neutral ground" |
+| A stored round | Used when it holds a tie for every two sides left; otherwise drawn | As a Champions League round (part 1) |
+| Settled chances | Every side of the round of 16 `100 %` in it; a decided tie's winner `100 %` in the next round, the round after the last stored one included, and its loser out of the table | S4. The tests found the round after the last stored one left unsettled in the first draft |
+| An unrated side (A1, A2, S10) | In the simulation only, the mean of the fit's strengths over the stand-in division's sides in its most recent season with a side in the fit, looked for back to the fit's 1 500 days, six seasons with this one; with none, an average side | A2's reading. The fit reaches about four years back, so stopping after last season would not have been "most recent in the fit". No tie's `Ennuste` changes, since the fit is copied |
+| The division line | While an unrated side is still in the table | The spec: "when a side left is unrated" |
+| A tie's figure (S16) | A stored, undecided tie between two rated sides: from the round of 16 the runs' share, before it the tie played on its own 10 000 times from the seed | A tie with an unrated side has no figure, as its match page has no `Ennuste` |
+| A round's name | By the sides it holds: 16 `Neljännesvälierät`, 8 `Puolivälierät`, 4 `Välierät`, 2 `Loppuottelu` | specs/015's names. The forecast starts at the round of 16, so every round has one |
+| Where the section goes | Its own `section` under `Cupin ennuste`, after `Pudotuspelit` (S11), only when the competition has a cup forecast and `canSeeAnalytics()`; no other standings page asks for it | S5 and S11. Cup pages stay without `Analyysit` |
+| The cache | `knockout:v1:taso:${code}:${seasonId}`, 15 minutes; a forced refresh of any TASO competition clears it beside the forecast's key | As part 1 |
+| A fit that could not be read | The failure line, not cached, with no line of its own | As part 1: `getPoissonFit` has logged it |
+
+### What the tests prove, and how
+
+- **The engine**, `knockout-simulation.test.ts`: under a model where the better
+  place always wins, a drawn round can give any side left any other, and a
+  stored one gives only its own pairings; a drawn tie is asked from both
+  grounds and a stored one from its listed home side's; a part-stored round is
+  drawn; a decided tie's loser out and its winner settled in the next round;
+  every side's rounds and one winner a run; the order; each open tie's chance
+  from its home side, none for a decided one; a tie on its own about half at
+  even odds; repeatability.
+- **The service**, `knockout-simulation-service.test.ts`: a match as a tie, a
+  shoot-out from TASO's winner, an unplayed one, a placeholder; the round of 16
+  found, an early 16 without a top-division side skipped, a round of 12
+  skipped, nothing before it, the rounds after it; which competitions and
+  seasons have a section and what they read; the ties before the round of 16
+  between rated sides only; a stand-in for MSC and NSC, an unrated side played
+  as the stand-in's strength, found four seasons back, looked for no further
+  than six; no line once every unrated side is out; the final played; nothing
+  stored; the fit without the cup; each failure's line, or none; a stale read
+  not kept. `storedSeasonSides` in `taso-standings-service.test.ts`, and against
+  Postgres in `tests/integration/taso.test.ts`.
+- **The section**, `cup-forecast.test.tsx` and the standings page's test: the
+  strings, the headers by round, a row as printed, the rounds left only, the
+  ties after the table, the lines, before the round of 16, the two failure
+  lines; after `Pudotuspelit`, signed in only.
+- **Mutations**, applied alone and restored from a commit: 40, 38 caught. Two
+  were equivalent, and their code is gone: a stop after the final, which a
+  round that does not halve already makes, and the "before" filter's undecided
+  check, which `tieChances` already makes.
+
+  | # | Mutation | Caught by |
+  |---|---|---|
+  | 1–11 | A drawn round not shuffled, or played at the first side's ground; any part of a round used, or none; a decided tie's winner not settled, or its loser kept; the settled rounds sized by the stored ones; no order; a tie's chance from its away side; `tieChances` keeping a decided tie or counting the away side | `knockout-simulation.test.ts` |
+  | 12–33 | TASO's winner reversed; a placeholder kept; an unplayed match scored; the round of 16 without its top-division, power-of-two or sixteen-or-fewer condition, or without halving; unrated ties kept, before the round of 16 or after; the line while every unrated side is out; the stand-in an average side, this season's only, a season less far back, or the top division; no final check; a failed fit logged; a stale read kept; an earlier season; a cup the fit lacks; the top division read as the stand-in | `knockout-simulation-service.test.ts` |
+  | 34 | Stored sides read from the home side only | `taso-standings-service.test.ts` |
+  | 35–39 | No division line; the ties before the table; the note before the round of 16; a round's column reading the next; a ties' heading with no tie | `cup-forecast.test.tsx` |
+  | 40 | The section for a signed-out reader | `page.test.tsx` |
+
+- **End to end**, `tests/e2e/cup-forecast.spec.ts`: the recorded cups are
+  finished, so MSC 2026 is seeded, with eight league sides who have played each
+  other and a round of 16 with four ties played (one on penalties), two to play
+  between league sides and two with a side the fit does not know. The section
+  right after `Pudotuspelit`; its headers; twelve sides, every cup chance never
+  `0 %` or `100 %`; the two rated ties only; the note and Kakkonen's line; no
+  section for 2025; nothing for a signed-out reader. The seeded rows go, so the
+  next read of the season asks the stand-in again.
+- **By eye**, at 375 px and 1 024 px, light and dark: the page never scrolls
+  sideways (its scroll width equals the window's at both), the table scrolls
+  inside it with the names in view.
+
+### Measured
+
+The cup engine alone from a round of 16, 10 000 runs, nine times:
+
+| Where | From the round of 16 |
+|---|---|
+| Laptop, Node 24.16.0 | 54 ms median, 69 ms slowest |
+| Railway, staging's web container | To be measured, with part 1's |
