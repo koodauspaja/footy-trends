@@ -18,11 +18,11 @@ the findings into `skills/ui-review.md`.
 | Which statuses | Every page 200 but the 404 page; the admin page shows a not-found page to anyone but an admin, still 200 | decisions/028: a streamed response's status is sent before `notFound()` runs |
 | Tall pages | Screenshotted in slices of 1 600 px | A reader, human or model, can see a slice whole. MSC 2025's standings page is fifteen of them at 375 px |
 | A run | Starts with the services check e2e has, always with the TASO stand-in, clears its output first, and records a view that fails and goes on; the run fails at the end if any view failed or answered an unexpected status | TASO's recorded data, so its state never decides a sweep; football-data is read as the e2e suite reads it, its answers kept between runs in the stand-in's Redis. A stale screenshot beside fresh ones would mislead |
-| What a test can check | No page scrolls sideways, at 375 px and 1 024 px signed in, each page answering its expected status: `tests/e2e/no-sideways-scroll.spec.ts`. Sideways is the document's scroll width past its client width, which leaves out a scrollbar | The sweep measured it on all 224 views, and found none. A rule only written down is not a check (`skills/self-review.md`, section 8) |
+| What a test can check | No page scrolls sideways, at 375 px and 1 024 px signed in, each page answering its expected status: `tests/e2e/no-sideways-scroll.spec.ts`. Sideways is the document's scroll width past its client width, which leaves out a scrollbar | The sweep measured it on all 248 views, and found none. A rule only written down is not a check (`skills/self-review.md`, section 8) |
 
 ## Findings
 
-All 28 pages were read: about 30 slices in the first pass, chosen to cover each
+All 31 pages were read: about 30 slices in the first pass, chosen to cover each
 kind of page at both widths and in both themes, and a completion pass over every
 page the first one left. Each group is filed: #696 headings and spacing, #697
 hiding and showing panels (a feature), #698 long lists open by default, #699

@@ -109,7 +109,7 @@ that no two of them contradict each other or say the same thing twice.
 
 ### Width (no issue: none found)
 
-No page scrolled sideways in any of the 224 views, and the e2e test keeps it
+No page scrolled sideways in any of the 248 views, and the e2e test keeps it
 so. A table or a bracket wider than the screen scrolls inside its own box.
 
 Related: `skills/self-review.md` for the code-side pass, `decisions/695-ux-sweep.md`
