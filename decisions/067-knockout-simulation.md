@@ -159,15 +159,16 @@ decisions stand; these are the cups' own.
 
 | Decision | Choice | Why |
 |---|---|---|
-| A cup's rounds | Each stored group of the season a round, in TASO's order; a match a tie of one leg at its listed home side's ground, TASO's `winner` its verdict (decisions/015), its score once `FINISHED` (`Played` or `Forfeited`). A side not yet known is no tie | S14 and the spec's "a tie TASO decided on penalties: read from its `winner`" |
-| The round of 16 (S15) | The first round of 16 sides or fewer, a power of two, with a side of the season's top division, and each later round that holds half as many | The spec's rule. An early round of 16 with no top-division side is skipped |
+| A cup's rounds | Each stored group of the season a round, in TASO's order; a match a tie of one leg at its listed home side's ground, TASO's `winner` its verdict (decisions/015), its score once `FINISHED` (`Played` or `Forfeited`). A side not yet known is no tie, and a called-off match (`Abandoned`, decisions/061's word for TASO's) is neither a tie nor a place in the round | S14 and the spec's "a tie TASO decided on penalties: read from its `winner`". The called-off match as part 1's leg; Sourcery found it |
+| A round's size | Two sides a match, a side not yet known included | Counted from known sides only, a round of 32 with half its pairings unknown looked like a round of 16; Sourcery found it |
+| The round of 16 (S15) | The first round of 16 sides or fewer, a power of two, with a side of the season's top division, and each later round that holds half as many or fewer. Simulated once every side of it is known; until then the cup is `before` it | The spec's rule. An early round of 16 with no top-division side is skipped. A side not yet known cannot be simulated |
 | The top division's sides, and the stand-in's | Read from the stored rows only, `storedSeasonSides`, which never asks TASO | The standings page's own read refreshes a stale season from TASO. Through it, a cup page view would have asked for Veikkausliiga's and Kakkonen's seasons, against the spec's "no provider request of its own" |
 | A drawn round | The sides left shuffled from the run's generator, paired in order, each tie one match at a neutral ground | S15: "drawn uniformly at random from the sides left, each tie a single match at a neutral ground" |
-| A stored round | Used when it holds a tie for every two sides left; otherwise drawn | As a Champions League round (part 1) |
+| A stored round | Each stored tie between two sides still in the run as it is; the sides no stored tie holds drawn against each other | Unlike UEFA's, a cup's draw has no rule a part-stored round would break, so its known pairings are kept and their figures shown. The first draft drew the whole round, and Sourcery found it |
 | Settled chances | Every side of the round of 16 `100 %` in it; a decided tie's winner `100 %` in the next round, the round after the last stored one included, and its loser out of the table | S4. The tests found the round after the last stored one left unsettled in the first draft |
 | An unrated side (A1, A2, S10) | In the simulation only, the mean of the fit's strengths over the stand-in division's sides in its most recent season with a side in the fit, looked for back to the fit's 1 500 days, six seasons with this one; with none, an average side | A2's reading. The fit reaches about four years back, so stopping after last season would not have been "most recent in the fit". No tie's `Ennuste` changes, since the fit is copied |
 | The division line | While an unrated side is still in the table | The spec: "when a side left is unrated" |
-| A tie's figure (S16) | A stored, undecided tie between two rated sides: from the round of 16 the runs' share, before it the tie played on its own 10 000 times from the seed | A tie with an unrated side has no figure, as its match page has no `Ennuste` |
+| A tie's figure (S16) | A stored, undecided tie between two rated sides: from the round of 16 the runs' share; before it, in the current round, the latest with a tie undecided, each tie played on its own 10 000 times from the seed | A tie with an unrated side has no figure, as its match page has no `Ennuste` |
 | A round's name | By the sides it holds: 16 `Neljännesvälierät`, 8 `Puolivälierät`, 4 `Välierät`, 2 `Loppuottelu` | specs/015's names. The forecast starts at the round of 16, so every round has one |
 | Where the section goes | Its own `section` under `Cupin ennuste`, after `Pudotuspelit` (S11), only when the competition has a cup forecast and `canSeeAnalytics()`; no other standings page asks for it | S5 and S11. Cup pages stay without `Analyysit` |
 | The final played | `no-fixtures` when the round counted from the round of 16 as the final holds a decided tie | Not whichever round came last: with one semi-final stored and played and the other's pairing unknown, the last round holds one decided tie and the cup is not over. The pre-push review found it |
@@ -200,7 +201,7 @@ decisions stand; these are the cups' own.
   strings, the headers by round, a row as printed, the rounds left only, the
   ties after the table, the lines, before the round of 16, the two failure
   lines; after `Pudotuspelit`, signed in only.
-- **Mutations**, applied alone and restored from a commit: 42, 40 caught. Two
+- **Mutations**, applied alone and restored from a commit: 49, 47 caught. Two
   were equivalent, and their code is gone: a stop after the final, which a
   round that does not halve already makes, and the "before" filter's undecided
   check, which `tieChances` already makes.
@@ -214,6 +215,9 @@ decisions stand; these are the cups' own.
   | 40 | The section for a signed-out reader | `page.test.tsx` |
   | 41 | The last stored round read as the final | `knockout-simulation-service.test.ts` |
   | 42 | The stand-in written into the shared fit, which every `Ennuste` reads | `knockout-simulation-service.test.ts` |
+  | 43, 44 | A stored tie kept with a side the run no longer has; a part-stored round drawn whole | `knockout-simulation.test.ts` |
+  | 45–48 | A round sized by its known ties; a called-off match kept; a round of 16 forecast with a side unknown; every round's ties shown before it | `knockout-simulation-service.test.ts` |
+  | 49 | The sides read in two queries | `taso-standings-service.test.ts` |
 
 - **End to end**, `tests/e2e/cup-forecast.spec.ts`: the recorded cups are
   finished, so MSC 2026 is seeded, with eight league sides who have played each
