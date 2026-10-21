@@ -12,6 +12,7 @@ import { scoreGrid } from "./poisson";
 import {
   type Chance,
   type ForecastRow,
+  generator,
   SIMULATION_RUNS,
   SIMULATION_SEED,
   type SimulatedFixture,
@@ -577,6 +578,19 @@ function playKnockout(
 }
 
 /**
+ * The order of a forecast's table: the chance to win, then of each later round;
+ * equal chances keep the order the rows came in.
+ *
+ * decisions/067-knockout-simulation.md
+ */
+function byChances(left: KnockoutRow, right: KnockoutRow): number {
+  const rank = (row: KnockoutRow) => [row.won, ...row.reached.toReversed()].map((c) => c.share);
+  const [one, other] = [rank(left), rank(right)];
+  const differs = one.findIndex((value, index) => value !== other[index]);
+  return differs === -1 ? 0 : (other[differs] as number) - (one[differs] as number);
+}
+
+/**
  * What the Champions League's forecast is read from: the current league-phase
  * table and its remaining fixtures, and the stored knockout rounds by stage.
  *
@@ -714,13 +728,7 @@ export function forecastChampionsLeague(
       },
     ];
   });
-  const rankOf = (row: KnockoutRow) =>
-    [row.won, ...row.reached.toReversed()].map((chance) => chance.share);
-  rows.sort((left, right) => {
-    const [one, other] = [rankOf(left), rankOf(right)];
-    const differs = one.findIndex((value, index) => value !== other[index]);
-    return differs === -1 ? 0 : (other[differs] as number) - (one[differs] as number);
-  });
+  rows.sort(byChances);
 
   const ties = KNOCKOUT_STAGES.flatMap((stage) =>
     (rounds.get(stage) ?? []).flatMap((tie): TieChance[] => {
@@ -731,4 +739,165 @@ export function forecastChampionsLeague(
   );
 
   return { leaguePhase: fixtures.length > 0 ? leaguePhase : null, rows, ties };
+}
+
+/**
+ * A cup's remaining rounds from its round of 16 (S15): each stored round's ties
+ * in order, the first holding every side left; a later round may be empty.
+ *
+ * decisions/067-knockout-simulation.md
+ */
+export type CupInput = { rounds: ReadonlyArray<readonly StoredTie[]> };
+
+/**
+ * A cup's forecast: every side still in it, most likely winner first, with its
+ * chance of reaching each round from the first, and the stored ties still open.
+ *
+ * decisions/067-knockout-simulation.md
+ */
+export type CupForecast = { rows: KnockoutRow[]; ties: TieChance[] };
+
+/**
+ * A round drawn by the simulation: the sides left paired at random, each tie a
+ * single match at a neutral ground (S15).
+ *
+ * decisions/067-knockout-simulation.md
+ */
+function drawCupRound(run: Run, sides: readonly number[]): number[] {
+  const left = [...sides];
+  // Fisher–Yates, from the run's own generator.
+  for (let index = left.length - 1; index > 0; index -= 1) {
+    const other = Math.floor(run.random() * (index + 1));
+    [left[index], left[other]] = [left[other] as number, left[index] as number];
+  }
+  const winners: number[] = [];
+  for (let index = 0; index < left.length; index += 2) {
+    winners.push(decide(run, neutralMatch(left[index] as number, left[index + 1] as number)));
+  }
+  return winners;
+}
+
+/**
+ * A cup's rest of the season played `runs` times from its round of 16: each
+ * round stored when TASO holds every tie of it between known sides, otherwise
+ * drawn (S15); a stored tie's listed home side at home (S14).
+ *
+ * decisions/067-knockout-simulation.md
+ */
+export function forecastCup(
+  input: CupInput,
+  model: GoalModel,
+  runs: number = SIMULATION_RUNS,
+  seed: number = SIMULATION_SEED
+): CupForecast {
+  const [first = [], ...later] = input.rounds;
+  const sides = first.flatMap(sidesOf);
+  const names = new Map(
+    first.flatMap((tie) => [
+      [tie.home.teamProviderId, tie.home.teamName],
+      [tie.away.teamProviderId, tie.away.teamName],
+    ])
+  );
+  const places = new Map(sides.map((team, place) => [team, place]));
+  const rounds = Math.round(Math.log2(sides.length));
+  const zeros = () => new Array<number>(sides.length).fill(0);
+  const tally: Tally = { reached: Array.from({ length: rounds }, zeros), won: zeros() };
+  const add = (counts: number[], team: number) => {
+    const at = places.get(team) as number;
+    counts[at] = (counts[at] as number) + 1;
+  };
+  const storedTies = new Map<string, number>();
+  const odds = oddsOf(model);
+  const random = generator(seed);
+
+  for (let runIndex = 0; runIndex < runs; runIndex += 1) {
+    const run: Run = {
+      seeds: new Map(),
+      halves: new Map(),
+      odds,
+      random,
+      onStoredTie: (key, firstWent) =>
+        storedTies.set(key, (storedTies.get(key) ?? 0) + (firstWent ? 1 : 0)),
+    };
+    let left = sides;
+    for (let round = 0; round < rounds; round += 1) {
+      for (const team of left) add(tally.reached[round] as number[], team);
+      const stored = round === 0 ? first : (later[round - 1] ?? []);
+      left = stored.length === left.length / 2 ? playStored(run, stored) : drawCupRound(run, left);
+    }
+    add(tally.won, left[0] as number);
+  }
+
+  const settled = settledCupRounds(input.rounds);
+  const rows = sides.flatMap((team, place): KnockoutRow[] => {
+    if (settled.out.has(team)) return [];
+    const share = (counts: readonly number[]) => (counts[place] as number) / runs;
+    return [
+      {
+        teamProviderId: team,
+        teamName: names.get(team) as string,
+        reached: tally.reached.map((counts, round) =>
+          settled.reached[round]?.has(team) === true
+            ? { share: 1, settled: true }
+            : { share: share(counts), settled: false }
+        ),
+        won: { share: share(tally.won), settled: false },
+      },
+    ];
+  });
+  rows.sort(byChances);
+
+  const ties = input.rounds.flatMap((round) =>
+    round.flatMap((tie): TieChance[] => {
+      const through = storedTies.get(tie.key);
+      if (through === undefined) return [];
+      return [{ key: tie.key, home: tie.home, away: tie.away, homeThrough: through / runs }];
+    })
+  );
+  return { rows, ties };
+}
+
+/**
+ * What a cup's stored rounds settle: the sides each round already has, and the
+ * sides a decided tie has put out.
+ *
+ * decisions/067-knockout-simulation.md
+ */
+function settledCupRounds(rounds: ReadonlyArray<readonly StoredTie[]>) {
+  const reached = rounds.map(() => new Set<number>());
+  const out = new Set<number>();
+  rounds.forEach((ties, index) => {
+    for (const tie of ties) {
+      for (const side of sidesOf(tie)) reached[index]?.add(side);
+      if (tie.winner === null) continue;
+      reached[index + 1]?.add(tie.winner);
+      for (const side of sidesOf(tie)) if (side !== tie.winner) out.add(side);
+    }
+  });
+  return { reached, out };
+}
+
+/**
+ * Each stored, undecided tie's chance of going either way, played `runs` times
+ * on its own: a cup's ties before its round of 16 (S16).
+ *
+ * decisions/067-knockout-simulation.md
+ */
+export function tieChances(
+  ties: readonly StoredTie[],
+  model: GoalModel,
+  runs: number = SIMULATION_RUNS,
+  seed: number = SIMULATION_SEED
+): TieChance[] {
+  const odds = oddsOf(model);
+  const random = generator(seed);
+  return ties.flatMap((tie): TieChance[] => {
+    if (tie.winner !== null) return [];
+    const playing = tieInPlay(tie);
+    let through = 0;
+    for (let run = 0; run < runs; run += 1) {
+      if (playTie(playing, odds, random) === playing.first) through += 1;
+    }
+    return [{ key: tie.key, home: tie.home, away: tie.away, homeThrough: through / runs }];
+  });
 }
