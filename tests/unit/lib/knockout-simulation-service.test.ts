@@ -626,6 +626,21 @@ describe("getCupForecast", () => {
     expect(await cupForecast()).toEqual({ status: "no-fixtures" });
   });
 
+  it("forecasts on when the last stored round is a played semi-final whose other is not known", async () => {
+    cupSeason([
+      ROUND_OF_32,
+      round(2, pairs(range(101, 16), "home")),
+      round(3, pairs([101, 103, 105, 107, 109, 111, 113, 115], "home")),
+      round(4, [cupMatch(101, 105, "home"), cupMatch(109, PLACEHOLDER_TEAM_ID)]),
+    ]);
+
+    const result = await cupForecast();
+
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") return;
+    expect(result.rows.map((row) => row.teamProviderId).toSorted()).toEqual([101, 109, 113]);
+  });
+
   it.each([
     ["nothing is stored", () => mocks.getSeasonTables.mockResolvedValue({ status: "empty" })],
     [

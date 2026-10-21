@@ -434,10 +434,11 @@ async function cupForecastFrom(
     const open = rounds.flat().filter(rated);
     return { status: "before", ties: tieChances(open, goalModel(fit, code)) };
   }
-  const last = simulated.at(-1) as StoredTie[];
-  if (last.length === 1 && last[0]?.winner != null) return { status: "no-fixtures" };
-
   const sides = [...sidesIn(simulated[0] as StoredTie[])];
+  // The final is the round counted from the round of 16, not whichever came last.
+  const final = simulated[Math.log2(sides.length) - 1];
+  if (final?.[0]?.winner != null) return { status: "no-fixtures" };
+
   const unrated = sides.filter((side) => !fit.attack.has(side));
   const strength =
     unrated.length === 0
