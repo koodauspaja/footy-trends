@@ -537,6 +537,42 @@ describe("forecastChampionsLeague's stored rounds", () => {
     expect(forecast.ties).toEqual([]);
   });
 
+  it("reads stored quarter-finals' halves before they are played", () => {
+    // 8 has knocked out 1 and taken its seed. Read afterwards, the seeds would
+    // put the 3–6 tie, listed first, beside 8 and the 2–7 tie with it.
+    const quarterFinals = [
+      decided("QUARTER_FINALS", 8, 1, 8),
+      decided("QUARTER_FINALS", 6, 3, null),
+      decided("QUARTER_FINALS", 7, 2, null),
+      decided("QUARTER_FINALS", 5, 4, null),
+    ];
+    const { met, recording } = recorded(betterWins);
+    forecastChampionsLeague(
+      { ...NO_ROUNDS, rounds: new Map([["QUARTER_FINALS", quarterFinals]]) },
+      recording,
+      400
+    );
+
+    expect(opponentsOf(met, 8).filter((other) => other <= 4)).toEqual([3, 4]);
+  });
+
+  it("counts a stored round's own sides as the ones that reached it", () => {
+    // 20 is stored in 16's place: 16 would have won its drawn play-off.
+    const lastSixteen = [
+      decided("LAST_16", 20, 1, null),
+      ...[2, 3, 4, 5, 6, 7, 8].map((seeded, index) =>
+        decided("LAST_16", [15, 14, 13, 12, 11, 10, 9][index] as number, seeded, null)
+      ),
+    ];
+    const forecast = forecastChampionsLeague(
+      { ...NO_ROUNDS, rounds: new Map([["LAST_16", lastSixteen]]) },
+      betterWins,
+      100
+    );
+
+    expect(forecast.rows.find((row) => row.teamProviderId === 16)?.reached[0]?.share).toBe(0);
+  });
+
   it("places stored quarter-finals in the tree: the 1/2 ties apart, the 3/4–5/6 ties one each way", () => {
     const quarterFinals = [
       decided("QUARTER_FINALS", 8, 1, null),

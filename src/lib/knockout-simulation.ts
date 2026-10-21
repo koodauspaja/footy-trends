@@ -109,21 +109,32 @@ export type Odds = {
  * decisions/067-knockout-simulation.md
  */
 export function oddsOf(model: GoalModel): Odds {
-  // At the first side's ground; a neutral one is the mean of both sides' grounds.
-  const atGround = (first: number, second: number) => differences(model(first, second).grid);
-  const extra = (first: number, second: number) => {
-    const { homeGoals, awayGoals } = model(first, second);
+  const atGround: AtGround = (home, away) => differences(model(home, away).grid);
+  const extra: AtGround = (home, away) => {
+    const { homeGoals, awayGoals } = model(home, away);
     return differences(scoreGrid(homeGoals * EXTRA_TIME_SHARE, awayGoals * EXTRA_TIME_SHARE, 1));
   };
-  const leg = remembered((first, second, atNeutralGround) =>
+  return { leg: remembered(anyGround(atGround)), extraTime: remembered(anyGround(extra)) };
+}
+
+/**
+ * A pairing's goal differences at its first side's ground.
+ *
+ * decisions/067-knockout-simulation.md
+ */
+type AtGround = (home: number, away: number) => number[];
+
+/**
+ * A pairing's differences at the first side's ground, or at a neutral one: the
+ * mean of the pairing played at each side's ground.
+ *
+ * decisions/067-knockout-simulation.md
+ */
+function anyGround(atGround: AtGround) {
+  return (first: number, second: number, atNeutralGround: boolean) =>
     atNeutralGround
       ? neutral(atGround(first, second), atGround(second, first))
-      : atGround(first, second)
-  );
-  const extraTime = remembered((first, second, atNeutralGround) =>
-    atNeutralGround ? neutral(extra(first, second), extra(second, first)) : extra(first, second)
-  );
-  return { leg, extraTime };
+      : atGround(first, second);
 }
 
 /**
