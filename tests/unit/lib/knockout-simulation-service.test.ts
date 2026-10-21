@@ -181,6 +181,32 @@ describe("getKnockoutForecast", () => {
     expect(await forecast()).toEqual({ status: "no-fixtures" });
   });
 
+  it("fails without a line of its own when the fit could not be read, which has logged it", async () => {
+    mocks.getPoissonFit.mockResolvedValue({ status: "error" });
+    let degraded: boolean | undefined;
+    mocks.getCachedUnlessDegraded.mockImplementation(
+      async (
+        _key: string,
+        _ttl: number,
+        fetcher: () => Promise<{ value: unknown; degraded: boolean }>
+      ) => {
+        const fetched = await fetcher();
+        degraded = fetched.degraded;
+        return fetched.value;
+      }
+    );
+
+    expect(await forecast()).toEqual({ status: "error" });
+    expect(mocks.loggerError).not.toHaveBeenCalled();
+    expect(degraded).toBe(true);
+  });
+
+  it("says nothing is left once the final is awarded", async () => {
+    read([...leaguePhase(), stored("FINAL", 1, 2, [3, 0], { status: "AWARDED" })]);
+
+    expect(await forecast()).toEqual({ status: "no-fixtures" });
+  });
+
   it("has no panel for a season of the group-stage format", async () => {
     read([stored("GROUP_STAGE", 1, 2, [1, 0], { groupName: "GROUP_A" })]);
 
@@ -224,7 +250,6 @@ describe("getKnockoutForecast", () => {
 
   it.each([
     ["nothing is stored and the refresh failed", () => read([], true)],
-    ["the fit could not be read", () => mocks.getPoissonFit.mockResolvedValue({ status: "error" })],
     [
       "the fit cannot predict a pairing",
       () =>
@@ -267,6 +292,27 @@ describe("storedTies", () => {
     const ties = storedTies([stored("LAST_16", 9, 1, [3, 0], { status: "AWARDED" })]);
 
     expect(ties.get("LAST_16")?.[0]?.legs[0]?.score).toEqual({ home: 3, away: 0 });
+  });
+
+  it("leaves out a leg that will not be played as listed", () => {
+    const ties = storedTies([
+      stored("LAST_16", 9, 1, [2, 1]),
+      stored("LAST_16", 1, 9, null, { status: "CANCELLED" }),
+    ]);
+
+    expect(ties.get("LAST_16")?.[0]?.legs).toHaveLength(1);
+  });
+
+  it("sends through the leader of a tie whose every leg is settled", () => {
+    const ties = storedTies([stored("FINAL", 1, 2, [0, 3], { status: "AWARDED" })]);
+
+    expect(ties.get("FINAL")?.[0]?.winner).toBe(2);
+  });
+
+  it("leaves a level tie with every leg settled to the provider's verdict", () => {
+    const ties = storedTies([stored("FINAL", 1, 2, [1, 1], { status: "AWARDED" })]);
+
+    expect(ties.get("FINAL")?.[0]?.winner).toBeNull();
   });
 
   it("leaves out a tie with a side not yet known", () => {

@@ -15,6 +15,7 @@ import {
   forecastChampionsLeague,
   KNOCKOUT_STAGES,
   type StoredTie,
+  tieInPlay,
 } from "./knockout-simulation";
 import { logger } from "./logger";
 import { PLACEHOLDER_TEAM_ID } from "./match-detail";
@@ -44,6 +45,13 @@ const CHAMPIONS_LEAGUE = "CL";
  * decisions/067-knockout-simulation.md
  */
 const SETTLED_STATUSES: ReadonlySet<string> = new Set(["FINISHED", "AWARDED"]);
+
+/**
+ * A leg that will not be played as listed, and is no leg of its tie.
+ *
+ * decisions/067-knockout-simulation.md
+ */
+const CALLED_OFF_STATUSES: ReadonlySet<string> = new Set(["CANCELLED", "Abandoned"]);
 
 /**
  * A knockout competition's forecast, or why there is none: the final played, no
@@ -81,33 +89,44 @@ type SeasonMatch = BracketSourceMatch &
  * decisions/067-knockout-simulation.md
  */
 export function storedTies(matches: readonly SeasonMatch[]): Map<string, StoredTie[]> {
-  const finished = new Map(
-    matches.map((match) => [match.providerMatchId, SETTLED_STATUSES.has(match.status)])
-  );
+  const statuses = new Map(matches.map((match) => [match.providerMatchId, match.status]));
   const known = (team: number | null) => team !== null && team !== PLACEHOLDER_TEAM_ID;
   return new Map(
     buildBracket([...matches]).map((round) => [
       round.stage,
       round.ties
         .filter((tie) => known(tie.home.teamProviderId) && known(tie.away.teamProviderId))
-        .map((tie) => ({
-          key: tie.key,
-          home: tie.home,
-          away: tie.away,
-          winner: tie.winnerTeamProviderId,
-          legs: tie.legs.map((leg) => ({
-            home: leg.homeTeamProviderId,
-            away: leg.awayTeamProviderId,
-            score:
-              finished.get(leg.providerMatchId) === true &&
-              leg.homeGoals !== null &&
-              leg.awayGoals !== null
-                ? { home: leg.homeGoals, away: leg.awayGoals }
-                : null,
-          })),
-        })),
+        .map((tie) => {
+          const legs = tie.legs
+            .filter((leg) => !CALLED_OFF_STATUSES.has(statuses.get(leg.providerMatchId) as string))
+            .map((leg) => ({
+              home: leg.homeTeamProviderId,
+              away: leg.awayTeamProviderId,
+              score:
+                SETTLED_STATUSES.has(statuses.get(leg.providerMatchId) as string) &&
+                leg.homeGoals !== null &&
+                leg.awayGoals !== null
+                  ? { home: leg.homeGoals, away: leg.awayGoals }
+                  : null,
+            }));
+          const stored = { key: tie.key, home: tie.home, away: tie.away, winner: null, legs };
+          return { ...stored, winner: tie.winnerTeamProviderId ?? decidedByScore(stored) };
+        }),
     ])
   );
+}
+
+/**
+ * The side a tie's scores send through when every leg is settled and the
+ * aggregate is not level: an awarded leg the bracket does not count.
+ *
+ * decisions/067-knockout-simulation.md
+ */
+function decidedByScore(tie: StoredTie): number | null {
+  if (tie.legs.length === 0 || tie.legs.some((leg) => leg.score === null)) return null;
+  const { lead, first, second } = tieInPlay(tie);
+  if (lead === 0) return null;
+  return lead > 0 ? first : second;
 }
 
 /**
@@ -189,7 +208,8 @@ export async function getKnockoutForecast(
           getPoissonFit(kind),
           getLeagueSeasonMatches(code, seasonId, activeSeasonId),
         ]);
-        if (fitted.status === "error") throw new Error("The Poisson fit could not be read");
+        // The fit has logged its own failure; a figure from no fit is not kept.
+        if (fitted.status === "error") return { value: { status: "error" }, degraded: true };
         if (season.matches.length === 0) {
           if (season.refreshFailed) throw new Error("The season's matches could not be read");
           return { value: { status: "unavailable" }, degraded: false };
