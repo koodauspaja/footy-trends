@@ -1,6 +1,6 @@
-import { serializeSignedCookie } from "better-call";
+import { makeSignature } from "better-auth/crypto";
 import { describe, expect, it } from "vitest";
-import { SESSION_COOKIE, signedSessionCookie } from "../../support/e2e-session";
+import { signedSessionCookie } from "../../support/e2e-session";
 
 /**
  * The e2e session cookie, signed as better-auth's own library signs it, so a
@@ -10,10 +10,11 @@ import { SESSION_COOKIE, signedSessionCookie } from "../../support/e2e-session";
  */
 
 describe("signedSessionCookie", () => {
-  it("signs a session token exactly as better-call does", async () => {
-    const serialized = await serializeSignedCookie(SESSION_COOKIE, "a-token", "a-secret");
-    const value = serialized.split(";")[0]?.split("=").slice(1).join("=");
+  it("signs a session token exactly as better-auth's makeSignature does", async () => {
+    const signature = await makeSignature("a-token", "a-secret");
 
-    expect(signedSessionCookie("a-token", "a-secret")).toBe(value);
+    expect(signedSessionCookie("a-token", "a-secret")).toBe(
+      encodeURIComponent(`a-token.${signature}`)
+    );
   });
 });

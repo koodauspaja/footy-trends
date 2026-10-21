@@ -15,7 +15,7 @@ import { testDatabaseUrl } from "./test-database";
 export const SESSION_COOKIE = "better-auth.session_token";
 
 /**
- * A session token as better-call signs a cookie: an HMAC-SHA-256 of the token
+ * A session token as better-auth signs its cookie: an HMAC-SHA-256 of the token
  * with the secret, in base64, after a dot, URL-encoded.
  *
  * decisions/695-ux-sweep.md
