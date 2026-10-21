@@ -442,13 +442,13 @@ async function cupForecastFrom(
   const [first] = chosen;
 
   // Until every side of the round of 16 is known, only the current round's ties.
-  if (first === undefined || 2 * first.ties.length !== first.size) {
+  if (2 * (first?.ties.length ?? 0) !== first?.size) {
     const current = rounds.findLast((round) => round.ties.some((tie) => tie.winner === null));
     const open = (current?.ties ?? []).filter(rated);
     return { status: "before", ties: tieChances(open, goalModel(fit, code)) };
   }
   const simulated = chosen.map((round) => round.ties);
-  const sides = [...sidesIn(first.ties)];
+  const sides = [...sidesIn((first as CupRound).ties)];
   // The final is the round counted from the round of 16, not whichever came last.
   const final = simulated[Math.log2(sides.length) - 1];
   if (final?.[0]?.winner != null) return { status: "no-fixtures" };
