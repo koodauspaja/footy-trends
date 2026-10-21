@@ -12,6 +12,14 @@ vi.mock("@/lib/cache", () => ({
     async (_key: string, _ttl: number, fetcher: () => Promise<{ value: unknown }>) =>
       (await fetcher()).value
   ),
+  getComputedUnlessDegraded: vi.fn(
+    async (
+      _from: unknown,
+      _key: string,
+      _ttl: number,
+      fetcher: () => Promise<{ value: unknown }>
+    ) => (await fetcher()).value
+  ),
 }));
 
 import { getSeasonForecast } from "@/lib/season-simulation-service";

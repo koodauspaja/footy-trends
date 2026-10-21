@@ -12,7 +12,7 @@ import type { SeasonTable } from "@/lib/taso-standings-service";
  */
 
 const mocks = vi.hoisted(() => ({
-  getCachedUnlessDegraded: vi.fn(),
+  getComputedUnlessDegraded: vi.fn(),
   getPoissonFit: vi.fn<(source: string) => Promise<PoissonFitResult>>(),
   getLeagueSeasonMatches:
     vi.fn<(code: string, season: number, active: number) => Promise<SyncedSeasonMatches>>(),
@@ -21,7 +21,7 @@ const mocks = vi.hoisted(() => ({
   storedSeasonSides: vi.fn<(code: string, season: number) => Promise<Set<number>>>(),
 }));
 
-vi.mock("@/lib/cache", () => ({ getCachedUnlessDegraded: mocks.getCachedUnlessDegraded }));
+vi.mock("@/lib/cache", () => ({ getComputedUnlessDegraded: mocks.getComputedUnlessDegraded }));
 vi.mock("@/lib/poisson-service", () => ({ getPoissonFit: mocks.getPoissonFit }));
 vi.mock("@/lib/standings-service", () => ({
   getLeagueSeasonMatches: mocks.getLeagueSeasonMatches,
@@ -110,9 +110,13 @@ const forecast = () => getKnockoutForecast("football-data", "CL", SEASON, SEASON
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.getCachedUnlessDegraded.mockImplementation(
-    async (_key: string, _ttl: number, fetcher: () => Promise<{ value: unknown }>) =>
-      (await fetcher()).value
+  mocks.getComputedUnlessDegraded.mockImplementation(
+    async (
+      _from: unknown,
+      _key: string,
+      _ttl: number,
+      fetcher: () => Promise<{ value: unknown }>
+    ) => (await fetcher()).value
   );
   mocks.getPoissonFit.mockResolvedValue({ status: "ok", fit });
   read(leaguePhase());
@@ -136,7 +140,8 @@ describe("getKnockoutForecast", () => {
 
     expect(mocks.getLeagueSeasonMatches).toHaveBeenCalledWith("CL", SEASON, SEASON);
     expect(mocks.getPoissonFit).toHaveBeenCalledWith("football-data");
-    expect(mocks.getCachedUnlessDegraded).toHaveBeenCalledWith(
+    expect(mocks.getComputedUnlessDegraded).toHaveBeenCalledWith(
+      { kind: "football-data", code: "CL", seasonId: SEASON },
       "knockout:v1:football-data:CL:2026",
       900,
       expect.any(Function)
@@ -198,8 +203,9 @@ describe("getKnockoutForecast", () => {
   it("fails without a line of its own when the fit could not be read, which has logged it", async () => {
     mocks.getPoissonFit.mockResolvedValue({ status: "error" });
     let degraded: boolean | undefined;
-    mocks.getCachedUnlessDegraded.mockImplementation(
+    mocks.getComputedUnlessDegraded.mockImplementation(
       async (
+        _from: unknown,
         _key: string,
         _ttl: number,
         fetcher: () => Promise<{ value: unknown; degraded: boolean }>
@@ -246,8 +252,9 @@ describe("getKnockoutForecast", () => {
   it("does not keep a forecast made from stored rows the provider could not refresh", async () => {
     read(leaguePhase(), true);
     let degraded: boolean | undefined;
-    mocks.getCachedUnlessDegraded.mockImplementation(
+    mocks.getComputedUnlessDegraded.mockImplementation(
       async (
+        _from: unknown,
         _key: string,
         _ttl: number,
         fetcher: () => Promise<{ value: unknown; degraded: boolean }>
@@ -552,7 +559,8 @@ describe("getCupForecast", () => {
       SEASON
     );
     expect(mocks.getPoissonFit).toHaveBeenCalledWith("taso");
-    expect(mocks.getCachedUnlessDegraded).toHaveBeenCalledWith(
+    expect(mocks.getComputedUnlessDegraded).toHaveBeenCalledWith(
+      { kind: "taso", code: "MSC", seasonId: SEASON },
       "knockout:v1:taso:MSC:2026",
       900,
       expect.any(Function)
@@ -742,8 +750,9 @@ describe("getCupForecast", () => {
     async (failed, degraded) => {
       cupSeason([ROUND_OF_32, ROUND_OF_16], failed);
       let seen: boolean | undefined;
-      mocks.getCachedUnlessDegraded.mockImplementation(
+      mocks.getComputedUnlessDegraded.mockImplementation(
         async (
+          _from: unknown,
           _key: string,
           _ttl: number,
           fetcher: () => Promise<{ value: unknown; degraded: boolean }>

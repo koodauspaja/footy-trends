@@ -103,7 +103,7 @@ async function withDatabase(run: (sql: postgres.Sql) => Promise<unknown>) {
 // The fit, the forecast and the season's tables are cached: dropped, so the
 // page computes them from the rows stored now, and so does the next spec.
 async function dropCaches() {
-  await dropCached("poisson:v1:taso", "elo:v1:taso", `knockout:v1:taso:MSC:${SEASON}`);
+  await dropCached("poisson:v1:taso", "elo:v1:taso", `knockout:v1:taso:MSC:${SEASON}:*`);
 }
 
 test.beforeAll(async () => {

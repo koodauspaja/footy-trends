@@ -12,7 +12,7 @@ import type { SeasonTable } from "@/lib/taso-standings-service";
  */
 
 const mocks = vi.hoisted(() => ({
-  getCachedUnlessDegraded: vi.fn(),
+  getComputedUnlessDegraded: vi.fn(),
   getPoissonFit: vi.fn<(source: string) => Promise<PoissonFitResult>>(),
   getLeagueSeasonMatches:
     vi.fn<(code: string, season: number, active: number) => Promise<SyncedSeasonMatches>>(),
@@ -32,7 +32,7 @@ const mocks = vi.hoisted(() => ({
   loggerError: vi.fn(),
 }));
 
-vi.mock("@/lib/cache", () => ({ getCachedUnlessDegraded: mocks.getCachedUnlessDegraded }));
+vi.mock("@/lib/cache", () => ({ getComputedUnlessDegraded: mocks.getComputedUnlessDegraded }));
 vi.mock("@/lib/poisson-service", () => ({ getPoissonFit: mocks.getPoissonFit }));
 vi.mock("@/lib/standings-service", () => ({
   getLeagueSeasonMatches: mocks.getLeagueSeasonMatches,
@@ -127,6 +127,7 @@ function group(overrides: Partial<SeasonTable> & { groupId: number }): SeasonTab
 
 // The cache as a miss: the fetcher's value as it would come back out of Redis.
 async function miss(
+  _from: unknown,
   _key: string,
   _ttl: number,
   fetcher: () => Promise<{ value: unknown; degraded: boolean }>
@@ -136,7 +137,7 @@ async function miss(
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.getCachedUnlessDegraded.mockReset().mockImplementation(miss);
+  mocks.getComputedUnlessDegraded.mockReset().mockImplementation(miss);
   mocks.getPoissonFit.mockReset().mockResolvedValue({ status: "ok", fit });
   mocks.getLeagueSeasonMatches.mockReset();
   mocks.getSeasonTables.mockReset();
@@ -148,7 +149,7 @@ describe("which seasons have a forecast", () => {
     expect(await getSeasonForecast("football-data", "PL", 2025, SEASON)).toEqual({
       status: "unavailable",
     });
-    expect(mocks.getCachedUnlessDegraded).not.toHaveBeenCalled();
+    expect(mocks.getComputedUnlessDegraded).not.toHaveBeenCalled();
     expect(mocks.getLeagueSeasonMatches).not.toHaveBeenCalled();
   });
 
@@ -161,7 +162,7 @@ describe("which seasons have a forecast", () => {
       expect(await getSeasonForecast(kind, code, SEASON, SEASON)).toEqual({
         status: "unavailable",
       });
-      expect(mocks.getCachedUnlessDegraded).not.toHaveBeenCalled();
+      expect(mocks.getComputedUnlessDegraded).not.toHaveBeenCalled();
       expect(mocks.getPoissonFit).not.toHaveBeenCalled();
     }
   );
@@ -346,21 +347,25 @@ describe("a football-data league", () => {
 });
 
 describe("the cache", () => {
-  it("keeps one forecast per provider, competition and season for 15 minutes", async () => {
+  it("keeps one forecast per provider, competition and season, under that season's generation, for 15 minutes", async () => {
     mocks.getLeagueSeasonMatches.mockResolvedValue({ matches: [], refreshFailed: false });
     mocks.getSeasonTables.mockResolvedValue({ status: "empty" });
 
     await getSeasonForecast("football-data", "PL", SEASON, SEASON);
     await getSeasonForecast("taso", "VL", SEASON, SEASON);
 
-    expect(mocks.getCachedUnlessDegraded.mock.calls.map(([key, ttl]) => [key, ttl])).toEqual([
+    expect(mocks.getComputedUnlessDegraded.mock.calls.map(([, key, ttl]) => [key, ttl])).toEqual([
       ["forecast:v4:football-data:PL:2026", 900],
       ["forecast:v4:taso:VL:2026", 900],
+    ]);
+    expect(mocks.getComputedUnlessDegraded.mock.calls.map(([from]) => from)).toEqual([
+      { kind: "football-data", code: "PL", seasonId: SEASON },
+      { kind: "taso", code: "VL", seasonId: SEASON },
     ]);
   });
 
   it("answers from the cache without reading the season or the fit", async () => {
-    mocks.getCachedUnlessDegraded.mockResolvedValue({ status: "no-fixtures" });
+    mocks.getComputedUnlessDegraded.mockResolvedValue({ status: "no-fixtures" });
 
     expect(await getSeasonForecast("football-data", "PL", SEASON, SEASON)).toEqual({
       status: "no-fixtures",
@@ -374,7 +379,7 @@ describe("the cache", () => {
     [false, "a forecast from a fresh read is kept"],
   ])("marks the value degraded: %s — %s", async (refreshFailed) => {
     const fetched: Array<{ degraded: boolean }> = [];
-    mocks.getCachedUnlessDegraded.mockImplementation(async (_key, _ttl, fetcher) => {
+    mocks.getComputedUnlessDegraded.mockImplementation(async (_from, _key, _ttl, fetcher) => {
       const result = await fetcher();
       fetched.push(result);
       return result.value;
@@ -394,7 +399,7 @@ describe("the cache", () => {
 describe("the cache, when there is no panel", () => {
   it("does not keep 'no panel' made from stored rows the provider could not refresh", async () => {
     const fetched: Array<{ degraded: boolean }> = [];
-    mocks.getCachedUnlessDegraded.mockImplementation(async (_key, _ttl, fetcher) => {
+    mocks.getComputedUnlessDegraded.mockImplementation(async (_from, _key, _ttl, fetcher) => {
       const result = await fetcher();
       fetched.push(result);
       return result.value;
@@ -418,7 +423,7 @@ describe("the cache, for a domestic league", () => {
     [false, "a forecast from a fresh read is kept"],
   ])("marks the value degraded: %s — %s", async (refreshFailed) => {
     const fetched: Array<{ degraded: boolean }> = [];
-    mocks.getCachedUnlessDegraded.mockImplementation(async (_key, _ttl, fetcher) => {
+    mocks.getComputedUnlessDegraded.mockImplementation(async (_from, _key, _ttl, fetcher) => {
       const result = await fetcher();
       fetched.push(result);
       return result.value;
