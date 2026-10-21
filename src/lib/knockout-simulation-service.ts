@@ -340,7 +340,7 @@ export function fromLastSixteen(
   const chosen = [rounds[start] as StoredTie[]];
   let size = sidesIn(chosen[0] as StoredTie[]).size;
   for (const ties of rounds.slice(start + 1)) {
-    if (size <= 2 || sidesIn(ties).size > size / 2) break;
+    if (sidesIn(ties).size > size / 2) break;
     size /= 2;
     chosen.push(ties);
   }
@@ -431,7 +431,7 @@ async function cupForecastFrom(
   const simulated = fromLastSixteen(rounds, await storedSeasonSides(divisions.top, seasonId));
 
   if (simulated.length === 0) {
-    const open = rounds.flat().filter((tie) => tie.winner === null && rated(tie));
+    const open = rounds.flat().filter(rated);
     return { status: "before", ties: tieChances(open, goalModel(fit, code)) };
   }
   const last = simulated.at(-1) as StoredTie[];
