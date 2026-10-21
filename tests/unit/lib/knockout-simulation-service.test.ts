@@ -115,6 +115,7 @@ describe("getKnockoutForecast", () => {
       status: "unavailable",
     });
     expect(mocks.getLeagueSeasonMatches).not.toHaveBeenCalled();
+    expect(mocks.getPoissonFit).not.toHaveBeenCalled();
   });
 
   it("reads the season as the standings page reads it, cached for 15 minutes", async () => {

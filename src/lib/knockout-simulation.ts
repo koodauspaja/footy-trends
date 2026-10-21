@@ -290,15 +290,27 @@ export function tieInPlay(tie: StoredTie): TieInPlay {
   };
 }
 
+export const PLAYOFFS = "PLAYOFFS";
+
 /**
- * The Champions League's knockout rounds in order, how many ties a drawn round
- * holds, and the rounds a reader is shown a chance of reaching.
+ * The Champions League's knockout rounds, in the order they are played.
  *
  * decisions/067-knockout-simulation.md
  */
-export const PLAYOFFS = "PLAYOFFS";
 export const KNOCKOUT_STAGES = [PLAYOFFS, "LAST_16", "QUARTER_FINALS", "SEMI_FINALS", "FINAL"];
+
+/**
+ * How many ties each of `KNOCKOUT_STAGES` holds when it is stored whole.
+ *
+ * decisions/067-knockout-simulation.md
+ */
 const TIES_PER_STAGE = [8, 8, 4, 2, 1];
+
+/**
+ * The rounds a reader is shown each side's chance of reaching.
+ *
+ * decisions/067-knockout-simulation.md
+ */
 export const REACHED_STAGES = KNOCKOUT_STAGES.slice(1);
 
 /**

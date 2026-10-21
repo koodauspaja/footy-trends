@@ -60,8 +60,8 @@ const LEAGUE_PHASE_COLUMNS: ChanceColumn<ForecastRow>[] = [
 ];
 
 /**
- * A knockout round's column: wide enough for `Neljännesvälierät`, which does not
- * break, in the heading's type.
+ * A knockout round's column: wide enough for the longest round's name, the last
+ * 16's, which does not break, in the heading's type.
  *
  * decisions/067-knockout-simulation.md
  */

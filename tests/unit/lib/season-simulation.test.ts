@@ -95,6 +95,23 @@ describe("simulateTable", () => {
     expect(generators.size).toBe(1);
   });
 
+  it("tells an observer the order best first, as places of the table given", () => {
+    // The second side wins the only fixture every time and goes top.
+    const orders: Array<readonly number[]> = [];
+    simulateTable(
+      [row(1, 0), row(2, 0), row(3, 1)],
+      [fixture(2, 1, HOME_WINS)],
+      5,
+      61,
+      [],
+      (order) => {
+        orders.push(order);
+      }
+    );
+
+    expect(orders.every((order) => order.join() === "1,2,0")).toBe(true);
+  });
+
   it("gives a home win three points to the home side", () => {
     const [first, second] = simulateTable([row(1, 0), row(2, 1)], [fixture(1, 2, HOME_WINS)], 50);
 
