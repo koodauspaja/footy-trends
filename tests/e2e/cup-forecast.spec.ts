@@ -19,7 +19,7 @@ const HEADING = "Cupin ennuste";
 const CHANCE = /^(<\s1|>\s99|\d{1,3})\s%$/;
 const SHARE = String.raw`(?:[<>]\s)?\d{1,3}\s%`;
 const tie = (home: number, away: number) =>
-  new RegExp(String.raw`^E2E Seura ${home} – E2E Seura ${away}: jatkoon ${SHARE} – ${SHARE}$`);
+  new RegExp(`^E2E Seura ${home} – E2E Seura ${away}: jatkoon ${SHARE} – ${SHARE}$`);
 
 // Veikkausliiga's sides, 1 to 8, and eight the fit has no league match of.
 const league = (side: number) => 999_067_100 + side;

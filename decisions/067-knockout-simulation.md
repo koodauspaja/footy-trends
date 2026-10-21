@@ -168,7 +168,7 @@ decisions stand; these are the cups' own.
 | Settled chances | Every side of the round of 16 `100 %` in it; a decided tie's winner `100 %` in the next round, the round after the last stored one included, and its loser out of the table | S4. The tests found the round after the last stored one left unsettled in the first draft |
 | An unrated side (A1, A2, S10) | In the simulation only, the mean of the fit's strengths over the stand-in division's sides in its most recent season with a side in the fit, looked for back to the fit's 1 500 days, six seasons with this one; with none, an average side | A2's reading. The fit reaches about four years back, so stopping after last season would not have been "most recent in the fit". No tie's `Ennuste` changes, since the fit is copied |
 | The division line | While an unrated side is still in the table | The spec: "when a side left is unrated" |
-| A tie's figure (S16) | A stored, undecided tie between two rated sides: from the round of 16 the runs' share; before it, in the current round, the latest with a tie undecided, each tie played on its own 10 000 times from the seed | A tie with an unrated side has no figure, as its match page has no `Ennuste` |
+| A tie's figure (S16) | A stored, undecided tie between two rated sides: from the round of 16 its home side's share of the runs it was played in, which for the Champions League too is every run; before it, in the current round, the latest with a tie undecided, each tie played on its own 10 000 times from the seed | A tie with an unrated side has no figure, as its match page has no `Ennuste` |
 | A round's name | By the sides it holds: 16 `Neljännesvälierät`, 8 `Puolivälierät`, 4 `Välierät`, 2 `Loppuottelu` | specs/015's names. The forecast starts at the round of 16, so every round has one |
 | Where the section goes | Its own `section` under `Cupin ennuste`, after `Pudotuspelit` (S11), only when the competition has a cup forecast and `canSeeAnalytics()`; no other standings page asks for it | S5 and S11. Cup pages stay without `Analyysit` |
 | The final played | `no-fixtures` when the round counted from the round of 16 as the final holds a decided tie | Not whichever round came last: with one semi-final stored and played and the other's pairing unknown, the last round holds one decided tie and the cup is not over. The pre-push review found it |
@@ -201,7 +201,7 @@ decisions stand; these are the cups' own.
   strings, the headers by round, a row as printed, the rounds left only, the
   ties after the table, the lines, before the round of 16, the two failure
   lines; after `Pudotuspelit`, signed in only.
-- **Mutations**, applied alone and restored from a commit: 50, 48 caught. Two
+- **Mutations**, applied alone and restored from a commit: 51, 49 caught. Two
   were equivalent, and their code is gone: a stop after the final, which a
   round that does not halve already makes, and the "before" filter's undecided
   check, which `tieChances` already makes.
@@ -219,6 +219,7 @@ decisions stand; these are the cups' own.
   | 45–48 | A round sized by its known ties; a called-off match kept; a round of 16 forecast with a side unknown; every round's ties shown before it | `knockout-simulation-service.test.ts` |
   | 49 | The sides read in two queries | `taso-standings-service.test.ts` |
   | 50 | No round with a tie undecided, read as one | `knockout-simulation-service.test.ts` |
+  | 51 | A later stored tie's chance divided by every run, not the runs it was played in | `knockout-simulation.test.ts` |
 
 - **End to end**, `tests/e2e/cup-forecast.spec.ts`: the recorded cups are
   finished, so MSC 2026 is seeded, with eight league sides who have played each
