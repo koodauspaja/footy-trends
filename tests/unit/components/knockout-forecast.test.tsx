@@ -112,7 +112,7 @@ describe("KnockoutForecastBody", () => {
     );
   });
 
-  it("shows each side's chance of each knockout round and of winning, by specs/014's names", () => {
+  it("shows each side's chance of each knockout round and of winning, by the rounds' Finnish names", () => {
     renderBody(OK);
     const knockout = screen.getAllByRole("table").at(-1) as HTMLElement;
 

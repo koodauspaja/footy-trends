@@ -9,7 +9,7 @@
 import { getCachedUnlessDegraded } from "./cache";
 import { type BracketSourceMatch, buildBracket } from "./cup-bracket";
 import { LEAGUE_STAGE, resolvePhaseShape } from "./cup-stages";
-import { buildCupPhaseStandings } from "./cup-standings";
+import { buildCupPhaseStandings, type CupPhaseTable } from "./cup-standings";
 import {
   type ChampionsLeagueForecast,
   forecastChampionsLeague,
@@ -140,8 +140,9 @@ function forecastFrom(
   const final = rounds.get(KNOCKOUT_STAGES.at(-1) as string)?.[0];
   if (final?.winner != null) return { status: "no-fixtures" };
 
-  const [phase] = buildCupPhaseStandings([...matches]);
-  const table = (phase?.standings ?? []).map(({ teamProviderId, teamName, points }) => ({
+  // A single league phase is one table.
+  const [phase] = buildCupPhaseStandings([...matches]) as [CupPhaseTable];
+  const table = phase.standings.map(({ teamProviderId, teamName, points }) => ({
     teamProviderId,
     teamName,
     points,

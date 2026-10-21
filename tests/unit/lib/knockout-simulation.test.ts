@@ -474,6 +474,32 @@ describe("forecastChampionsLeague's stored rounds", () => {
     expect(forecast.ties).toEqual([]);
   });
 
+  it("uses stored semi-finals as they are", () => {
+    const semiFinals = [decided("SEMI_FINALS", 4, 1, null), decided("SEMI_FINALS", 3, 2, null)];
+    const { met, recording } = recorded(betterWins);
+    forecastChampionsLeague(
+      { ...NO_ROUNDS, rounds: new Map([["SEMI_FINALS", semiFinals]]) },
+      recording,
+      100
+    );
+
+    expect(opponentsOf(met, 1).filter((other) => other <= 4)).toEqual([2, 4]);
+  });
+
+  it("counts nothing for a stored side the league phase does not list", () => {
+    // 99 is in no table: it wins the stored final at its own ground, with no
+    // seed of its own and no row to count it in.
+    const final = decided("FINAL", 1, 99, null);
+    const forecast = forecastChampionsLeague(
+      { ...NO_ROUNDS, rounds: new Map([["FINAL", [final]]]) },
+      homeWins,
+      100
+    );
+
+    expect(forecast.rows.reduce((total, row) => total + row.won.share, 0)).toBe(0);
+    expect(forecast.rows.some((row) => row.teamProviderId === 99)).toBe(false);
+  });
+
   it("places stored quarter-finals in the tree: the best seed's tie apart from the other 1/2 tie", () => {
     const quarterFinals = [
       decided("QUARTER_FINALS", 8, 1, null),
