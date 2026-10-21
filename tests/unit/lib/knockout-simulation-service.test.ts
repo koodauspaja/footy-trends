@@ -583,6 +583,12 @@ describe("getCupForecast", () => {
     ]);
   });
 
+  it("between two rounds before the round of 16, has no tie to give", async () => {
+    cupSeason([ROUND_OF_32]);
+
+    expect(await cupForecast()).toEqual({ status: "before", ties: [] });
+  });
+
   it("waits for every side of the round of 16, giving the current round's ties meanwhile", async () => {
     // One round of 32 tie still to play, so one round of 16 pairing is not known.
     const thirtyTwo = [
