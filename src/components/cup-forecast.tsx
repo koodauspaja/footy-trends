@@ -24,7 +24,8 @@ export const CUP_NOTE =
   "Loppukilpailu on pelattu 10 000 kertaa Poisson-mallin ennusteiden mukaan. Seuraavien kierrosten parit on arvottu, ja tasapelit on ratkaistu jatkoajalla ja rangaistuspotkuilla.";
 
 /**
- * A round by how many sides it holds, as specs/015 names a cup's rounds.
+ * A round by how many sides it holds, as specs/015 names a cup's rounds: the
+ * forecast starts at the round of 16 or later, so every round has a name.
  *
  * decisions/067-knockout-simulation.md
  */
@@ -65,7 +66,7 @@ function columnsFor(roundSizes: readonly number[]): ChanceColumn<KnockoutRow>[] 
   return [
     ...roundSizes.map((size, index) => ({
       key: `round-${size}`,
-      header: ROUND_NAMES[size] ?? String(size),
+      header: ROUND_NAMES[size] as string,
       width: ROUND_WIDTH,
       text: (row: KnockoutRow) => chanceText(row.reached[index] as Chance),
     })),

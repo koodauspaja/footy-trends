@@ -457,7 +457,7 @@ async function cupForecastFrom(
   return {
     status: "ok",
     roundSizes: Array.from(
-      { length: forecast.rows[0]?.reached.length ?? 0 },
+      { length: Math.log2(sides.length) },
       (_, round) => sides.length / 2 ** round
     ),
     standIn: unrated.some((side) => left.has(side)) ? divisions.standIn : null,
