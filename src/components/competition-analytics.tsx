@@ -3,6 +3,7 @@ import { ChartPanel } from "@/components/charts/chart-panel";
 import { formatDecimal, LineChart, percentText } from "@/components/charts/line-chart";
 import { DataTable, type DataTableColumn } from "@/components/data-table";
 import { FoldMarker } from "@/components/fold-marker";
+import { KnockoutForecastBody } from "@/components/knockout-forecast";
 import { FORECAST_HEADING, SeasonForecastBody } from "@/components/season-forecast";
 import { SeasonSurprisesBody, SURPRISES_HEADING } from "@/components/season-surprises";
 import { SignInPrompt } from "@/components/sign-in-prompt";
@@ -12,6 +13,7 @@ import {
   type GoalsPerGameSeries,
   hasGoalsPerGame,
 } from "@/lib/goals-per-game";
+import { getKnockoutForecast } from "@/lib/knockout-simulation-service";
 import { getGoalsPerGame, getOutcomeShares } from "@/lib/match-service";
 import type { MatchSource } from "@/lib/match-source";
 import {
@@ -212,6 +214,7 @@ const OUTCOME_COLUMNS: ReadonlyArray<DataTableColumn<OutcomeRow>> = [
  * decisions/057-surprise-index.md
  * decisions/061-season-simulation.md
  * decisions/629-fold-side-by-side.md
+ * decisions/067-knockout-simulation.md
  */
 export async function CompetitionAnalyticsSection({
   kind,
@@ -236,8 +239,9 @@ export async function CompetitionAnalyticsSection({
     );
   }
 
-  const [forecast, surprises, series, volatility, shares] = await Promise.all([
+  const [forecast, knockout, surprises, series, volatility, shares] = await Promise.all([
     getSeasonForecast(kind, competitionCode, selectedSeasonId, activeSeasonId),
+    getKnockoutForecast(kind, competitionCode, selectedSeasonId, activeSeasonId),
     getSeasonSurprises(kind, competitionCode, selectedSeasonId, activeSeasonId),
     getGoalsPerGame(kind, competitionCode, activeSeasonId),
     hasTableVolatility(kind, competitionCode)
@@ -252,6 +256,14 @@ export async function CompetitionAnalyticsSection({
           <ChartPanel heading={FORECAST_HEADING} headingId={FORECAST_ID}>
             <SeasonForecastBody
               forecast={forecast}
+              qualityHref={qualityHref(kind, "backtest", competitionCode)}
+            />
+          </ChartPanel>
+        )}
+        {knockout.status === "unavailable" ? null : (
+          <ChartPanel heading={FORECAST_HEADING} headingId={FORECAST_ID}>
+            <KnockoutForecastBody
+              forecast={knockout}
               qualityHref={qualityHref(kind, "backtest", competitionCode)}
             />
           </ChartPanel>

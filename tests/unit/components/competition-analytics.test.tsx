@@ -25,6 +25,7 @@ const {
   getTableVolatility,
   getSeasonSurprises,
   getSeasonForecast,
+  getKnockoutForecast,
 } = vi.hoisted(() => ({
   canSeeAnalytics: vi.fn<() => Promise<boolean>>(),
   getGoalsPerGame: vi.fn<() => Promise<GoalsPerGameSeries>>(),
@@ -32,6 +33,7 @@ const {
   getTableVolatility: vi.fn<() => Promise<TableVolatilitySeries>>(),
   getSeasonSurprises: vi.fn<() => Promise<SeasonSurprises>>(),
   getSeasonForecast: vi.fn<() => Promise<SeasonForecast>>(),
+  getKnockoutForecast: vi.fn<() => Promise<KnockoutForecast>>(),
 }));
 
 vi.mock("@/lib/analytics-access", () => ({ canSeeAnalytics }));
@@ -39,6 +41,7 @@ vi.mock("@/lib/match-service", () => ({ getGoalsPerGame, getOutcomeShares }));
 vi.mock("@/lib/table-volatility-service", () => ({ getTableVolatility }));
 vi.mock("@/lib/surprise-service", () => ({ getSeasonSurprises }));
 vi.mock("@/lib/season-simulation-service", () => ({ getSeasonForecast }));
+vi.mock("@/lib/knockout-simulation-service", () => ({ getKnockoutForecast }));
 // `Ennuste`'s link string, which the forecast panel reuses; its component reads the models.
 vi.mock("@/components/match-prediction", () => ({
   QUALITY_LINK: "Kuinka hyvin ennusteet ovat osuneet?",
@@ -76,8 +79,10 @@ import {
   volatilitySentence,
   windowSentence,
 } from "@/components/competition-analytics";
+import { KNOCKOUT_NOTE } from "@/components/knockout-forecast";
 import { FORECAST_ERROR_MESSAGE, FORECAST_HEADING } from "@/components/season-forecast";
 import { SURPRISES_ERROR_MESSAGE, SURPRISES_HEADING } from "@/components/season-surprises";
+import type { KnockoutForecast } from "@/lib/knockout-simulation-service";
 
 const inProgress = { seasonId: 2025, matches: 60, perGame: 3.1, inProgress: true };
 const series: GoalsPerGameSeries = {
@@ -219,6 +224,8 @@ beforeEach(() => {
   getSeasonSurprises.mockResolvedValue(surprises);
   getSeasonForecast.mockReset();
   getSeasonForecast.mockResolvedValue({ status: "unavailable" });
+  getKnockoutForecast.mockReset();
+  getKnockoutForecast.mockResolvedValue({ status: "unavailable" });
 });
 
 describe("the strings the spec agreed", () => {
@@ -298,6 +305,33 @@ describe("CompetitionAnalyticsSection, signed in", () => {
   it("shows the forecast's failure line in its own panel", async () => {
     getSeasonForecast.mockResolvedValue({ status: "error" });
     await renderSection();
+
+    const panel = screen.getByRole("region", { name: FORECAST_HEADING });
+    expect(panel.textContent).toBe(`${FORECAST_HEADING}${FORECAST_ERROR_MESSAGE}`);
+  });
+
+  it("puts the Champions League's knockout forecast first in Tämä kausi, under the same heading", async () => {
+    getKnockoutForecast.mockResolvedValue({ status: "ok", leaguePhase: null, rows: [], ties: [] });
+    await renderSection({ kind: "football-data", competitionCode: "CL" });
+
+    const headings = screen.getAllByRole("heading").map((heading) => heading.textContent);
+    expect(headings.slice(0, 4)).toEqual([
+      ANALYTICS_HEADING,
+      THIS_SEASON_HEADING,
+      FORECAST_HEADING,
+      SURPRISES_HEADING,
+    ]);
+    const panel = screen.getByRole("region", { name: FORECAST_HEADING });
+    expect(within(panel).getByText(KNOCKOUT_NOTE)).toBeInTheDocument();
+    expect(within(panel).getByRole("link").getAttribute("href")).toBe(
+      "/ennusteet?alue=ulkomaat&tyyppi=jalkikateen&kilpailu=CL"
+    );
+    expect(getKnockoutForecast).toHaveBeenCalledWith("football-data", "CL", 2024, 2025);
+  });
+
+  it("shows the knockout forecast's failure line in its own panel", async () => {
+    getKnockoutForecast.mockResolvedValue({ status: "error" });
+    await renderSection({ kind: "football-data", competitionCode: "CL" });
 
     const panel = screen.getByRole("region", { name: FORECAST_HEADING });
     expect(panel.textContent).toBe(`${FORECAST_HEADING}${FORECAST_ERROR_MESSAGE}`);
@@ -468,6 +502,7 @@ describe("CompetitionAnalyticsSection, signed out", () => {
     expect(getTableVolatility).not.toHaveBeenCalled();
     expect(getSeasonSurprises).not.toHaveBeenCalled();
     expect(getSeasonForecast).not.toHaveBeenCalled();
+    expect(getKnockoutForecast).not.toHaveBeenCalled();
   });
 });
 
@@ -489,7 +524,7 @@ describe("CompetitionAnalyticsSection where the spec has none", () => {
       expect(getTableVolatility).not.toHaveBeenCalled();
       expect(getSeasonSurprises).not.toHaveBeenCalled();
       expect(getSeasonForecast).not.toHaveBeenCalled();
-      expect(getSeasonForecast).not.toHaveBeenCalled();
+      expect(getKnockoutForecast).not.toHaveBeenCalled();
     }
   );
 });
