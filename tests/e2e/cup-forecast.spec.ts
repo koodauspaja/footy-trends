@@ -139,6 +139,8 @@ test.describe("Suomen Cup forecast, signed in", () => {
     const headings = await page.getByRole("heading", { level: 2 }).allTextContents();
 
     expect(headings.indexOf(HEADING)).toBe(headings.indexOf("Pudotuspelit") + 1);
+    // A cup page still has no Analyysit.
+    await expect(page.getByRole("region", { name: "Analyysit" })).toHaveCount(0);
   });
 
   test("from the round of 16, gives every side left its chance of each round and of the cup", async ({

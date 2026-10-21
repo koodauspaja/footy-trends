@@ -512,7 +512,7 @@ describe("getCupForecast", () => {
   });
 
   it("is had by the two Suomen Cups only", () => {
-    expect(["MSC", "NSC", "VL", "LCM"].map(hasCupForecast)).toEqual([true, true, false, false]);
+    expect(["MSC", "NSC", "VL", "LC"].map(hasCupForecast)).toEqual([true, true, false, false]);
   });
 
   it.each([
@@ -587,6 +587,16 @@ describe("getCupForecast", () => {
     const result = await cupForecast();
 
     expect(result.status === "ok" && result.rows[0]?.teamProviderId).toBe(116);
+  });
+
+  it("gives the stand-in only to the simulation, so the fit every prediction reads is unchanged", async () => {
+    const fit = cupFit(range(101, 15), { attack: 3, defence: -3 });
+    mocks.getPoissonFit.mockResolvedValue({ status: "ok", fit });
+
+    await cupForecast();
+
+    expect(fit.attack.has(116)).toBe(false);
+    expect(fit.defence.has(116)).toBe(false);
   });
 
   it("looks back for the stand-in division's latest season in the fit, as far as the fit reaches", async () => {
