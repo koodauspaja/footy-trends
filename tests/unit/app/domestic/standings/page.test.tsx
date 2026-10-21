@@ -1,5 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { CupForecastResult } from "@/lib/knockout-simulation-service";
 import type { NormalizedTasoMatch } from "@/lib/taso";
 import type { GroupStandingsResult, SeasonStandingsResult } from "@/lib/taso-standings-service";
 import { warmModules } from "../../../../support/warm-module";
@@ -18,6 +19,7 @@ import { warmModules } from "../../../../support/warm-module";
  * decisions/063-competition-zones.md
  * decisions/299-unit-suite-independent-of-order.md
  * decisions/419-shared-fold-marker.md
+ * decisions/067-knockout-simulation.md
  */
 
 // The favourite star in this tree calls `useSession`, and the real client must
@@ -48,6 +50,18 @@ vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
     resolveTasoSeasonContext: resolveTasoSeasonContextMock,
   };
 });
+
+// The cup forecast's gate and read: the section's own states are
+// `cup-forecast.test.tsx`'s; this file owns where it sits and when it is asked.
+const canSeeAnalyticsMock = vi.hoisted(() => vi.fn<() => Promise<boolean>>());
+const getCupForecastMock = vi.hoisted(() =>
+  vi.fn<(code: string, season: number, active: number) => Promise<CupForecastResult>>()
+);
+vi.mock("@/lib/analytics-access", () => ({ canSeeAnalytics: canSeeAnalyticsMock }));
+vi.mock("@/lib/knockout-simulation-service", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/knockout-simulation-service")>()),
+  getCupForecast: getCupForecastMock,
+}));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -130,6 +144,8 @@ async function getMetadata(searchParams: Record<string, string | string[] | unde
 // same arrangement wherever it sits.
 beforeEach(() => {
   vi.clearAllMocks();
+  canSeeAnalyticsMock.mockResolvedValue(false);
+  getCupForecastMock.mockResolvedValue({ status: "unavailable" });
   listSeasonRoundsMock.mockResolvedValue([1, 2]);
   getSeasonCategoryNameMock.mockResolvedValue(null);
   getSeasonStandingsMock.mockResolvedValue({
@@ -556,6 +572,48 @@ describe("Domestic standings page, cup competitions", () => {
     vi.clearAllMocks();
     listSeasonRoundsMock.mockResolvedValue([]);
     getSeasonCategoryNameMock.mockResolvedValue(null);
+  });
+
+  it("puts Cupin ennuste after Pudotuspelit, signed in, for the season in progress", async () => {
+    canSeeAnalyticsMock.mockResolvedValue(true);
+    getCupForecastMock.mockResolvedValue({ status: "no-fixtures" });
+    getSeasonStandingsMock.mockResolvedValue({ status: "ok", levels: [], groups: closingRounds });
+
+    await renderStandings({ kilpailu: "MSC", kausi: "2026" });
+
+    const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    expect(headings.slice(0, 2)).toEqual(["Pudotuspelit", "Cupin ennuste"]);
+    expect(getCupForecastMock).toHaveBeenCalledWith("MSC", 2026, 2026);
+    expect(screen.getByRole("region", { name: "Cupin ennuste" })).toBeInTheDocument();
+  });
+
+  it("has no cup forecast for a signed-out reader, and does not read one", async () => {
+    getSeasonStandingsMock.mockResolvedValue({ status: "ok", levels: [], groups: closingRounds });
+
+    await renderStandings({ kilpailu: "MSC", kausi: "2026" });
+
+    expect(screen.queryByText("Cupin ennuste")).toBeNull();
+    expect(getCupForecastMock).not.toHaveBeenCalled();
+  });
+
+  it("has no cup forecast where the service has none", async () => {
+    canSeeAnalyticsMock.mockResolvedValue(true);
+    getSeasonStandingsMock.mockResolvedValue({ status: "ok", levels: [], groups: closingRounds });
+
+    await renderStandings({ kilpailu: "NSC", kausi: "2026" });
+
+    expect(getCupForecastMock).toHaveBeenCalledWith("NSC", 2026, 2026);
+    expect(screen.queryByText("Cupin ennuste")).toBeNull();
+  });
+
+  it("asks for no cup forecast, nor the gate, on a cup without one", async () => {
+    canSeeAnalyticsMock.mockResolvedValue(true);
+    getSeasonStandingsMock.mockResolvedValue({ status: "ok", levels: [], groups: closingRounds });
+
+    await renderStandings({ kilpailu: "LC", kausi: "2026" });
+
+    expect(canSeeAnalyticsMock).not.toHaveBeenCalled();
+    expect(getCupForecastMock).not.toHaveBeenCalled();
   });
 
   it("draws the bracket above the round lists", async () => {

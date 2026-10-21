@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CompetitionAnalyticsSection } from "@/components/competition-analytics";
 import { BracketTree } from "@/components/cup-bracket";
+import { CupForecastSection } from "@/components/cup-forecast";
 import { FoldMarker } from "@/components/fold-marker";
 import { MatchListTable } from "@/components/match-list-table";
 import { Notice } from "@/components/notice";
@@ -9,10 +10,12 @@ import { PageShell } from "@/components/page-shell";
 import { RenamedNotice } from "@/components/renamed-notice";
 import { StandingsLegend, StandingsTable } from "@/components/standings-table";
 import { TasoStandingsControls } from "@/components/taso-standings-controls";
+import { canSeeAnalytics } from "@/lib/analytics-access";
 import { type GroupZones, groupZones, zoneLine } from "@/lib/competition-zones";
 import { buildCupBracket, buildPlayoffBracket, normaliseRoundName } from "@/lib/cup-rounds";
 import { cupFormatFor, isDomesticCup } from "@/lib/domestic-competitions";
 import { resolveDomesticPageContext } from "@/lib/domestic-page-context";
+import { getCupForecast, hasCupForecast } from "@/lib/knockout-simulation-service";
 import {
   type GroupLevel,
   type GroupStandingsResult,
@@ -264,6 +267,7 @@ export async function generateMetadata({
  * decisions/043-liigacup.md
  * decisions/048-league-goals-per-game-trend.md
  * decisions/063-competition-zones.md
+ * decisions/067-knockout-simulation.md
  */
 export default async function DomesticStandingsPage({
   searchParams,
@@ -310,6 +314,12 @@ export default async function DomesticStandingsPage({
     activeSeasonId: currentSeason,
     seasonLabel: String,
   });
+
+  // A Suomen Cup's forecast, signed in only; the gate is asked only for a cup that has one.
+  const cupForecast =
+    hasCupForecast(competitionCode) && (await canSeeAnalytics())
+      ? await getCupForecast(competitionCode, seasonId, currentSeason)
+      : { status: "unavailable" as const };
 
   const isCup = isDomesticCup(competitionCode);
   const isGroupsAndPlayoff = cupFormatFor(competitionCode) === "groups-and-playoff";
@@ -362,6 +372,7 @@ export default async function DomesticStandingsPage({
           <BracketTree rounds={bracket} teamHref={teamHref} />
         </section>
       )}
+      {cupForecast.status === "unavailable" ? null : <CupForecastSection forecast={cupForecast} />}
       {result.status === "ok" && isGroupsAndPlayoff && (
         <GroupsAndPlayoff groups={result.groups} teamHref={teamHref} />
       )}
