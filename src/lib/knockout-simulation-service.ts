@@ -284,12 +284,17 @@ export type CupForecastResult =
 /**
  * A cup round as stored: its ties between known sides, a match each, TASO's
  * verdict the winner and a score once finished; and how many sides it holds, a
- * side not yet known included. A called-off match is no tie.
+ * side not yet known included. A called-off match is in neither.
  *
  * decisions/067-knockout-simulation.md
  */
 export type CupRound = { ties: StoredTie[]; size: number };
 
+/**
+ * A stored group of a cup's season as one of its rounds.
+ *
+ * decisions/067-knockout-simulation.md
+ */
 export function cupRound(group: Pick<SeasonTable, "groupId" | "matches">): CupRound {
   const listed = group.matches.filter((match) => !CALLED_OFF_STATUSES.has(match.status));
   const ties = listed.flatMap((match: NormalizedTasoMatch): StoredTie[] => {
