@@ -4,12 +4,15 @@
  *
  * decisions/066-season-summary.md
  * decisions/069-season-summary-clean-sheets.md
+ * decisions/070-season-summary-position.md
  */
 import { cleanSheetSeries } from "./clean-sheets";
 import type { ResultMatch } from "./form-series";
 import { homeAwayStats, pointsPerMatch, type SideStats } from "./home-away";
 import {
+  comparisonShare,
   leagueSeasons,
+  positionIn,
   readSeasons,
   type SeasonKey,
   type SeasonRead,
@@ -86,6 +89,22 @@ export type CleanSheetFact = {
 };
 
 /**
+ * The club's place in its table, read as `Tämä kausi verrattuna` reads it, and
+ * how many earlier seasons, newest first, it beats in a row. A smaller place is
+ * better.
+ *
+ * decisions/066-season-summary.md
+ * decisions/070-season-summary-position.md
+ */
+export type PositionFact = {
+  kind: "position";
+  direction: Direction;
+  place: number;
+  beaten: number;
+  everySeason: boolean;
+};
+
+/**
  * A club record from `Ennätykset` whose run ends in the selected season.
  *
  * decisions/066-season-summary.md
@@ -99,7 +118,7 @@ export type RunFact = { kind: "run"; run: StreakKind; length: number };
  */
 export type UpsetFact = { kind: "upset"; match: Surprise };
 
-export type SummaryFact = SideFact | CleanSheetFact | RunFact | UpsetFact;
+export type SummaryFact = SideFact | CleanSheetFact | PositionFact | RunFact | UpsetFact;
 
 export type SeasonSummarySeries =
   | {
@@ -179,21 +198,59 @@ export function cleanSheetFact(
 }
 
 /**
+ * The position fact, if the selected season's place beats at least
+ * `MIN_EARLIER_SEASONS` earlier seasons' places in a row, newest first, each
+ * read at the selected season's share of its length. An equal place, or a season
+ * that ranked the club nowhere, stops the count.
+ *
+ * decisions/070-season-summary-position.md
+ */
+export function positionFact(
+  selected: number | null,
+  earlier: readonly (number | null)[]
+): PositionFact | null {
+  if (selected === null) return null;
+
+  const record = recordAgainst(selected, earlier, (place, other) => place < other);
+  return record === null ? null : { kind: "position", place: selected, ...record };
+}
+
+/**
+ * The selected season's place and each earlier season's at the same share of its
+ * length, as `Tämä kausi verrattuna` reads them; `null` where a season ranks the
+ * club nowhere.
+ *
+ * decisions/070-season-summary-position.md
+ */
+export function seasonPlaces(
+  teamId: number,
+  selected: SeasonRead,
+  earlier: readonly SeasonRead[]
+): { selected: number | null; earlier: (number | null)[] } {
+  const share = comparisonShare(teamId, selected);
+  const place = (season: SeasonRead) => positionIn(season, share)?.place ?? null;
+  return { selected: place(selected), earlier: earlier.map(place) };
+}
+
+/**
  * The direction in which `value` beats at least `MIN_EARLIER_SEASONS` of the
- * earlier figures in a row, newest first, best before worst. An equal figure, or
- * a missing one, stops the count.
+ * earlier figures in a row, newest first, best before worst. `isBetter` says
+ * which of two figures is the better; a larger one unless told otherwise. An
+ * equal figure, or a missing one, stops the count.
  *
  * decisions/066-season-summary.md
  * decisions/069-season-summary-clean-sheets.md
+ * decisions/070-season-summary-position.md
  */
 function recordAgainst(
   value: number,
-  earlier: readonly (number | null)[]
+  earlier: readonly (number | null)[],
+  isBetter: (first: number, second: number) => boolean = (first, second) => first > second
 ): { direction: Direction; beaten: number; everySeason: boolean } | null {
   for (const direction of ["best", "worst"] as const) {
     const stop = earlier.findIndex((other) => {
       if (other === null) return true;
-      return direction === "best" ? value <= other : value >= other;
+      return direction === "best" ? !isBetter(value, other) : !isBetter(other, value);
     });
     const beaten = stop === -1 ? earlier.length : stop;
     if (beaten >= MIN_EARLIER_SEASONS) {
@@ -259,18 +316,20 @@ export function isFavourable(fact: SummaryFact): boolean {
 }
 
 /**
- * On equal counts, the run first, then home, then away, then clean sheets; the
- * upset last.
+ * On equal counts, the position first, then the run, home, away and clean
+ * sheets; the upset last.
  *
  * decisions/066-season-summary.md
  * decisions/069-season-summary-clean-sheets.md
+ * decisions/070-season-summary-position.md
  */
 const TIE_ORDER: Record<SummaryFact["kind"], number> = {
-  run: 0,
-  home: 1,
-  away: 2,
-  cleanSheets: 3,
-  upset: 4,
+  position: 0,
+  run: 1,
+  home: 2,
+  away: 3,
+  cleanSheets: 4,
+  upset: 5,
 };
 
 /**
@@ -320,6 +379,7 @@ export type SummaryReaders<T extends SeasonKey> = {
  *
  * decisions/066-season-summary.md
  * decisions/069-season-summary-clean-sheets.md
+ * decisions/070-season-summary-position.md
  */
 export async function seasonSummaryFor<T extends SeasonKey>(
   readers: SummaryReaders<T>
@@ -370,6 +430,7 @@ export async function seasonSummaryFor<T extends SeasonKey>(
   if (earlier.status === "error" || records.status === "error") return { status: "error" };
 
   const earlierSides = earlier.reads.map((season) => homeAwayStats(season.finished, teamId));
+  const places = seasonPlaces(teamId, read.read, earlier.reads);
   const seasonLabel = readers.label(selected.seasonId);
   const found = [
     sideFact(
@@ -382,6 +443,7 @@ export async function seasonSummaryFor<T extends SeasonKey>(
       sides.away,
       earlierSides.map((side) => side.away)
     ),
+    positionFact(places.selected, places.earlier),
     cleanSheetFact(
       shownCleanSheetShare(read.read.finished, teamId),
       earlier.reads.map((season) => shownCleanSheetShare(season.finished, teamId))

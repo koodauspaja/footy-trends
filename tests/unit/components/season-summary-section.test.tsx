@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import {
   cleanSheetFactSentence,
+  positionSentence,
   runSentence,
   type SeasonSummaryPanelData,
   SUMMARY_ERROR_MESSAGE,
@@ -12,6 +13,7 @@ import {
 } from "@/components/season-summary-section";
 import type {
   CleanSheetFact,
+  PositionFact,
   SeasonSummarySeries,
   SideFact,
   UpsetFact,
@@ -22,6 +24,7 @@ import type {
  *
  * decisions/066-season-summary.md
  * decisions/069-season-summary-clean-sheets.md
+ * decisions/070-season-summary-position.md
  */
 
 function side(overrides: Partial<SideFact> = {}): SideFact {
@@ -40,6 +43,17 @@ function cleanSheets(overrides: Partial<CleanSheetFact> = {}): CleanSheetFact {
     kind: "cleanSheets",
     direction: "best",
     share: 42,
+    beaten: 4,
+    everySeason: false,
+    ...overrides,
+  };
+}
+
+function position(overrides: Partial<PositionFact> = {}): PositionFact {
+  return {
+    kind: "position",
+    direction: "best",
+    place: 3,
     beaten: 4,
     everySeason: false,
     ...overrides,
@@ -116,6 +130,22 @@ describe("the sentences", () => {
     ).toBe("Heikoin nollapeliosuus tallennetuilla kausilla: 0\u00a0% otteluista.");
   });
 
+  it("names the place both ways, with its ordinal full stop", () => {
+    expect(positionSentence(position())).toBe("Paras sijoitus 5 kauteen: 3.");
+    expect(positionSentence(position({ direction: "worst", place: 11, beaten: 3 }))).toBe(
+      "Heikoin sijoitus 4 kauteen: 11."
+    );
+  });
+
+  it("says tallennetuilla kausilla for a place beating every compared season", () => {
+    expect(positionSentence(position({ everySeason: true }))).toBe(
+      "Paras sijoitus tallennetuilla kausilla: 3."
+    );
+    expect(positionSentence(position({ direction: "worst", place: 9, everySeason: true }))).toBe(
+      "Heikoin sijoitus tallennetuilla kausilla: 9."
+    );
+  });
+
   it("names each run record", () => {
     expect(runSentence({ kind: "run", run: "wins", length: 9 })).toBe(
       "Seuran pisin voittoputki tallennetuilla kausilla: 9 ottelua."
@@ -184,6 +214,16 @@ describe("seasonSummaryPanel", () => {
     expect([...container.querySelectorAll("p")].map((p) => p.textContent)).toEqual([
       "Paras kotisaldo 5 kauteen: 2,38 pistettä ottelua kohden.",
       "Paras nollapeliosuus 5 kauteen: 42\u00a0% otteluista.",
+      joined(UPSET),
+    ]);
+  });
+
+  it("shows the place's sentence among the others", () => {
+    const { container } = renderPanel(ok({ facts: [position(), side(), UPSET] }));
+
+    expect([...container.querySelectorAll("p")].map((p) => p.textContent)).toEqual([
+      "Paras sijoitus 5 kauteen: 3.",
+      "Paras kotisaldo 5 kauteen: 2,38 pistettä ottelua kohden.",
       joined(UPSET),
     ]);
   });
