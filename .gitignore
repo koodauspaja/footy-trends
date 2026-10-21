@@ -27,3 +27,6 @@ next-env.d.ts
 
 # A TASO recording in progress, or one that was killed (decisions/674)
 tests/e2e/fixtures/taso-domestic.json.gz.*
+
+# The UX sweep's screenshots: npm run ux:screenshots
+ux-screenshots/
