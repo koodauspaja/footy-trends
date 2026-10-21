@@ -324,10 +324,20 @@ function storedRound(
   stage: string
 ): readonly StoredTie[] | null {
   const ties = rounds.get(stage) ?? [];
-  const at = KNOCKOUT_STAGES.indexOf(stage);
-  const legs = at === KNOCKOUT_STAGES.length - 1 ? 1 : 2;
-  const whole = ties.length === TIES_PER_STAGE[at] && ties.every((tie) => tie.legs.length === legs);
+  const whole =
+    ties.length === TIES_PER_STAGE[KNOCKOUT_STAGES.indexOf(stage)] &&
+    ties.every((tie) => tie.legs.length === legsPerTie(stage));
   return whole ? ties : null;
+}
+
+/**
+ * How many legs a Champions League tie of a stage has: the final one, every
+ * round before it two.
+ *
+ * decisions/067-knockout-simulation.md
+ */
+export function legsPerTie(stage: string): number {
+  return stage === KNOCKOUT_STAGES.at(-1) ? 1 : 2;
 }
 
 /**

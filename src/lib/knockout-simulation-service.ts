@@ -14,6 +14,7 @@ import {
   type ChampionsLeagueForecast,
   forecastChampionsLeague,
   KNOCKOUT_STAGES,
+  legsPerTie,
   type StoredTie,
   tieInPlay,
 } from "./knockout-simulation";
@@ -110,7 +111,8 @@ export function storedTies(matches: readonly SeasonMatch[]): Map<string, StoredT
                   : null,
             }));
           const stored = { key: tie.key, home: tie.home, away: tie.away, winner: null, legs };
-          return { ...stored, winner: tie.winnerTeamProviderId ?? decidedByScore(stored) };
+          const byScore = legs.length === legsPerTie(round.stage) ? decidedByScore(stored) : null;
+          return { ...stored, winner: tie.winnerTeamProviderId ?? byScore };
         }),
     ])
   );
@@ -118,7 +120,7 @@ export function storedTies(matches: readonly SeasonMatch[]): Map<string, StoredT
 
 /**
  * The side a tie's scores send through when every leg is settled and the
- * aggregate is not level: an awarded leg the bracket does not count.
+ * aggregate is not level, awarded legs counted, which the bracket does not.
  *
  * decisions/067-knockout-simulation.md
  */

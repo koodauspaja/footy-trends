@@ -309,6 +309,15 @@ describe("storedTies", () => {
     expect(ties.get("FINAL")?.[0]?.winner).toBe(2);
   });
 
+  it("leaves a two-legged tie missing its return leg undecided, however its first leg went", () => {
+    const ties = storedTies([
+      stored("LAST_16", 9, 1, [3, 0]),
+      stored("LAST_16", 1, 9, null, { status: "CANCELLED" }),
+    ]);
+
+    expect(ties.get("LAST_16")?.[0]?.winner).toBeNull();
+  });
+
   it("leaves a level tie with every leg settled to the provider's verdict", () => {
     const ties = storedTies([stored("FINAL", 1, 2, [1, 1], { status: "AWARDED" })]);
 
