@@ -8,7 +8,7 @@
  * decisions/065-foreign-league-zones.md
  */
 
-import { getCachedUnlessDegraded } from "./cache";
+import { getComputedUnlessDegraded } from "./cache";
 import { REGULAR_SEASON } from "./cup-stages";
 import { categoryIdForSeason, competitionIdForSeason } from "./domestic-competitions";
 import { logger } from "./logger";
@@ -125,12 +125,13 @@ async function tasoSeason(
 }
 
 /**
- * The cache entry of a season's forecast. A forced refresh clears it, with the
- * answers it was computed from.
+ * The cache entry of a season's forecast, under the season's generation, which
+ * a forced refresh moves on.
  *
  * decisions/061-season-simulation.md
  * decisions/064-season-simulation-zones.md
  * decisions/065-foreign-league-zones.md
+ * decisions/691-computed-cache-generations.md
  */
 export function forecastCacheKey(
   kind: MatchSource["kind"],
@@ -159,7 +160,8 @@ export async function getSeasonForecast(
   }
 
   try {
-    return await getCachedUnlessDegraded(
+    return await getComputedUnlessDegraded(
+      { kind, code, seasonId },
       forecastCacheKey(kind, code, seasonId),
       FORECAST_CACHE_TTL_SECONDS,
       async (): Promise<{ value: SeasonForecast; degraded: boolean }> => {

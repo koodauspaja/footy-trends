@@ -2,14 +2,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../support/warm-module";
 
 /**
- * The cache helpers.
+ * The cache helpers, and the generations a forced refresh moves the computed
+ * entries on by.
  *
  * decisions/029-forced-season-refresh.md
+ * decisions/691-computed-cache-generations.md
  */
 
 const getMock = vi.fn();
 const setexMock = vi.fn();
 const delMock = vi.fn();
+const incrMock = vi.fn();
 const loggerErrorMock = vi.fn();
 
 vi.mock("@/lib/redis", () => ({
@@ -17,6 +20,7 @@ vi.mock("@/lib/redis", () => ({
     get: getMock,
     setex: setexMock,
     del: delMock,
+    incr: incrMock,
   },
 }));
 
@@ -203,6 +207,106 @@ describe("cache helpers", () => {
     expect(loggerErrorMock).toHaveBeenCalledWith(
       { err: delError, key: "baz" },
       "Cache invalidate failed"
+    );
+  });
+});
+
+describe("generations", () => {
+  const VL = { kind: "taso", code: "VL", seasonId: 2026 } as const;
+
+  // Redis as a map, so a read, a write and a generation's move interleave as they would.
+  function inMemory() {
+    const store = new Map<string, string>();
+    getMock.mockImplementation(async (key: string) => store.get(key) ?? null);
+    setexMock.mockImplementation(async (key: string, _ttl: number, value: string) => {
+      store.set(key, value);
+    });
+    incrMock.mockImplementation(async (key: string) => {
+      store.set(key, String(Number(store.get(key) ?? 0) + 1));
+    });
+    return store;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getMock.mockReset();
+    setexMock.mockReset();
+    incrMock.mockReset();
+  });
+
+  it("keys a computed entry by its season's generation, 0 before any refresh", async () => {
+    const store = inMemory();
+    const { getComputedUnlessDegraded, generationKey } = await import("@/lib/cache");
+
+    await getComputedUnlessDegraded(VL, "forecast:VL", 60, async () => ({
+      value: 1,
+      degraded: false,
+    }));
+    store.set(generationKey(VL), "3");
+    await getComputedUnlessDegraded(VL, "forecast:VL", 60, async () => ({
+      value: 2,
+      degraded: false,
+    }));
+
+    expect(generationKey(VL)).toBe("generation:taso:VL:2026");
+    expect(setexMock.mock.calls.map(([key]) => key)).toEqual(["forecast:VL:g0", "forecast:VL:g3"]);
+  });
+
+  it("never serves an entry computed from rows read before a forced refresh", async () => {
+    inMemory();
+    const { getComputedUnlessDegraded, nextGeneration } = await import("@/lib/cache");
+    let finish: (value: string) => void = () => undefined;
+    let started: () => void = () => undefined;
+    const reading = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+
+    // A miss that has read the old rows, still computing.
+    const before = getComputedUnlessDegraded(VL, "forecast:VL", 60, () => {
+      started();
+      return new Promise<{ value: string; degraded: boolean }>((resolve) => {
+        finish = (value) => resolve({ value, degraded: false });
+      });
+    });
+    await reading;
+    // The refresh commits its write and moves the season on; the old figures land after.
+    await nextGeneration(VL);
+    finish("old");
+    await before;
+
+    const after = await getComputedUnlessDegraded(VL, "forecast:VL", 60, async () => ({
+      value: "new",
+      degraded: false,
+    }));
+    expect(after).toBe("new");
+  });
+
+  it("computes without storing when the generation cannot be read, and logs it", async () => {
+    getMock.mockRejectedValue(new Error("redis unavailable"));
+    const { getComputedUnlessDegraded } = await import("@/lib/cache");
+
+    await expect(
+      getComputedUnlessDegraded(VL, "forecast:VL", 60, async () => ({ value: 7, degraded: false }))
+    ).resolves.toBe(7);
+    expect(setexMock).not.toHaveBeenCalled();
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ key: "generation:taso:VL:2026" }),
+      "Cache read failed"
+    );
+  });
+
+  it("moves a season to its next generation, and says when it could not", async () => {
+    const { nextGeneration } = await import("@/lib/cache");
+    incrMock.mockResolvedValueOnce(1);
+
+    await expect(nextGeneration(VL)).resolves.toBe(true);
+    expect(incrMock).toHaveBeenCalledWith("generation:taso:VL:2026");
+
+    incrMock.mockRejectedValueOnce(new Error("redis unavailable"));
+    await expect(nextGeneration(VL)).resolves.toBe(false);
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ key: "generation:taso:VL:2026" }),
+      "Cache write failed"
     );
   });
 });

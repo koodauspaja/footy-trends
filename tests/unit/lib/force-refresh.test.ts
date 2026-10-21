@@ -18,6 +18,8 @@ const { state, logger } = vi.hoisted(() => ({
     providerGroups: [] as unknown[],
     normalizedGroupTeams: [] as Record<string, unknown>[],
     invalidated: [] as string[],
+    /** Each season moved to a new generation, with how many writes had run by then. */
+    generations: [] as { from: unknown; afterTransactions: number }[],
     invalidateSucceeds: true,
     matchesThrows: false,
     groupsThrows: false,
@@ -45,6 +47,10 @@ vi.mock("@/lib/cache", () => ({
   invalidateCache: vi.fn(async (key: string) => {
     state.invalidated.push(key);
     return state.invalidateSucceeds;
+  }),
+  nextGeneration: vi.fn(async (from: unknown) => {
+    state.generations.push({ from, afterTransactions: state.transactions });
+    return true;
   }),
 }));
 
@@ -199,6 +205,7 @@ beforeEach(() => {
   state.providerGroups = [];
   state.normalizedGroupTeams = [];
   state.invalidated = [];
+  state.generations = [];
   state.invalidateSucceeds = true;
   state.matchesThrows = false;
   state.groupsThrows = false;
@@ -357,12 +364,9 @@ describe("previewRefresh", () => {
     const { previewRefresh } = await import("@/lib/force-refresh");
     await previewRefresh(VEIKKAUSLIIGA, 2026);
 
-    expect(state.invalidated).toEqual([
-      "taso:matches:spljp26:VL",
-      "taso:category:spljp26:VL",
-      "forecast:v4:taso:VL:2026",
-      "knockout:v1:taso:VL:2026",
-    ]);
+    expect(state.invalidated).toEqual(["taso:matches:spljp26:VL", "taso:category:spljp26:VL"]);
+    // The forecasts move on only once a write commits, and a preview writes nothing.
+    expect(state.generations).toEqual([]);
     // Which seasons and names exist is not what a refresh corrects.
     expect(state.invalidated).not.toContain("taso:season-context:v2:VL");
     expect(state.invalidated).not.toContain("taso:categories:spljp26");
@@ -374,12 +378,7 @@ describe("previewRefresh", () => {
 
     // The computed table is the one that is easy to miss: the write succeeds,
     // so leaving it serves the old standings after the data is already right.
-    expect(state.invalidated).toEqual([
-      "football-data:matches:PL:2025",
-      "standings:PL:2025",
-      "forecast:v4:football-data:PL:2025",
-      "knockout:v1:football-data:PL:2025",
-    ]);
+    expect(state.invalidated).toEqual(["football-data:matches:PL:2025", "standings:PL:2025"]);
   });
 
   it("reports a provider failure as such and writes nothing", async () => {
@@ -582,7 +581,7 @@ describe("applyRefresh", () => {
     expect(state.deleteCalls).toBe(1);
   });
 
-  it("clears only what is computed once the write commits, so the apply reads what the preview saw", async () => {
+  it("moves the season's forecasts to a new generation once the write commits, and clears no answer", async () => {
     state.providerMatches = [match(1)];
     state.normalizedGroupTeams = [groupTeam()];
 
@@ -593,7 +592,10 @@ describe("applyRefresh", () => {
     await applyRefresh(VEIKKAUSLIIGA, 2026, hash, "admin-1");
 
     // Not the provider's answers: asking again would double the load and could bounce the hash.
-    expect(state.invalidated).toEqual(["forecast:v4:taso:VL:2026", "knockout:v1:taso:VL:2026"]);
+    expect(state.invalidated).toEqual([]);
+    expect(state.generations).toEqual([
+      { from: { kind: "taso", code: "VL", seasonId: 2026 }, afterTransactions: 1 },
+    ]);
   });
 
   it("clears nothing when the write is refused", async () => {
@@ -604,6 +606,7 @@ describe("applyRefresh", () => {
 
     expect(refused.ok).toBe(false);
     expect(state.invalidated).toEqual([]);
+    expect(state.generations).toEqual([]);
   });
 
   it("refuses and writes nothing when the provider's answer moved in between", async () => {
@@ -931,7 +934,7 @@ describe("the foreign provider", () => {
     expect(state.deleteCalls).toBe(0);
   });
 
-  it("clears the computed table and forecasts after the write, not the provider's answer", async () => {
+  it("clears the computed table and moves the forecasts on after the write, not the provider's answer", async () => {
     state.storedMatches = [match(1)];
     state.providerMatches = [match(1, { status: "POSTPONED" })];
 
@@ -940,10 +943,9 @@ describe("the foreign provider", () => {
     const { applyRefresh } = await import("@/lib/force-refresh");
     await applyRefresh(PREMIER_LEAGUE, 2025, preview.snapshotHash, "admin-1");
 
-    expect(state.invalidated).toEqual([
-      "standings:PL:2025",
-      "forecast:v4:football-data:PL:2025",
-      "knockout:v1:football-data:PL:2025",
+    expect(state.invalidated).toEqual(["standings:PL:2025"]);
+    expect(state.generations).toEqual([
+      { from: { kind: "football-data", code: "PL", seasonId: 2025 }, afterTransactions: 1 },
     ]);
   });
 
@@ -1008,5 +1010,7 @@ describe("a write that fails", () => {
     expect(recordFailure).toHaveBeenCalledWith(VEIKKAUSLIIGA, 2026, "write", "admin-1", "2026");
     expect(recordSuccess).not.toHaveBeenCalled();
     expect(logger.error).toHaveBeenCalled();
+    // Nothing was written, so the forecasts stay on the generation they were computed in.
+    expect(state.generations).toEqual([]);
   });
 });

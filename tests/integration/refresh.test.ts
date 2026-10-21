@@ -41,6 +41,7 @@ vi.mock("@/lib/cache", () => ({
   getCached: vi.fn(),
   // No Redis in the integration job; the clearing itself is unit-tested.
   invalidateCache: vi.fn(async () => true),
+  nextGeneration: vi.fn(async () => true),
 }));
 
 vi.mock("@/lib/taso", async (importOriginal) => {

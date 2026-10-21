@@ -149,7 +149,7 @@ On the cup's standings page, signed in, for the season in progress, after
 | A run | The league phase as specs/061; then each round in order: the stored pairings, or a draw (S9, S15); each tie played (S8, S14) |
 | Figures | Over 10 000 runs: league-phase expected points and zone shares; per team the share reaching each round and winning; per stored tie between rated sides each side's share going through, a played first leg counted |
 | "Decided" and "impossible" | A round already reached `100 %`; a team out `0 %`; the league-phase zones by specs/061's bounds |
-| Cache | Redis, 15 minutes, `knockout:v1:${kind}:${code}:${seasonId}`; cleared by a forced refresh |
+| Cache | Redis, 15 minutes, `knockout:v1:${kind}:${code}:${seasonId}:g${generation}`; a forced refresh moves the generation on (decisions/691) |
 
 football-data's handling of a fixture whose side is not yet known — absent, or
 `{id: null, name: null}` — is checked live before implementation, and the
