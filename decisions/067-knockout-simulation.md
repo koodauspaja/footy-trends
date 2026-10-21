@@ -83,7 +83,7 @@ Asked in chat on 2026-10-21, each answered with the recommended option:
   them, the note and the link, the two lines; first in `Tämä kausi`, the failure
   line in its own panel, not asked for signed out or where `Analyysit` has none.
 - **Mutations.** Each applied alone, the five test files run, and the source
-  restored from a commit. 34 were caught; five survived the first tests and each
+  restored from a commit. 37 were caught; five survived the first tests and each
   now has one that fails without it (marked \*). One was equivalent and its code
   is gone: which half the best seed's quarter-final goes into, since the halves
   are only labels.
@@ -111,6 +111,7 @@ Asked in chat on 2026-10-21, each answered with the recommended option:
   | 22–30 | The service keeping a placeholder's tie, scoring an unfinished leg, without `no-fixtures`, keeping the group-stage format, a knockout fixture\* counted in the league phase, caching a stale read, rewording its line, any season | `knockout-simulation-service.test.ts` |
   | 31–33 | The panel's tie sides swapped, no ties' list, no league-phase table | `knockout-forecast.test.tsx` |
   | 34 | The panel left out of `Tämä kausi` | `competition-analytics.test.tsx` |
+  | 35–37 | A two-legged round taken without its return legs; an awarded leg replayed; every run handed one shared order | `knockout-simulation.test.ts`, `knockout-simulation-service.test.ts`, `season-simulation.test.ts` |
 
 - **End to end**, `tests/e2e/knockout-simulation.spec.ts`, on the e2e
   database's 2026/27 season (45 of 144 league-phase matches played): the panel
