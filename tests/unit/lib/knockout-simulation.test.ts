@@ -556,7 +556,7 @@ describe("forecastChampionsLeague's stored rounds", () => {
     expect(forecast.rows.find((row) => row.teamProviderId === 16)?.reached[0]?.share).toBe(0);
   });
 
-  it("places stored quarter-finals in the tree: the best seed's tie apart from the other 1/2 tie", () => {
+  it("places stored quarter-finals in the tree: the 1/2 ties apart, the 3/4–5/6 ties one each way", () => {
     const quarterFinals = [
       decided("QUARTER_FINALS", 8, 1, null),
       decided("QUARTER_FINALS", 7, 2, null),

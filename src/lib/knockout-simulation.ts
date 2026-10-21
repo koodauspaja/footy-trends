@@ -445,8 +445,8 @@ function decideBySeed(run: Run, one: number, other: number, half: number): numbe
 
 /**
  * Stored quarter-finals' halves, which the provider does not hold (S9, at random
- * within the tree): the tie holding the best seed in one half, the other tie of
- * the 1/2 and 7/8 sides in the other, the 3/4–5/6 ties one each way at random.
+ * within the tree): the two ties of the 1/2 and 7/8 sides one each way, the two
+ * 3/4–5/6 ties one each way at random.
  *
  * decisions/067-knockout-simulation.md
  */
@@ -454,14 +454,9 @@ function storedQuarterFinalHalves(run: Run, ties: readonly StoredTie[]): number[
   const ranked = bySeed(run, ties.flatMap(sidesOf));
   const outer = new Set([...ranked.slice(0, 2), ...ranked.slice(6, 8)]);
   const isOuter = (tie: StoredTie) => sidesOf(tie).some((team) => outer.has(team));
-  const best = ranked[0] as number;
   const swap = run.random() < 0.5 ? 1 : 0;
-  // Outer ties first, the best seed's leading; then the others, one each way.
-  const order = ties.toSorted(
-    (left, right) =>
-      Number(isOuter(right)) - Number(isOuter(left)) ||
-      Number(sidesOf(right).includes(best)) - Number(sidesOf(left).includes(best))
-  );
+  // The outer ties first; then the others, one each way.
+  const order = ties.toSorted((left, right) => Number(isOuter(right)) - Number(isOuter(left)));
   const halves = [0, 1, swap, 1 - swap];
   return ties.map((tie) => halves[order.indexOf(tie)] as number);
 }
