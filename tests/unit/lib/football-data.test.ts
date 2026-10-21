@@ -135,6 +135,26 @@ describe("football-data mapping", () => {
     ).toBeNull();
   });
 
+  it("rejects a match whose side has a null id or name, as a fixture whose sides are not known yet", () => {
+    const known = { id: 57, name: "Arsenal FC" };
+    const sides = [
+      { homeTeam: { id: null, name: "Arsenal FC" }, awayTeam: known },
+      { homeTeam: { id: 57, name: null }, awayTeam: known },
+      { homeTeam: known, awayTeam: { id: null, name: "Arsenal FC" } },
+      { homeTeam: known, awayTeam: { id: 57, name: null } },
+    ];
+
+    for (const side of sides) {
+      expect(
+        normalizeMatch(
+          { id: 1, status: "TIMED", utcDate: "2027-03-02T20:00:00Z", ...side },
+          2026,
+          "CL"
+        )
+      ).toBeNull();
+    }
+  });
+
   it("treats a season with no start date as already started, ranked behind a dated season", () => {
     const season = selectActiveSeason(
       {
@@ -320,6 +340,33 @@ describe("football-data mapping", () => {
       "football-data:matches:PL:2023",
       "football-data:matches:BL1:2024",
     ]);
+  });
+
+  it("keeps the rest of the season when a fixture's sides are not known yet", async () => {
+    getCachedMock.mockResolvedValue({
+      matches: [
+        {
+          id: 1,
+          utcDate: "2027-03-02T20:00:00Z",
+          status: "TIMED",
+          stage: "LAST_16",
+          homeTeam: { id: null, name: null },
+          awayTeam: { id: null, name: null },
+        },
+        {
+          id: 2,
+          utcDate: "2026-12-10T20:00:00Z",
+          status: "FINISHED",
+          stage: "LEAGUE_STAGE",
+          homeTeam: { id: 57, name: "Arsenal FC" },
+          awayTeam: { id: 61, name: "Chelsea FC" },
+        },
+      ],
+    });
+
+    const result = await getSeasonMatches("CL", 2026);
+
+    expect(result.map((match) => match.providerMatchId)).toEqual([2]);
   });
 
   it("normalizes every returned match regardless of status, and drops incomplete ones", async () => {
