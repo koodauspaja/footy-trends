@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   type ChampionsLeagueInput,
   forecastChampionsLeague,
+  forecastCup,
   type GoalModel,
   LEAGUE_PHASE_ZONES,
   neutralMatch,
@@ -10,6 +11,7 @@ import {
   playTie,
   type StoredTie,
   type TieInPlay,
+  tieChances,
   tieInPlay,
 } from "@/lib/knockout-simulation";
 import { scoreGrid } from "@/lib/poisson";
@@ -17,7 +19,8 @@ import { generator, type TableRow } from "@/lib/season-simulation";
 
 /**
  * The knockout simulation: a tie's legs, extra time and penalties, UEFA's draw
- * and tree, stored rounds, and the figures counted from the runs.
+ * and tree, a cup's drawn rounds, stored rounds, and the figures counted from
+ * the runs.
  *
  * decisions/067-knockout-simulation.md
  */
@@ -639,5 +642,140 @@ describe("forecastChampionsLeague's figures", () => {
     expect(forecastChampionsLeague(NO_ROUNDS, homeWins, 300)).toEqual(
       forecastChampionsLeague(NO_ROUNDS, homeWins, 300)
     );
+  });
+});
+
+// A cup tie, one match at its listed home side's ground; decided, won by one.
+function cupTie(home: number, away: number, winner: number | null = null): StoredTie {
+  return {
+    key: `cup:${home}-${away}`,
+    home: { teamProviderId: home, teamName: `Joukkue ${home}` },
+    away: { teamProviderId: away, teamName: `Joukkue ${away}` },
+    winner,
+    legs: [
+      {
+        home,
+        away,
+        score:
+          winner === null ? null : { home: Number(winner === home), away: Number(winner === away) },
+      },
+    ],
+  };
+}
+
+// A cup's round of 16: 1 to 8 each drawn against the side eight places on, at its ground.
+const CUP_LAST_SIXTEEN = Array.from({ length: 8 }, (_, index) => cupTie(index + 9, index + 1));
+
+const cupRow = (forecast: ReturnType<typeof forecastCup>, team: number) =>
+  forecast.rows.find((row) => row.teamProviderId === team);
+
+describe("forecastCup", () => {
+  it("draws a round not yet stored at random from every side left", () => {
+    const { met, recording } = recorded(betterWins);
+    forecastCup({ rounds: [CUP_LAST_SIXTEEN] }, recording, 300);
+
+    // 1 to 8 go through, and any of them can be 1's next opponent.
+    expect(opponentsOf(met, 1)).toEqual([2, 3, 4, 5, 6, 7, 8, 9]);
+  });
+
+  it("plays a drawn tie at a neutral ground, and a stored one at its listed home side's", () => {
+    const asked = new Set<string>();
+    const recording: GoalModel = (home, away) => {
+      asked.add(`${home}-${away}`);
+      return betterWins(home, away);
+    };
+    forecastCup({ rounds: [CUP_LAST_SIXTEEN] }, recording, 50);
+    const drawn = [...asked].filter((pair) => pair.split("-").every((team) => Number(team) <= 8));
+
+    expect(asked.has("9-1")).toBe(true);
+    expect(asked.has("1-9")).toBe(false);
+    expect(drawn.length).toBeGreaterThan(0);
+    for (const pair of drawn) {
+      expect(asked.has(pair.split("-").toReversed().join("-"))).toBe(true);
+    }
+  });
+
+  it("uses a stored round's ties as they are when it holds one for every two sides left", () => {
+    const quarterFinals = [cupTie(1, 2), cupTie(3, 4), cupTie(5, 6), cupTie(7, 8)];
+    const { met, recording } = recorded(betterWins);
+    forecastCup({ rounds: [CUP_LAST_SIXTEEN, quarterFinals] }, recording, 300);
+
+    // 2 in the quarter-finals; then 3, 5 or 7, the other winners.
+    expect(opponentsOf(met, 1)).toEqual([2, 3, 5, 7, 9]);
+  });
+
+  it("draws a round TASO holds only part of", () => {
+    const { met, recording } = recorded(betterWins);
+    forecastCup({ rounds: [CUP_LAST_SIXTEEN, [cupTie(1, 2), cupTie(3, 4)]] }, recording, 300);
+
+    expect(opponentsOf(met, 1)).toEqual([2, 3, 4, 5, 6, 7, 8, 9]);
+  });
+
+  it("puts out a decided tie's loser and gives its winner the next round", () => {
+    const lastSixteen = [cupTie(9, 1, 9), ...CUP_LAST_SIXTEEN.slice(1)];
+    const forecast = forecastCup({ rounds: [lastSixteen] }, betterWins, 100);
+
+    expect(cupRow(forecast, 1)).toBeUndefined();
+    expect(cupRow(forecast, 9)?.reached.slice(0, 2)).toEqual([
+      { share: 1, settled: true },
+      { share: 1, settled: true },
+    ]);
+    expect(cupRow(forecast, 2)?.reached[1]?.settled).toBe(false);
+  });
+
+  it("gives every side left each round from the first, and one winner a run", () => {
+    const forecast = forecastCup({ rounds: [CUP_LAST_SIXTEEN] }, homeWins, 400);
+    const won = forecast.rows.reduce((total, row) => total + row.won.share, 0);
+
+    expect(forecast.rows).toHaveLength(16);
+    expect(forecast.rows.every((row) => row.reached.length === 4)).toBe(true);
+    expect(forecast.rows.every((row) => row.reached[0]?.settled === true)).toBe(true);
+    expect(won).toBeCloseTo(1, 10);
+  });
+
+  it("orders the sides by their chance of winning", () => {
+    const forecast = forecastCup({ rounds: [CUP_LAST_SIXTEEN] }, twoIsBest, 100);
+
+    expect(forecast.rows.slice(0, 2).map((row) => row.teamProviderId)).toEqual([2, 1]);
+  });
+
+  it("counts each stored, undecided tie's chance from its listed home side, and none for a decided one", () => {
+    const lastSixteen = [cupTie(9, 1, 1), ...CUP_LAST_SIXTEEN.slice(1)];
+    const forecast = forecastCup({ rounds: [lastSixteen] }, betterWins, 100);
+
+    expect(forecast.ties.map((tie) => tie.key)).toEqual(
+      CUP_LAST_SIXTEEN.slice(1).map((tie) => tie.key)
+    );
+    // Every home side is the later place, which the better one beats.
+    expect(forecast.ties.every((tie) => tie.homeThrough === 0)).toBe(true);
+  });
+
+  it("gives the same figures from the same data", () => {
+    expect(forecastCup({ rounds: [CUP_LAST_SIXTEEN] }, homeWins, 300)).toEqual(
+      forecastCup({ rounds: [CUP_LAST_SIXTEEN] }, homeWins, 300)
+    );
+  });
+});
+
+describe("tieChances", () => {
+  const even: GoalModel = () => ({ homeGoals: 1, awayGoals: 1, grid: scoreGrid(1, 1, 1) });
+
+  it("plays each undecided tie on its own, its listed home side's share of going through", () => {
+    expect(tieChances([cupTie(2, 1), cupTie(1, 3)], betterWins, 50)).toEqual([
+      { key: "cup:2-1", home: cupTie(2, 1).home, away: cupTie(2, 1).away, homeThrough: 0 },
+      { key: "cup:1-3", home: cupTie(1, 3).home, away: cupTie(1, 3).away, homeThrough: 1 },
+    ]);
+  });
+
+  it("has no chance for a decided tie", () => {
+    expect(tieChances([cupTie(2, 1, 2)], betterWins, 50)).toEqual([]);
+  });
+
+  it("gives an even tie about half, the same from the same seed", () => {
+    const [chance] = tieChances([cupTie(1, 2)], even, 4000);
+
+    expect(chance?.homeThrough).toBeGreaterThan(0.45);
+    expect(chance?.homeThrough).toBeLessThan(0.55);
+    expect(tieChances([cupTie(1, 2)], even, 4000)).toEqual([chance]);
   });
 });

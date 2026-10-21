@@ -26,12 +26,17 @@ import {
 import { logger } from "./logger";
 import { PLACEHOLDER_TEAM_ID } from "./match-detail";
 import type { MatchSource } from "./match-source";
-import { type PoissonFit, type PoissonPrediction, predictPoisson } from "./poisson";
+import {
+  POISSON_HORIZON_DAYS,
+  type PoissonFit,
+  type PoissonPrediction,
+  predictPoisson,
+} from "./poisson";
 import { getPoissonFit } from "./poisson-service";
 import { isRemainingFixture } from "./season-simulation";
 import { getLeagueSeasonMatches } from "./standings-service";
 import type { NormalizedTasoMatch } from "./taso";
-import { getSeasonTables, type SeasonTable } from "./taso-standings-service";
+import { getSeasonTables, type SeasonTable, storedSeasonSides } from "./taso-standings-service";
 
 /**
  * As long as the season forecast's, the table's and the fit's own caches (S6).
@@ -342,20 +347,6 @@ export function fromLastSixteen(
   return chosen;
 }
 
-/**
- * Every side of a league's season, from each of its groups' tables and matches.
- *
- * decisions/067-knockout-simulation.md
- */
-function sidesOfSeason(tables: readonly SeasonTable[]): Set<number> {
-  return new Set(
-    tables.flatMap((table) => [
-      ...table.standings.map((row) => row.teamProviderId),
-      ...table.matches.flatMap((match) => [match.homeTeamProviderId, match.awayTeamProviderId]),
-    ])
-  );
-}
-
 async function readSeason(code: string, seasonId: number, activeSeasonId: number) {
   const season = await getSeasonTables(
     categoryIdForSeason(code, seasonId),
@@ -368,21 +359,28 @@ async function readSeason(code: string, seasonId: number, activeSeasonId: number
 }
 
 /**
- * The stand-in for an unrated side (S10, A2): the mean strengths of the division's
- * most recent season with a side in the fit, this season or the one before.
+ * The seasons the fit can hold a match of, this one included.
+ *
+ * decisions/067-knockout-simulation.md
+ */
+const FIT_SEASONS = Math.ceil(POISSON_HORIZON_DAYS / 365) + 1;
+
+/**
+ * The stand-in for an unrated side (S10, A2): the mean strengths of the
+ * division's sides in its most recent season with a side in the fit; with none,
+ * an average side.
  *
  * decisions/067-knockout-simulation.md
  */
 async function standInStrength(
   fit: PoissonFit,
   division: string,
-  seasonId: number,
-  activeSeasonId: number
+  seasonId: number
 ): Promise<{ attack: number; defence: number }> {
-  for (const season of [seasonId, seasonId - 1]) {
-    const known = [
-      ...sidesOfSeason((await readSeason(division, season, activeSeasonId)).tables),
-    ].filter((side) => fit.attack.has(side));
+  for (let season = seasonId; season > seasonId - FIT_SEASONS; season -= 1) {
+    const known = [...(await storedSeasonSides(division, season))].filter((side) =>
+      fit.attack.has(side)
+    );
     if (known.length === 0) continue;
     const mean = (strengths: ReadonlyMap<number, number>) =>
       known.reduce((total, side) => total + (strengths.get(side) as number), 0) / known.length;
@@ -419,15 +417,13 @@ function withStandIns(
 async function cupForecastFrom(
   code: string,
   seasonId: number,
-  activeSeasonId: number,
   fit: PoissonFit,
   rounds: StoredTie[][]
 ): Promise<Exclude<CupForecastResult, { status: "error" }>> {
   const divisions = SUOMEN_CUPS[code] as { top: string; standIn: string };
   const rated = (tie: StoredTie) =>
     fit.attack.has(tie.home.teamProviderId) && fit.attack.has(tie.away.teamProviderId);
-  const top = sidesOfSeason((await readSeason(divisions.top, seasonId, activeSeasonId)).tables);
-  const simulated = fromLastSixteen(rounds, top);
+  const simulated = fromLastSixteen(rounds, await storedSeasonSides(divisions.top, seasonId));
 
   if (simulated.length === 0) {
     const open = rounds.flat().filter((tie) => tie.winner === null && rated(tie));
@@ -441,7 +437,7 @@ async function cupForecastFrom(
   const strength =
     unrated.length === 0
       ? { attack: 0, defence: 0 }
-      : await standInStrength(fit, divisions.standIn, seasonId, activeSeasonId);
+      : await standInStrength(fit, divisions.standIn, seasonId);
   const forecast = forecastCup(
     { rounds: simulated },
     goalModel(withStandIns(fit, unrated, strength), code)
@@ -496,7 +492,7 @@ export async function getCupForecast(
           return { value: { status: "unavailable" }, degraded: season.refreshFailed };
         }
         return {
-          value: await cupForecastFrom(code, seasonId, activeSeasonId, fitted.fit, rounds),
+          value: await cupForecastFrom(code, seasonId, fitted.fit, rounds),
           degraded: season.refreshFailed,
         };
       }

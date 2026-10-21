@@ -366,6 +366,25 @@ export async function storedTasoSeasons(competitionCode: string): Promise<Set<nu
 }
 
 /**
+ * Every side in a competition's stored season, home or away, as stored: no
+ * refresh, so reading another competition's sides asks TASO nothing.
+ *
+ * decisions/067-knockout-simulation.md
+ */
+export async function storedSeasonSides(code: string, seasonId: number): Promise<Set<number>> {
+  const season = and(
+    eq(tasoMatches.categoryId, categoryIdForSeason(code, seasonId)),
+    eq(tasoMatches.competitionCode, competitionIdForSeason(code, seasonId)),
+    eq(tasoMatches.seasonId, seasonId)
+  );
+  const [home, away] = await Promise.all([
+    db.selectDistinct({ side: tasoMatches.homeTeamProviderId }).from(tasoMatches).where(season),
+    db.selectDistinct({ side: tasoMatches.awayTeamProviderId }).from(tasoMatches).where(season),
+  ]);
+  return new Set([...home, ...away].map((row) => row.side));
+}
+
+/**
  * The newest season we hold for a competition, or `null` for none.
  *
  * decisions/011-current-season-discovery.md

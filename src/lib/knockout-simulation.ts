@@ -828,7 +828,7 @@ export function forecastCup(
     add(tally.won, left[0] as number);
   }
 
-  const settled = settledCupRounds(input.rounds);
+  const settled = settledCupRounds(input.rounds, rounds);
   const rows = sides.flatMap((team, place): KnockoutRow[] => {
     if (settled.out.has(team)) return [];
     const share = (counts: readonly number[]) => (counts[place] as number) / runs;
@@ -858,13 +858,13 @@ export function forecastCup(
 }
 
 /**
- * What a cup's stored rounds settle: the sides each round already has, and the
- * sides a decided tie has put out.
+ * What a cup's stored rounds settle: the sides each of its `count` rounds
+ * already has, and the sides a decided tie has put out.
  *
  * decisions/067-knockout-simulation.md
  */
-function settledCupRounds(rounds: ReadonlyArray<readonly StoredTie[]>) {
-  const reached = rounds.map(() => new Set<number>());
+function settledCupRounds(rounds: ReadonlyArray<readonly StoredTie[]>, count: number) {
+  const reached = Array.from({ length: count }, () => new Set<number>());
   const out = new Set<number>();
   rounds.forEach((ties, index) => {
     for (const tie of ties) {
