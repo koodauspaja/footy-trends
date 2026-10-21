@@ -1,8 +1,9 @@
 # 070 — Kausi lyhyesti: the league position fact
 
-> **Status: Q1–Q7 answered by Miikka on 2026-10-15 (Settled decisions); awaiting
-> the go.** Written for #664. Builds on specs/066 (`Kausi lyhyesti`, #356, PR
-> #662), which must merge first. Strings may be fine-tuned during implementation.
+> **Status: Q1–Q7 answered by Miikka on 2026-10-15 (Settled decisions), and the
+> spec confirmed the same day. Strings may be fine-tuned during
+> implementation.** Written for #664. Builds on specs/066 (`Kausi lyhyesti`,
+> #356, PR #662) and specs/069 (#663, PR #687).
 
 ## Summary
 
@@ -103,7 +104,7 @@ one `error` line, `Unable to summarise the season`.
 |---|---|
 | `tests/unit/lib/season-summary.test.ts` | The detector at its boundaries: two and three earlier seasons; equal places; best and worst; a season in progress against finished ones at the same share; an earlier season ranking nobody; tables of different sizes compared by place (Q2); the ranking with the other facts |
 | `tests/unit/components/season-summary-section.test.tsx` | Both sentences and `tallennetuilla kausilla` as exact strings |
-| `tests/e2e/season-summary.spec.ts` | On the seeded club, the sentence's place equals `Tämä kausi verrattuna`'s |
+| `tests/e2e/season-summary.spec.ts` | On the second seeded club, the sentence's place equals `Tämä kausi verrattuna`'s |
 
 Every new test is mutation-checked before review.
 
