@@ -170,6 +170,7 @@ decisions stand; these are the cups' own.
 | A tie's figure (S16) | A stored, undecided tie between two rated sides: from the round of 16 the runs' share, before it the tie played on its own 10 000 times from the seed | A tie with an unrated side has no figure, as its match page has no `Ennuste` |
 | A round's name | By the sides it holds: 16 `Neljännesvälierät`, 8 `Puolivälierät`, 4 `Välierät`, 2 `Loppuottelu` | specs/015's names. The forecast starts at the round of 16, so every round has one |
 | Where the section goes | Its own `section` under `Cupin ennuste`, after `Pudotuspelit` (S11), only when the competition has a cup forecast and `canSeeAnalytics()`; no other standings page asks for it | S5 and S11. Cup pages stay without `Analyysit` |
+| The final played | `no-fixtures` when the round counted from the round of 16 as the final holds a decided tie | Not whichever round came last: with one semi-final stored and played and the other's pairing unknown, the last round holds one decided tie and the cup is not over. The pre-push review found it |
 | The cache | `knockout:v1:taso:${code}:${seasonId}`, 15 minutes; a forced refresh of any TASO competition clears it beside the forecast's key | As part 1 |
 | A fit that could not be read | The failure line, not cached, with no line of its own | As part 1: `getPoissonFit` has logged it |
 
@@ -191,14 +192,15 @@ decisions stand; these are the cups' own.
   between rated sides only; a stand-in for MSC and NSC, an unrated side played
   as the stand-in's strength, found four seasons back, looked for no further
   than six; no line once every unrated side is out; the final played; nothing
-  stored; the fit without the cup; each failure's line, or none; a stale read
+  stored; a played semi-final whose other is unknown, which is not the final;
+  the fit without the cup; each failure's line, or none; a stale read
   not kept. `storedSeasonSides` in `taso-standings-service.test.ts`, and against
   Postgres in `tests/integration/taso.test.ts`.
 - **The section**, `cup-forecast.test.tsx` and the standings page's test: the
   strings, the headers by round, a row as printed, the rounds left only, the
   ties after the table, the lines, before the round of 16, the two failure
   lines; after `Pudotuspelit`, signed in only.
-- **Mutations**, applied alone and restored from a commit: 40, 38 caught. Two
+- **Mutations**, applied alone and restored from a commit: 41, 39 caught. Two
   were equivalent, and their code is gone: a stop after the final, which a
   round that does not halve already makes, and the "before" filter's undecided
   check, which `tieChances` already makes.
@@ -210,6 +212,7 @@ decisions stand; these are the cups' own.
   | 34 | Stored sides read from the home side only | `taso-standings-service.test.ts` |
   | 35–39 | No division line; the ties before the table; the note before the round of 16; a round's column reading the next; a ties' heading with no tie | `cup-forecast.test.tsx` |
   | 40 | The section for a signed-out reader | `page.test.tsx` |
+  | 41 | The last stored round read as the final | `knockout-simulation-service.test.ts` |
 
 - **End to end**, `tests/e2e/cup-forecast.spec.ts`: the recorded cups are
   finished, so MSC 2026 is seeded, with eight league sides who have played each
