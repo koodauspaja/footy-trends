@@ -64,6 +64,7 @@ test.describe("Champions League forecast, signed in", () => {
     await page.goto(STANDINGS);
     const knockout = forecastPanel(page).getByRole("table").last();
     // The title column: nothing is decided while the league phase is played.
+    await expect(knockout.locator("tbody tr")).not.toHaveCount(0);
     const titles = await knockout.locator("tbody tr td:last-child").allTextContents();
 
     expect(titles.length).toBeGreaterThan(0);

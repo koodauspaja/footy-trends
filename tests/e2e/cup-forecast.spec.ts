@@ -186,7 +186,8 @@ test.describe("Suomen Cup forecast, signed in", () => {
   test("an earlier season has no section", async ({ page }) => {
     await page.goto(`/kotimaa/sarjataulukko?kilpailu=MSC&kausi=${SEASON - 1}`);
 
-    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    // The bracket the section would follow, so the page has rendered that far.
+    await expect(page.getByRole("heading", { level: 2, name: "Pudotuspelit" })).toBeVisible();
     await expect(section(page)).toHaveCount(0);
   });
 });
