@@ -200,7 +200,7 @@ decisions stand; these are the cups' own.
   strings, the headers by round, a row as printed, the rounds left only, the
   ties after the table, the lines, before the round of 16, the two failure
   lines; after `Pudotuspelit`, signed in only.
-- **Mutations**, applied alone and restored from a commit: 41, 39 caught. Two
+- **Mutations**, applied alone and restored from a commit: 42, 40 caught. Two
   were equivalent, and their code is gone: a stop after the final, which a
   round that does not halve already makes, and the "before" filter's undecided
   check, which `tieChances` already makes.
@@ -213,6 +213,7 @@ decisions stand; these are the cups' own.
   | 35–39 | No division line; the ties before the table; the note before the round of 16; a round's column reading the next; a ties' heading with no tie | `cup-forecast.test.tsx` |
   | 40 | The section for a signed-out reader | `page.test.tsx` |
   | 41 | The last stored round read as the final | `knockout-simulation-service.test.ts` |
+  | 42 | The stand-in written into the shared fit, which every `Ennuste` reads | `knockout-simulation-service.test.ts` |
 
 - **End to end**, `tests/e2e/cup-forecast.spec.ts`: the recorded cups are
   finished, so MSC 2026 is seeded, with eight league sides who have played each
@@ -220,7 +221,7 @@ decisions stand; these are the cups' own.
   between league sides and two with a side the fit does not know. The section
   right after `Pudotuspelit`; its headers; twelve sides, every cup chance never
   `0 %` or `100 %`; the two rated ties only; the note and Kakkonen's line; no
-  section for 2025; nothing for a signed-out reader. The seeded rows go, so the
+  `Analyysit` on the page; no section for 2025; nothing for a signed-out reader. The seeded rows go, so the
   next read of the season asks the stand-in again.
 - **By eye**, at 375 px and 1 024 px, light and dark: the page never scrolls
   sideways (its scroll width equals the window's at both), the table scrolls
