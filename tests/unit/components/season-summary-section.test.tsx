@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import {
+  cleanSheetFactSentence,
   runSentence,
   type SeasonSummaryPanelData,
   SUMMARY_ERROR_MESSAGE,
@@ -9,12 +10,18 @@ import {
   sideSentence,
   upsetSentence,
 } from "@/components/season-summary-section";
-import type { SeasonSummarySeries, SideFact, UpsetFact } from "@/lib/season-summary";
+import type {
+  CleanSheetFact,
+  SeasonSummarySeries,
+  SideFact,
+  UpsetFact,
+} from "@/lib/season-summary";
 
 /**
  * `Kausi lyhyesti`: every sentence as the reader sees it, and the block's states.
  *
  * decisions/066-season-summary.md
+ * decisions/069-season-summary-clean-sheets.md
  */
 
 function side(overrides: Partial<SideFact> = {}): SideFact {
@@ -22,6 +29,17 @@ function side(overrides: Partial<SideFact> = {}): SideFact {
     kind: "home",
     direction: "best",
     pointsPerMatch: 2.38,
+    beaten: 4,
+    everySeason: false,
+    ...overrides,
+  };
+}
+
+function cleanSheets(overrides: Partial<CleanSheetFact> = {}): CleanSheetFact {
+  return {
+    kind: "cleanSheets",
+    direction: "best",
+    share: 42,
     beaten: 4,
     everySeason: false,
     ...overrides,
@@ -78,6 +96,24 @@ describe("the sentences", () => {
     expect(sideSentence(side({ kind: "away", direction: "worst", everySeason: true }))).toBe(
       "Heikoin vierassaldo tallennetuilla kausilla: 2,38 pistettä ottelua kohden."
     );
+  });
+
+  it("names the clean-sheet share both ways, as a whole percent with a no-break space", () => {
+    expect(cleanSheetFactSentence(cleanSheets())).toBe(
+      "Paras nollapeliosuus 5 kauteen: 42\u00a0% otteluista."
+    );
+    expect(cleanSheetFactSentence(cleanSheets({ direction: "worst", share: 8, beaten: 3 }))).toBe(
+      "Heikoin nollapeliosuus 4 kauteen: 8\u00a0% otteluista."
+    );
+  });
+
+  it("says tallennetuilla kausilla for a share beating every compared season", () => {
+    expect(cleanSheetFactSentence(cleanSheets({ everySeason: true }))).toBe(
+      "Paras nollapeliosuus tallennetuilla kausilla: 42\u00a0% otteluista."
+    );
+    expect(
+      cleanSheetFactSentence(cleanSheets({ direction: "worst", share: 0, everySeason: true }))
+    ).toBe("Heikoin nollapeliosuus tallennetuilla kausilla: 0\u00a0% otteluista.");
   });
 
   it("names each run record", () => {
@@ -138,6 +174,16 @@ describe("seasonSummaryPanel", () => {
 
     expect([...container.querySelectorAll("p")].map((p) => p.textContent)).toEqual([
       "Paras kotisaldo 5 kauteen: 2,38 pistettä ottelua kohden.",
+      joined(UPSET),
+    ]);
+  });
+
+  it("shows the clean-sheet share's sentence among the others", () => {
+    const { container } = renderPanel(ok({ facts: [side(), cleanSheets(), UPSET] }));
+
+    expect([...container.querySelectorAll("p")].map((p) => p.textContent)).toEqual([
+      "Paras kotisaldo 5 kauteen: 2,38 pistettä ottelua kohden.",
+      "Paras nollapeliosuus 5 kauteen: 42\u00a0% otteluista.",
       joined(UPSET),
     ]);
   });

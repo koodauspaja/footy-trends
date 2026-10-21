@@ -5,13 +5,14 @@ import { dropCached } from "../support/e2e-redis";
 import { testDatabaseUrl } from "../support/test-database";
 
 /**
- * `Kausi lyhyesti`, end to end, on a club seeded into four Premier League
- * seasons, 2020/21 to 2023/24, so its latest has three earlier ones in the same
- * competition. Every sentence's number is read back from the panel it comes
- * from. Signed in the way league-position.spec.ts explains. The rows are this
- * suite's own and are removed afterwards, with the cached reads they reached.
+ * `Kausi lyhyesti`, end to end, on two clubs seeded into four Premier League
+ * seasons, 2020/21 to 2023/24, so their latest has three earlier ones in the
+ * same competition. Every sentence's number is read back from the panel it
+ * comes from. Signed in the way league-position.spec.ts explains. The rows are
+ * this suite's own and are removed afterwards, with the cached reads they reached.
  *
  * decisions/066-season-summary.md
+ * decisions/069-season-summary-clean-sheets.md
  */
 
 const HEADING = "Kausi lyhyesti";
@@ -24,25 +25,45 @@ const FIRST_MATCH_ID = 999_066_000;
 // The seeded season's one away win, which Elo's backtest row gives 12 %.
 const UPSET_MATCH_ID = FIRST_MATCH_ID + 3 * 10 + 5;
 
-type Result = "won" | "lost";
+// The club's goals and its opponent's. `won` and `lost` concede; `kept` is a
+// win with a clean sheet.
+type Result = "won" | "kept" | "lost";
+const SCORES: Record<Result, [club: number, opponent: number]> = {
+  won: [2, 1],
+  kept: [1, 0],
+  lost: [0, 1],
+};
+
+type Seeded = { id: number; name: string; opponent: number; opponentName: string; first: number };
+const SEEDED: Seeded = {
+  id: CLUB,
+  name: CLUB_NAME,
+  opponent: OPPONENT,
+  opponentName: OPPONENT_NAME,
+  first: FIRST_MATCH_ID,
+};
 
 // A season of ten: each entry is where the club played and how it went, in kickoff order.
-function season(seasonId: number, results: ReadonlyArray<[atHome: boolean, Result]>) {
+function season(
+  seasonId: number,
+  results: ReadonlyArray<[atHome: boolean, Result]>,
+  club: Seeded = SEEDED
+) {
   return results.map(([atHome, result], index) => {
-    const clubGoals = result === "won" ? 1 : 0;
+    const [clubGoals, opponentGoals] = SCORES[result];
     return {
-      provider_match_id: FIRST_MATCH_ID + (seasonId - 2020) * 10 + index,
+      provider_match_id: club.first + (seasonId - 2020) * 10 + index,
       competition_code: "PL",
       season_id: seasonId,
       kickoff_at: new Date(Date.UTC(seasonId, 8, index + 1, 15)),
       matchday: index + 1,
       status: "FINISHED",
-      home_team_provider_id: atHome ? CLUB : OPPONENT,
-      home_team_name: atHome ? CLUB_NAME : OPPONENT_NAME,
-      away_team_provider_id: atHome ? OPPONENT : CLUB,
-      away_team_name: atHome ? OPPONENT_NAME : CLUB_NAME,
-      home_goals: atHome ? clubGoals : 1 - clubGoals,
-      away_goals: atHome ? 1 - clubGoals : clubGoals,
+      home_team_provider_id: atHome ? club.id : club.opponent,
+      home_team_name: atHome ? club.name : club.opponentName,
+      away_team_provider_id: atHome ? club.opponent : club.id,
+      away_team_name: atHome ? club.opponentName : club.name,
+      home_goals: atHome ? clubGoals : opponentGoals,
+      away_goals: atHome ? opponentGoals : clubGoals,
     };
   });
 }
@@ -52,22 +73,72 @@ const five = <T>(entry: T): T[] => Array.from({ length: 5 }, () => entry);
 // 2020–2022: every away match won first, then every home match lost, so no run
 // crosses into the next season. 2023: every home match won, then one away win
 // and four defeats: a six-win run, the club's longest, and its best home record.
+// Five clean sheets in every season, 50 %, so 2023's share equals 2022's and is
+// no fact.
 const ROWS = [
   ...[2020, 2021, 2022].flatMap((seasonId) =>
     season(seasonId, [
-      ...five<[boolean, Result]>([false, "won"]),
+      ...five<[boolean, Result]>([false, "kept"]),
       ...five<[boolean, Result]>([true, "lost"]),
     ])
   ),
   ...season(2023, [
-    ...five<[boolean, Result]>([true, "won"]),
-    [false, "won"],
+    [true, "won"],
+    ...Array.from({ length: 4 }, (): [boolean, Result] => [true, "kept"]),
+    [false, "kept"],
     ...Array.from({ length: 4 }, (): [boolean, Result] => [false, "lost"]),
   ]),
 ];
+
+// A second club whose only fact is its clean-sheet share: every season has the
+// same home and away results, and 2023's runs are shorter than the earlier
+// five-match ones. One clean sheet in each earlier season, three in 2023.
+const SHARE_CLUB: Seeded = {
+  id: 999_069_001,
+  name: "E2E Nolla",
+  opponent: 999_069_002,
+  opponentName: "E2E Vastus 2",
+  first: 999_069_000,
+};
+const SHARE_TEAM = `/ulkomaat/joukkue/${SHARE_CLUB.id}?kilpailu=PL&kausi=2023`;
+const SHARE_ROWS = [
+  ...[2020, 2021, 2022].flatMap((seasonId) =>
+    season(
+      seasonId,
+      [
+        [true, "kept"],
+        [true, "won"],
+        [false, "won"],
+        [false, "won"],
+        [true, "won"],
+        [true, "lost"],
+        ...Array.from({ length: 3 }, (): [boolean, Result] => [false, "lost"]),
+        [true, "lost"],
+      ],
+      SHARE_CLUB
+    )
+  ),
+  ...season(
+    2023,
+    [
+      [true, "kept"],
+      [false, "lost"],
+      [true, "kept"],
+      [false, "lost"],
+      [true, "kept"],
+      [false, "lost"],
+      [true, "lost"],
+      [false, "won"],
+      [true, "lost"],
+      [false, "won"],
+    ],
+    SHARE_CLUB
+  ),
+];
+
 // A 2024/25 match one test adds, and removes, by itself.
 const LATER_MATCH_ID = FIRST_MATCH_ID + 99;
-const IDS = [...ROWS.map((row) => row.provider_match_id), LATER_MATCH_ID];
+const IDS = [...[...ROWS, ...SHARE_ROWS].map((row) => row.provider_match_id), LATER_MATCH_ID];
 
 async function withDatabase(run: (sql: postgres.Sql) => Promise<unknown>) {
   const sql = postgres(testDatabaseUrl());
@@ -98,7 +169,7 @@ async function dropCachedReads() {
 test.beforeAll(async () => {
   await withDatabase(async (sql) => {
     await remove(sql);
-    await sql`insert into matches ${sql(ROWS)}`;
+    await sql`insert into matches ${sql([...ROWS, ...SHARE_ROWS])}`;
     await sql`insert into predictions ${sql({
       source: "football-data",
       provider_match_id: UPSET_MATCH_ID,
@@ -177,6 +248,23 @@ test.describe("Kausi lyhyesti, signed in", () => {
 
     await expect(page).toHaveURL(new RegExp(`/ulkomaat/ottelu/${UPSET_MATCH_ID}$`));
     await expect(page.getByText("Elo antoi tälle tulokselle 12 %.")).toBeVisible();
+  });
+});
+
+test.describe("Kausi lyhyesti's clean-sheet share, signed in", () => {
+  test.beforeEach(async ({ page }) => {
+    await signedIn(page);
+  });
+
+  test("states the share Nollapelit shows after the season's last match", async ({ page }) => {
+    await page.goto(SHARE_TEAM);
+
+    await expect(page.getByRole("region", { name: HEADING }).locator("p")).toHaveText([
+      "Paras nollapeliosuus tallennetuilla kausilla: 30 % otteluista.",
+    ]);
+    await expect(page.getByRole("region", { name: "Nollapelit" }).locator("li").last()).toHaveText(
+      "Nollapelien osuus 10. ottelun jälkeen: 30 % (3/10)."
+    );
   });
 });
 

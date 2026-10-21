@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { formatDecimal } from "@/components/charts/line-chart";
+import { formatDecimal, percentText } from "@/components/charts/line-chart";
 import { inProgressSeasonLine } from "@/components/competition-analytics";
 import { eloGaveText } from "@/components/season-surprises";
 import { teamDisplayName } from "@/lib/match-detail";
 import {
+  type CleanSheetFact,
   POINTS_DECIMALS,
   type RunFact,
   type SeasonSummarySeries,
@@ -38,10 +39,32 @@ const RUN_NAMES: Record<StreakKind, string> = {
  * decisions/066-season-summary.md
  */
 export function sideSentence(fact: SideFact): string {
-  const record = fact.direction === "best" ? "Paras" : "Heikoin";
   const side = fact.kind === "home" ? "kotisaldo" : "vierassaldo";
+  return `${recordOver(fact, side)}: ${formatDecimal(fact.pointsPerMatch, POINTS_DECIMALS)} pistettä ottelua kohden.`;
+}
+
+/**
+ * `Paras nollapeliosuus 5 kauteen: 42 % otteluista.`: the season's share over
+ * all its matches, as `Nollapelit` prints it, with the same count of seasons a
+ * home or away record gives.
+ *
+ * decisions/069-season-summary-clean-sheets.md
+ */
+export function cleanSheetFactSentence(fact: CleanSheetFact): string {
+  return `${recordOver(fact, "nollapeliosuus")}: ${percentText(fact.share)} otteluista.`;
+}
+
+/**
+ * `Paras kotisaldo 5 kauteen`: the record's direction, what it measures, and the
+ * selected season with the earlier ones it beats in a row.
+ *
+ * decisions/066-season-summary.md
+ * decisions/069-season-summary-clean-sheets.md
+ */
+function recordOver(fact: SideFact | CleanSheetFact, measure: string): string {
+  const record = fact.direction === "best" ? "Paras" : "Heikoin";
   const over = fact.everySeason ? EVERY_SEASON : `${fact.beaten + 1} kauteen`;
-  return `${record} ${side} ${over}: ${formatDecimal(fact.pointsPerMatch, POINTS_DECIMALS)} pistettä ottelua kohden.`;
+  return `${record} ${measure} ${over}`;
 }
 
 /**
@@ -111,6 +134,7 @@ function Sentence({
   matchHref,
 }: Readonly<{ fact: SummaryFact; matchHref: (providerMatchId: number) => string }>) {
   if (fact.kind === "run") return runSentence(fact);
+  if (fact.kind === "cleanSheets") return cleanSheetFactSentence(fact);
   if (fact.kind !== "upset") return sideSentence(fact);
 
   const { before, match, after } = upsetSentence(fact);
