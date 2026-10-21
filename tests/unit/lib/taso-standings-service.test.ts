@@ -5636,15 +5636,17 @@ describe("a cup's table behind its results", () => {
 
 describe("storedSeasonSides", () => {
   it("lists every side the season's stored rows have, home or away, once each", async () => {
-    const answers = [
-      [{ side: 1 }, { side: 2 }],
-      [{ side: 2 }, { side: 3 }],
+    const pairings = [
+      { home: 1, away: 2 },
+      { home: 2, away: 3 },
     ];
     dbMock.selectDistinct.mockImplementation(() => ({
-      from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(answers.shift()) }),
+      from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(pairings) }),
     }));
 
     expect([...(await storedSeasonSides("M2", 2026))].toSorted()).toEqual([1, 2, 3]);
+    // One read, so a sync between two cannot split the sides.
+    expect(dbMock.selectDistinct).toHaveBeenCalledTimes(1);
     expect(getSeasonMatchesMock).not.toHaveBeenCalled();
   });
 });

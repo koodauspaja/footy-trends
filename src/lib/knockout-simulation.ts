@@ -778,9 +778,28 @@ function drawCupRound(run: Run, sides: readonly number[]): number[] {
 }
 
 /**
+ * A cup round in a run: each stored tie between two sides still in it as it
+ * is, and the sides no stored tie holds drawn against each other (S15).
+ *
+ * decisions/067-knockout-simulation.md
+ */
+function playCupRound(run: Run, left: readonly number[], stored: readonly StoredTie[]): number[] {
+  const inRound = new Set(left);
+  const kept = stored.filter((tie) => sidesOf(tie).every((side) => inRound.has(side)));
+  const paired = new Set(kept.flatMap(sidesOf));
+  return [
+    ...playStored(run, kept),
+    ...drawCupRound(
+      run,
+      left.filter((side) => !paired.has(side))
+    ),
+  ];
+}
+
+/**
  * A cup's rest of the season played `runs` times from its round of 16: each
- * round stored when TASO holds every tie of it between known sides, otherwise
- * drawn (S15); a stored tie's listed home side at home (S14).
+ * round's stored ties as they are and the rest drawn (S15); a stored tie's
+ * listed home side at home (S14).
  *
  * decisions/067-knockout-simulation.md
  */
@@ -823,7 +842,7 @@ export function forecastCup(
     for (let round = 0; round < rounds; round += 1) {
       for (const team of left) add(tally.reached[round] as number[], team);
       const stored = round === 0 ? first : (later[round - 1] ?? []);
-      left = stored.length === left.length / 2 ? playStored(run, stored) : drawCupRound(run, left);
+      left = playCupRound(run, left, stored);
     }
     add(tally.won, left[0] as number);
   }

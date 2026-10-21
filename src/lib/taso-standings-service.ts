@@ -377,11 +377,12 @@ export async function storedSeasonSides(code: string, seasonId: number): Promise
     eq(tasoMatches.competitionCode, competitionIdForSeason(code, seasonId)),
     eq(tasoMatches.seasonId, seasonId)
   );
-  const [home, away] = await Promise.all([
-    db.selectDistinct({ side: tasoMatches.homeTeamProviderId }).from(tasoMatches).where(season),
-    db.selectDistinct({ side: tasoMatches.awayTeamProviderId }).from(tasoMatches).where(season),
-  ]);
-  return new Set([...home, ...away].map((row) => row.side));
+  // One query, so a sync committing between two reads cannot split the sides.
+  const pairings = await db
+    .selectDistinct({ home: tasoMatches.homeTeamProviderId, away: tasoMatches.awayTeamProviderId })
+    .from(tasoMatches)
+    .where(season);
+  return new Set(pairings.flatMap((pairing) => [pairing.home, pairing.away]));
 }
 
 /**

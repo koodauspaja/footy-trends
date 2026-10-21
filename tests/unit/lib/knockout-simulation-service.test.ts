@@ -34,7 +34,7 @@ vi.mock("@/lib/taso-standings-service", () => ({
 
 import { categoryIdForSeason, competitionIdForSeason } from "@/lib/domestic-competitions";
 import {
-  cupTies,
+  cupRound,
   fromLastSixteen,
   getCupForecast,
   getKnockoutForecast,
@@ -432,7 +432,9 @@ function cupFitted(rated: readonly number[], standIn?: { attack: number; defence
   mocks.getPoissonFit.mockResolvedValue({ status: "ok", fit: cupFit(rated, standIn) });
 }
 
-describe("cupTies", () => {
+describe("cupRound", () => {
+  const cupTies = (table: SeasonTable) => cupRound(table).ties;
+
   it("makes each match a tie, TASO's verdict its winner and its score once finished", () => {
     const [tie] = cupTies(round(3, [cupMatch(1, 2, "home", [2, 1])]));
 
@@ -456,15 +458,22 @@ describe("cupTies", () => {
     expect(tie?.legs).toEqual([{ home: 1, away: 2, score: null }]);
   });
 
-  it("leaves out a match with a side not yet known", () => {
+  it("leaves out a match with a side not yet known, and counts its sides in the round's size", () => {
     expect(
-      cupTies(round(3, [cupMatch(PLACEHOLDER_TEAM_ID, 2), cupMatch(1, PLACEHOLDER_TEAM_ID)]))
-    ).toEqual([]);
+      cupRound(round(3, [cupMatch(PLACEHOLDER_TEAM_ID, 2), cupMatch(1, PLACEHOLDER_TEAM_ID)]))
+    ).toEqual({ ties: [], size: 4 });
+  });
+
+  it("leaves a called-off match out of its ties and its size", () => {
+    const called = { ...cupMatch(3, 4), status: "Abandoned" };
+
+    expect(cupRound(round(3, [cupMatch(1, 2), called]))).toMatchObject({ size: 2 });
+    expect(cupTies(round(3, [called]))).toEqual([]);
   });
 });
 
 describe("fromLastSixteen", () => {
-  const ties = (table: SeasonTable) => cupTies(table);
+  const ties = (table: SeasonTable) => cupRound(table);
 
   it("starts at the first round of sixteen sides or fewer with a top-division side, and takes each round that halves", () => {
     const quarterFinals = round(3, pairs(range(101, 8)));
@@ -482,6 +491,15 @@ describe("fromLastSixteen", () => {
 
   it("skips a round whose sides are not a power of two", () => {
     const rounds = [round(1, pairs(range(101, 12))), ROUND_OF_16].map(ties);
+
+    expect(fromLastSixteen(rounds, TOP_DIVISION)).toEqual([rounds[1]]);
+  });
+
+  it("counts a side not yet known, so a round of 32 with half its pairings unknown is not the round of 16", () => {
+    const unknown = Array.from({ length: 8 }, () =>
+      cupMatch(PLACEHOLDER_TEAM_ID, PLACEHOLDER_TEAM_ID)
+    );
+    const rounds = [round(1, [...pairs(range(101, 16)), ...unknown]), ROUND_OF_16].map(ties);
 
     expect(fromLastSixteen(rounds, TOP_DIVISION)).toEqual([rounds[1]]);
   });
@@ -563,6 +581,26 @@ describe("getCupForecast", () => {
     expect(result.ties.map((tie) => [tie.home.teamProviderId, tie.away.teamProviderId])).toEqual([
       [101, 117],
     ]);
+  });
+
+  it("waits for every side of the round of 16, giving the current round's ties meanwhile", async () => {
+    // One round of 32 tie still to play, so one round of 16 pairing is not known.
+    const thirtyTwo = [
+      ...pairs(
+        range(101, 32).flatMap((side, i) => (i < 15 ? [side, side + 16] : [])),
+        "home"
+      ),
+      cupMatch(116, 132),
+    ];
+    const sixteen = [...pairs(range(101, 14)), cupMatch(115, PLACEHOLDER_TEAM_ID)];
+    cupSeason([round(1, thirtyTwo), round(2, sixteen)]);
+
+    const result = await cupForecast();
+
+    expect(result.status).toBe("before");
+    if (result.status !== "before") return;
+    expect(result.ties).toHaveLength(7);
+    expect(result.ties.some((tie) => tie.away.teamProviderId === 132)).toBe(false);
   });
 
   it("gives a tie with an unrated side no figure, and names the division it counts as", async () => {

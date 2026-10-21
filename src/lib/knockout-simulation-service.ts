@@ -282,13 +282,17 @@ export type CupForecastResult =
   | { status: "error" };
 
 /**
- * A cup round's ties, one a match: TASO's verdict as the winner, a score once
- * finished. A match with a side not yet known is no tie.
+ * A cup round as stored: its ties between known sides, a match each, TASO's
+ * verdict the winner and a score once finished; and how many sides it holds, a
+ * side not yet known included. A called-off match is no tie.
  *
  * decisions/067-knockout-simulation.md
  */
-export function cupTies(group: Pick<SeasonTable, "groupId" | "matches">): StoredTie[] {
-  return group.matches.flatMap((match: NormalizedTasoMatch): StoredTie[] => {
+export type CupRound = { ties: StoredTie[]; size: number };
+
+export function cupRound(group: Pick<SeasonTable, "groupId" | "matches">): CupRound {
+  const listed = group.matches.filter((match) => !CALLED_OFF_STATUSES.has(match.status));
+  const ties = listed.flatMap((match: NormalizedTasoMatch): StoredTie[] => {
     const { homeTeamProviderId: home, awayTeamProviderId: away } = match;
     if (home === PLACEHOLDER_TEAM_ID || away === PLACEHOLDER_TEAM_ID) return [];
     const finished =
@@ -312,6 +316,7 @@ export function cupTies(group: Pick<SeasonTable, "groupId" | "matches">): Stored
       },
     ];
   });
+  return { ties, size: 2 * listed.length };
 }
 
 function sidesIn(ties: readonly StoredTie[]): Set<number> {
@@ -321,28 +326,28 @@ function sidesIn(ties: readonly StoredTie[]): Set<number> {
 /**
  * The rounds from the round of 16 on (S15): the first round of sixteen sides or
  * fewer, a power of two, with a side from the top division, and each round after
- * it holding half as many; none when the cup has not reached it.
+ * it holding half as many or fewer; none when the cup has not reached it.
  *
  * decisions/067-knockout-simulation.md
  */
 export function fromLastSixteen(
-  rounds: readonly StoredTie[][],
+  rounds: readonly CupRound[],
   topDivision: ReadonlySet<number>
-): StoredTie[][] {
-  const start = rounds.findIndex((ties) => {
-    const sides = sidesIn(ties);
-    const powerOfTwo = sides.size >= 2 && (sides.size & (sides.size - 1)) === 0;
-    return (
-      sides.size <= LAST_SIXTEEN && powerOfTwo && [...sides].some((side) => topDivision.has(side))
-    );
-  });
+): CupRound[] {
+  const start = rounds.findIndex(
+    ({ ties, size }) =>
+      size <= LAST_SIXTEEN &&
+      size >= 2 &&
+      (size & (size - 1)) === 0 &&
+      [...sidesIn(ties)].some((side) => topDivision.has(side))
+  );
   if (start === -1) return [];
-  const chosen = [rounds[start] as StoredTie[]];
-  let size = sidesIn(chosen[0] as StoredTie[]).size;
-  for (const ties of rounds.slice(start + 1)) {
-    if (sidesIn(ties).size > size / 2) break;
+  const chosen = [rounds[start] as CupRound];
+  let size = (rounds[start] as CupRound).size;
+  for (const round of rounds.slice(start + 1)) {
+    if (round.size > size / 2) break;
     size /= 2;
-    chosen.push(ties);
+    chosen.push(round);
   }
   return chosen;
 }
@@ -423,18 +428,22 @@ async function cupForecastFrom(
   code: string,
   seasonId: number,
   fit: PoissonFit,
-  rounds: StoredTie[][]
+  rounds: CupRound[]
 ): Promise<Exclude<CupForecastResult, { status: "error" }>> {
   const divisions = SUOMEN_CUPS[code] as { top: string; standIn: string };
   const rated = (tie: StoredTie) =>
     fit.attack.has(tie.home.teamProviderId) && fit.attack.has(tie.away.teamProviderId);
-  const simulated = fromLastSixteen(rounds, await storedSeasonSides(divisions.top, seasonId));
+  const chosen = fromLastSixteen(rounds, await storedSeasonSides(divisions.top, seasonId));
+  const [first] = chosen;
 
-  if (simulated.length === 0) {
-    const open = rounds.flat().filter(rated);
+  // Until every side of the round of 16 is known, only the current round's ties.
+  if (first === undefined || 2 * first.ties.length !== first.size) {
+    const current = rounds.findLast((round) => round.ties.some((tie) => tie.winner === null));
+    const open = (current?.ties ?? []).filter(rated);
     return { status: "before", ties: tieChances(open, goalModel(fit, code)) };
   }
-  const sides = [...sidesIn(simulated[0] as StoredTie[])];
+  const simulated = chosen.map((round) => round.ties);
+  const sides = [...sidesIn(first.ties)];
   // The final is the round counted from the round of 16, not whichever came last.
   const final = simulated[Math.log2(sides.length) - 1];
   if (final?.[0]?.winner != null) return { status: "no-fixtures" };
@@ -494,7 +503,7 @@ export async function getCupForecast(
         ]);
         // The fit has logged its own failure; a figure from no fit is not kept.
         if (fitted.status === "error") return { value: { status: "error" }, degraded: true };
-        const rounds = season.tables.map(cupTies).filter((ties) => ties.length > 0);
+        const rounds = season.tables.map(cupRound).filter((round) => round.size > 0);
         if (rounds.length === 0 || !fitted.fit.competitions.has(code)) {
           return { value: { status: "unavailable" }, degraded: season.refreshFailed };
         }

@@ -704,11 +704,26 @@ describe("forecastCup", () => {
     expect(opponentsOf(met, 1)).toEqual([2, 3, 5, 7, 9]);
   });
 
-  it("draws a round TASO holds only part of", () => {
+  it("keeps a part-stored round's ties and draws only the sides they leave", () => {
     const { met, recording } = recorded(betterWins);
-    forecastCup({ rounds: [CUP_LAST_SIXTEEN, [cupTie(1, 2), cupTie(3, 4)]] }, recording, 300);
+    const forecast = forecastCup(
+      { rounds: [CUP_LAST_SIXTEEN, [cupTie(1, 2), cupTie(3, 4)]] },
+      recording,
+      300
+    );
 
-    expect(opponentsOf(met, 1)).toEqual([2, 3, 4, 5, 6, 7, 8, 9]);
+    // 2 in the quarter-finals; then 3, or a winner of the drawn four, never 8.
+    expect(opponentsOf(met, 1)).toEqual([2, 3, 5, 6, 7, 9]);
+    expect(forecast.ties.map((tie) => tie.key)).toContain("cup:1-2");
+  });
+
+  it("draws a stored tie's sides afresh in a run that no longer has one of them", () => {
+    // 1 is stored in the quarter-finals, but the round of 16 it is still to
+    // win puts it out under this model.
+    const { met, recording } = recorded(worseWins);
+    forecastCup({ rounds: [CUP_LAST_SIXTEEN, [cupTie(1, 2)]] }, recording, 100);
+
+    expect(opponentsOf(met, 1)).toEqual([9]);
   });
 
   it("puts out a decided tie's loser and gives its winner the next round", () => {
