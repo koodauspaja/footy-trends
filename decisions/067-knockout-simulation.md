@@ -30,7 +30,8 @@ Asked in chat on 2026-10-21, each answered with the recommended option:
 | Extra time (S8) | `scoreGrid(homeGoals / 3, awayGoals / 3, 1)` at the last leg's ground, or neutral in a final; level again, `random() < 0.5` gives it to the first side | The spec: a third of the expected goals on the plain grid, then even odds |
 | Each pairing's odds | Worked out once, the first time a leg or an extra time of it is drawn, kept by ground and by side | A leg is drawn hundreds of thousands of times. Keyed by strings, the first draft spent a third of its time building keys |
 | A stored round | Used when the provider holds every pairing of it between two known sides, 8 play-offs, 8 last-16 ties, 4, 2, 1, each with both legs before the final. Otherwise the round is drawn | S9: a stored pairing is used as it is. A part-stored round cannot be completed by UEFA's rules without knowing the rest, which the next refresh brings. A tie stored without its return leg would otherwise be decided by its first leg alone; Sourcery found it |
-| A leg's result | Finished, or `AWARDED` with a score | An awarded leg is settled. Read as unplayed, every run would replay it; Sourcery found it |
+| A leg's result | Finished, or `AWARDED` with a score; a `CANCELLED` or `Abandoned` leg is no leg of its tie, so the tie lacks one and its round is drawn | An awarded leg is settled. Read as unplayed, every run would replay it; a called-off leg would be played as though it were still to come. Sourcery found both |
+| A tie settled by its scores | When the bracket names no winner but every leg has a settled score and the aggregate is not level, the leader is through | `buildBracket` counts only finished legs, so an awarded final had no winner and the panel showed open chances instead of the no-fixtures line; Sourcery found it |
 | A side not yet known | A tie with a side whose id is null or `PLACEHOLDER_TEAM_ID` is no pairing (S9), so its round is drawn | The spec asked how football-data stores such a fixture to be checked live first. On 2026-10-21 its 2026/27 season listed the 144 league-phase matches and no knockout fixture, so the shape could not be seen; both shapes are handled the same way |
 | The play-offs and the last 16 (S9) | Sections as UEFA's pre-set bracket: play-offs 9/10–23/24, 11/12–21/22, 13/14–19/20, 15/16–17/18; the last 16 1/2 against section 15/16's winners, 3/4 against 13/14's, 5/6 against 11/12's, 7/8 against 9/10's; each seeded side meets one of its two at random | Wikipedia's 2025–26 knockout phase article, its "Predetermined pairings" and "Draw procedure": "the seeded teams in each section drawn against one of their two possible unseeded opponents". Read 2026-10-21 |
 | The quarter- and semi-final path (S9) | In each half, the winner of the 1/2 tie meets the winner of the 7/8 tie and the 3/4 tie's the 5/6 tie's; the two winners meet in that half's semi-final. 1 and 2 are in opposite halves; one of 3/4, one of 5/6 and one of 7/8 is in each half, each at random | The same article: "Pairing 1: Winner A vs Winner D", "Pairing 2: Winner B vs Winner C", "the top two from the league phase could not meet until the final". It does not say how 3/4, 5/6 and 7/8 are split between the halves; S9's "at random within it" is the reading taken |
@@ -48,6 +49,7 @@ Asked in chat on 2026-10-21, each answered with the recommended option:
 | An older format (S13) | `resolvePhaseShape` is `single`, a `LEAGUE_STAGE`, or no panel | Read from the data, never the year |
 | The final played | `no-fixtures`, the league forecast's line | specs/061's string |
 | A pairing the fit cannot predict | The run fails, with the panel's failure line and one `error` line | For the Champions League every known pairing has a prediction (specs/055 S4). One without would mean the fit treats the competition as a cup; inventing a figure for it would be worse than saying so |
+| A fit that could not be read | The failure line, not cached, and no line of this service's own | `getPoissonFit` logs its own failure: thrown into this catch, one failure was two `error` lines, against the spec's one; Sourcery found it |
 | The cache | `knockout:v1:${kind}:${code}:${seasonId}`, 15 minutes; a forced refresh clears it beside the forecast's | S6. Cleared for every football-data competition, as the forecast's is: one key that is never there costs nothing |
 
 ## Answered, not changed
@@ -55,6 +57,7 @@ Asked in chat on 2026-10-21, each answered with the recommended option:
 | Finding (Sourcery, #689) | Why it stands |
 |---|---|
 | A forecast computed from the rows before a forced refresh can be written to the cache after the refresh clears it | decisions/029's two clears narrow the window but cannot shut it: a miss that began before the commit and ends after it stores the old figures for up to 15 minutes. The season forecast has the same window. Closing it means versioning the computed caches, which is its own change, for both forecasts at once |
+| A decided tie in a round the simulation draws, because the round is stored only in part, is still settled: its loser out, its winner through | It is what happened. The runs redraw the round meanwhile, so the other sides' chances in it are approximate until the next refresh stores the rest, which is how a round comes to be stored in part |
 | A forced refresh does not clear the Poisson fit's cache, so a forecast recomputed after it can use the old fit for up to 15 minutes | The same for the season forecast and the match page's `Ennuste` since decisions/055: the fit is the provider's, refitted every 15 minutes from every competition's matches. Clearing it from one competition's refresh is a change to that rule, not to this feature |
 
 ## What the tests prove, and how
@@ -83,7 +86,7 @@ Asked in chat on 2026-10-21, each answered with the recommended option:
   them, the note and the link, the two lines; first in `Tämä kausi`, the failure
   line in its own panel, not asked for signed out or where `Analyysit` has none.
 - **Mutations.** Each applied alone, the five test files run, and the source
-  restored from a commit. 37 were caught; five survived the first tests and each
+  restored from a commit. 41 were caught; five survived the first tests and each
   now has one that fails without it (marked \*). One was equivalent and its code
   is gone: which half the best seed's quarter-final goes into, since the halves
   are only labels.
@@ -112,6 +115,7 @@ Asked in chat on 2026-10-21, each answered with the recommended option:
   | 31–33 | The panel's tie sides swapped, no ties' list, no league-phase table | `knockout-forecast.test.tsx` |
   | 34 | The panel left out of `Tämä kausi` | `competition-analytics.test.tsx` |
   | 35–37 | A two-legged round taken without its return legs; an awarded leg replayed; every run handed one shared order | `knockout-simulation.test.ts`, `knockout-simulation-service.test.ts`, `season-simulation.test.ts` |
+  | 38–41 | A called-off leg kept; a tie settled by its scores left without a winner; a level one given one; a failed fit logged again | `knockout-simulation-service.test.ts` |
 
 - **End to end**, `tests/e2e/knockout-simulation.spec.ts`, on the e2e
   database's 2026/27 season (45 of 144 league-phase matches played): the panel
