@@ -247,6 +247,15 @@ const SUOMEN_CUPS: Readonly<Record<string, { top: string; standIn: string }>> = 
 };
 
 /**
+ * Whether a competition has a cup forecast: the two Suomen Cups.
+ *
+ * decisions/067-knockout-simulation.md
+ */
+export function hasCupForecast(code: string): boolean {
+  return SUOMEN_CUPS[code] !== undefined;
+}
+
+/**
  * The most sides the round a cup is simulated from may hold (S15).
  *
  * decisions/067-knockout-simulation.md
@@ -278,7 +287,7 @@ export function cupTies(group: Pick<SeasonTable, "groupId" | "matches">): Stored
     const { homeTeamProviderId: home, awayTeamProviderId: away } = match;
     if (home === PLACEHOLDER_TEAM_ID || away === PLACEHOLDER_TEAM_ID) return [];
     const finished =
-      match.status === FINISHED_STATUS && match.homeGoals !== null && match.awayGoals !== null;
+      SETTLED_STATUSES.has(match.status) && match.homeGoals !== null && match.awayGoals !== null;
     const winner = { home, away, tie: null }[match.winner ?? "tie"];
     return [
       {
@@ -468,7 +477,7 @@ export async function getCupForecast(
   seasonId: number,
   activeSeasonId: number
 ): Promise<CupForecastResult> {
-  if (SUOMEN_CUPS[code] === undefined || seasonId !== activeSeasonId) {
+  if (!hasCupForecast(code) || seasonId !== activeSeasonId) {
     return { status: "unavailable" };
   }
 

@@ -361,6 +361,7 @@ describe("previewRefresh", () => {
       "taso:matches:spljp26:VL",
       "taso:category:spljp26:VL",
       "forecast:v4:taso:VL:2026",
+      "knockout:v1:taso:VL:2026",
     ]);
     // Which seasons and names exist is not what a refresh corrects.
     expect(state.invalidated).not.toContain("taso:season-context:v2:VL");
@@ -592,7 +593,7 @@ describe("applyRefresh", () => {
     await applyRefresh(VEIKKAUSLIIGA, 2026, hash, "admin-1");
 
     // Not the provider's answers: asking again would double the load and could bounce the hash.
-    expect(state.invalidated).toEqual(["forecast:v4:taso:VL:2026"]);
+    expect(state.invalidated).toEqual(["forecast:v4:taso:VL:2026", "knockout:v1:taso:VL:2026"]);
   });
 
   it("clears nothing when the write is refused", async () => {

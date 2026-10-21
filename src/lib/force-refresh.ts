@@ -171,7 +171,12 @@ function answerCacheKeys(choice: CompetitionChoice, seasonId: number): string[] 
  * decisions/067-knockout-simulation.md
  */
 function computedCacheKeys(choice: CompetitionChoice, seasonId: number): string[] {
-  if (choice.source === "taso") return [forecastCacheKey("taso", choice.code, seasonId)];
+  if (choice.source === "taso") {
+    return [
+      forecastCacheKey("taso", choice.code, seasonId),
+      knockoutCacheKey("taso", choice.code, seasonId),
+    ];
+  }
   return [
     // The computed table, or the old standings show for fifteen minutes.
     standingsCacheKey(choice.code, seasonId),

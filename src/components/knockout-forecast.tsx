@@ -44,6 +44,22 @@ export function tieText(tie: TieChance): string {
   return `${tie.home.teamName} – ${tie.away.teamName}: jatkoon ${chanceText(home)} – ${chanceText(away)}`;
 }
 
+/**
+ * The ties still to be decided, a line each; the heading is the caller's, whose
+ * level depends on where the list sits.
+ *
+ * decisions/067-knockout-simulation.md
+ */
+export function TieLines({ ties }: Readonly<{ ties: readonly TieChance[] }>) {
+  return (
+    <ul className="space-y-1 text-sm">
+      {ties.map((tie) => (
+        <li key={tie.key}>{tieText(tie)}</li>
+      ))}
+    </ul>
+  );
+}
+
 const LEAGUE_PHASE_COLUMNS: ChanceColumn<ForecastRow>[] = [
   {
     key: "points",
@@ -107,11 +123,7 @@ export function KnockoutForecastBody({
       {forecast.ties.length === 0 ? null : (
         <div className="mt-2">
           <h5 className="mb-1 font-medium text-sm">{TIES_HEADING}</h5>
-          <ul className="space-y-1 text-sm">
-            {forecast.ties.map((tie) => (
-              <li key={tie.key}>{tieText(tie)}</li>
-            ))}
-          </ul>
+          <TieLines ties={forecast.ties} />
         </div>
       )}
       <ChanceTable columns={KNOCKOUT_COLUMNS} rows={forecast.rows} />
