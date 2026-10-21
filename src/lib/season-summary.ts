@@ -199,9 +199,9 @@ export function cleanSheetFact(
 
 /**
  * The position fact, if the selected season's place beats at least
- * `MIN_EARLIER_SEASONS` earlier seasons' places in a row, newest first, each
- * read at the selected season's share of its length. An equal place, or a season
- * that ranked the club nowhere, stops the count.
+ * `MIN_EARLIER_SEASONS` of the earlier seasons' places in a row, newest first,
+ * the places `seasonPlaces` reads. An equal place, or an earlier season that
+ * ranked the club nowhere, stops the count.
  *
  * decisions/070-season-summary-position.md
  */
