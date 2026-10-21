@@ -91,11 +91,9 @@ const ROWS = [
   ]),
 ];
 
-// A second club whose block holds its clean-sheet share and its place: every
-// season has the same home and away results, and 2023's runs are shorter than
-// the earlier five-match ones. One clean sheet in each earlier season, three in
-// 2023. Its 2023/24 is ranked among the twenty stored Premier League clubs, its
-// earlier seasons among the four seeded ones, so its place is its worst.
+// A second club whose block holds a record clean-sheet share (10 % before, 30 %
+// in 2023) and its worst place: 2023/24 is ranked among the stored Premier League
+// clubs, the earlier seasons among the four seeded ones.
 const SHARE_CLUB: Seeded = {
   id: 999_069_001,
   name: "E2E Nolla",

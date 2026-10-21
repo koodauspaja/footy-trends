@@ -198,10 +198,9 @@ export function cleanSheetFact(
 }
 
 /**
- * The position fact, if the selected season's place beats at least
- * `MIN_EARLIER_SEASONS` of the earlier seasons' places in a row, newest first,
- * the places `seasonPlaces` reads. An equal place, or an earlier season that
- * ranked the club nowhere, stops the count.
+ * The position fact, if the selected place beats at least `MIN_EARLIER_SEASONS`
+ * earlier places from `seasonPlaces` in a row, newest first. An equal place, or a
+ * season that ranked the club nowhere, stops the count.
  *
  * decisions/070-season-summary-position.md
  */
@@ -233,10 +232,9 @@ export function seasonPlaces(
 }
 
 /**
- * The direction in which `value` beats at least `MIN_EARLIER_SEASONS` of the
- * earlier figures in a row, newest first, best before worst. `isBetter` says
- * which of two figures is the better; a larger one unless told otherwise. An
- * equal figure, or a missing one, stops the count.
+ * The direction, best before worst, in which `value` beats `MIN_EARLIER_SEASONS`
+ * earlier figures in a row, newest first; `isBetter` says which is better, a larger
+ * one by default. An equal figure, or a missing one, stops the count.
  *
  * decisions/066-season-summary.md
  * decisions/069-season-summary-clean-sheets.md
