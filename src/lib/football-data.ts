@@ -37,7 +37,12 @@ export function footballDataCompetitionCacheKey(competitionCode: string): string
   return `football-data:competition:${competitionCode}:v2`;
 }
 
-/** Both null on a knockout fixture whose sides are not known yet. */
+/**
+ * A match's side, null or absent while a knockout fixture's sides are not known yet.
+ *
+ * decisions/001-premier-league-match-based-standings.md
+ * decisions/067-knockout-simulation.md
+ */
 type ProviderTeam = { id?: number | null; name?: string | null };
 
 type ProviderScoreLine = { home?: number | null; away?: number | null };
