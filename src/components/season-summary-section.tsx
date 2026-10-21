@@ -6,6 +6,7 @@ import { teamDisplayName } from "@/lib/match-detail";
 import {
   type CleanSheetFact,
   POINTS_DECIMALS,
+  type PositionFact,
   type RunFact,
   type SeasonSummarySeries,
   type SideFact,
@@ -55,13 +56,24 @@ export function cleanSheetFactSentence(fact: CleanSheetFact): string {
 }
 
 /**
+ * `Paras sijoitus 5 kauteen: 3.`: the place `Tämä kausi verrattuna` prints for
+ * the season, with its ordinal full stop.
+ *
+ * decisions/070-season-summary-position.md
+ */
+export function positionSentence(fact: PositionFact): string {
+  return `${recordOver(fact, "sijoitus")}: ${fact.place}.`;
+}
+
+/**
  * `Paras kotisaldo 5 kauteen`: the record's direction, what it measures, and the
  * selected season with the earlier ones it beats in a row.
  *
  * decisions/066-season-summary.md
  * decisions/069-season-summary-clean-sheets.md
+ * decisions/070-season-summary-position.md
  */
-function recordOver(fact: SideFact | CleanSheetFact, measure: string): string {
+function recordOver(fact: SideFact | CleanSheetFact | PositionFact, measure: string): string {
   const record = fact.direction === "best" ? "Paras" : "Heikoin";
   const over = fact.everySeason ? EVERY_SEASON : `${fact.beaten + 1} kauteen`;
   return `${record} ${measure} ${over}`;
@@ -135,6 +147,7 @@ function Sentence({
 }: Readonly<{ fact: SummaryFact; matchHref: (providerMatchId: number) => string }>) {
   if (fact.kind === "run") return runSentence(fact);
   if (fact.kind === "cleanSheets") return cleanSheetFactSentence(fact);
+  if (fact.kind === "position") return positionSentence(fact);
   if (fact.kind !== "upset") return sideSentence(fact);
 
   const { before, match, after } = upsetSentence(fact);

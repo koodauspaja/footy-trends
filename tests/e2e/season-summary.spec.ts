@@ -13,6 +13,7 @@ import { testDatabaseUrl } from "../support/test-database";
  *
  * decisions/066-season-summary.md
  * decisions/069-season-summary-clean-sheets.md
+ * decisions/070-season-summary-position.md
  */
 
 const HEADING = "Kausi lyhyesti";
@@ -90,9 +91,9 @@ const ROWS = [
   ]),
 ];
 
-// A second club whose only fact is its clean-sheet share: every season has the
-// same home and away results, and 2023's runs are shorter than the earlier
-// five-match ones. One clean sheet in each earlier season, three in 2023.
+// A second club whose block holds a record clean-sheet share (10 % before, 30 %
+// in 2023) and its worst place: 2023/24 is ranked among the stored Premier League
+// clubs, the earlier seasons among the four seeded ones.
 const SHARE_CLUB: Seeded = {
   id: 999_069_001,
   name: "E2E Nolla",
@@ -251,7 +252,7 @@ test.describe("Kausi lyhyesti, signed in", () => {
   });
 });
 
-test.describe("Kausi lyhyesti's clean-sheet share, signed in", () => {
+test.describe("Kausi lyhyesti's clean-sheet share and place, signed in", () => {
   test.beforeEach(async ({ page }) => {
     await signedIn(page);
   });
@@ -261,10 +262,25 @@ test.describe("Kausi lyhyesti's clean-sheet share, signed in", () => {
 
     await expect(page.getByRole("region", { name: HEADING }).locator("p")).toHaveText([
       "Paras nollapeliosuus tallennetuilla kausilla: 30 % otteluista.",
+      /^Heikoin sijoitus tallennetuilla kausilla: \d+\.$/,
     ]);
     await expect(page.getByRole("region", { name: "Nollapelit" }).locator("li").last()).toHaveText(
       "Nollapelien osuus 10. ottelun jälkeen: 30 % (3/10)."
     );
+  });
+
+  test("states the place Tämä kausi verrattuna shows for the season", async ({ page }) => {
+    await page.goto(SHARE_TEAM);
+    // The chart's text alternative: `Sijoitus: tämä kausi 9., tavallisesti 1,7.`
+    const row = page
+      .getByRole("region", { name: "Tämä kausi verrattuna" })
+      .locator("li", { hasText: "Sijoitus:" });
+    await expect(row).toHaveText(/^Sijoitus: tämä kausi \d+\./);
+    const place = /tämä kausi (\d+)\./.exec((await row.textContent()) ?? "")?.[1];
+
+    await expect(
+      page.getByRole("region", { name: HEADING }).getByText(/sijoitus tallennetuilla kausilla/)
+    ).toHaveText(`Heikoin sijoitus tallennetuilla kausilla: ${place}.`);
   });
 });
 
