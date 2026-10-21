@@ -1,4 +1,5 @@
 import { logger } from "./logger";
+import type { MatchSource } from "./match-source";
 import { redis } from "./redis";
 
 /**
@@ -55,6 +56,64 @@ export async function getCachedUnlessDegraded<T>(
   }
 
   return value;
+}
+
+/**
+ * The competition-season an entry is computed from, whose generation its key
+ * carries.
+ *
+ * decisions/691-computed-cache-generations.md
+ */
+export type ComputedFrom = { kind: MatchSource["kind"]; code: string; seasonId: number };
+
+/**
+ * The key of a competition-season's generation, which a forced refresh moves
+ * on once its write has committed.
+ *
+ * decisions/691-computed-cache-generations.md
+ */
+export function generationKey({ kind, code, seasonId }: ComputedFrom): string {
+  return `generation:${kind}:${code}:${seasonId}`;
+}
+
+/**
+ * `getCachedUnlessDegraded` for an entry computed from a competition-season's
+ * stored rows: its key carries the generation read before the rows are, so an
+ * entry computed before a forced refresh is stored where nothing reads it.
+ * Without a generation the entry is computed and not stored.
+ *
+ * decisions/691-computed-cache-generations.md
+ */
+export async function getComputedUnlessDegraded<T>(
+  from: ComputedFrom,
+  key: string,
+  ttlSeconds: number,
+  fetcher: () => Promise<Fetched<T>>
+): Promise<T> {
+  let generation: string | null;
+  try {
+    generation = await redis.get(generationKey(from));
+  } catch (error) {
+    logger.error({ err: error, key: generationKey(from) }, "Cache read failed");
+    return (await fetcher()).value;
+  }
+  return getCachedUnlessDegraded(`${key}:g${generation ?? 0}`, ttlSeconds, fetcher);
+}
+
+/**
+ * Moves a competition-season's computed entries to a new generation, reporting
+ * whether it happened. Never throws.
+ *
+ * decisions/691-computed-cache-generations.md
+ */
+export async function nextGeneration(from: ComputedFrom): Promise<boolean> {
+  try {
+    await redis.incr(generationKey(from));
+    return true;
+  } catch (error) {
+    logger.error({ err: error, key: generationKey(from) }, "Cache write failed");
+    return false;
+  }
 }
 
 /**

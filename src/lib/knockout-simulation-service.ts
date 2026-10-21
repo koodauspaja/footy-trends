@@ -6,7 +6,7 @@
  * decisions/067-knockout-simulation.md
  */
 
-import { getCachedUnlessDegraded } from "./cache";
+import { getComputedUnlessDegraded } from "./cache";
 import { type BracketSourceMatch, buildBracket } from "./cup-bracket";
 import { LEAGUE_STAGE, resolvePhaseShape } from "./cup-stages";
 import { buildCupPhaseStandings, type CupPhaseTable } from "./cup-standings";
@@ -79,10 +79,11 @@ export type KnockoutForecast =
   | { status: "error" };
 
 /**
- * The cache entry of a season's knockout forecast. A forced refresh clears it,
- * with the answers it was computed from.
+ * The cache entry of a season's knockout forecast, under the season's
+ * generation, which a forced refresh moves on.
  *
  * decisions/067-knockout-simulation.md
+ * decisions/691-computed-cache-generations.md
  */
 export function knockoutCacheKey(
   kind: MatchSource["kind"],
@@ -214,7 +215,8 @@ export async function getKnockoutForecast(
   }
 
   try {
-    return await getCachedUnlessDegraded(
+    return await getComputedUnlessDegraded(
+      { kind, code, seasonId },
       knockoutCacheKey(kind, code, seasonId),
       KNOCKOUT_CACHE_TTL_SECONDS,
       async (): Promise<{ value: KnockoutForecast; degraded: boolean }> => {
@@ -498,7 +500,8 @@ export async function getCupForecast(
   }
 
   try {
-    return await getCachedUnlessDegraded(
+    return await getComputedUnlessDegraded(
+      { kind: "taso", code, seasonId },
       knockoutCacheKey("taso", code, seasonId),
       KNOCKOUT_CACHE_TTL_SECONDS,
       async (): Promise<{ value: CupForecastResult; degraded: boolean }> => {
