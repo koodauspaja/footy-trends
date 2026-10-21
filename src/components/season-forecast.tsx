@@ -2,13 +2,7 @@ import Link from "next/link";
 import { formatDecimal, percentText } from "@/components/charts/line-chart";
 import { QUALITY_LINK } from "@/components/match-prediction";
 import type { Zone } from "@/lib/competition-zones";
-import type {
-  Chance,
-  ForecastLayout,
-  ForecastRow,
-  ForecastTable,
-  SeasonForecast,
-} from "@/lib/season-simulation";
+import type { Chance, ForecastLayout, ForecastRow, SeasonForecast } from "@/lib/season-simulation";
 
 /**
  * The panel's strings.
@@ -68,14 +62,17 @@ export function chanceText(chance: Chance): string {
  *
  * decisions/061-season-simulation.md
  * decisions/064-season-simulation-zones.md
+ * decisions/067-knockout-simulation.md
  */
-type ForecastColumn = {
+export type ChanceColumn<Row> = {
   key: string;
   header: string;
   subheader?: string;
   width?: number;
-  text: (row: ForecastRow) => string;
+  text: (row: Row) => string;
 };
+
+type ForecastColumn = ChanceColumn<ForecastRow>;
 
 /**
  * Column widths, and the least the team's name may have before the table
@@ -84,9 +81,9 @@ type ForecastColumn = {
  *
  * decisions/061-season-simulation.md
  */
-const POINTS_WIDTH = 72;
+export const POINTS_WIDTH = 72;
 const CHANCE_WIDTH = 76;
-const WIDE_CHANCE_WIDTH = 96;
+export const WIDE_CHANCE_WIDTH = 96;
 const ZONE_WIDTH = 112;
 const TEAM_MINIMUM = 112;
 
@@ -170,29 +167,31 @@ function columnsFor(
 }
 
 /**
- * One table's forecast, under the group's name when it has one. Fixed column
- * widths, so the tables of a season line up; narrower than `DataTable`'s,
- * whose 240px name column would push the chances off a phone's screen. The
- * team's name stays in view when the table scrolls.
+ * A table of chances, the first column a team's name. Fixed column widths, so the
+ * tables of a season line up; narrower than `DataTable`'s, whose 240px name column
+ * would push the chances off a phone. The name stays in view when the table scrolls.
  *
  * decisions/061-season-simulation.md
  * decisions/064-season-simulation-zones.md
+ * decisions/067-knockout-simulation.md
  */
-function ForecastTableView({
-  table,
-  layout,
-}: Readonly<{ table: ForecastTable; layout: ForecastLayout }>) {
-  const columns = columnsFor(layout, table.decidesTitle, table.zones);
-  const [team, ...figures] = columns as [ForecastColumn, ...ForecastColumn[]];
+export function ChanceTable<Row extends { teamProviderId: number }>({
+  columns,
+  rows,
+  heading = null,
+}: Readonly<{
+  columns: readonly ChanceColumn<Row>[];
+  rows: readonly Row[];
+  heading?: string | null;
+}>) {
+  const [team, ...figures] = columns as [ChanceColumn<Row>, ...ChanceColumn<Row>[]];
   const minWidth = figures.reduce(
     (total, column) => total + (column.width as number),
     TEAM_MINIMUM
   );
   return (
     <div className="mt-2">
-      {table.groupName === null ? null : (
-        <h5 className="mb-1 font-medium text-sm">{table.groupName}</h5>
-      )}
+      {heading === null ? null : <h5 className="mb-1 font-medium text-sm">{heading}</h5>}
       <div className="overflow-x-auto">
         <table className="w-full table-fixed text-sm" style={{ minWidth: `${minWidth}px` }}>
           <colgroup>
@@ -226,7 +225,7 @@ function ForecastTableView({
             </tr>
           </thead>
           <tbody>
-            {table.rows.map((row) => (
+            {rows.map((row) => (
               <tr className="border-border-subtle border-b" key={row.teamProviderId}>
                 <th
                   className="sticky left-0 bg-background py-2 pr-2 text-left font-semibold"
@@ -255,6 +254,7 @@ function ForecastTableView({
  *
  * decisions/061-season-simulation.md
  * decisions/638-forecast-names-left-out-groups.md
+ * decisions/067-knockout-simulation.md
  */
 export function SeasonForecastBody({
   forecast,
@@ -272,10 +272,11 @@ export function SeasonForecastBody({
   return (
     <div>
       {forecast.tables.map((table) => (
-        <ForecastTableView
+        <ChanceTable
+          columns={columnsFor(forecast.layout, table.decidesTitle, table.zones)}
+          heading={named ? table.groupName : null}
           key={table.groupId}
-          layout={forecast.layout}
-          table={named ? table : { ...table, groupName: null }}
+          rows={table.rows}
         />
       ))}
       {forecast.leftOut.length === 0 ? null : (

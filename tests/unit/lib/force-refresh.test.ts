@@ -377,6 +377,7 @@ describe("previewRefresh", () => {
       "football-data:matches:PL:2025",
       "standings:PL:2025",
       "forecast:v4:football-data:PL:2025",
+      "knockout:v1:football-data:PL:2025",
     ]);
   });
 
@@ -929,7 +930,7 @@ describe("the foreign provider", () => {
     expect(state.deleteCalls).toBe(0);
   });
 
-  it("clears the computed table and forecast after the write, not the provider's answer", async () => {
+  it("clears the computed table and forecasts after the write, not the provider's answer", async () => {
     state.storedMatches = [match(1)];
     state.providerMatches = [match(1, { status: "POSTPONED" })];
 
@@ -938,7 +939,11 @@ describe("the foreign provider", () => {
     const { applyRefresh } = await import("@/lib/force-refresh");
     await applyRefresh(PREMIER_LEAGUE, 2025, preview.snapshotHash, "admin-1");
 
-    expect(state.invalidated).toEqual(["standings:PL:2025", "forecast:v4:football-data:PL:2025"]);
+    expect(state.invalidated).toEqual([
+      "standings:PL:2025",
+      "forecast:v4:football-data:PL:2025",
+      "knockout:v1:football-data:PL:2025",
+    ]);
   });
 
   it("applies through the foreign writer, never the TASO one", async () => {

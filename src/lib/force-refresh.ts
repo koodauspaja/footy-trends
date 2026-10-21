@@ -14,6 +14,7 @@ import {
   getSeasonContext,
   type NormalizedProviderMatch,
 } from "@/lib/football-data";
+import { knockoutCacheKey } from "@/lib/knockout-simulation-service";
 import { logger } from "@/lib/logger";
 import { competitionNameFor, isKnownCompetition } from "@/lib/refresh-competitions";
 import {
@@ -167,6 +168,7 @@ function answerCacheKeys(choice: CompetitionChoice, seasonId: number): string[] 
  *
  * decisions/029-forced-season-refresh.md
  * decisions/064-season-simulation-zones.md
+ * decisions/067-knockout-simulation.md
  */
 function computedCacheKeys(choice: CompetitionChoice, seasonId: number): string[] {
   if (choice.source === "taso") return [forecastCacheKey("taso", choice.code, seasonId)];
@@ -174,6 +176,7 @@ function computedCacheKeys(choice: CompetitionChoice, seasonId: number): string[
     // The computed table, or the old standings show for fifteen minutes.
     standingsCacheKey(choice.code, seasonId),
     forecastCacheKey("football-data", choice.code, seasonId),
+    knockoutCacheKey("football-data", choice.code, seasonId),
   ];
 }
 
