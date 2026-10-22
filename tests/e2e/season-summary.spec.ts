@@ -14,6 +14,7 @@ import { testDatabaseUrl } from "../support/test-database";
  * decisions/066-season-summary.md
  * decisions/069-season-summary-clean-sheets.md
  * decisions/070-season-summary-position.md
+ * decisions/708-season-summary-seeds-its-table.md
  */
 
 const HEADING = "Kausi lyhyesti";
