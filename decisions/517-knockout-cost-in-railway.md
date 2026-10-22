@@ -20,4 +20,5 @@ laptop's time; that was measured, not explained. A miss holds the server for at
 most about a sixth of a second, and the entry it writes lasts 15 minutes, so
 specs/067's S6 stands: computed on a page view and cached. Requests that miss
 together each compute: `getCachedUnlessDegraded` in `src/lib/cache.ts` does not
-share a computation that is already running.
+share a computation that is already running. This overrides decisions/067's
+"A miss is at most once per competition per 15 minutes".
