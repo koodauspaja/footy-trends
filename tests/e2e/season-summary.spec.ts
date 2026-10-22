@@ -92,8 +92,8 @@ const ROWS = [
 ];
 
 // A second club whose block holds a record clean-sheet share (10 % before, 30 %
-// in 2023) and its worst place: 2023/24 is ranked among the stored Premier League
-// clubs, the earlier seasons among the four seeded ones.
+// in 2023) and its worst place: 2023/24 ranks it below the three E2E Kärki clubs,
+// the earlier seasons among the four seeded ones.
 const SHARE_CLUB: Seeded = {
   id: 999_069_001,
   name: "E2E Nolla",
@@ -137,9 +137,29 @@ const SHARE_ROWS = [
   ),
 ];
 
+// Three clubs that win all ten 2023/24 matches, so E2E Kausi is 4th in it and its
+// place is no best, whether or not the real Premier League clubs are stored.
+const BOTTOM = 999_070_009;
+const RIVAL_ROWS = [1, 2, 3].flatMap((rival) =>
+  season(
+    2023,
+    Array.from({ length: 10 }, (_, index): [boolean, Result] => [index % 2 === 0, "won"]),
+    {
+      id: 999_070_000 + rival,
+      name: `E2E Kärki ${rival}`,
+      opponent: BOTTOM,
+      opponentName: "E2E Pohja",
+      first: 999_070_000 + rival * 100,
+    }
+  )
+);
+
 // A 2024/25 match one test adds, and removes, by itself.
 const LATER_MATCH_ID = FIRST_MATCH_ID + 99;
-const IDS = [...[...ROWS, ...SHARE_ROWS].map((row) => row.provider_match_id), LATER_MATCH_ID];
+const IDS = [
+  ...[...ROWS, ...SHARE_ROWS, ...RIVAL_ROWS].map((row) => row.provider_match_id),
+  LATER_MATCH_ID,
+];
 
 async function withDatabase(run: (sql: postgres.Sql) => Promise<unknown>) {
   const sql = postgres(testDatabaseUrl());
@@ -170,7 +190,7 @@ async function dropCachedReads() {
 test.beforeAll(async () => {
   await withDatabase(async (sql) => {
     await remove(sql);
-    await sql`insert into matches ${sql([...ROWS, ...SHARE_ROWS])}`;
+    await sql`insert into matches ${sql([...ROWS, ...SHARE_ROWS, ...RIVAL_ROWS])}`;
     await sql`insert into predictions ${sql({
       source: "football-data",
       provider_match_id: UPSET_MATCH_ID,
