@@ -138,8 +138,8 @@ const SHARE_ROWS = [
   ),
 ];
 
-// Three clubs that win all ten 2023/24 matches, so E2E Kausi is 4th in it and its
-// place is no best, whether or not the real Premier League clubs are stored.
+// Three clubs that win all ten 2023/24 matches, so E2E Kausi is at most 4th in it
+// and its place is no best, whether or not the real Premier League clubs are stored.
 const BOTTOM = 999_070_009;
 const RIVAL_ROWS = [1, 2, 3].flatMap((rival) =>
   season(

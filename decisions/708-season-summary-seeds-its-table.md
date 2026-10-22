@@ -1,4 +1,4 @@
-# 708 — Kausi lyhyesti's end-to-end club is placed by seeded rows only: decisions
+# 708 — The season summary's end-to-end club is placed by seeded rows only: decisions
 
 Bug #708. v1.19.0's release run failed "with three sentences" and "links the
 upset" in `tests/e2e/season-summary.spec.ts`. This overrides
