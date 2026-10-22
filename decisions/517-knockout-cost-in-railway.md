@@ -17,5 +17,7 @@ on `583eae5`):
 The Champions League is 1.1 to 1.25 times the laptop's time, not the twice that
 decisions/061 found for the league simulation. The cup ran in about half the
 laptop's time; that was measured, not explained. A miss holds the server for at
-most about a sixth of a second, once per competition per 15 minutes, so
-specs/067's S6 stands: computed on a page view and cached.
+most about a sixth of a second, and the entry it writes lasts 15 minutes, so
+specs/067's S6 stands: computed on a page view and cached. Requests that miss
+together each compute: `getCachedUnlessDegraded` in `src/lib/cache.ts` does not
+share a computation that is already running.
