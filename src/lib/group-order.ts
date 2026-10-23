@@ -66,6 +66,7 @@ export function openCupGroups(groups: readonly Group[], matches: readonly Dated[
  * group with no dated match reads "", which sorts after every day.
  *
  * decisions/714-page-section-order.md
+ * decisions/698-long-lists-start-closed.md
  */
 function startDays(matches: readonly Dated[]): (group: Group) => string {
   const firstDay = new Map<number, string>();
