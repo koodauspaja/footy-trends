@@ -107,6 +107,15 @@ page.
 **The counter.** Read the page's lines in order, as a reader would, and check
 that no two of them contradict each other or say the same thing twice.
 
+### 9. A section out of place (#714)
+
+**What it looks like.** A new section appended at the bottom, or placed above
+the part of the page the reader came for.
+
+**The counter.** Place it by the order in `decisions/714-page-section-order.md`:
+each kind of page has its most basic part first, and #697 opens only that part
+by default.
+
 ### Width (no issue: none found)
 
 No page scrolled sideways in any of the 248 views, and the e2e test keeps it

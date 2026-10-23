@@ -1,0 +1,92 @@
+/**
+ * The order a domestic standings page shows a season's groups in: a league's
+ * later phases before its first, and a cup's latest round first.
+ *
+ * decisions/714-page-section-order.md
+ */
+
+type Group = { groupId: number; kind: string };
+type Dated = { groupId: number; kickoffAt: Date };
+
+/**
+ * A league's groups: the tables, later phases first and the first phase last,
+ * then the match lists in TASO's order.
+ *
+ * decisions/714-page-section-order.md
+ */
+export function leagueGroupOrder<G extends Group>(
+  groups: readonly G[],
+  matches: readonly Dated[]
+): G[] {
+  const tables = groups.filter((group) => group.kind !== "match-list");
+  const lists = groups.filter((group) => group.kind === "match-list");
+  const [first = [], ...later] = phases(tables, matches);
+  return [...later.flat(), ...first, ...lists];
+}
+
+/**
+ * A cup's groups: its match lists by the Helsinki day each first plays, latest first,
+ * then any group tables in TASO's order. Rounds start on days of their own, so
+ * they read latest first; a group stage starting on one day keeps TASO's order.
+ *
+ * decisions/714-page-section-order.md
+ */
+export function cupGroupOrder<G extends Group>(
+  groups: readonly G[],
+  matches: readonly Dated[]
+): G[] {
+  const firstDay = new Map<number, string>();
+  for (const match of matches) {
+    const day = helsinkiDay.format(match.kickoffAt);
+    const earliest = firstDay.get(match.groupId);
+    if (earliest === undefined || day < earliest) firstDay.set(match.groupId, day);
+  }
+  // An undated list's "" sorts after every day. `toSorted` is stable, so lists
+  // starting on one day keep TASO's order.
+  const startOf = (group: G) => firstDay.get(group.groupId) ?? "";
+  const lists = groups
+    .filter((group) => group.kind === "match-list")
+    .toSorted((left, right) => startOf(right).localeCompare(startOf(left)));
+  const tables = groups.filter((group) => group.kind !== "match-list");
+  return [...lists, ...tables];
+}
+
+// `2026-03-14`: the Helsinki calendar day the match lists' date column shows,
+// in a form that sorts as text.
+const helsinkiDay = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Europe/Helsinki",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/**
+ * Groups in TASO's order, split into phases: a phase ends where the next group
+ * starts after every group so far has ended. A group with no dated match stays
+ * in the phase it sits in.
+ *
+ * decisions/714-page-section-order.md
+ */
+function phases<G extends Group>(groups: readonly G[], matches: readonly Dated[]): G[][] {
+  const spans = new Map<number, { first: number; last: number }>();
+  for (const match of matches) {
+    const time = match.kickoffAt.getTime();
+    const span = spans.get(match.groupId);
+    spans.set(match.groupId, {
+      first: Math.min(span?.first ?? time, time),
+      last: Math.max(span?.last ?? time, time),
+    });
+  }
+
+  const result: G[][] = [];
+  let endedBy: number | null = null;
+  for (const group of groups) {
+    const span = spans.get(group.groupId);
+    const startsPhase = span !== undefined && endedBy !== null && span.first > endedBy;
+    const current = result.at(-1);
+    if (current === undefined || startsPhase) result.push([group]);
+    else current.push(group);
+    if (span !== undefined) endedBy = Math.max(endedBy ?? span.last, span.last);
+  }
+  return result;
+}

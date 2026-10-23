@@ -544,6 +544,28 @@ describe("Domestic team page", () => {
     ).toBeInTheDocument();
   });
 
+  it("lists the matches still to play first, then the played ones newest first", async () => {
+    getTeamMatchesMock.mockResolvedValue({
+      status: "ok",
+      matches: [
+        buildMatch({ providerMatchId: 1, kickoffAt: new Date("2026-04-01T14:00:00Z") }),
+        buildMatch({ providerMatchId: 2, kickoffAt: new Date("2026-04-08T14:00:00Z") }),
+        buildMatch({
+          providerMatchId: 3,
+          kickoffAt: new Date("2026-04-15T14:00:00Z"),
+          homeGoals: null,
+          awayGoals: null,
+          status: "SCHEDULED",
+        }),
+      ],
+    });
+
+    await renderTeam("1");
+
+    const dates = screen.getAllByText(/^\d{2}\.\d{2}\.2026$/).map((cell) => cell.textContent);
+    expect(dates).toEqual(["15.04.2026", "08.04.2026", "01.04.2026"]);
+  });
+
   it("shows a dash for an unplayed match's result", async () => {
     getTeamMatchesMock.mockResolvedValue({
       status: "ok",

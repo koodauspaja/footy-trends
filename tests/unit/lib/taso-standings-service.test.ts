@@ -305,6 +305,66 @@ describe("getSeasonStandings", () => {
     ]);
   });
 
+  it("lists a split season's later group before the group it split from, with or without a round", async () => {
+    mockStoredMatches([
+      match({
+        providerMatchId: 1,
+        groupId: 1,
+        kickoffAt: new Date("2025-04-05T13:00:00Z"),
+        homeTeamProviderId: 1,
+        awayTeamProviderId: 2,
+      }),
+      match({
+        providerMatchId: 2,
+        groupId: 2,
+        groupName: "Mestaruussarja",
+        matchday: 23,
+        kickoffAt: new Date("2025-09-13T13:00:00Z"),
+        homeTeamProviderId: 1,
+        awayTeamProviderId: 2,
+      }),
+    ]);
+
+    // Seasons of their own: `classifySeasonGroups` is cached per season.
+    for (const [seasonId, round] of [
+      [2101, undefined],
+      [2102, 23],
+    ] as const) {
+      const result = await getSeasonStandings(
+        CATEGORY_ID,
+        COMPETITION_ID,
+        seasonId,
+        ACTIVE_SEASON,
+        round,
+        "league"
+      );
+
+      expect(result.status === "ok" && result.groups.map((group) => group.groupId)).toEqual([2, 1]);
+    }
+  });
+
+  it("keeps TASO's order for a cup's season, which asks for no league order", async () => {
+    mockStoredMatches([
+      match({ providerMatchId: 1, groupId: 1, kickoffAt: new Date("2021-04-05T13:00:00Z") }),
+      match({
+        providerMatchId: 2,
+        groupId: 2,
+        groupName: "Cup-vaihe",
+        kickoffAt: new Date("2021-09-13T13:00:00Z"),
+      }),
+    ]);
+
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      2103,
+      ACTIVE_SEASON,
+      undefined
+    );
+
+    expect(result.status === "ok" && result.groups.map((group) => group.groupId)).toEqual([1, 2]);
+  });
+
   it("own-calculates a configured carry-over group by combining it with its parent's matches", async () => {
     mockStoredMatches([
       match({ providerMatchId: 1, groupId: 1, homeTeamProviderId: 1, awayTeamProviderId: 2 }),

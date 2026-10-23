@@ -11,6 +11,7 @@ import { MATCHES_HEADING, TeamPageFold } from "@/components/team-page-fold";
 import { SEASON_AXIS } from "@/lib/analytics-axis";
 import type { FavouriteSource } from "@/lib/favourite-keys";
 import type { OpponentsSeries } from "@/lib/head-to-head";
+import { upcomingFirst } from "@/lib/match-order";
 import { matchCountLabel } from "@/lib/national-team";
 import type { PositionSeries } from "@/lib/position-series";
 import type { SeasonComparisonSeries } from "@/lib/season-comparison";
@@ -164,6 +165,13 @@ export function teamPageMetadata<M extends MatchListRow>(data: TeamPageData<M>):
   return { title: headingOf(data) };
 }
 
+/**
+ * A club's page for one season: its matches, the upcoming ones first, then
+ * `Analyysit`.
+ *
+ * decisions/416-team-page-folds.md
+ * decisions/714-page-section-order.md
+ */
 export async function TeamPage<M extends MatchListRow>({
   data,
 }: Readonly<{ data: TeamPageData<M> }>) {
@@ -281,7 +289,7 @@ export async function TeamPage<M extends MatchListRow>({
               <MatchListTable
                 fourthColumn={data.fourthColumn}
                 matchHref={(match) => matchHref(match.providerMatchId)}
-                matches={result.matches}
+                matches={upcomingFirst(result.matches)}
                 teamHref={null}
               />
             </TeamPageFold>

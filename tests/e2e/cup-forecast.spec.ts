@@ -134,12 +134,16 @@ test.describe("Suomen Cup forecast, signed in", () => {
     await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
   });
 
-  test("follows Pudotuspelit on the cup's page", async ({ page }) => {
+  test("comes last on the cup's page, after its rounds", async ({ page }) => {
     await page.goto(STANDINGS);
     await section(page).waitFor();
     const headings = await page.getByRole("heading", { level: 2 }).allTextContents();
 
-    expect(headings.indexOf(HEADING)).toBe(headings.indexOf("Pudotuspelit") + 1);
+    // From the round of 16 the cup draws no tree yet, so its rounds come first,
+    // the latest on top.
+    expect(headings.at(-1)).toBe(HEADING);
+    expect(headings.slice(0, -1).length).toBeGreaterThan(0);
+    expect(headings.slice(0, -1)).not.toContain("Analyysit");
     // A cup page still has no Analyysit.
     await expect(page.getByRole("region", { name: "Analyysit" })).toHaveCount(0);
   });
