@@ -71,15 +71,14 @@ league pages keep their `Kierros` column, but a cup round *is* one round and
 the heading directly above already names it, so the column would repeat the
 same value down every row.
 
-Each round is **collapsible**, as a native `<details>`/`<summary>`, and starts
-open. A cup season stacks up to ten rounds and the opening round can be 248
+Each round is **collapsible**, as a native `<details>`/`<summary>`. The latest
+round starts open and every earlier round closed (decisions/698). A cup season stacks up to ten rounds and the opening round can be 248
 teams: MSC 2025 measures ~27,000px tall on a 375px screen with everything open,
 and ~1,800px with every round folded away. No client-side state is involved.
 The summary carries the round name and its match count — `Juuson kierros
 (123 ottelua)` — so a folded round still says how much it hides.
 
-Open by default rather than collapsed: a round that starts hidden reads as
-missing data, the same reasoning that keeps the drawn rounds listed below.
+A closed round's count is what keeps it from reading as missing data.
 
 Headings come from TASO's `group_name`, **normalised for the two names TASO
 spells inconsistently across eras**. Counted across every MSC and NSC season
@@ -303,8 +302,8 @@ dropped.
 - [ ] `N. Kierros` seasons (MSC 2024) display `Kierros N`, and `Finaali`
       seasons (MSC 2018, NSC 2015) display `Loppuottelu`.
 - [ ] `Pikkufinaali` and `Finaali-Kakkonen` are **not** renamed.
-- [ ] Each cup round is collapsible and starts open, and its summary shows the
-      match count.
+- [ ] Each cup round is collapsible, only the latest starts open, and its
+      summary shows the match count.
 - [ ] A cup round's match list has no `Kierros` column; a league's playoff
       group still has one.
 - [ ] A cup page shows no round selector, since none of its groups respond to

@@ -1,8 +1,10 @@
 /**
  * The order a domestic standings page shows a season's groups in: a league's
- * later phases before its first, and a cup's latest round first.
+ * later phases before its first, and a cup's latest round first, the one
+ * that starts open.
  *
  * decisions/714-page-section-order.md
+ * decisions/698-long-lists-start-closed.md
  */
 
 type Group = { groupId: number; kind: string };
@@ -35,20 +37,44 @@ export function cupGroupOrder<G extends Group>(
   groups: readonly G[],
   matches: readonly Dated[]
 ): G[] {
+  const startOf = startDays(matches);
+  // `toSorted` is stable, so lists starting on one day keep TASO's order.
+  const lists = groups
+    .filter((group) => group.kind === "match-list")
+    .toSorted((left, right) => startOf(right).localeCompare(startOf(left)));
+  const tables = groups.filter((group) => group.kind !== "match-list");
+  return [...lists, ...tables];
+}
+
+/**
+ * The groups of a cup that start open: the match lists starting on the day the
+ * latest one does, so a final and a third-place match played that day open
+ * together. A cup with no match list opens its tables.
+ *
+ * decisions/698-long-lists-start-closed.md
+ */
+export function openCupGroups(groups: readonly Group[], matches: readonly Dated[]): Set<number> {
+  const startOf = startDays(matches);
+  const lists = groups.filter((group) => group.kind === "match-list");
+  if (lists.length === 0) return new Set(groups.map((group) => group.groupId));
+  const latest = lists.map(startOf).reduce((day, next) => (next > day ? next : day));
+  return new Set(lists.filter((group) => startOf(group) === latest).map((group) => group.groupId));
+}
+
+/**
+ * The Helsinki day each group's first match is played on, read per group. A
+ * group with no dated match reads "", which sorts after every day.
+ *
+ * decisions/714-page-section-order.md
+ */
+function startDays(matches: readonly Dated[]): (group: Group) => string {
   const firstDay = new Map<number, string>();
   for (const match of matches) {
     const day = helsinkiDay.format(match.kickoffAt);
     const earliest = firstDay.get(match.groupId);
     if (earliest === undefined || day < earliest) firstDay.set(match.groupId, day);
   }
-  // An undated list's "" sorts after every day. `toSorted` is stable, so lists
-  // starting on one day keep TASO's order.
-  const startOf = (group: G) => firstDay.get(group.groupId) ?? "";
-  const lists = groups
-    .filter((group) => group.kind === "match-list")
-    .toSorted((left, right) => startOf(right).localeCompare(startOf(left)));
-  const tables = groups.filter((group) => group.kind !== "match-list");
-  return [...lists, ...tables];
+  return (group) => firstDay.get(group.groupId) ?? "";
 }
 
 // `2026-03-14`: the Helsinki calendar day the match lists' date column shows,

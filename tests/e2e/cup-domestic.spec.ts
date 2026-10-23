@@ -162,18 +162,34 @@ test.describe("Finnish cups", () => {
     expect(years).toEqual(["2026", "2025", "2024"]);
   });
 
-  test("folds a round away on a phone", async ({ page }) => {
+  test("opens only the latest round on a phone, sparing it every match", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await openCupSeason(page);
 
-    const open = await page.evaluate(() => document.documentElement.scrollHeight);
+    await expect(page.locator("details[open]")).toHaveCount(1);
+    const folded = await page.evaluate(() => document.documentElement.scrollHeight);
     await page.evaluate(() => {
-      for (const round of document.querySelectorAll("details")) round.open = false;
+      for (const round of document.querySelectorAll("details")) round.open = true;
     });
-    const closed = await page.evaluate(() => document.documentElement.scrollHeight);
+    const unfolded = await page.evaluate(() => document.documentElement.scrollHeight);
 
-    // Ten rounds, one of them 248 teams: folding them away has to matter.
-    expect(closed).toBeLessThan(open / 5);
+    // Ten rounds, one of them 248 teams: the folded ones have to matter.
+    expect(folded).toBeLessThan(unfolded / 5);
+  });
+
+  test("opens a closed round when its heading is pressed", async ({ page }) => {
+    await openCupSeason(page);
+    const round = page.locator("details").filter({
+      has: page.getByRole("heading", { level: 2, name: "Juuson kierros" }),
+    });
+    // A folded round's list is on the page, only hidden.
+    const table = round.locator("table");
+    await expect(table).toHaveCount(1);
+    await expect(table).toBeHidden();
+
+    await round.locator("summary").click();
+
+    await expect(table).toBeVisible();
   });
 
   test("shows no round selector and no Kierros column on a cup", async ({ page }) => {

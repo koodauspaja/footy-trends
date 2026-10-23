@@ -15,7 +15,7 @@ import { type GroupZones, groupZones, zoneLine } from "@/lib/competition-zones";
 import { buildCupBracket, buildPlayoffBracket, normaliseRoundName } from "@/lib/cup-rounds";
 import { cupFormatFor, isDomesticCup } from "@/lib/domestic-competitions";
 import { resolveDomesticPageContext } from "@/lib/domestic-page-context";
-import { cupGroupOrder } from "@/lib/group-order";
+import { cupGroupOrder, openCupGroups } from "@/lib/group-order";
 import { getCupForecast, hasCupForecast } from "@/lib/knockout-simulation-service";
 import {
   type GroupLevel,
@@ -181,20 +181,23 @@ function LeagueGroups({
 }
 
 /**
- * One round, collapsible with `<details>`, and open to begin with.
+ * One round, collapsible with `<details>`; only the latest starts open.
  *
  * decisions/015-finnish-cups.md
  * decisions/419-shared-fold-marker.md
+ * decisions/698-long-lists-start-closed.md
  */
 function CupRoundSection({
   group,
+  open,
   teamHref,
 }: Readonly<{
   group: GroupStandingsResult;
+  open: boolean;
   teamHref: (teamProviderId: number) => string;
 }>) {
   return (
-    <details className="group mb-10 border-border-subtle border-b pb-4" open>
+    <details className="group mb-10 border-border-subtle border-b pb-4" open={open}>
       <summary className="mb-3 flex cursor-pointer list-none items-baseline gap-2">
         <FoldMarker />
         <h2 className="font-semibold text-xl">{displayGroupName(group.groupName)}</h2>
@@ -205,6 +208,30 @@ function CupRoundSection({
       <GroupBody group={group} isCup teamHref={teamHref} />
     </details>
   );
+}
+
+/**
+ * A knockout cup's rounds, latest first, the latest open and the rest closed.
+ *
+ * decisions/698-long-lists-start-closed.md
+ */
+function CupRounds({
+  groups,
+  teamHref,
+}: Readonly<{
+  groups: GroupStandingsResult[];
+  teamHref: (teamProviderId: number) => string;
+}>) {
+  const matches = groups.flatMap((group) => (group.kind === "match-list" ? group.matches : []));
+  const open = openCupGroups(groups, matches);
+  return cupGroupOrder(groups, matches).map((group) => (
+    <CupRoundSection
+      group={group}
+      key={group.groupId}
+      open={open.has(group.groupId)}
+      teamHref={teamHref}
+    />
+  ));
 }
 
 /**
@@ -392,13 +419,9 @@ export default async function DomesticStandingsPage({
           teamHref={teamHref}
         />
       )}
-      {result.status === "ok" &&
-        !isGroupsAndPlayoff &&
-        isCup &&
-        cupGroupOrder(
-          result.groups,
-          result.groups.flatMap((group) => (group.kind === "match-list" ? group.matches : []))
-        ).map((group) => <CupRoundSection group={group} key={group.groupId} teamHref={teamHref} />)}
+      {result.status === "ok" && !isGroupsAndPlayoff && isCup && (
+        <CupRounds groups={result.groups} teamHref={teamHref} />
+      )}
       {cupForecast.status === "unavailable" ? null : <CupForecastSection forecast={cupForecast} />}
       {!isGroupsAndPlayoff && <StandingsLegend />}
       {analytics}
