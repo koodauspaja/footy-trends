@@ -562,6 +562,39 @@ describe("LineChart room for its labels on a phone", () => {
     expect(Number(first?.getAttribute("x")) - width / 2).toBeCloseTo(tickEnd);
   });
 
+  it("keeps the axis start for a first tick inside the domain", () => {
+    // Ticks on whole years in a domain from mid-year: the first is already in
+    // from the axis by its place.
+    const container = render(
+      <LineChart
+        describedBy="chart-text"
+        labelledBy="chart-heading"
+        series={[
+          {
+            name: "line",
+            points: [
+              { x: 2017.5, y: 1 },
+              { x: 2020.5, y: 2 },
+            ],
+          },
+        ]}
+        title="Osumat"
+        xDomain={[2017.5, 2020.5]}
+        xLabel="Vuosi"
+        xTicks={[2018, 2019, 2020]}
+        yDomain={[1, 2]}
+        yLabel="Osuma"
+        yTicks={[1, 2]}
+      />
+    ).container;
+    const firstX = container
+      .querySelector("[data-part=line]")
+      ?.getAttribute("points")
+      ?.split(",")[0];
+
+    expect(Number(firstX)).toBe(LEFT);
+  });
+
   it("keeps a narrow first label on the axis", () => {
     const container = chart(true);
     const first = container.querySelector("[data-part=x-axis] text");

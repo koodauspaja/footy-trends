@@ -355,10 +355,11 @@ export function LineChart({
   const caption = captionLines(yLabel, bottom - top);
   const left = MARGIN.left + (caption.length - 1) * CAPTION_LINE;
   const yRange: [number, number] = invertY ? [top, bottom] : [bottom, top];
-  // The first tick is centred on the plot's start, so the plot starts in from
-  // the axis by what a wider label would reach under the y ticks.
+  // A first tick on the domain's start is centred on the plot's, so the plot
+  // starts in from the axis by what a wider label would reach under the y ticks.
   const underhang = ticks
     .slice(0, 1)
+    .filter((tick) => tick.value === xDomain[0])
     .map((tick) => Math.max(tick.labelWidth, tick.noteWidth) / 2 - Y_TICK_GAP);
   const plotLeft = left + Math.max(0, ...underhang);
   // The last tick is centred on the plot's end, so the plot ends short of the
