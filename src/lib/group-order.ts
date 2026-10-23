@@ -47,23 +47,22 @@ export function cupGroupOrder<G extends Group>(
 }
 
 /**
- * The groups of a cup that start open: the match lists starting on the day the
+ * The rounds of a cup that start open: the match lists starting on the day the
  * latest one does, so a final and a third-place match played that day open
- * together. A cup with no match list opens its tables.
+ * together.
  *
  * decisions/698-long-lists-start-closed.md
  */
 export function openCupGroups(groups: readonly Group[], matches: readonly Dated[]): Set<number> {
   const startOf = startDays(matches);
   const lists = groups.filter((group) => group.kind === "match-list");
-  if (lists.length === 0) return new Set(groups.map((group) => group.groupId));
-  const latest = lists.map(startOf).reduce((day, next) => (next > day ? next : day));
+  const latest = lists.map(startOf).reduce((day, next) => (next > day ? next : day), "");
   return new Set(lists.filter((group) => startOf(group) === latest).map((group) => group.groupId));
 }
 
 /**
  * The Helsinki day each group's first match is played on, read per group. A
- * group with no dated match reads "", which sorts after every day.
+ * group with no dated match reads "", which ranks below every day.
  *
  * decisions/714-page-section-order.md
  * decisions/698-long-lists-start-closed.md

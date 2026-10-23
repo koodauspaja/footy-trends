@@ -20,6 +20,7 @@ import { warmModules } from "../../../../support/warm-module";
  * decisions/299-unit-suite-independent-of-order.md
  * decisions/419-shared-fold-marker.md
  * decisions/067-knockout-simulation.md
+ * decisions/698-long-lists-start-closed.md
  */
 
 // The favourite star in this tree calls `useSession`, and the real client must
@@ -687,7 +688,7 @@ describe("Domestic standings page, cup competitions", () => {
       count: round.querySelector("summary > span:not([aria-hidden])")?.textContent,
     }));
     expect(rounds).toEqual([
-      { name: "Loppuottelu", open: true, count: "(1 ottelua)" },
+      { name: "Loppuottelu", open: true, count: "(1 ottelu)" },
       { name: "Välierät", open: false, count: "(2 ottelua)" },
       { name: "Puolivälierät", open: false, count: "(4 ottelua)" },
     ]);

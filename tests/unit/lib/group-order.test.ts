@@ -173,18 +173,6 @@ describe("openCupGroups", () => {
     expect(open([list(1), list(2)], matches)).toEqual([2]);
   });
 
-  it("keeps a cup's group tables closed beside its match lists", () => {
-    const groups = [group(1, "pass-through"), group(2, "pass-through"), list(3)];
-
-    expect(open(groups, [played(3, "2021-03-06")])).toEqual([3]);
-  });
-
-  it("opens a cup's tables when it has no match list", () => {
-    const groups = [group(1, "pass-through"), group(2, "own-calculated")];
-
-    expect(open(groups, [])).toEqual([1, 2]);
-  });
-
   it("keeps an undated round closed beside a dated one", () => {
     expect(open([list(1), list(2)], [played(2, "2025-06-01")])).toEqual([2]);
   });

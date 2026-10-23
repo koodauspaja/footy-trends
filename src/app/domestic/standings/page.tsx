@@ -17,6 +17,7 @@ import { cupFormatFor, isDomesticCup } from "@/lib/domestic-competitions";
 import { resolveDomesticPageContext } from "@/lib/domestic-page-context";
 import { cupGroupOrder, openCupGroups } from "@/lib/group-order";
 import { getCupForecast, hasCupForecast } from "@/lib/knockout-simulation-service";
+import { matchCountLabel } from "@/lib/national-team";
 import {
   type GroupLevel,
   type GroupStandingsResult,
@@ -181,7 +182,8 @@ function LeagueGroups({
 }
 
 /**
- * One round, collapsible with `<details>`; only the latest starts open.
+ * One round, collapsible with `<details>`, open to begin with when it starts on
+ * the latest round's day.
  *
  * decisions/015-finnish-cups.md
  * decisions/419-shared-fold-marker.md
@@ -202,7 +204,7 @@ function CupRoundSection({
         <FoldMarker />
         <h2 className="font-semibold text-xl">{displayGroupName(group.groupName)}</h2>
         {group.kind === "match-list" && (
-          <span className="text-sm text-muted">{`(${group.matches.length} ottelua)`}</span>
+          <span className="text-sm text-muted">{`(${matchCountLabel(group.matches.length)})`}</span>
         )}
       </summary>
       <GroupBody group={group} isCup teamHref={teamHref} />
@@ -211,8 +213,11 @@ function CupRoundSection({
 }
 
 /**
- * A knockout cup's rounds, latest first, the latest open and the rest closed.
+ * A knockout cup's rounds, latest first: those starting on the latest round's
+ * day open, the rest closed.
  *
+ * decisions/015-finnish-cups.md
+ * decisions/714-page-section-order.md
  * decisions/698-long-lists-start-closed.md
  */
 function CupRounds({
