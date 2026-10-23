@@ -9,6 +9,6 @@ links. A matchup with plain names is neither, so it links too.
 
 | Decision | Why |
 |---|---|
-| The matchup links to the match exactly when `MatchListTable` gets `teamHref: null` and a `matchHref`. That is the team pages' `Ottelut`, Huuhkajat' and Helmarit's years, head-to-head's `Kohtaamiset` and a match page's `Aiemmat kohtaamiset` | Those lists show the names as plain text, so the matchup is free to be the link. One condition in the shared table covers all four, and a new list gets it by passing the same props |
+| The matchup links to the match exactly when `MatchListTable` gets `teamHref: null` and a `matchHref`. That is the team pages' `Ottelut`, Huuhkajat's and Helmarit's years, head-to-head's `Kohtaamiset` and a match page's `Aiemmat kohtaamiset` | Those lists show the names as plain text, so the matchup is free to be the link. One condition in the shared table covers all four, and a new list gets it by passing the same props |
 | Lists that link each name to its team page keep those links: the domestic standings' match lists, `/kotimaa/ottelut`, and the foreign and national `/ottelut` | Agreed over making the matchup the match link everywhere. A cell cannot be one link and two team links at once |
 | The date keeps its link in every list | The agreement changes only the matchup, so the date stays the one match link every list has. Every caller was checked on 2026-10-23: each passes a `matchHref` |
