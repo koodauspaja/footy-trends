@@ -86,9 +86,12 @@ describe("/kotimaa/ottelu/:id", () => {
     await renderPage();
 
     expect(screen.getByRole("heading", { level: 1, name: "VPS 2–1 FC Lahti" })).toBeInTheDocument();
+    // Outside the tables, whose rows name their own matches, the page writes
+    // each name once, in any text node.
+    const outsideTables = document.body.cloneNode(true) as HTMLElement;
+    for (const table of outsideTables.querySelectorAll("table")) table.remove();
     for (const name of ["VPS", "FC Lahti"]) {
-      // No element but the heading's link holds the name alone.
-      expect(screen.getAllByText(name)).toHaveLength(1);
+      expect(outsideTables.textContent?.split(name)).toHaveLength(2);
       // A score that says who won leaves both names at the heading's weight.
       expect(screen.getByRole("link", { name }).className).not.toMatch(/\bfont-/);
     }
