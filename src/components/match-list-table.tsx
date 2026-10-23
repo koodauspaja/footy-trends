@@ -46,8 +46,7 @@ type MatchListTableProps<T extends MatchListRow> = {
 /**
  * The Pvm/Ottelu/Tulos table shared by every match list. Generic over `T`, so
  * `fourthColumn.render` keeps access to its provider's fields. The first three
- * columns have the same widths whether or not a fourth exists. The matchup links
- * to the match where its names are not team links.
+ * columns have the same widths whether or not a fourth exists.
  *
  * decisions/009-veikkausliiga.md
  * decisions/019-match-page.md
@@ -61,19 +60,21 @@ export function MatchListTable<T extends MatchListRow>({
   fourthColumn,
   matchHref,
 }: Readonly<MatchListTableProps<T>>) {
+  const linkToMatch = (match: T, text: string): ReactNode =>
+    matchHref ? (
+      <RowLink className="hover:underline" href={matchHref(match)}>
+        {text}
+      </RowLink>
+    ) : (
+      text
+    );
+
   const columns: Array<DataTableColumn<T>> = [
     {
       key: "date",
       header: "Pvm",
       width: COLUMN_WIDTHS.date,
-      render: (match) =>
-        matchHref ? (
-          <RowLink className="hover:underline" href={matchHref(match)}>
-            {matchDateFormatter.format(match.kickoffAt)}
-          </RowLink>
-        ) : (
-          matchDateFormatter.format(match.kickoffAt)
-        ),
+      render: (match) => linkToMatch(match, matchDateFormatter.format(match.kickoffAt)),
     },
     {
       key: "match",
@@ -90,12 +91,8 @@ export function MatchListTable<T extends MatchListRow>({
               {match.awayTeamName}
             </RowLink>
           </>
-        ) : matchHref ? (
-          <RowLink className="hover:underline" href={matchHref(match)}>
-            {`${match.homeTeamName} – ${match.awayTeamName}`}
-          </RowLink>
         ) : (
-          `${match.homeTeamName} – ${match.awayTeamName}`
+          linkToMatch(match, `${match.homeTeamName} – ${match.awayTeamName}`)
         ),
     },
     {

@@ -445,7 +445,8 @@ matchHref?: ((match: T) => string) | null;
 
 The **`Pvm` cell** becomes the link. It is the one column every table has, it is
 never a link today, and it does not nest inside the team links the `Ottelu`
-column already carries.
+column already carries. Where the `Ottelu` names are plain text, the matchup links
+to the match too (decisions/715).
 
 All six call sites pass it:
 
