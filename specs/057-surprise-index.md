@@ -49,7 +49,7 @@ finished match, how surprising that one was.
 | S9 | Elo's run-in | **No list for a competition's first stored season, and a line saying why**; the line's wording is S17's | Miikka, 2026-10-01 (Q9). specs/053 S7. |
 | S10 | Access | **Signed in only** | Miikka, 2026-10-01 (Q10). |
 | S11 | The strings | **As in UX / UI** | Miikka, 2026-10-01 (Q11): "good as suggested"; the strings may be fine-tuned during implementation. |
-| S12 | Two rules | **No predicted match: `Kaudelta ei ole vielä pelattuja otteluita.`; equally surprising matches list the earlier kickoff first** | Miikka, 2026-10-01 (S12). |
+| S12 | Two rules | **No predicted match: `Kaudelta ei ole vielä pelattuja otteluita.`; equally surprising matches list the earlier kickoff first** — *narrowed by #702: the line is for a season with no played match; played matches with none predicted say `Pelatuille otteluille ei ole vielä laskettu ennusteita.`* | Miikka, 2026-10-01 (S12); 2026-10-23 (#702). |
 | S13 | Fresh backtest rows | **The hourly run also writes the backtest rows of finished matches, inside this feature**, by S19's rules | Miikka, 2026-10-10 (Q13): "questions as you suggested", then "if it can go in here, put it in". Backtest rows were written by hand only (specs/052 S10): on production the last were from 2026-10-06, and by 2026-10-10 26 finished matches had a live Elo row and no backtest row. |
 | S14 | Which matches count | **A finished match with both scores and an `elo-v1` backtest row — Elo's row alone, whatever the other models have** | Miikka, 2026-10-10 (Q14). `/ennusteet` judges only matches all three models predicted (specs/055 S18); #354 is about Elo, so this spec calls its matches *predicted*, not *judged*. |
 | S15 | Logging | **As in Logging** | Miikka, 2026-10-10 (Q15). The section did not exist when this spec was written. |
@@ -117,7 +117,8 @@ after its live rows are written (S13, S19):
 | Case | Behaviour |
 |---|---|
 | A competition's first stored season | No list; the S9 line |
-| A season with no predicted match yet | The no-matches line (S12) |
+| A season with no played match yet | The no-matches line (S12) |
+| A season with played matches, none of them predicted yet | `Pelatuille otteluille ei ole vielä laskettu ennusteita.` (#702) |
 | A season with fewer than ten predicted wins | All of them, still most surprising first |
 | A season whose predicted matches were all drawn | The all-drawn line (S18, proposed) |
 | A draw | Not in the list; no line on its page (S18) |

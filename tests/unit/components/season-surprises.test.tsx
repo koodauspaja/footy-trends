@@ -59,6 +59,7 @@ describe("the strings the spec agreed", () => {
       "Kilpailun ensimmäiseltä tallennetulta kaudelta ei näytetä yllätyksiä: kilpailusta ei ole silloin vielä aiempia otteluita, joihin ennuste nojaisi."
     );
     expect(NO_MATCHES_MESSAGE).toBe("Kaudelta ei ole vielä pelattuja otteluita.");
+    expect(UNPREDICTED_MESSAGE).toBe("Pelatuille otteluille ei ole vielä laskettu ennusteita.");
     expect(ALL_DRAWN_MESSAGE).toBe("Kauden ottelut ovat toistaiseksi päättyneet tasan.");
     expect(SURPRISES_ERROR_MESSAGE).toBe("Yllätyksiä ei voitu laskea. Yritä myöhemmin uudelleen.");
   });
