@@ -10,6 +10,7 @@ import {
   SURPRISES_ERROR_MESSAGE,
   SURPRISES_HEADING,
   SURPRISES_NOTE,
+  UNPREDICTED_MESSAGE,
 } from "@/components/season-surprises";
 import type { SeasonSurprises, Surprise } from "@/lib/surprise";
 
@@ -129,6 +130,7 @@ describe("SeasonSurprisesBody", () => {
   it.each([
     [{ status: "first-season" }, FIRST_SEASON_MESSAGE],
     [{ status: "empty", inProgress: false }, NO_MATCHES_MESSAGE],
+    [{ status: "unpredicted", inProgress: false }, UNPREDICTED_MESSAGE],
     [{ status: "all-drawn", inProgress: false }, ALL_DRAWN_MESSAGE],
     [{ status: "error" }, SURPRISES_ERROR_MESSAGE],
   ] as const)("shows its own line and no list for %o", (surprises, message) => {
@@ -140,6 +142,7 @@ describe("SeasonSurprisesBody", () => {
 
   it.each([
     ["empty", NO_MATCHES_MESSAGE],
+    ["unpredicted", UNPREDICTED_MESSAGE],
     ["all-drawn", ALL_DRAWN_MESSAGE],
   ] as const)("names a season in progress above the %s line too", (status, message) => {
     const { container } = renderBody({ status, inProgress: true });

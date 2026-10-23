@@ -14,7 +14,7 @@ import { logger } from "./logger";
 import {
   FOOTBALL_DATA_AWAY_GOALS,
   FOOTBALL_DATA_HOME_GOALS,
-  getFirstStoredSeason,
+  getPlayedSeasons,
   type StoredMatch,
 } from "./match-service";
 import type { MatchSource } from "./match-source";
@@ -136,6 +136,7 @@ function predictedIn(
  * competition's first stored season is answered without reading a prediction.
  *
  * decisions/057-surprise-index.md
+ * decisions/702-surprises-without-backtest.md
  */
 export async function getSeasonSurprises(
   kind: MatchSource["kind"],
@@ -144,10 +145,13 @@ export async function getSeasonSurprises(
   activeSeasonId: number
 ): Promise<SeasonSurprises> {
   try {
-    if (isFirstStoredSeason(seasonId, await getFirstStoredSeason(kind, code))) {
-      return { status: "first-season" };
-    }
-    return seasonSurprises(await predictedIn(kind, code, seasonId), seasonId === activeSeasonId);
+    const played = await getPlayedSeasons(kind, code);
+    if (isFirstStoredSeason(seasonId, played)) return { status: "first-season" };
+    return seasonSurprises(
+      await predictedIn(kind, code, seasonId),
+      seasonId === activeSeasonId,
+      played.includes(seasonId)
+    );
   } catch (error) {
     logger.error(
       { err: error, source: kind, code, seasonId },
@@ -171,7 +175,7 @@ export async function getTeamUpset(
   seasonId: number,
   teamProviderId: number
 ): Promise<Surprise | null> {
-  if (isFirstStoredSeason(seasonId, await getFirstStoredSeason(kind, code))) return null;
+  if (isFirstStoredSeason(seasonId, await getPlayedSeasons(kind, code))) return null;
   return teamUpset(await predictedIn(kind, code, seasonId), teamProviderId);
 }
 
