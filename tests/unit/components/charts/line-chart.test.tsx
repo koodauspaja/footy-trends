@@ -436,6 +436,15 @@ const LINE_BOX = 1.2;
 // A digit's width as a share of the font size: near enough for the UI font.
 const DIGIT_WIDTH = 0.6;
 
+// How far a glyph rises above its baseline, as a share of the font size.
+const ASCENT = 0.75;
+
+// The x a rotated caption is translated to.
+function captionX(container: HTMLElement): number {
+  const caption = container.querySelector("[data-part=y-axis] text:last-of-type");
+  return Number(/translate\((-?[\d.]+)/.exec(caption?.getAttribute("transform") ?? "")?.[1]);
+}
+
 // The axis font below `sm`, read from the class so the geometry checks follow
 // it.
 function mobileAxisSize(container: HTMLElement, part: string): number {
@@ -516,6 +525,51 @@ describe("LineChart axis text on a phone", () => {
   });
 });
 
+describe("LineChart room for its labels on a phone", () => {
+  it("keeps the rotated caption inside the drawing", () => {
+    // Turned a quarter, the text's ascent reaches towards the drawing's edge.
+    const container = chart(true);
+
+    expect(
+      captionX(container) - mobileAxisSize(container, "y-axis") * ASCENT
+    ).toBeGreaterThanOrEqual(0);
+  });
+
+  it("gives a wrapped caption's second line its own room before the y ticks", () => {
+    // The season chart's caption wraps on a phone, over the plot its note row shortens.
+    const container = seasonChart();
+    const texts = [...container.querySelectorAll("[data-part=y-axis] text")];
+    const ticks = texts.slice(0, -1);
+    const tickEnd = Number(ticks[0]?.getAttribute("x"));
+    const size = mobileAxisSize(container, "y-axis");
+    const widest = Math.max(...ticks.map((tick) => (tick.textContent ?? "").length));
+    const secondLine = captionX(container) + LINE_BOX * size;
+
+    expect(texts.at(-1)?.querySelectorAll("tspan")).toHaveLength(2);
+    expect(tickEnd - widest * size * DIGIT_WIDTH - (secondLine + size / 2)).toBeGreaterThanOrEqual(
+      0
+    );
+  });
+
+  it("starts the plot in from the axis by what a wide first label would reach under the y ticks", () => {
+    // `2024/25`, centred on the plot's start, would print over the lowest y tick.
+    const container = seasonChart({});
+    const first = container.querySelector("[data-part=x-axis] text");
+    const tickEnd = Number(container.querySelector("[data-part=y-axis] text")?.getAttribute("x"));
+    const width =
+      (first?.textContent ?? "").length * DIGIT_WIDTH * mobileAxisSize(container, "x-axis");
+
+    expect(Number(first?.getAttribute("x")) - width / 2).toBeCloseTo(tickEnd);
+  });
+
+  it("keeps a narrow first label on the axis", () => {
+    const container = chart(true);
+    const first = container.querySelector("[data-part=x-axis] text");
+
+    expect(Number(first?.getAttribute("x"))).toBe(LEFT);
+  });
+});
+
 // A season chart: labelled ticks, a note, a ring.
 function seasonChart(notes: Record<number, string> = { 2026: "(kesken)" }) {
   return render(
@@ -581,10 +635,14 @@ describe("LineChart season axis", () => {
     const dy = Number(withNote.querySelector("[data-part=tick-note]")?.getAttribute("dy"));
     const axis = Number(withNote.querySelector("[data-part=x-axis] line")?.getAttribute("y1"));
 
+    const plainTick = Number(
+      seasonChart({}).querySelector("[data-part=x-axis] text")?.getAttribute("y")
+    );
+
     expect(axis).toBe(BOTTOM - dy);
     // Where a chart without notes prints its tick row: already a line clear
     // of the caption, which the test above holds.
-    expect(tick + dy).toBe(BOTTOM + 18);
+    expect(tick + dy).toBe(plainTick);
   });
 
   it("keeps the full plot when no tick has a note", () => {

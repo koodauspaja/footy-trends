@@ -7,6 +7,7 @@ import {
   rollingSentence,
   SCORED_LABEL,
   totalsSentence,
+  totalsStep,
   totalsTicks,
   totalsTop,
 } from "@/components/charts/goals-chart";
@@ -55,9 +56,15 @@ describe("the rolling axis", () => {
 });
 
 describe("totalsTop", () => {
-  it("rounds the team's highest total up to a whole ten", () => {
-    expect(totalsTop([{ match: 1, scored: 69, conceded: 34 }])).toBe(70);
+  it("rounds the team's highest total up to a whole ten while six tens reach it", () => {
     expect(totalsTop([{ match: 1, scored: 30, conceded: 41 }])).toBe(50);
+    expect(totalsTop([{ match: 1, scored: 60, conceded: 12 }])).toBe(60);
+  });
+
+  it("rounds up to a coarser step past six tens", () => {
+    expect(totalsTop([{ match: 1, scored: 69, conceded: 34 }])).toBe(80);
+    // Helmarit's stored years reach the 140s.
+    expect(totalsTop([{ match: 1, scored: 146, conceded: 52 }])).toBe(150);
   });
 
   it("keeps a total already on a ten", () => {
@@ -70,10 +77,37 @@ describe("totalsTop", () => {
   });
 });
 
+describe("totalsStep", () => {
+  it.each([
+    [0, 10],
+    [60, 10],
+    [61, 20],
+    [121, 25],
+    [151, 50],
+    [601, 200],
+    [1201, 250],
+    [4000, 1000],
+  ])("steps a highest total of %i by %i", (highest, step) => {
+    expect(totalsStep(highest)).toBe(step);
+  });
+});
+
 describe("totalsTicks", () => {
-  it("puts a tick on every ten, up to the top", () => {
-    expect(totalsTicks(70)).toEqual([0, 10, 20, 30, 40, 50, 60, 70]);
+  it("puts a tick on every step, up to the top", () => {
+    expect(totalsTicks(60)).toEqual([0, 10, 20, 30, 40, 50, 60]);
+    expect(totalsTicks(80)).toEqual([0, 20, 40, 60, 80]);
+    expect(totalsTicks(150)).toEqual([0, 25, 50, 75, 100, 125, 150]);
     expect(totalsTicks(10)).toEqual([0, 10]);
+  });
+
+  it("prints seven labels at most, ending on the top, for any total", () => {
+    for (let highest = 0; highest <= 2_000; highest += 1) {
+      const top = totalsTop([{ match: 1, scored: highest, conceded: 0 }]);
+      const ticks = totalsTicks(top);
+
+      expect(ticks.length).toBeLessThanOrEqual(7);
+      expect(ticks.at(-1)).toBe(top);
+    }
   });
 });
 

@@ -10,6 +10,7 @@
  * decisions/053-elo-ratings.md
  * decisions/054-prediction-quality.md
  * decisions/413-rounds-a-team-sat-out.md
+ * decisions/700-legible-charts.md
  */
 
 export type ChartPoint = {
@@ -59,23 +60,26 @@ export const CHART = { width: 640, height: 320 } as const;
  *
  * decisions/030-league-position-by-matchday.md
  * decisions/033-home-vs-away.md
+ * decisions/700-legible-charts.md
  */
-export const MARGIN = { top: 16, right: 16, bottom: 56, left: 72 } as const;
+export const MARGIN = { top: 16, right: 16, bottom: 60, left: 80 } as const;
 
 /**
  * The axis font, larger below `sm`: the text is inside the `viewBox`, so it
  * scales down with the drawing.
  *
  * decisions/033-home-vs-away.md
+ * decisions/700-legible-charts.md
  */
-const AXIS_TEXT = "text-[19px] sm:text-xs";
+const AXIS_TEXT = "text-[23px] sm:text-xs";
 
 /**
  * `AXIS_TEXT`'s size below `sm`, in units: the width a phone's labels need.
  *
  * decisions/048-league-goals-per-game-trend.md
+ * decisions/700-legible-charts.md
  */
-export const PHONE_AXIS_UNITS = 19;
+export const PHONE_AXIS_UNITS = 23;
 
 /**
  * A glyph's width as a share of the font size: near enough for the UI font.
@@ -263,8 +267,32 @@ function dashArray(style: LineStyle): string | undefined {
  * second line under a tick clears the axis caption.
  *
  * decisions/048-league-goals-per-game-trend.md
+ * decisions/700-legible-charts.md
  */
-const NOTE_ROW = 22;
+const NOTE_ROW = 28;
+
+/**
+ * The gap between the y ticks' ends and the plot, in units.
+ *
+ * decisions/700-legible-charts.md
+ */
+const Y_TICK_GAP = 8;
+
+/**
+ * Where the rotated y caption's first line sits, in units from the drawing's
+ * edge: clear of it by the ascent of the phone's text.
+ *
+ * decisions/700-legible-charts.md
+ */
+const CAPTION_X = 18;
+
+/**
+ * What a wrapped caption's second line takes from the plot's width: a line of
+ * the phone's text.
+ *
+ * decisions/700-legible-charts.md
+ */
+const CAPTION_LINE = 28;
 
 type LineChartProps = {
   /** The chart's own name, in a `<title>`: it travels with the SVG wherever it is shown. */
@@ -321,11 +349,18 @@ export function LineChart({
     return { value, label, note, labelWidth: phoneWidth(label), noteWidth: phoneWidth(note ?? "") };
   });
   const hasNotes = ticks.some((tick) => tick.note !== undefined);
-  const left = MARGIN.left;
   const right = CHART.width - MARGIN.right;
   const top = MARGIN.top;
   const bottom = CHART.height - MARGIN.bottom - (hasNotes ? NOTE_ROW : 0);
+  const caption = captionLines(yLabel, bottom - top);
+  const left = MARGIN.left + (caption.length - 1) * CAPTION_LINE;
   const yRange: [number, number] = invertY ? [top, bottom] : [bottom, top];
+  // The first tick is centred on the plot's start, so the plot starts in from
+  // the axis by what a wider label would reach under the y ticks.
+  const underhang = ticks
+    .slice(0, 1)
+    .map((tick) => Math.max(tick.labelWidth, tick.noteWidth) / 2 - Y_TICK_GAP);
+  const plotLeft = left + Math.max(0, ...underhang);
   // The last tick is centred on the plot's end, so the plot ends short of the
   // axis by what a wider label or note would overhang.
   const overhang = ticks
@@ -333,12 +368,11 @@ export function LineChart({
     .map((tick) => Math.max(tick.labelWidth, tick.noteWidth) / 2 - MARGIN.right);
   const plotRight = right - Math.max(0, ...overhang);
 
-  const toX = (value: number) => scale(value, xDomain, [left, plotRight]);
+  const toX = (value: number) => scale(value, xDomain, [plotLeft, plotRight]);
   const crowded =
     thinXTicksOnPhone &&
     crowdedOnPhone(ticks.map((tick) => ({ x: toX(tick.value), width: tick.labelWidth })));
   const phoneHidden = (index: number) => crowded && (ticks.length - 1 - index) % 2 === 1;
-  const caption = captionLines(yLabel, bottom - top);
   const toY = (value: number) => scale(value, yDomain, yRange);
 
   return (
@@ -358,13 +392,19 @@ export function LineChart({
 
       <g className={`fill-muted ${AXIS_TEXT}`} data-part="y-axis">
         {yTicks.map((tick) => (
-          <text dominantBaseline="middle" key={tick} textAnchor="end" x={left - 8} y={toY(tick)}>
+          <text
+            dominantBaseline="middle"
+            key={tick}
+            textAnchor="end"
+            x={left - Y_TICK_GAP}
+            y={toY(tick)}
+          >
             {formatYTick(tick)}
           </text>
         ))}
         <text
           textAnchor="middle"
-          transform={`translate(12 ${(top + bottom) / 2}) rotate(-90)`}
+          transform={`translate(${CAPTION_X} ${(top + bottom) / 2}) rotate(-90)`}
           x={0}
           y={0}
         >
@@ -386,7 +426,7 @@ export function LineChart({
             key={tick.value}
             textAnchor="middle"
             x={toX(tick.value)}
-            y={bottom + 18}
+            y={bottom + 22}
           >
             {tick.label}
             {tick.note === undefined ? null : (
