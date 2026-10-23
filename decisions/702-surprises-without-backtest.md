@@ -10,7 +10,7 @@ halted.
 
 | Decision | Why |
 |---|---|
-| A new status, `unpredicted`: the season has played matches, and none has Elo's backtest row. `empty` now means no played match | The two have different causes and different lines. The others (`first-season`, `all-drawn`, `error`) are unchanged |
+| A new status, `unpredicted`: the season has played matches, and none has Elo's backtest row. `empty` now means no played match | The two have different causes and different lines. This overrides specs/057's S12, which gave `Kaudelta ei ole vielä pelattuja otteluita.` to every season with no predicted match. The spec's strings table now lists both lines. The other statuses (`first-season`, `all-drawn`, `error`) are unchanged |
 | Its line: `Pelatuille otteluille ei ole vielä laskettu ennusteita.` | Agreed with Miikka on 2026-10-23, over `Yllätyksiä ei voi vielä näyttää: …` |
 | "Played" comes from `getPlayedSeasons`, which replaces `getFirstStoredSeason` in `match-service.ts`. It returns every season with a stored finished match, and the first-season check takes its minimum | One read answers both questions, so the panel asks the database nothing new. It is the read the first-season check already made, TASO's competition-and-category pairing included |
 | `getTeamUpset` uses the same read | It was `getFirstStoredSeason`'s other caller. Its answer is unchanged |

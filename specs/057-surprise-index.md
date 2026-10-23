@@ -80,7 +80,8 @@ that one side won: `Elo antoi tälle tulokselle 8 %.`
 | String | When |
 |---|---|
 | `Kilpailun ensimmäiseltä tallennetulta kaudelta ei näytetä yllätyksiä: kilpailusta ei ole silloin vielä aiempia otteluita, joihin ennuste nojaisi.` | The competition's first stored season (S9, S17) |
-| `Kaudelta ei ole vielä pelattuja otteluita.` | No predicted match in the season (S12) |
+| `Kaudelta ei ole vielä pelattuja otteluita.` | No played match in the season (S12) |
+| `Pelatuille otteluille ei ole vielä laskettu ennusteita.` | Played matches, none of them predicted yet (#702, decisions/702) |
 | *Proposed:* `Kauden ottelut ovat toistaiseksi päättyneet tasan.` | Predicted matches in the season, every one a draw (S18) |
 | `Yllätyksiä ei voitu laskea. Yritä myöhemmin uudelleen.` | The read failed |
 
