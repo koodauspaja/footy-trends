@@ -165,11 +165,16 @@ test.describe("The profile picture, signed in", () => {
       .addCookies([{ name: SESSION_COOKIE, value: reader.cookie, url: baseURL as string }]);
     await page.goto("/asetukset");
 
-    // The browser's own control, whose words are in the browser's language, is hidden.
-    await expect(page.locator('input[type="file"]')).toBeHidden();
+    const button = page.getByRole("button", { name: "Valitse kuva" });
+    await expect(button).toBeVisible();
+    // The browser's own control, whose words are in the browser's language, is
+    // there but hidden.
+    const input = page.locator('input[type="file"]');
+    await expect(input).toHaveCount(1);
+    await expect(input).toBeHidden();
     await expect(page.getByText("Ei valittua kuvaa.")).toBeVisible();
     const chooser = page.waitForEvent("filechooser");
-    await page.getByRole("button", { name: "Valitse kuva" }).click();
+    await button.click();
     await (await chooser).setFiles({
       name: "kuva.png",
       mimeType: "image/png",
