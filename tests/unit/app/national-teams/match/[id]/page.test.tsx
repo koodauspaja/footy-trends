@@ -83,7 +83,7 @@ describe("/maajoukkueet/ottelu/:id", () => {
     await renderPage();
 
     expect(
-      screen.getByRole("heading", { level: 1, name: "Englanti – Ruotsi" })
+      screen.getByRole("heading", { level: 1, name: "Englanti 1–1 Ruotsi" })
     ).toBeInTheDocument();
   });
 

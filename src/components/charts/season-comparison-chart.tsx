@@ -39,11 +39,12 @@ export const BASELINE_LABEL = "Tavallisesti";
 
 /**
  * A measure's printed value: `–` for no value, never `0`. A position prints as
- * a place in the selected season's table, `3.` for the season and `5,8.` for
- * an average of others, and as `–` without a table.
+ * a place in the selected season's table, `3.` for the season and `5,8` for an
+ * average of others, which no one finished in, and as `–` without a table.
  *
  * decisions/033-home-vs-away.md
  * decisions/038-season-against-history.md
+ * decisions/703-unambiguous-lines.md
  */
 export function measureText(
   measure: Measure,
@@ -55,7 +56,7 @@ export function measureText(
   if (measure === "position") {
     if (teamCount === null) return "–";
     const place = value * teamCount;
-    return exact ? `${Math.round(place)}.` : `${formatDecimal(place, 1)}.`;
+    return exact ? `${Math.round(place)}.` : formatDecimal(place, 1);
   }
   return measure === "cleanSheets" || measure === "winPercentage"
     ? percentText(value)
@@ -63,11 +64,11 @@ export function measureText(
 }
 
 /**
- * One row of the text alternative, per measure.
- * A position already ends in its ordinal period — `6,0.` — so the sentence does
- * not add a second one and read `6,0..`.
+ * One row of the text alternative, per measure. The baseline is an average and
+ * never ends in a period, so the sentence's own always follows it.
  *
  * decisions/038-season-against-history.md
+ * decisions/703-unambiguous-lines.md
  */
 export function comparisonSentence(
   label: string,
@@ -75,8 +76,7 @@ export function comparisonSentence(
   baseline: string,
   axis: AnalyticsAxis
 ): string {
-  const stop = baseline.endsWith(".") ? "" : ".";
-  return `${label}: ${axis.selectedLabel.toLocaleLowerCase("fi")} ${selected}, ${BASELINE_LABEL.toLocaleLowerCase("fi")} ${baseline}${stop}`;
+  return `${label}: ${axis.selectedLabel.toLocaleLowerCase("fi")} ${selected}, ${BASELINE_LABEL.toLocaleLowerCase("fi")} ${baseline}.`;
 }
 
 /**

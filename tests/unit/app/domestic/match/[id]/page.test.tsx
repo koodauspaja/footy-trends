@@ -10,6 +10,7 @@ import { warmModules } from "../../../../../support/warm-module";
  * decisions/019-match-page.md
  * decisions/042-head-to-head-view.md
  * decisions/529-one-whole-number-parser.md
+ * decisions/703-unambiguous-lines.md
  */
 
 const getMatchPageDataMock = vi.fn<() => Promise<MatchPageData>>();
@@ -81,10 +82,19 @@ describe("/kotimaa/ottelu/:id", () => {
     });
   });
 
-  it("is headed by the two teams", async () => {
+  it("is headed by its scoreboard, the teams named once", async () => {
     await renderPage();
 
-    expect(screen.getByRole("heading", { level: 1, name: "VPS – FC Lahti" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "VPS 2–1 FC Lahti" })).toBeInTheDocument();
+    // Outside the tables, whose rows name their own matches, the page writes
+    // each name once, in any text node.
+    const outsideTables = document.body.cloneNode(true) as HTMLElement;
+    for (const table of outsideTables.querySelectorAll("table")) table.remove();
+    for (const name of ["VPS", "FC Lahti"]) {
+      expect(outsideTables.textContent?.split(name)).toHaveLength(2);
+      // A score that says who won leaves both names at the heading's weight.
+      expect(screen.getByRole("link", { name }).className).not.toMatch(/\bfont-/);
+    }
   });
 
   it("shows the kickoff with its time, the competition, the series and the round", async () => {
@@ -187,13 +197,13 @@ describe("/kotimaa/ottelu/:id", () => {
     });
     await renderPage();
 
-    expect(screen.getByText("Aiempia kohtaamisia ei löytynyt.")).toBeInTheDocument();
+    expect(screen.getByText("Ei kohtaamisia ennen tätä ottelua.")).toBeInTheDocument();
     expect(
       screen.getByText("Perustuu kaudesta 2015 alkaen tallennettuihin otteluihin.")
     ).toBeInTheDocument();
   });
 
-  it("names TASO's winner in bold when the score is level", async () => {
+  it("sets the loser of a level TASO tie to normal weight, the winner at the heading's", async () => {
     getMatchPageDataMock.mockResolvedValue({
       status: "ok",
       match: {
@@ -206,7 +216,10 @@ describe("/kotimaa/ottelu/:id", () => {
 
     // No "(rp)" — TASO never itemises the shootout it was settled on.
     expect(screen.getByText("1–1")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "FC Lahti" })).toHaveClass("font-semibold");
+    // The winner keeps the heading's weight, setting none of its own; the loser
+    // drops to normal.
+    expect(screen.getByRole("link", { name: "FC Lahti" }).className).not.toMatch(/\bfont-/);
+    expect(screen.getByRole("link", { name: "VPS" })).toHaveClass("font-normal");
   });
 
   it("shows no head-to-head for a match with an unresolved bracket slot", async () => {
@@ -226,7 +239,7 @@ describe("/kotimaa/ottelu/:id", () => {
       )
     ).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-      "Tuntematon joukkue – FC Lahti"
+      "Tuntematon joukkue 2–1 FC Lahti"
     );
   });
 
@@ -278,7 +291,7 @@ describe("/kotimaa/ottelu/:id", () => {
     });
     await renderPage();
 
-    expect(screen.getByRole("heading", { level: 1, name: "VPS – FC Lahti" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "VPS 2–1 FC Lahti" })).toBeInTheDocument();
     expect(screen.getByText("Aiempien kohtaamisten lataaminen epäonnistui.")).toBeInTheDocument();
   });
 
