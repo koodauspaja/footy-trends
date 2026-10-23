@@ -56,8 +56,8 @@ describe("measureText", () => {
     expect(measureText("position", 0.25, 12, true)).toBe("3.");
   });
 
-  it("keeps a decimal on an average place, which no one finished in", () => {
-    expect(measureText("position", 0.5, 12, false)).toBe("6,0.");
+  it("keeps a decimal on an average place, which no one finished in, and no ordinal period", () => {
+    expect(measureText("position", 0.5, 12, false)).toBe("6,0");
   });
 
   it("cannot print a place without a table to put it in", () => {
@@ -89,8 +89,8 @@ describe("comparisonSentence", () => {
     );
   });
 
-  it("does not add a second full stop after a place, which carries its own", () => {
-    expect(comparisonSentence("Sijoitus", "3.", "6,0.", SEASON_AXIS)).toBe(
+  it("ends a place's sentence after the average, which carries no ordinal period", () => {
+    expect(comparisonSentence("Sijoitus", "3.", "6,0", SEASON_AXIS)).toBe(
       "Sijoitus: tämä kausi 3., tavallisesti 6,0."
     );
   });

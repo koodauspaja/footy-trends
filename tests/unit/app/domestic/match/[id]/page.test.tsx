@@ -81,10 +81,12 @@ describe("/kotimaa/ottelu/:id", () => {
     });
   });
 
-  it("is headed by the two teams", async () => {
+  it("is headed by its scoreboard, the teams named once", async () => {
     await renderPage();
 
-    expect(screen.getByRole("heading", { level: 1, name: "VPS – FC Lahti" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "VPS 2–1 FC Lahti" })).toBeInTheDocument();
+    // The heading is the only place the teams are named above the meetings.
+    expect(screen.getAllByText("VPS")).toHaveLength(1);
   });
 
   it("shows the kickoff with its time, the competition, the series and the round", async () => {
@@ -187,7 +189,7 @@ describe("/kotimaa/ottelu/:id", () => {
     });
     await renderPage();
 
-    expect(screen.getByText("Aiempia kohtaamisia ei löytynyt.")).toBeInTheDocument();
+    expect(screen.getByText("Ei kohtaamisia ennen tätä ottelua.")).toBeInTheDocument();
     expect(
       screen.getByText("Perustuu kaudesta 2015 alkaen tallennettuihin otteluihin.")
     ).toBeInTheDocument();
@@ -206,7 +208,9 @@ describe("/kotimaa/ottelu/:id", () => {
 
     // No "(rp)" — TASO never itemises the shootout it was settled on.
     expect(screen.getByText("1–1")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "FC Lahti" })).toHaveClass("font-semibold");
+    // The winner keeps the heading's weight; the loser drops to normal.
+    expect(screen.getByRole("link", { name: "FC Lahti" })).not.toHaveClass("font-normal");
+    expect(screen.getByRole("link", { name: "VPS" })).toHaveClass("font-normal");
   });
 
   it("shows no head-to-head for a match with an unresolved bracket slot", async () => {
@@ -226,7 +230,7 @@ describe("/kotimaa/ottelu/:id", () => {
       )
     ).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-      "Tuntematon joukkue – FC Lahti"
+      "Tuntematon joukkue 2–1 FC Lahti"
     );
   });
 
@@ -278,7 +282,7 @@ describe("/kotimaa/ottelu/:id", () => {
     });
     await renderPage();
 
-    expect(screen.getByRole("heading", { level: 1, name: "VPS – FC Lahti" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "VPS 2–1 FC Lahti" })).toBeInTheDocument();
     expect(screen.getByText("Aiempien kohtaamisten lataaminen epäonnistui.")).toBeInTheDocument();
   });
 

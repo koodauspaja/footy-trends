@@ -58,7 +58,7 @@ const MATCH_HEADING = "Ottelu";
 const NOT_FOUND_MESSAGE = "Ottelua ei löytynyt.";
 const ERROR_MESSAGE = "Ottelun lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
 const HEAD_TO_HEAD_HEADING = "Aiemmat kohtaamiset";
-const HEAD_TO_HEAD_EMPTY = "Aiempia kohtaamisia ei löytynyt.";
+const HEAD_TO_HEAD_EMPTY = "Ei kohtaamisia ennen tätä ottelua.";
 const HEAD_TO_HEAD_ERROR = "Aiempien kohtaamisten lataaminen epäonnistui.";
 /**
  * `Kaikki kohtaamiset (24)`: the count is the argument for following it.
@@ -335,12 +335,25 @@ export async function matchMetadata(options: MatchPageOptions): Promise<Metadata
   return { title: resolved.status === "ok" ? resolved.view.title : NOT_FOUND_MESSAGE };
 }
 
+/**
+ * A side's name in the heading: the winner keeps the heading's weight and the
+ * loser drops to normal, while a draw or a match to come leaves both as they are.
+ *
+ * decisions/019-match-page.md
+ * decisions/703-unambiguous-lines.md
+ */
 function TeamName({
   name,
   href,
-  isWinner,
-}: Readonly<{ name: string; href: string | null; isWinner: boolean }>) {
-  const className = isWinner ? "font-semibold" : undefined;
+  side,
+  winner,
+}: Readonly<{
+  name: string;
+  href: string | null;
+  side: "home" | "away";
+  winner: "home" | "away" | null;
+}>) {
+  const className = winner === null || winner === side ? undefined : "font-normal";
   if (href === null) return <span className={className}>{name}</span>;
   return (
     <Link className={`hover:underline ${className ?? ""}`.trim()} href={href}>
@@ -405,14 +418,28 @@ export async function MatchPage(options: Readonly<MatchPageOptions>) {
   ]);
 
   return (
-    <PageShell heading={`${view.homeName} – ${view.awayName}`}>
-      {/* A scoreboard rather than a repeat of the heading: the names sit either
-          side of the score, and carry the links a heading string cannot. */}
-      <p className="mb-3 text-2xl">
-        <TeamName href={view.homeHref} isWinner={view.winnerSide === "home"} name={view.homeName} />
-        <span className="mx-3 font-semibold">{view.score}</span>
-        <TeamName href={view.awayHref} isWinner={view.winnerSide === "away"} name={view.awayName} />
-      </p>
+    <PageShell
+      heading={
+        // The heading is the scoreboard: the names either side of the score,
+        // each a link to its team, so the page names its teams once. The spaces
+        // are text, so the heading reads `VPS 2–1 FC Lahti`, not `VPS2–1FC Lahti`.
+        <>
+          <TeamName
+            href={view.homeHref}
+            name={view.homeName}
+            side="home"
+            winner={view.winnerSide}
+          />{" "}
+          <span className="mx-2">{view.score}</span>{" "}
+          <TeamName
+            href={view.awayHref}
+            name={view.awayName}
+            side="away"
+            winner={view.winnerSide}
+          />
+        </>
+      }
+    >
       {surprise}
       <p className="mb-1 text-sm text-muted">{view.kickoff}</p>
       {view.contextLines.map((line) => (

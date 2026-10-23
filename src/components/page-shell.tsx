@@ -4,7 +4,7 @@ export function PageShell({
   heading,
   headingAction,
   children,
-}: Readonly<{ heading: string; headingAction?: ReactNode; children: ReactNode }>) {
+}: Readonly<{ heading: ReactNode; headingAction?: ReactNode; children: ReactNode }>) {
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-8">
       {/* The action sits beside the heading rather than under it, so a page

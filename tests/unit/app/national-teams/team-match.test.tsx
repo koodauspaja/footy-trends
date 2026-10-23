@@ -114,7 +114,7 @@ describe("/maajoukkueet/huuhkajat/ottelu/:id", () => {
     await renderMensPage();
 
     expect(
-      screen.getByRole("heading", { level: 1, name: "Suomi – San Marino" })
+      screen.getByRole("heading", { level: 1, name: "Suomi 3–0 San Marino" })
     ).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Suomi" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "San Marino" })).not.toBeInTheDocument();
@@ -223,7 +223,7 @@ describe("/maajoukkueet/huuhkajat/ottelu/:id", () => {
     await renderMensPage();
 
     expect(
-      screen.getByRole("heading", { level: 1, name: "Suomi – San Marino" })
+      screen.getByRole("heading", { level: 1, name: "Suomi 3–0 San Marino" })
     ).toBeInTheDocument();
     expect(screen.getByText("C-liiga lohko 1")).toBeInTheDocument();
     expect(screen.queryByText(/UEFA Nations League/)).not.toBeInTheDocument();
@@ -278,6 +278,8 @@ describe("/maajoukkueet/helmarit/ottelu/:id", () => {
   it("renders an opponent TASO spells in English under its Finnish name", async () => {
     await renderWomensPage();
 
-    expect(screen.getByRole("heading", { level: 1, name: "Suomi – Kroatia" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Suomi 3–0 Kroatia" })
+    ).toBeInTheDocument();
   });
 });
