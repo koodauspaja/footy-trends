@@ -4,6 +4,7 @@ import { MatchListTable } from "@/components/match-list-table";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { HISTORY_AXIS } from "@/lib/analytics-axis";
+import { upcomingFirst } from "@/lib/match-order";
 import { matchCountLabel, type NationalTeam } from "@/lib/national-team";
 import { nationalTeamAnalytics } from "@/lib/national-team-analytics";
 import { getNationalTeamYears, type NationalTeamYear } from "@/lib/national-team-service";
@@ -22,6 +23,7 @@ const ERROR_MESSAGE = "Otteluiden lataaminen epäonnistui. Yritä myöhemmin uud
  *
  * decisions/017-huuhkajat.md
  * decisions/419-shared-fold-marker.md
+ * decisions/714-page-section-order.md
  */
 function YearSection({ year, basePath }: Readonly<{ year: NationalTeamYear; basePath: string }>) {
   return (
@@ -32,7 +34,7 @@ function YearSection({ year, basePath }: Readonly<{ year: NationalTeamYear; base
         <span className="text-sm text-muted">{`(${matchCountLabel(year.matches.length)})`}</span>
       </summary>
       <MatchListTable
-        matches={year.matches}
+        matches={upcomingFirst(year.matches)}
         teamHref={null}
         matchHref={(match) => `${basePath}/ottelu/${match.providerMatchId}`}
         fourthColumn={{ header: "Kilpailu", render: (match) => match.competitionName }}
@@ -48,11 +50,12 @@ function YearSection({ year, basePath }: Readonly<{ year: NationalTeamYear; base
  * decisions/017-huuhkajat.md
  * decisions/018-helmarit.md
  * decisions/041-national-team-analytics.md
+ * decisions/714-page-section-order.md
  */
 export async function NationalTeamPage({ team }: Readonly<{ team: NationalTeam }>) {
   const result = await getNationalTeamYears(team);
 
-  // Above the year list, once: the panels describe every year. The loaders stay
+  // Below the year list, once: the panels describe every year. The loaders stay
   // thunks, as the sign-in gate runs before any is called. A page that loaded
   // only some buckets still gets its analytics, over what did load.
   const analyticsSection =
@@ -65,11 +68,11 @@ export async function NationalTeamPage({ team }: Readonly<{ team: NationalTeam }
       {result.status === "error" && <p>{ERROR_MESSAGE}</p>}
       {result.status === "empty" && <p>{EMPTY_MESSAGE}</p>}
       {result.status === "ok" && result.incomplete && <Notice>{INCOMPLETE_MESSAGE}</Notice>}
-      {analyticsSection}
       {result.status === "ok" &&
         result.years.map((year) => (
           <YearSection basePath={team.basePath} key={year.year} year={year} />
         ))}
+      {analyticsSection}
     </PageShell>
   );
 }

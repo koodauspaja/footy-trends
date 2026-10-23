@@ -15,6 +15,7 @@ import { type GroupZones, groupZones, zoneLine } from "@/lib/competition-zones";
 import { buildCupBracket, buildPlayoffBracket, normaliseRoundName } from "@/lib/cup-rounds";
 import { cupFormatFor, isDomesticCup } from "@/lib/domestic-competitions";
 import { resolveDomesticPageContext } from "@/lib/domestic-page-context";
+import { cupGroupOrder } from "@/lib/group-order";
 import { getCupForecast, hasCupForecast } from "@/lib/knockout-simulation-service";
 import {
   type GroupLevel,
@@ -268,6 +269,7 @@ export async function generateMetadata({
  * decisions/048-league-goals-per-game-trend.md
  * decisions/063-competition-zones.md
  * decisions/067-knockout-simulation.md
+ * decisions/714-page-section-order.md
  */
 export default async function DomesticStandingsPage({
   searchParams,
@@ -326,8 +328,8 @@ export default async function DomesticStandingsPage({
   const teamHref = (teamProviderId: number) =>
     `/kotimaa/joukkue/${teamProviderId}?kilpailu=${competitionCode}&kausi=${seasonId}`;
 
-  // Above the rounds, not below them as Champions League does. A
-  // `groups-and-playoff` cup draws its own bracket.
+  // After a league's tables and above a cup's rounds. A `groups-and-playoff`
+  // cup draws its own bracket.
   const bracket =
     result.status === "ok" && !isGroupsAndPlayoff
       ? buildCupBracket(
@@ -366,25 +368,36 @@ export default async function DomesticStandingsPage({
       />
       {result.status === "empty" && <p>{EMPTY_MESSAGE}</p>}
       {result.status === "error" && <p>{ERROR_MESSAGE}</p>}
+      {result.status === "ok" && isGroupsAndPlayoff && (
+        <GroupsAndPlayoff groups={result.groups} teamHref={teamHref} />
+      )}
+      {result.status === "ok" && !isGroupsAndPlayoff && !isCup && (
+        <LeagueGroups
+          groups={result.groups.filter((group) => group.kind !== "match-list")}
+          levels={result.levels}
+          teamHref={teamHref}
+        />
+      )}
       {bracket.length > 0 && (
         <section className="mb-10">
           <h2 className="mb-3 font-semibold text-xl">{KNOCKOUT_HEADING}</h2>
           <BracketTree rounds={bracket} teamHref={teamHref} />
         </section>
       )}
-      {cupForecast.status === "unavailable" ? null : <CupForecastSection forecast={cupForecast} />}
-      {result.status === "ok" && isGroupsAndPlayoff && (
-        <GroupsAndPlayoff groups={result.groups} teamHref={teamHref} />
+      {result.status === "ok" && !isGroupsAndPlayoff && !isCup && (
+        <LeagueGroups
+          groups={result.groups.filter((group) => group.kind === "match-list")}
+          levels={result.levels}
+          teamHref={teamHref}
+        />
       )}
       {result.status === "ok" &&
         !isGroupsAndPlayoff &&
         isCup &&
-        result.groups.map((group) => (
+        cupGroupOrder(result.groups).map((group) => (
           <CupRoundSection group={group} key={group.groupId} teamHref={teamHref} />
         ))}
-      {result.status === "ok" && !isGroupsAndPlayoff && !isCup && (
-        <LeagueGroups groups={result.groups} levels={result.levels} teamHref={teamHref} />
-      )}
+      {cupForecast.status === "unavailable" ? null : <CupForecastSection forecast={cupForecast} />}
       {!isGroupsAndPlayoff && <StandingsLegend />}
       {analytics}
     </PageShell>

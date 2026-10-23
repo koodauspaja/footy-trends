@@ -24,6 +24,7 @@ import {
   isDomesticCup,
   publishesZones,
 } from "./domestic-competitions";
+import { leagueGroupOrder } from "./group-order";
 import { logger } from "./logger";
 import {
   lastRoundPlayedBy,
@@ -2102,7 +2103,13 @@ export async function getSeasonStandings(
     const levels = publishesZones(categoryId)
       ? await storedGroupLevels(categoryId, competitionId, seasonId)
       : [];
-    if (round === undefined) return { status: "ok", groups: classified.groups, levels };
+    if (round === undefined) {
+      return {
+        status: "ok",
+        groups: leagueGroupOrder(classified.groups, classified.matches),
+        levels,
+      };
+    }
 
     // Only an own-calculated group responds to a round; the classification
     // itself does not change with one, so it is reused rather than redone —
@@ -2123,7 +2130,7 @@ export async function getSeasonStandings(
         : group
     );
 
-    return { status: "ok", groups, levels };
+    return { status: "ok", groups: leagueGroupOrder(groups, classified.matches), levels };
   } catch (error) {
     logger.error(
       { err: error, categoryId, competitionId, seasonId },
