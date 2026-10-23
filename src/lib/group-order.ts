@@ -46,14 +46,16 @@ function laterPhasesFirst<G extends Group>(groups: readonly G[], matches: readon
     });
   }
 
-  // A group with no dated match neither starts a later phase nor ends the first.
-  let endedBy = Number.NEGATIVE_INFINITY;
+  // A group with no dated match neither starts a later phase nor ends the first:
+  // it stays with the groups it sits among.
+  let endedBy: number | null = null;
   for (const [index, group] of groups.entries()) {
-    const span = spans.get(group.groupId) ?? { first: endedBy, last: endedBy };
-    if (index > 0 && span.first > endedBy) {
+    const span = spans.get(group.groupId);
+    if (span === undefined) continue;
+    if (endedBy !== null && span.first > endedBy) {
       return [...groups.slice(index), ...groups.slice(0, index)];
     }
-    endedBy = Math.max(endedBy, span.last);
+    endedBy = Math.max(endedBy ?? span.last, span.last);
   }
   return [...groups];
 }

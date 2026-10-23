@@ -69,8 +69,14 @@ describe("leagueGroupOrder", () => {
     expect(ids(leagueGroupOrder(groups, matches))).toEqual([2, 3, 1, 4, 5]);
   });
 
-  it("treats a group with no dated match as part of the phase before it", () => {
+  it("keeps a group with no dated match with the groups it sits among", () => {
     const matches = [played(1, "2026-04-01"), played(1, "2026-08-01"), played(3, "2026-09-01")];
+
+    expect(ids(leagueGroupOrder([group(1), group(2), group(3)], matches))).toEqual([3, 1, 2]);
+  });
+
+  it("keeps an undated first group in the first phase", () => {
+    const matches = [played(2, "2026-04-01"), played(2, "2026-08-01"), played(3, "2026-09-01")];
 
     expect(ids(leagueGroupOrder([group(1), group(2), group(3)], matches))).toEqual([3, 1, 2]);
   });
