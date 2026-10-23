@@ -29,15 +29,16 @@ export type MatchListRow = ScoreBreakdown & {
 type MatchListTableProps<T extends MatchListRow> = {
   matches: T[];
   /**
-   * Builds a team's link href, or `null` on a team page, where a team's own name
-   * isn't a link to itself.
+   * Builds a team's link href, or `null` where the names are plain: a team page,
+   * a national team's years, head-to-head and a match page's meetings.
    */
   teamHref: ((teamProviderId: number) => string) | null;
   /** Omitted on the season-wide `/ulkomaat/ottelut` page, which has no fourth column at all. */
   fourthColumn?: { header: string; render: (match: T) => ReactNode };
   /**
-   * Builds a row's match-page href, carried by the date. `null` or omitted
-   * leaves this table's dates as plain text: the opt-out is per table.
+   * Builds a row's match-page href, carried by the date, and by the matchup when
+   * `teamHref` is `null`. `null` or omitted leaves both as plain text: the
+   * opt-out is per table.
    */
   matchHref?: ((match: T) => string) | null;
 };
@@ -51,6 +52,7 @@ type MatchListTableProps<T extends MatchListRow> = {
  * decisions/019-match-page.md
  * decisions/021-table-consistency.md
  * decisions/498-match-list-score.md
+ * decisions/715-matchup-links-to-match.md
  */
 export function MatchListTable<T extends MatchListRow>({
   matches,
@@ -58,19 +60,21 @@ export function MatchListTable<T extends MatchListRow>({
   fourthColumn,
   matchHref,
 }: Readonly<MatchListTableProps<T>>) {
+  const linkToMatch = (match: T, text: string): ReactNode =>
+    matchHref ? (
+      <RowLink className="hover:underline" href={matchHref(match)}>
+        {text}
+      </RowLink>
+    ) : (
+      text
+    );
+
   const columns: Array<DataTableColumn<T>> = [
     {
       key: "date",
       header: "Pvm",
       width: COLUMN_WIDTHS.date,
-      render: (match) =>
-        matchHref ? (
-          <RowLink className="hover:underline" href={matchHref(match)}>
-            {matchDateFormatter.format(match.kickoffAt)}
-          </RowLink>
-        ) : (
-          matchDateFormatter.format(match.kickoffAt)
-        ),
+      render: (match) => linkToMatch(match, matchDateFormatter.format(match.kickoffAt)),
     },
     {
       key: "match",
@@ -88,7 +92,7 @@ export function MatchListTable<T extends MatchListRow>({
             </RowLink>
           </>
         ) : (
-          `${match.homeTeamName} – ${match.awayTeamName}`
+          linkToMatch(match, `${match.homeTeamName} – ${match.awayTeamName}`)
         ),
     },
     {
