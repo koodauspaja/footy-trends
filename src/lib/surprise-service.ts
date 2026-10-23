@@ -147,11 +147,10 @@ export async function getSeasonSurprises(
   try {
     const played = await getPlayedSeasons(kind, code);
     if (isFirstStoredSeason(seasonId, played)) return { status: "first-season" };
-    return seasonSurprises(
-      await predictedIn(kind, code, seasonId),
-      seasonId === activeSeasonId,
-      played.includes(seasonId)
-    );
+    return seasonSurprises(await predictedIn(kind, code, seasonId), {
+      inProgress: seasonId === activeSeasonId,
+      played: played.includes(seasonId),
+    });
   } catch (error) {
     logger.error(
       { err: error, source: kind, code, seasonId },

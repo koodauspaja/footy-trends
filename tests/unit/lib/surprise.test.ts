@@ -67,8 +67,7 @@ describe("seasonSurprises", () => {
         match({ providerMatchId: 2, home: 0.1 }),
         match({ providerMatchId: 3, homeGoals: 0, awayGoals: 2, away: 0.2 }),
       ],
-      false,
-      true
+      { inProgress: false, played: true }
     );
 
     expect(result).toMatchObject({ status: "ok", inProgress: false });
@@ -85,7 +84,7 @@ describe("seasonSurprises", () => {
       match({ providerMatchId: index + 1, home: (12 - index) / 100 })
     );
 
-    const result = seasonSurprises(matches, false, true);
+    const result = seasonSurprises(matches, { inProgress: false, played: true });
 
     expect(SURPRISE_LIMIT).toBe(10);
     expect(result.status === "ok" && result.surprises.map((s) => s.providerMatchId)).toEqual([
@@ -101,8 +100,7 @@ describe("seasonSurprises", () => {
         match({ providerMatchId: 9 }),
         match({ providerMatchId: 8 }),
       ],
-      false,
-      true
+      { inProgress: false, played: true }
     );
 
     expect(result.status === "ok" && result.surprises.map((s) => s.providerMatchId)).toEqual([
@@ -116,8 +114,7 @@ describe("seasonSurprises", () => {
         match({ providerMatchId: 1, homeGoals: 1, awayGoals: 1, draw: 0.01 }),
         match({ providerMatchId: 2 }),
       ],
-      false,
-      true
+      { inProgress: false, played: true }
     );
 
     expect(result.status === "ok" && result.surprises.map((s) => s.providerMatchId)).toEqual([2]);
@@ -132,7 +129,7 @@ describe("seasonSurprises", () => {
       match({ providerMatchId: 101 + index, homeGoals: 1, awayGoals: 1, draw: 0.01 })
     );
 
-    const result = seasonSurprises([...draws, ...wins], false, true);
+    const result = seasonSurprises([...draws, ...wins], { inProgress: false, played: true });
 
     expect(result.status === "ok" && result.surprises.map((s) => s.providerMatchId)).toEqual([
       1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
@@ -140,7 +137,7 @@ describe("seasonSurprises", () => {
   });
 
   it("lists fewer than ten when the season has fewer", () => {
-    const result = seasonSurprises([match()], true, true);
+    const result = seasonSurprises([match()], { inProgress: true, played: true });
 
     expect(result).toMatchObject({ status: "ok", inProgress: true });
     expect(result.status === "ok" && result.surprises).toHaveLength(1);
@@ -149,18 +146,36 @@ describe("seasonSurprises", () => {
   it("says so when every predicted match was drawn", () => {
     const drawn = [match({ homeGoals: 0, awayGoals: 0 })];
 
-    expect(seasonSurprises(drawn, true, true)).toEqual({ status: "all-drawn", inProgress: true });
-    expect(seasonSurprises(drawn, false, true)).toEqual({ status: "all-drawn", inProgress: false });
+    expect(seasonSurprises(drawn, { inProgress: true, played: true })).toEqual({
+      status: "all-drawn",
+      inProgress: true,
+    });
+    expect(seasonSurprises(drawn, { inProgress: false, played: true })).toEqual({
+      status: "all-drawn",
+      inProgress: false,
+    });
   });
 
   it("says so when the season has no played match", () => {
-    expect(seasonSurprises([], true, false)).toEqual({ status: "empty", inProgress: true });
-    expect(seasonSurprises([], false, false)).toEqual({ status: "empty", inProgress: false });
+    expect(seasonSurprises([], { inProgress: true, played: false })).toEqual({
+      status: "empty",
+      inProgress: true,
+    });
+    expect(seasonSurprises([], { inProgress: false, played: false })).toEqual({
+      status: "empty",
+      inProgress: false,
+    });
   });
 
   it("tells a season with played matches but no prediction from one with none played", () => {
-    expect(seasonSurprises([], true, true)).toEqual({ status: "unpredicted", inProgress: true });
-    expect(seasonSurprises([], false, true)).toEqual({ status: "unpredicted", inProgress: false });
+    expect(seasonSurprises([], { inProgress: true, played: true })).toEqual({
+      status: "unpredicted",
+      inProgress: true,
+    });
+    expect(seasonSurprises([], { inProgress: false, played: true })).toEqual({
+      status: "unpredicted",
+      inProgress: false,
+    });
   });
 });
 

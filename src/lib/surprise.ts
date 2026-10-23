@@ -92,8 +92,7 @@ export function isFirstStoredSeason(seasonId: number, playedSeasons: readonly nu
  */
 export function seasonSurprises(
   matches: readonly PredictedMatch[],
-  inProgress: boolean,
-  played: boolean
+  { inProgress, played }: Readonly<{ inProgress: boolean; played: boolean }>
 ): SeasonSurprises {
   if (matches.length === 0) return { status: played ? "unpredicted" : "empty", inProgress };
 
