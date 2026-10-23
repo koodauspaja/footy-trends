@@ -1,7 +1,7 @@
 /**
- * The order a domestic standings page shows a season's groups in: a league's
- * later phases before its first, and a cup's latest round first, the one
- * that starts open.
+ * The order a domestic standings page shows a season's groups in, a league's
+ * later phases before its first and a cup's latest round first, and which of
+ * a cup's rounds start open.
  *
  * decisions/714-page-section-order.md
  * decisions/698-long-lists-start-closed.md
