@@ -763,6 +763,25 @@ describe("Domestic standings page, cup competitions", () => {
     expect(screen.queryByRole("heading", { name: "Pudotuspelit" })).not.toBeInTheDocument();
   });
 
+  it("puts a cup's group tables after its rounds", async () => {
+    getSeasonStandingsMock.mockResolvedValue({
+      status: "ok",
+      levels: [],
+      groups: [{ ...ownCalculatedGroup, groupName: "Lohko A" }, ...closingRounds],
+    });
+
+    await renderStandings({ kilpailu: "MSC", kausi: "2025" });
+
+    const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    expect(headings).toEqual([
+      "Pudotuspelit",
+      "Loppuottelu",
+      "Välierät",
+      "Puolivälierät",
+      "Lohko A",
+    ]);
+  });
+
   it("keeps Suomen Cup's layout for a season that had a group stage", async () => {
     // MSC 2018: groups, then knockout rounds. Still bracket first and every
     // group a collapsible round — the Liigacup layout never reaches it.
