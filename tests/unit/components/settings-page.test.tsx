@@ -11,6 +11,7 @@ import { NO_PREFERENCES, type Preferences } from "@/lib/regions";
  * decisions/025-custom-avatar.md
  * decisions/271-saved-value-in-settings-dropdowns.md
  * decisions/675-wait-for-the-control-not-the-notice.md
+ * decisions/719-file-input-in-finnish.md
  */
 
 const { refetch } = vi.hoisted(() => ({ refetch: vi.fn(async () => {}) }));
@@ -555,6 +556,29 @@ describe("Profiilikuva", () => {
     // the session is refetched.
     expect(refetch).toHaveBeenCalled();
     expect(screen.queryByText(STALE_PICTURE)).not.toBeInTheDocument();
+  });
+
+  it("shows its own Finnish button and file line, never the browser's input", () => {
+    renderPicture(null);
+
+    const input = screen.getByLabelText("Valitse kuva");
+    // The native input, whose button and status are the browser's words, is hidden.
+    expect(input).toHaveClass("sr-only");
+    expect(input).toHaveAccessibleDescription("Ei valittua kuvaa.");
+    expect(screen.getByText("Valitse kuva").tagName).toBe("LABEL");
+  });
+
+  it("names the chosen file, and says when none is chosen again", () => {
+    renderPicture(null);
+    chooseFile(new File(["x"], "kuva.png", { type: "image/png" }));
+
+    expect(screen.getByLabelText("Valitse kuva")).toHaveAccessibleDescription("kuva.png");
+
+    const input = screen.getByLabelText("Valitse kuva");
+    Object.defineProperty(input, "files", { value: [], configurable: true });
+    fireEvent.change(input);
+
+    expect(input).toHaveAccessibleDescription("Ei valittua kuvaa.");
   });
 
   it("clears a chosen file when the reader empties the input", async () => {

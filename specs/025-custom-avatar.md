@@ -58,8 +58,8 @@ Profiilikuva
 
 [ 64×64 preview ]  Käytössä oma kuvasi.
 
-Valitse kuva
-[ file input ]
+[ Valitse kuva ]
+Ei valittua kuvaa.
 JPEG, PNG, WebP tai HEIC, enintään 8 Mt.
 
 [ Tallenna kuva ]  [ Poista oma kuva ]
@@ -72,7 +72,8 @@ JPEG, PNG, WebP tai HEIC, enintään 8 Mt.
 | State — custom avatar set | `Käytössä oma kuvasi.` |
 | State — Google's picture | `Käytössä Google-tilisi kuva.` |
 | State — neither | `Ei kuvaa käytössä. Valikossa näkyy nimesi.` |
-| File input label | `Valitse kuva` |
+| File input label | `Valitse kuva`, drawn as the button: the native input, whose own button and status are in the browser's language, is hidden (#719) |
+| The chosen file | `Ei valittua kuvaa.` with none chosen, the file's name otherwise (#719) |
 | Hint under the input | `JPEG, PNG, WebP tai HEIC, enintään 8 Mt.` |
 | Save button | `Tallenna kuva` |
 | Remove button | `Poista oma kuva` |

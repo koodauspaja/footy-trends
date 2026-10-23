@@ -61,6 +61,7 @@ const FIELD_NAME: Record<RegionSegment, keyof Preferences> = {
 const SELECT_CLASS = "rounded border border-border px-2 py-1 text-sm";
 const SECTION_CLASS = "mb-8";
 const HEADING_CLASS = "mb-3 font-medium text-lg";
+const NO_FILE_CHOSEN = "Ei valittua kuvaa.";
 
 /**
  * The settings page: the start page and its competitions, the profile picture,
@@ -224,6 +225,7 @@ type AvatarError = keyof typeof AVATAR_ERRORS;
  *
  * decisions/025-custom-avatar.md
  * decisions/592-sonar-zero-open-issues-again.md
+ * decisions/719-file-input-in-finnish.md
  */
 function ProfilePicture({
   version,
@@ -266,12 +268,12 @@ function ProfilePicture({
         <span className="text-sm text-muted">{pictureInUse(current, googleImage)}</span>
       </div>
 
-      <label className="mb-1 block text-sm" htmlFor="avatar">
-        Valitse kuva
-      </label>
+      {/* The input is hidden and its label drawn as the button: a native file
+          input's own button and status are in the browser's language. */}
       <input
         accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-        className="mb-1 block text-sm"
+        aria-describedby="avatar-chosen"
+        className="peer sr-only"
         disabled={pending}
         id="avatar"
         name="avatar"
@@ -281,6 +283,15 @@ function ProfilePicture({
         }}
         type="file"
       />
+      <label
+        className="mb-1 inline-block cursor-pointer rounded border border-border px-3 py-2 text-sm hover:bg-surface peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-disabled:cursor-not-allowed peer-disabled:opacity-50"
+        htmlFor="avatar"
+      >
+        Valitse kuva
+      </label>
+      <p aria-live="polite" className="mb-1 text-sm" id="avatar-chosen">
+        {chosen?.name ?? NO_FILE_CHOSEN}
+      </p>
       <p className="mb-3 text-sm text-muted">JPEG, PNG, WebP tai HEIC, enintään 8 Mt.</p>
 
       <div className="flex flex-wrap gap-2">
