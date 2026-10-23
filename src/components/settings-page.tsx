@@ -236,6 +236,9 @@ function ProfilePicture({
   // The chosen file in state, not read off the form at submit: the size check
   // needs it before anything is sent.
   const [chosen, setChosen] = useState<File | null>(null);
+  // A new key mounts an empty input, so choosing the same file again fires a
+  // change.
+  const [inputKey, setInputKey] = useState(0);
   const input = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<AvatarError | null>(null);
   const [saved, setSaved] = useState<null | "saved" | "removed">(null);
@@ -248,11 +251,9 @@ function ProfilePicture({
 
   const source = current === null ? googleImage : `/api/avatar/me?v=${encodeURIComponent(current)}`;
 
-  // The input's own file goes with the state's, or picking the same file again
-  // would fire no change.
   function clearChosen() {
     setChosen(null);
-    if (input.current !== null) input.current.value = "";
+    setInputKey((key) => key + 1);
   }
 
   function announce(outcome: null | "saved" | "removed", failure: AvatarError | null) {
@@ -282,8 +283,8 @@ function ProfilePicture({
       <input
         accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
         className="hidden"
-        data-testid="avatar-input"
         disabled={pending}
+        key={inputKey}
         name="avatar"
         onChange={(event) => {
           setChosen(event.target.files?.[0] ?? null);

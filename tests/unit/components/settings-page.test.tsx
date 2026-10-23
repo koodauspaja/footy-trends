@@ -503,8 +503,15 @@ describe("Profiilikuva", () => {
     );
   }
 
+  // The input is hidden from every query by role or label, which is the point.
+  function fileInput(): HTMLInputElement {
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]');
+    if (input === null) throw new Error("no file input rendered");
+    return input;
+  }
+
   function chooseFile(file: File) {
-    const input = screen.getByTestId("avatar-input");
+    const input = fileInput();
     // `fireEvent.change` with a `files` list is the only way to put a File on a
     // file input in jsdom; `userEvent.upload` needs a real one.
     Object.defineProperty(input, "files", { value: [file], configurable: true });
@@ -560,7 +567,7 @@ describe("Profiilikuva", () => {
 
   it("shows its own Finnish button and file line, never the browser's input", () => {
     renderPicture(null);
-    const input = screen.getByTestId("avatar-input");
+    const input = fileInput();
     const opened = vi.spyOn(input, "click");
 
     // The native input, whose button and status are the browser's words, is
@@ -582,7 +589,7 @@ describe("Profiilikuva", () => {
     expect(button).toHaveAccessibleDescription("kuva.png");
     expect(screen.getByText("kuva.png")).toHaveAttribute("aria-live", "polite");
 
-    const input = screen.getByTestId("avatar-input");
+    const input = fileInput();
     Object.defineProperty(input, "files", { value: [], configurable: true });
     fireEvent.change(input);
 
@@ -595,13 +602,33 @@ describe("Profiilikuva", () => {
     renderPicture(null);
     chooseFile(imageOf(1024));
 
-    const input = screen.getByTestId("avatar-input");
+    const input = fileInput();
     Object.defineProperty(input, "files", { value: [], configurable: true });
     fireEvent.change(input);
     fireEvent.click(screen.getByRole("button", { name: "Tallenna kuva" }));
 
     await waitFor(() => expect(screen.getByText("Valitse ensin kuva.")).toBeInTheDocument());
     expect(saveAvatarAction).not.toHaveBeenCalled();
+  });
+
+  it("disables its file button while a save is pending", async () => {
+    let finish: (value: { ok: true; version: string }) => void = () => undefined;
+    saveAvatarAction.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        })
+    );
+    renderPicture(null);
+    chooseFile(imageOf(1024));
+
+    fireEvent.click(screen.getByRole("button", { name: "Tallenna kuva" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Valitse kuva" })).toBeDisabled()
+    );
+    finish({ ok: true, version: VERSION });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Valitse kuva" })).toBeEnabled());
   });
 
   it("asks for a file before calling anything", async () => {
@@ -680,15 +707,16 @@ describe("Profiilikuva", () => {
     expect(refetch).toHaveBeenCalled();
   });
 
-  it("forgets the chosen file on removal, so choosing it again counts as a change", async () => {
+  it("replaces the input on removal, and says no file is chosen", async () => {
     renderPicture(VERSION);
     chooseFile(new File(["x"], "kuva.png", { type: "image/png" }));
-    const emptied = vi.spyOn(screen.getByTestId("avatar-input"), "value", "set");
+    const before = fileInput();
 
     fireEvent.click(screen.getByRole("button", { name: "Poista oma kuva" }));
 
     await waitFor(() => expect(screen.getByText("Oma kuva poistettu.")).toBeInTheDocument());
-    expect(emptied).toHaveBeenCalledWith("");
+    // A fresh input holds no file, so choosing the same one again fires a change.
+    expect(fileInput()).not.toBe(before);
     expect(screen.getByRole("button", { name: "Valitse kuva" })).toHaveAccessibleDescription(
       "Ei valittua kuvaa."
     );
