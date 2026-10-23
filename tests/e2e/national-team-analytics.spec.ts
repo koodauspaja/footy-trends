@@ -79,14 +79,14 @@ test.describe("National-team analytics, signed in", () => {
     await expect(records.getByText(/^\d{4}(–\d{4})?$/)).toBeVisible();
   });
 
-  test("puts the section above the year list", async ({ page }) => {
+  test("puts the section below the year list", async ({ page }) => {
     await page.goto(HUUHKAJAT);
     await analytics(page).waitFor();
 
     // The panels describe every year, so they cannot sit inside one.
     const headings = await page.getByRole("heading", { level: 2 }).allTextContents();
-    expect(headings[0]).toBe("Analyysit");
-    expect(headings.slice(1).every((heading) => /^\d{4}$/.test(heading))).toBe(true);
+    expect(headings.at(-1)).toBe("Analyysit");
+    expect(headings.slice(0, -1).every((heading) => /^\d{4}$/.test(heading))).toBe(true);
   });
 
   for (const [team, path] of [
