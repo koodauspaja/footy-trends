@@ -29,15 +29,16 @@ export type MatchListRow = ScoreBreakdown & {
 type MatchListTableProps<T extends MatchListRow> = {
   matches: T[];
   /**
-   * Builds a team's link href, or `null` on a team page, where a team's own name
-   * isn't a link to itself.
+   * Builds a team's link href, or `null` where the names are plain: a team page,
+   * a national team's years, head-to-head and a match page's meetings.
    */
   teamHref: ((teamProviderId: number) => string) | null;
   /** Omitted on the season-wide `/ulkomaat/ottelut` page, which has no fourth column at all. */
   fourthColumn?: { header: string; render: (match: T) => ReactNode };
   /**
-   * Builds a row's match-page href, carried by the date. `null` or omitted
-   * leaves this table's dates as plain text: the opt-out is per table.
+   * Builds a row's match-page href, carried by the date, and by the matchup when
+   * `teamHref` is `null`. `null` or omitted leaves both as plain text: the
+   * opt-out is per table.
    */
   matchHref?: ((match: T) => string) | null;
 };
@@ -45,12 +46,14 @@ type MatchListTableProps<T extends MatchListRow> = {
 /**
  * The Pvm/Ottelu/Tulos table shared by every match list. Generic over `T`, so
  * `fourthColumn.render` keeps access to its provider's fields. The first three
- * columns have the same widths whether or not a fourth exists.
+ * columns have the same widths whether or not a fourth exists. The matchup links
+ * to the match where its names are not team links.
  *
  * decisions/009-veikkausliiga.md
  * decisions/019-match-page.md
  * decisions/021-table-consistency.md
  * decisions/498-match-list-score.md
+ * decisions/715-matchup-links-to-match.md
  */
 export function MatchListTable<T extends MatchListRow>({
   matches,
@@ -87,6 +90,10 @@ export function MatchListTable<T extends MatchListRow>({
               {match.awayTeamName}
             </RowLink>
           </>
+        ) : matchHref ? (
+          <RowLink className="hover:underline" href={matchHref(match)}>
+            {`${match.homeTeamName} – ${match.awayTeamName}`}
+          </RowLink>
         ) : (
           `${match.homeTeamName} – ${match.awayTeamName}`
         ),

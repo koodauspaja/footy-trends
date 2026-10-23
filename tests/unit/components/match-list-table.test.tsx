@@ -10,6 +10,7 @@ import { type MatchListRow, MatchListTable } from "@/components/match-list-table
  * decisions/019-match-page.md
  * decisions/021-table-consistency.md
  * decisions/498-match-list-score.md
+ * decisions/715-matchup-links-to-match.md
  */
 
 const rows: MatchListRow[] = [
@@ -41,11 +42,27 @@ describe("MatchListTable match links", () => {
     );
   });
 
-  it("leaves the date as plain text without one", () => {
+  it("links the matchup to the match page where the names are plain", () => {
+    render(
+      <MatchListTable
+        matchHref={(match) => `/kotimaa/ottelu/${match.providerMatchId}`}
+        matches={rows}
+        teamHref={null}
+      />
+    );
+
+    expect(screen.getByRole("link", { name: "VPS – FC Lahti" })).toHaveAttribute(
+      "href",
+      "/kotimaa/ottelu/4036979"
+    );
+  });
+
+  it("leaves the date and the matchup as plain text without one", () => {
     render(<MatchListTable matches={rows} teamHref={null} />);
 
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
     expect(screen.getByText("31.08.2026")).toBeInTheDocument();
+    expect(screen.getByText("VPS – FC Lahti")).toBeInTheDocument();
   });
 
   it("keeps the team links independent of the date link", () => {
@@ -66,6 +83,8 @@ describe("MatchListTable match links", () => {
       "/kotimaa/joukkue/60969"
     );
     expect(screen.getByRole("link", { name: "31.08.2026" })).toBeInTheDocument();
+    // The names stay team links; the matchup does not become a third link.
+    expect(screen.getAllByRole("link")).toHaveLength(3);
   });
 
   it("right-aligns a round number and nothing else", () => {
