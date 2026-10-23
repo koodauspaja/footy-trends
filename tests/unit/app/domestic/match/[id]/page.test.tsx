@@ -86,10 +86,10 @@ describe("/kotimaa/ottelu/:id", () => {
     await renderPage();
 
     expect(screen.getByRole("heading", { level: 1, name: "VPS 2–1 FC Lahti" })).toBeInTheDocument();
-    // No element but the heading's link holds the name alone.
-    expect(screen.getAllByText("VPS")).toHaveLength(1);
-    // A score that says who won leaves both names at the heading's weight.
     for (const name of ["VPS", "FC Lahti"]) {
+      // No element but the heading's link holds the name alone.
+      expect(screen.getAllByText(name)).toHaveLength(1);
+      // A score that says who won leaves both names at the heading's weight.
       expect(screen.getByRole("link", { name }).className).not.toMatch(/\bfont-/);
     }
   });
