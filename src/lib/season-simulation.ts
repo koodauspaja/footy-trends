@@ -4,6 +4,7 @@
  * places counted. Pure: the service reads the table, the fixtures and the fit.
  *
  * decisions/061-season-simulation.md
+ * decisions/067-knockout-simulation.md
  */
 
 import { groupZones, type Zone, type ZoneLevel } from "./competition-zones";
@@ -98,7 +99,7 @@ export type ForecastRow = {
  *
  * decisions/061-season-simulation.md
  */
-function generator(seed: number): () => number {
+export function generator(seed: number): () => number {
   let state = seed >>> 0;
   return () => {
     state = (state + 0x6d2b79f5) >>> 0;
@@ -214,20 +215,29 @@ function count(
 }
 
 /**
+ * What a run hands on: its own final order, places of the current table best
+ * first, and the generator, for a caller that plays on from that table.
+ *
+ * decisions/067-knockout-simulation.md
+ */
+export type RunObserver = (order: readonly number[], random: () => number) => void;
+
+/**
  * A table's forecast: every fixture drawn `runs` times, each run ranked by
- * points and then the current order. A place is settled when the team's best
- * and worst possible finishes fall on the same side of it; a zone, a stretch of
- * places, is settled when they all fall outside it or all inside it.
+ * points and then the current order, and `onRun` told each run's order. A place
+ * is settled when the team's best and worst finishes fall on the same side of it.
  *
  * decisions/061-season-simulation.md
  * decisions/064-season-simulation-zones.md
+ * decisions/067-knockout-simulation.md
  */
 export function simulateTable(
   table: readonly TableRow[],
   fixtures: readonly SimulatedFixture[],
   runs: number = SIMULATION_RUNS,
   seed: number = SIMULATION_SEED,
-  zones: readonly Zone[] = []
+  zones: readonly Zone[] = [],
+  onRun?: RunObserver
 ): ForecastRow[] {
   const size = table.length;
   const positions = new Map(table.map((row, position) => [row.teamProviderId, position]));
@@ -265,6 +275,7 @@ export function simulateTable(
     // Points, then the current order: a position is its place in that order.
     order.sort((one, other) => (points[other] as number) - (points[one] as number) || one - other);
     count(tally, order, points, zones);
+    onRun?.([...order], random);
   }
 
   return table.map((row, position) => {

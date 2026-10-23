@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db, type Executor } from "@/db";
 import { matches, tasoGroupTeams, tasoMatches } from "@/db/schema";
-import { invalidateCache } from "@/lib/cache";
+import { invalidateCache, nextGeneration } from "@/lib/cache";
 import {
   categoryIdForSeason,
   competitionIdForSeason,
@@ -33,7 +33,6 @@ import type {
   SeasonChoice,
   SeasonsResult,
 } from "@/lib/refresh-view";
-import { forecastCacheKey } from "@/lib/season-simulation-service";
 import {
   standingsCacheKey,
   storedForeignSeasons,
@@ -161,28 +160,26 @@ function answerCacheKeys(choice: CompetitionChoice, seasonId: number): string[] 
 }
 
 /**
- * The entries computed from the stored rows: the table, and the season forecast
- * with the levels. Cleared by the refetch and again once the write has
- * committed, or a request between the two caches the old rows' figures.
+ * The entries computed from the stored rows and cleared rather than moved to a
+ * new generation: football-data's table. Cleared by the refetch and again once
+ * the write has committed, or a request between the two caches the old rows'.
  *
  * decisions/029-forced-season-refresh.md
  * decisions/064-season-simulation-zones.md
+ * decisions/691-computed-cache-generations.md
  */
 function computedCacheKeys(choice: CompetitionChoice, seasonId: number): string[] {
-  if (choice.source === "taso") return [forecastCacheKey("taso", choice.code, seasonId)];
-  return [
-    // The computed table, or the old standings show for fifteen minutes.
-    standingsCacheKey(choice.code, seasonId),
-    forecastCacheKey("football-data", choice.code, seasonId),
-  ];
+  return choice.source === "taso" ? [] : [standingsCacheKey(choice.code, seasonId)];
 }
 
 /**
- * The Redis entries a refetch must clear: the answer refetched and anything
- * computed from it, each key from its owner's builder. Season and name lists stay.
+ * The Redis entries a refetch must clear: the answer refetched and the table
+ * computed from it, each key from its owner's builder. Season and name lists
+ * stay, and the forecasts move to a new generation once the write commits.
  *
  * decisions/029-forced-season-refresh.md
  * decisions/064-season-simulation-zones.md
+ * decisions/691-computed-cache-generations.md
  */
 export function cacheKeysFor(choice: CompetitionChoice, seasonId: number): string[] {
   return [...answerCacheKeys(choice, seasonId), ...computedCacheKeys(choice, seasonId)];
@@ -522,9 +519,10 @@ export async function applyRefresh(
     return { ok: false, reason: "write" };
   }
 
-  // The write is committed; a failed clear is logged by the cache and the
-  // entries expire in fifteen minutes.
+  // The write is committed: the season's forecasts move to a new generation.
+  // A failed clear or move is logged by the cache, and expires in fifteen minutes.
   await clearCaches(computedCacheKeys(choice, seasonId));
+  await nextGeneration({ kind: choice.source, code: choice.code, seasonId });
   await recordSuccess(preview, adminId);
   return { ok: true, applied: preview };
 }

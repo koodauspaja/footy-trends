@@ -92,7 +92,8 @@ already, and #390 found two classes that had never been written down at all.
    (`/code-review low` in Claude Code). It is the quick pass for what an
    author should have seen; the thorough one is Sourcery's. Fix what they find
    before the push. A later push repeats the pass on what it changed, as
-   `skills/self-review.md` says, and not the skill.
+   `skills/self-review.md` says, and not the skill. A change to what a page
+   shows also gets `skills/ui-review.md`'s pass.
 6. Fill in the PR template:
    - Reference the GitHub Issue number with a closing keyword — `Closes #NNN`
      (or `Fixes #NNN` / `Resolves #NNN`) — never a bare mention like

@@ -1,15 +1,26 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ResultMatch } from "@/lib/form-series";
 import type { SideStats } from "@/lib/home-away";
-import type { SeasonKey, SeasonRead, SeasonReadResult } from "@/lib/season-comparison";
 import {
+  compareSeasons,
+  type SeasonKey,
+  type SeasonRead,
+  type SeasonReadResult,
+} from "@/lib/season-comparison";
+import {
+  type CleanSheetFact,
+  cleanSheetFact,
   isFavourable,
+  type PositionFact,
+  positionFact,
   rankFacts,
   runFacts,
   type SideFact,
   type SummaryFact,
   type SummaryReaders,
+  seasonPlaces,
   seasonSummaryFor,
+  shownCleanSheetShare,
   shownPointsPerMatch,
   sideFact,
   upsetFact,
@@ -27,6 +38,8 @@ import type { Surprise } from "@/lib/surprise";
  * deciding which season gets a block and what it reads.
  *
  * decisions/066-season-summary.md
+ * decisions/069-season-summary-clean-sheets.md
+ * decisions/070-season-summary-position.md
  */
 
 const TEAM = 1;
@@ -62,6 +75,17 @@ function homeFact(beaten: number, direction: SideFact["direction"] = "best"): Si
 
 function awayFact(beaten: number, direction: SideFact["direction"] = "best"): SideFact {
   return { kind: "away", direction, pointsPerMatch: 2, beaten, everySeason: false };
+}
+
+function positionAt(beaten: number, direction: PositionFact["direction"] = "best"): PositionFact {
+  return { kind: "position", direction, place: 3, beaten, everySeason: false };
+}
+
+function cleanSheetsFact(
+  beaten: number,
+  direction: CleanSheetFact["direction"] = "best"
+): CleanSheetFact {
+  return { kind: "cleanSheets", direction, share: 40, beaten, everySeason: false };
 }
 
 describe("shownPointsPerMatch", () => {
@@ -135,6 +159,130 @@ describe("sideFact", () => {
 
   it("has no fact for a season in the middle of the earlier ones", () => {
     expect(sideFact("home", side(10, 4), weaker)).toBeNull();
+  });
+});
+
+describe("shownCleanSheetShare", () => {
+  it("rounds to the whole percent Nollapelit prints", () => {
+    // One clean sheet in three is 33,3 %, two 66,7 %, one in eight 12,5 %.
+    expect(shownCleanSheetShare(finished(2026, "vHH", ""), TEAM)).toBe(33);
+    expect(shownCleanSheetShare(finished(2026, "vtH", ""), TEAM)).toBe(67);
+    expect(shownCleanSheetShare(finished(2026, "vHHH", "HHHH"), TEAM)).toBe(13);
+  });
+
+  it("reads the club's own side of each match", () => {
+    // `TEAM` concedes in all five; `OTHER` keeps a clean sheet in `TEAM`'s two defeats.
+    const matches = finished(2026, "VTH", "VH");
+
+    expect(shownCleanSheetShare(matches, TEAM)).toBe(0);
+    expect(shownCleanSheetShare(matches, OTHER)).toBe(40);
+  });
+
+  it("has no figure for a season the club played no match in", () => {
+    expect(shownCleanSheetShare(finished(2026, "vv", "t"), 3)).toBeNull();
+  });
+});
+
+describe("cleanSheetFact", () => {
+  const weaker = [50, 40, 30];
+
+  it("needs three earlier seasons, not two", () => {
+    expect(cleanSheetFact(60, weaker)).toEqual({
+      kind: "cleanSheets",
+      direction: "best",
+      share: 60,
+      beaten: 3,
+      everySeason: true,
+    });
+    expect(cleanSheetFact(60, weaker.slice(0, 2))).toBeNull();
+  });
+
+  it("counts the earlier seasons beaten in a row, newest first", () => {
+    // 60 beats 50, 40 and 30, then stops at 70, so the 10 before it is not counted.
+    expect(cleanSheetFact(60, [...weaker, 70, 10])).toMatchObject({
+      direction: "best",
+      beaten: 3,
+      everySeason: false,
+    });
+  });
+
+  it("finds a worst season, at 0 % as at any share", () => {
+    expect(cleanSheetFact(0, [10, 20, 30, 40])).toEqual({
+      kind: "cleanSheets",
+      direction: "worst",
+      share: 0,
+      beaten: 4,
+      everySeason: true,
+    });
+  });
+
+  it("stops the count at a season it equals", () => {
+    expect(cleanSheetFact(50, [40, 30, 50, 20])).toBeNull();
+    expect(cleanSheetFact(50, [40, 30, 20, 50])).toMatchObject({ beaten: 3, everySeason: false });
+  });
+
+  it("leaves out a season the club played no match in", () => {
+    expect(cleanSheetFact(60, [50, null, 40, 30])).toMatchObject({ beaten: 3, everySeason: true });
+  });
+
+  it("has no fact for a season in the middle of the earlier ones", () => {
+    expect(cleanSheetFact(40, weaker)).toBeNull();
+  });
+
+  it("has no fact without a share of its own", () => {
+    expect(cleanSheetFact(null, weaker)).toBeNull();
+  });
+});
+
+describe("positionFact", () => {
+  const lower = [4, 5, 6];
+
+  it("needs three earlier seasons, not two", () => {
+    expect(positionFact(3, lower)).toEqual({
+      kind: "position",
+      direction: "best",
+      place: 3,
+      beaten: 3,
+      everySeason: true,
+    });
+    expect(positionFact(3, lower.slice(0, 2))).toBeNull();
+  });
+
+  it("counts the earlier places beaten in a row, newest first, a smaller one being better", () => {
+    // 3rd beats 4th, 5th and 6th, then stops at 1st, so the 8th before it is not counted.
+    expect(positionFact(3, [...lower, 1, 8])).toMatchObject({
+      direction: "best",
+      beaten: 3,
+      everySeason: false,
+    });
+  });
+
+  it("finds a worst place as readily as a best one", () => {
+    expect(positionFact(11, [5, 6, 7, 8])).toEqual({
+      kind: "position",
+      direction: "worst",
+      place: 11,
+      beaten: 4,
+      everySeason: true,
+    });
+  });
+
+  it("stops the count at a place it equals", () => {
+    expect(positionFact(3, [4, 5, 3, 6])).toBeNull();
+    expect(positionFact(3, [4, 5, 6, 3])).toMatchObject({ beaten: 3, everySeason: false });
+  });
+
+  it("stops the count at a season that ranked the club nowhere", () => {
+    expect(positionFact(2, [3, null, 4, 5])).toBeNull();
+    expect(positionFact(2, [3, 4, 5, null])).toMatchObject({ beaten: 3, everySeason: false });
+  });
+
+  it("has no fact for a place in the middle of the earlier ones", () => {
+    expect(positionFact(5, lower)).toBeNull();
+  });
+
+  it("has no fact when the selected season ranks the club nowhere", () => {
+    expect(positionFact(null, lower)).toBeNull();
   });
 });
 
@@ -219,9 +367,13 @@ describe("upsetFact", () => {
 });
 
 describe("isFavourable", () => {
-  it("counts a best side, a winning or unbeaten run and the upset as favourable", () => {
+  it("counts a best side, share or place, a winning or unbeaten run and the upset as favourable", () => {
+    expect(isFavourable(positionAt(3))).toBe(true);
+    expect(isFavourable(positionAt(3, "worst"))).toBe(false);
     expect(isFavourable(homeFact(3))).toBe(true);
     expect(isFavourable(homeFact(3, "worst"))).toBe(false);
+    expect(isFavourable(cleanSheetsFact(3))).toBe(true);
+    expect(isFavourable(cleanSheetsFact(3, "worst"))).toBe(false);
     expect(isFavourable({ kind: "run", run: "wins", length: 9 })).toBe(true);
     expect(isFavourable({ kind: "run", run: "unbeaten", length: 9 })).toBe(true);
     expect(isFavourable({ kind: "run", run: "defeats", length: 9 })).toBe(false);
@@ -262,6 +414,45 @@ describe("rankFacts", () => {
     expect(kinds(rankFacts(facts.slice(0, 3), 4))).toEqual(["home-best", "away-best", "upset"]);
   });
 
+  it("orders the clean-sheet share after away and before the upset on equal counts", () => {
+    const facts: SummaryFact[] = [
+      { kind: "upset", match: upset(0.1) },
+      cleanSheetsFact(4),
+      awayFact(4),
+    ];
+
+    expect(kinds(rankFacts(facts, 4))).toEqual(["away-best", "cleanSheets-best", "upset"]);
+    expect(kinds(rankFacts([cleanSheetsFact(4), homeFact(4)], 4))).toEqual([
+      "home-best",
+      "cleanSheets-best",
+    ]);
+  });
+
+  it("puts a clean-sheet share beating more seasons before a side beating fewer", () => {
+    expect(kinds(rankFacts([homeFact(3), cleanSheetsFact(4)], 4))).toEqual([
+      "cleanSheets-best",
+      "home-best",
+    ]);
+  });
+
+  it("orders the place first among equal counts, before the run", () => {
+    const facts: SummaryFact[] = [
+      cleanSheetsFact(4),
+      homeFact(4),
+      { kind: "run", run: "wins", length: 9 },
+      positionAt(4),
+    ];
+
+    expect(kinds(rankFacts(facts, 4))).toEqual(["position-best", "run", "home-best"]);
+  });
+
+  it("puts a place beating fewer seasons after a fact beating more", () => {
+    expect(kinds(rankFacts([positionAt(3), awayFact(4)], 4))).toEqual([
+      "away-best",
+      "position-best",
+    ]);
+  });
+
   it("keeps three unfavourable facts when there is no favourable one", () => {
     const facts: SummaryFact[] = [
       homeFact(3, "worst"),
@@ -273,9 +464,10 @@ describe("rankFacts", () => {
   });
 });
 
-// A season's finished matches for `TEAM`: each character a result at home, then away.
+// A season's finished matches for `TEAM`: each character a result at home, then
+// away. A capital concedes a goal; `v` and `t` keep a clean sheet.
 function finished(seasonId: number, home: string, away: string): ResultMatch[] {
-  const score = { V: [1, 0], T: [0, 0], H: [0, 1] } as const;
+  const score = { V: [2, 1], T: [1, 1], H: [0, 1], v: [1, 0], t: [0, 0] } as const;
   const results = [
     ...[...home].map((result) => ({ result, atHome: true })),
     ...[...away].map((result) => ({ result, atHome: false })),
@@ -303,6 +495,78 @@ function read(matches: ResultMatch[]): SeasonReadResult {
   };
   return { status: "ok", read: season };
 }
+
+// A season with a table: the club's first `places.length` matches of an alike
+// pattern, played on rounds 1, 2, …, in a season of `length` rounds, and its
+// place after each of those rounds.
+function ranked(seasonId: number, places: number[], length = 10, teamCount = 12): SeasonRead {
+  const matches = finished(seasonId, "VVTHH", "VTHVT").slice(0, places.length);
+  return {
+    competition: "Veikkausliiga",
+    finished: matches.map((match, index) => ({ ...match, matchday: index + 1 })),
+    all: Array.from({ length }, (_, index) => ({ matchday: index + 1 })),
+    points: places.map((position, index) => ({ round: index + 1, position, played: true })),
+    teamCount,
+  };
+}
+
+const ten = (place: number) => Array.from({ length: 10 }, () => place);
+
+describe("seasonPlaces", () => {
+  it("gives the selected season the place Tämä kausi verrattuna prints for it", () => {
+    // After its fifth match the club sat out round six, where it fell to 4th: the
+    // place is the one after its own last round.
+    const played = ranked(2026, [5, 4, 3, 3, 2], 10, 12);
+    const selected = {
+      ...played,
+      points: [...played.points, { round: 6, position: 4, played: false }],
+    };
+    const earlier = [ranked(2025, ten(6)), ranked(2024, ten(7))];
+
+    const place = seasonPlaces(TEAM, selected, earlier).selected;
+    const row = compareSeasons(TEAM, selected, earlier).rows.find(
+      (comparison) => comparison.measure === "position"
+    );
+
+    expect(place).toBe(2);
+    expect(Math.round((row?.selected ?? 0) * 12)).toBe(place);
+  });
+
+  it("reads each earlier season at the selected season's share of its length", () => {
+    // Five rounds of ten played: each earlier season is read after its own
+    // fifth round of ten, and after its tenth of twenty.
+    const selected = ranked(2026, [4, 4, 3, 3, 2]);
+    const earlier = [
+      ranked(2025, [8, 8, 8, 8, 6, 1, 1, 1, 1, 1]),
+      ranked(2024, [...ten(9), 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 20),
+    ];
+
+    expect(seasonPlaces(TEAM, selected, earlier)).toEqual({ selected: 2, earlier: [6, 9] });
+  });
+
+  it("compares a finished season's final place", () => {
+    const earlier = [ranked(2025, [8, 8, 8, 8, 8, 8, 8, 8, 8, 1])];
+
+    expect(seasonPlaces(TEAM, ranked(2026, ten(2)), earlier).earlier).toEqual([1]);
+  });
+
+  it("keeps a place in a table of another size as it is", () => {
+    const earlier = [ranked(2025, ten(3), 10, 10), ranked(2024, ten(3), 10, 16)];
+
+    expect(seasonPlaces(TEAM, ranked(2026, ten(2), 10, 12), earlier).earlier).toEqual([3, 3]);
+  });
+
+  it("has no place for a season that ranked the club nowhere", () => {
+    const unranked = read(finished(2025, "VVTHH", "VTHVT"));
+    if (unranked.status !== "ok") throw new Error("a read");
+
+    expect(seasonPlaces(TEAM, ranked(2026, ten(2)), [unranked.read])).toEqual({
+      selected: 2,
+      earlier: [null],
+    });
+    expect(seasonPlaces(TEAM, unranked.read, []).selected).toBeNull();
+  });
+});
 
 const SEASONS = [2022, 2023, 2024, 2025, 2026].map((seasonId) => ({
   competitionCode: "VL",
@@ -643,6 +907,92 @@ describe("seasonSummaryFor", () => {
 
     expect(await seasonSummaryFor(summary)).toMatchObject({
       facts: expect.arrayContaining([{ kind: "run", run: "wins", length: 7 }]),
+    });
+  });
+
+  // Every season alike at home and away, so only the clean-sheet share differs:
+  // the number of `V`/`T` results that kept one, out of ten.
+  const kept = (seasonId: number, clean: number): SeasonReadResult => {
+    const results = [..."VVTHHVTHVT"];
+    let left = clean;
+    const marked = results.map((result) => {
+      if (result === "H" || left === 0) return result;
+      left -= 1;
+      return result.toLowerCase();
+    });
+    return read(finished(seasonId, marked.slice(0, 5).join(""), marked.slice(5).join("")));
+  };
+
+  it("states the clean-sheet share against the earlier seasons, newest first", async () => {
+    // 70 % beats 2025's 60, 2024's 50 and 2023's 40, then equals 2022's 70. Read
+    // oldest first it would beat none, and 2025's read four times all four.
+    const shares: Record<number, number> = { 2026: 7, 2025: 6, 2024: 5, 2023: 4, 2022: 7 };
+    const summary = await seasonSummaryFor(
+      readers({ read: async (key) => kept(key.seasonId, shares[key.seasonId] ?? 0) })
+    );
+
+    expect(summary).toMatchObject({
+      status: "ok",
+      facts: [{ kind: "cleanSheets", direction: "best", share: 70, beaten: 3, everySeason: false }],
+    });
+  });
+
+  it("leaves out of the clean-sheet count an earlier season the club played no match in", async () => {
+    // 2025 left out: 70 % beats 2024's 60, 2023's 50 and 2022's 40, every compared season.
+    const shares: Record<number, number> = { 2026: 7, 2024: 6, 2023: 5, 2022: 4 };
+    const summary = await seasonSummaryFor(
+      readers({
+        read: async (key) =>
+          key.seasonId === 2025 ? read([]) : kept(key.seasonId, shares[key.seasonId] ?? 0),
+      })
+    );
+
+    expect(summary).toMatchObject({
+      facts: [{ kind: "cleanSheets", share: 70, beaten: 3, everySeason: true }],
+    });
+  });
+
+  it("states the place against the earlier seasons, newest first", async () => {
+    // 2nd beats 2025's 3rd, 2024's 4th and 2023's 5th, then stops at 2022's 1st.
+    // Read oldest first it would be the worst; 2025's read four times, every season beaten.
+    const places: Record<number, number> = { 2026: 2, 2025: 3, 2024: 4, 2023: 5, 2022: 1 };
+    const summary = await seasonSummaryFor(
+      readers({
+        read: async (key) => ({
+          status: "ok",
+          read: ranked(key.seasonId, ten(places[key.seasonId] ?? 12)),
+        }),
+      })
+    );
+
+    expect(summary).toMatchObject({
+      status: "ok",
+      facts: [{ kind: "position", direction: "best", place: 2, beaten: 3, everySeason: false }],
+    });
+  });
+
+  it("states a season in progress against the others at the same point", async () => {
+    // Five rounds of ten played, 2nd: each earlier season was 3rd to 6th after
+    // five rounds, and won it in the end.
+    const fifthThenFirst = (fifth: number) => [9, 9, 9, 9, fifth, 1, 1, 1, 1, 1];
+    const reads: Record<number, SeasonRead> = {
+      2026: ranked(2026, [4, 4, 3, 3, 2]),
+      2025: ranked(2025, fifthThenFirst(3)),
+      2024: ranked(2024, fifthThenFirst(4)),
+      2023: ranked(2023, fifthThenFirst(5)),
+      2022: ranked(2022, fifthThenFirst(6)),
+    };
+    const summary = await seasonSummaryFor(
+      readers({
+        read: async (key) => ({
+          status: "ok",
+          read: reads[key.seasonId] ?? ranked(key.seasonId, []),
+        }),
+      })
+    );
+
+    expect(summary).toMatchObject({
+      facts: [{ kind: "position", direction: "best", place: 2, beaten: 4, everySeason: true }],
     });
   });
 

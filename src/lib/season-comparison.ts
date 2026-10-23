@@ -286,8 +286,7 @@ export function compareSeasons(
   others: readonly SeasonRead[],
   measures: readonly Measure[] = MEASURES
 ): SeasonComparison {
-  const length = seasonLength(selected.all);
-  const share = shareCompleted(lastRoundPlayedBy(selected.finished, teamId), length) ?? 1;
+  const share = comparisonShare(teamId, selected);
 
   return {
     rows: comparisonRows(
@@ -302,11 +301,25 @@ export function compareSeasons(
 }
 
 /**
+ * How far through the selected season the club is, the share every other season
+ * is read at: the whole season when its length or the club's last round is unknown.
+ *
+ * decisions/038-season-against-history.md
+ * decisions/070-season-summary-position.md
+ */
+export function comparisonShare(teamId: number, selected: SeasonRead): number {
+  return (
+    shareCompleted(lastRoundPlayedBy(selected.finished, teamId), seasonLength(selected.all)) ?? 1
+  );
+}
+
+/**
  * Where this season had the club at `share` of its own length, if it ranked it at all.
  *
  * decisions/038-season-against-history.md
+ * decisions/070-season-summary-position.md
  */
-function positionIn(season: SeasonRead, share: number): SeasonPosition | null {
+export function positionIn(season: SeasonRead, share: number): SeasonPosition | null {
   const length = seasonLength(season.all);
   if (length === null) return null;
 
