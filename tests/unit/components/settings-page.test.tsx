@@ -624,10 +624,15 @@ describe("Profiilikuva", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Tallenna kuva" }));
 
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Valitse kuva" })).toBeDisabled()
-    );
-    finish({ ok: true, version: VERSION });
+    try {
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: "Valitse kuva" })).toBeDisabled()
+      );
+    } finally {
+      // Settled even when the assertion fails: React holds every later test's
+      // transitions pending while an earlier async action is.
+      finish({ ok: true, version: VERSION });
+    }
     await waitFor(() => expect(screen.getByRole("button", { name: "Valitse kuva" })).toBeEnabled());
   });
 
