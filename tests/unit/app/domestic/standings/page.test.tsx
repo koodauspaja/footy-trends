@@ -574,7 +574,7 @@ describe("Domestic standings page, cup competitions", () => {
     getSeasonCategoryNameMock.mockResolvedValue(null);
   });
 
-  it("puts Cupin ennuste after Pudotuspelit, signed in, for the season in progress", async () => {
+  it("puts the tree first, the rounds latest first, and Cupin ennuste last, signed in", async () => {
     canSeeAnalyticsMock.mockResolvedValue(true);
     getCupForecastMock.mockResolvedValue({ status: "no-fixtures" });
     getSeasonStandingsMock.mockResolvedValue({ status: "ok", levels: [], groups: closingRounds });
@@ -582,7 +582,13 @@ describe("Domestic standings page, cup competitions", () => {
     await renderStandings({ kilpailu: "MSC", kausi: "2026" });
 
     const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
-    expect(headings.slice(0, 2)).toEqual(["Pudotuspelit", "Cupin ennuste"]);
+    expect(headings).toEqual([
+      "Pudotuspelit",
+      "Loppuottelu",
+      "Välierät",
+      "Puolivälierät",
+      "Cupin ennuste",
+    ]);
     expect(getCupForecastMock).toHaveBeenCalledWith("MSC", 2026, 2026);
     expect(screen.getByRole("region", { name: "Cupin ennuste" })).toBeInTheDocument();
   });
@@ -687,6 +693,25 @@ describe("Domestic standings page, cup competitions", () => {
 
     expect(screen.queryByRole("heading", { name: "Pudotuspelit" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Cup-vaihe" })).toBeInTheDocument();
+  });
+
+  it("puts a league's tables first, then Pudotuspelit, then its knockout lists", async () => {
+    // VL 2017's shape: Runkosarja, then a knockout the tree draws.
+    getSeasonStandingsMock.mockResolvedValue({
+      status: "ok",
+      levels: [],
+      groups: [ownCalculatedGroup, ...closingRounds.slice(1)],
+    });
+
+    await renderStandings();
+
+    const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    expect(headings).toEqual([
+      ownCalculatedGroup.groupName,
+      "Pudotuspelit",
+      "Välierät",
+      "Loppuottelu",
+    ]);
   });
 
   it("shows no Pudotuspelit section for a league competition", async () => {
