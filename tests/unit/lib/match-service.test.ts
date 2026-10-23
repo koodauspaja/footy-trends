@@ -19,6 +19,7 @@ import { warmModules } from "../../support/warm-module";
  * decisions/051-home-win-baseline.md
  * decisions/057-surprise-index.md
  * decisions/058-rivalry-prediction.md
+ * decisions/702-surprises-without-backtest.md
  */
 
 const selectMock = vi.fn();
@@ -657,24 +658,24 @@ describe("getGoalsPerGame", () => {
   });
 });
 
-describe("getFirstStoredSeason", () => {
+describe("getPlayedSeasons", () => {
   beforeEach(() => {
     selectMock.mockReset();
   });
 
-  it("is the earliest season a football-data competition has a finished match of", async () => {
-    const { getFirstStoredSeason } = await import("@/lib/match-service");
+  it("is every season a football-data competition has a finished match of", async () => {
+    const { getPlayedSeasons } = await import("@/lib/match-service");
     selectMock.mockResolvedValueOnce([
       { seasonId: 2025, matches: 380, goals: 1140 },
       { seasonId: 2023, matches: 380, goals: 1064 },
       { seasonId: 2024, matches: 380, goals: 1064 },
     ]);
 
-    await expect(getFirstStoredSeason("football-data", "PL")).resolves.toBe(2023);
+    await expect(getPlayedSeasons("football-data", "PL")).resolves.toEqual([2025, 2023, 2024]);
   });
 
   it("counts a TASO season only under the competition's own pair that season", async () => {
-    const { getFirstStoredSeason } = await import("@/lib/match-service");
+    const { getPlayedSeasons } = await import("@/lib/match-service");
     selectMock.mockResolvedValueOnce([
       { seasonId: 2026, competitionId: "spljp26", categoryId: "P21SM", matches: 10, goals: 30 },
       { seasonId: 2025, competitionId: "spljp25", categoryId: "P20SM", matches: 10, goals: 25 },
@@ -682,21 +683,21 @@ describe("getFirstStoredSeason", () => {
       { seasonId: 2024, competitionId: "Liigacup24", categoryId: "P20SM", matches: 10, goals: 9 },
     ]);
 
-    await expect(getFirstStoredSeason("taso", "P21SM")).resolves.toBe(2025);
+    await expect(getPlayedSeasons("taso", "P21SM")).resolves.toEqual([2026, 2025]);
   });
 
-  it("is null for a competition with no finished match stored", async () => {
-    const { getFirstStoredSeason } = await import("@/lib/match-service");
+  it("is empty for a competition with no finished match stored", async () => {
+    const { getPlayedSeasons } = await import("@/lib/match-service");
     selectMock.mockResolvedValueOnce([]);
 
-    await expect(getFirstStoredSeason("taso", "VL")).resolves.toBeNull();
+    await expect(getPlayedSeasons("taso", "VL")).resolves.toEqual([]);
   });
 
   it("lets a failed read through to its caller", async () => {
-    const { getFirstStoredSeason } = await import("@/lib/match-service");
+    const { getPlayedSeasons } = await import("@/lib/match-service");
     selectMock.mockRejectedValueOnce(new Error("connection reset"));
 
-    await expect(getFirstStoredSeason("football-data", "PL")).rejects.toThrow("connection reset");
+    await expect(getPlayedSeasons("football-data", "PL")).rejects.toThrow("connection reset");
   });
 });
 

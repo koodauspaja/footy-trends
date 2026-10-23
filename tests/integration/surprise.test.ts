@@ -12,6 +12,7 @@ import { getMatchSurprise, getSeasonSurprises, getTeamUpset } from "@/lib/surpri
  *
  * decisions/057-surprise-index.md
  * decisions/066-season-summary.md
+ * decisions/702-surprises-without-backtest.md
  */
 
 const IDS = Array.from({ length: 12 }, (_, index) => 984_001 + index);
@@ -143,6 +144,31 @@ describe("getSeasonSurprises against Postgres", () => {
       expect.objectContaining({ providerMatchId: id(4), probability: 0.15, homeGoals: 2 }),
       expect.objectContaining({ providerMatchId: id(1), probability: 0.2 }),
     ]);
+  });
+
+  it("tells a played season with no backtest row from one with no played match", async () => {
+    await db.insert(matches).values([
+      footballDataMatch(0, { seasonId: 1980, kickoffAt: kickoff(1, 1980) }),
+      footballDataMatch(1),
+      // In play with a score so far: not played.
+      footballDataMatch(2, { seasonId: 1982, kickoffAt: kickoff(3, 1982), status: "IN_PLAY" }),
+      footballDataMatch(3, {
+        seasonId: 1982,
+        kickoffAt: kickoff(4, 1982),
+        status: "SCHEDULED",
+        homeGoals: null,
+        awayGoals: null,
+      }),
+    ]);
+
+    await expect(getSeasonSurprises("football-data", "PPL", 1981, 1981)).resolves.toEqual({
+      status: "unpredicted",
+      inProgress: true,
+    });
+    await expect(getSeasonSurprises("football-data", "PPL", 1982, 1982)).resolves.toEqual({
+      status: "empty",
+      inProgress: true,
+    });
   });
 
   it("shows no list for the competition's first stored season", async () => {
