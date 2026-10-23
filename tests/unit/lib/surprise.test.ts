@@ -14,6 +14,7 @@ import {
  *
  * decisions/057-surprise-index.md
  * decisions/066-season-summary.md
+ * decisions/702-surprises-without-backtest.md
  */
 
 function match(overrides: Partial<PredictedMatch> = {}): PredictedMatch {
@@ -56,6 +57,8 @@ describe("isFirstStoredSeason", () => {
   it("is not a later season, nor any season of a competition with nothing stored", () => {
     expect(isFirstStoredSeason(2024, [2023, 2024])).toBe(false);
     expect(isFirstStoredSeason(2024, [])).toBe(false);
+    // The earliest played season, wherever the read lists it.
+    expect(isFirstStoredSeason(2024, [2024, 2023])).toBe(false);
   });
 });
 
@@ -167,7 +170,7 @@ describe("seasonSurprises", () => {
     });
   });
 
-  it("tells a season with played matches but no prediction from one with none played", () => {
+  it("says a season with played matches but none predicted has none predicted", () => {
     expect(seasonSurprises([], { inProgress: true, played: true })).toEqual({
       status: "unpredicted",
       inProgress: true,

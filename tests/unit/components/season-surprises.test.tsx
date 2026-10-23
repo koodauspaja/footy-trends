@@ -20,6 +20,7 @@ import type { SeasonSurprises, Surprise } from "@/lib/surprise";
  * list.
  *
  * decisions/057-surprise-index.md
+ * decisions/702-surprises-without-backtest.md
  */
 
 function surprise(overrides: Partial<Surprise> = {}): Surprise {

@@ -147,13 +147,19 @@ describe("getSeasonSurprises against Postgres", () => {
   });
 
   it("tells a played season with no backtest row from one with no played match", async () => {
-    await db
-      .insert(matches)
-      .values([
-        footballDataMatch(0, { seasonId: 1980, kickoffAt: kickoff(1, 1980) }),
-        footballDataMatch(1),
-        footballDataMatch(2, { status: "SCHEDULED", homeGoals: null, awayGoals: null }),
-      ]);
+    await db.insert(matches).values([
+      footballDataMatch(0, { seasonId: 1980, kickoffAt: kickoff(1, 1980) }),
+      footballDataMatch(1),
+      // In play with a score so far: not played.
+      footballDataMatch(2, { seasonId: 1982, kickoffAt: kickoff(3, 1982), status: "IN_PLAY" }),
+      footballDataMatch(3, {
+        seasonId: 1982,
+        kickoffAt: kickoff(4, 1982),
+        status: "SCHEDULED",
+        homeGoals: null,
+        awayGoals: null,
+      }),
+    ]);
 
     await expect(getSeasonSurprises("football-data", "PPL", 1981, 1981)).resolves.toEqual({
       status: "unpredicted",

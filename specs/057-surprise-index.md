@@ -49,7 +49,7 @@ finished match, how surprising that one was.
 | S9 | Elo's run-in | **No list for a competition's first stored season, and a line saying why**; the line's wording is S17's | Miikka, 2026-10-01 (Q9). specs/053 S7. |
 | S10 | Access | **Signed in only** | Miikka, 2026-10-01 (Q10). |
 | S11 | The strings | **As in UX / UI** | Miikka, 2026-10-01 (Q11): "good as suggested"; the strings may be fine-tuned during implementation. |
-| S12 | Two rules | **No predicted match: `Kaudelta ei ole vielä pelattuja otteluita.`; equally surprising matches list the earlier kickoff first** — *narrowed by #702: the line is for a season with no played match; played matches with none predicted say `Pelatuille otteluille ei ole vielä laskettu ennusteita.`* | Miikka, 2026-10-01 (S12); 2026-10-23 (#702). |
+| S12 | Two rules | **No predicted match: `Kaudelta ei ole vielä pelattuja otteluita.`; equally surprising matches list the earlier kickoff first** — *overridden in part by #702: the line is for a season with no played match; played matches with none predicted say `Pelatuille otteluille ei ole vielä laskettu ennusteita.`* | Miikka, 2026-10-01 (S12); 2026-10-23 (#702). |
 | S13 | Fresh backtest rows | **The hourly run also writes the backtest rows of finished matches, inside this feature**, by S19's rules | Miikka, 2026-10-10 (Q13): "questions as you suggested", then "if it can go in here, put it in". Backtest rows were written by hand only (specs/052 S10): on production the last were from 2026-10-06, and by 2026-10-10 26 finished matches had a live Elo row and no backtest row. |
 | S14 | Which matches count | **A finished match with both scores and an `elo-v1` backtest row — Elo's row alone, whatever the other models have** | Miikka, 2026-10-10 (Q14). `/ennusteet` judges only matches all three models predicted (specs/055 S18); #354 is about Elo, so this spec calls its matches *predicted*, not *judged*. |
 | S15 | Logging | **As in Logging** | Miikka, 2026-10-10 (Q15). The section did not exist when this spec was written. |
@@ -97,6 +97,7 @@ that one side won: `Elo antoi tälle tulokselle 8 %.`
 | A competition-season's list | Its predicted matches (S14) that a side won, ten with the smallest probability; ties the earlier kickoff first (S12). A domestic competition played in several groups has one list across them |
 | A match's figure | Its own row; none if Elo has no row for it, or it was drawn (S7, S18) |
 | The first stored season | The competition's earliest season with a stored finished match (S9) |
+| Whether a season has a played match | Whether it is among the seasons with a stored finished match, the same read (#702) |
 | Access | `canSeeAnalytics()` before anything is read (S10) |
 
 **The hourly run** (`npm run predictions -- log`, specs/052) gains a step

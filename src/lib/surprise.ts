@@ -75,9 +75,10 @@ export function surpriseOf(
 
 /**
  * Whether a season is the one a competition's stored history starts with, or
- * earlier, where no list is shown.
+ * earlier, where no list is shown: at or before the earliest played season.
  *
  * decisions/057-surprise-index.md
+ * decisions/702-surprises-without-backtest.md
  */
 export function isFirstStoredSeason(seasonId: number, playedSeasons: readonly number[]): boolean {
   return playedSeasons.length > 0 && seasonId <= Math.min(...playedSeasons);

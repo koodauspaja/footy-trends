@@ -19,6 +19,7 @@ import { warmModules } from "../../support/warm-module";
  * decisions/051-home-win-baseline.md
  * decisions/057-surprise-index.md
  * decisions/058-rivalry-prediction.md
+ * decisions/702-surprises-without-backtest.md
  */
 
 const selectMock = vi.fn();

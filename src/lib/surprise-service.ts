@@ -167,6 +167,7 @@ export async function getSeasonSurprises(
  *
  * decisions/057-surprise-index.md
  * decisions/066-season-summary.md
+ * decisions/702-surprises-without-backtest.md
  */
 export async function getTeamUpset(
   kind: MatchSource["kind"],

@@ -66,7 +66,8 @@ function SurpriseItem({
 }
 
 /**
- * The line a season with no list says, by why it has none.
+ * The line a season that has no list, and is neither the first stored season
+ * nor a failed read, says by why it has none.
  *
  * decisions/057-surprise-index.md
  * decisions/702-surprises-without-backtest.md
@@ -83,8 +84,9 @@ const EMPTY_LINES: Record<
 /**
  * A season's biggest surprises: a numbered list of the wins Elo thought least
  * likely, each linking to its match, or the line saying why there is none.
- * `inProgressLine` names the season, and is shown while it is being played,
- * above the list or that line.
+ * `inProgressLine` names the season, and is shown while it is being played:
+ * above the list, the no-matches line, the unpredicted line and the all-drawn
+ * line.
  *
  * decisions/057-surprise-index.md
  * decisions/702-surprises-without-backtest.md

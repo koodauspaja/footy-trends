@@ -9,6 +9,7 @@ import type { StoredMatch } from "@/lib/match-service";
  *
  * decisions/057-surprise-index.md
  * decisions/066-season-summary.md
+ * decisions/702-surprises-without-backtest.md
  */
 
 const mocks = vi.hoisted(() => ({
@@ -152,6 +153,16 @@ describe("getSeasonSurprises", () => {
     await expect(getSeasonSurprises("taso", "VL", 2026, 2026)).resolves.toEqual({
       status: "empty",
       inProgress: true,
+    });
+  });
+
+  it("reads a past season's own played state, not the active season's", async () => {
+    mocks.getPlayedSeasons.mockResolvedValueOnce([2023, 2024, 2026]);
+    mocks.seasonRows.mockResolvedValueOnce([]);
+
+    await expect(getSeasonSurprises("taso", "VL", 2025, 2026)).resolves.toEqual({
+      status: "empty",
+      inProgress: false,
     });
   });
 
