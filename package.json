@@ -91,7 +91,7 @@
     "fsevents@2.3.3": true,
     "sharp@0.35.3": true
   },
-  "packageManager": "npm@12.2.0",
+  "packageManager": "npm@12.2.1",
   "overrides": {
     "browserslist": "^4.28.7",
     "fast-uri": "^4.0.0",
