@@ -83,16 +83,60 @@ describe("leagueGroupOrder", () => {
 });
 
 describe("cupGroupOrder", () => {
-  it("puts a cup's rounds latest first", () => {
-    const rounds = [1, 2, 3].map((id) => group(id, "match-list"));
+  const list = (groupId: number) => group(groupId, "match-list");
 
-    expect(ids(cupGroupOrder(rounds))).toEqual([3, 2, 1]);
+  it("puts a knockout's rounds latest first", () => {
+    const matches = [played(1, "2025-04-01"), played(2, "2025-05-01"), played(3, "2025-06-01")];
+
+    expect(ids(cupGroupOrder([list(1), list(2), list(3)], matches))).toEqual([3, 2, 1]);
   });
 
-  it("puts a group-stage cup's knockout before its group tables, which keep TASO's order", () => {
-    // MSC 2021: league-named groups, then Cup-vaihe.
-    const groups = [group(1, "pass-through"), group(2, "pass-through"), group(3, "match-list")];
+  it("puts rounds that overlap latest first all the same", () => {
+    // MSC 2025: Kierros 1 starts while Juuson kierros is still being played.
+    const matches = [
+      played(1, "2025-02-09"),
+      played(1, "2025-03-09"),
+      played(2, "2025-02-15"),
+      played(2, "2025-03-24"),
+      played(3, "2025-03-22"),
+    ];
 
-    expect(ids(cupGroupOrder(groups))).toEqual([3, 1, 2]);
+    expect(ids(cupGroupOrder([list(1), list(2), list(3)], matches))).toEqual([3, 2, 1]);
+  });
+
+  it("keeps a group stage starting on one day in TASO's order, after the round that follows it", () => {
+    // MSC 2021: six groups from 6.2., then Cup-vaihe from 6.3.
+    const matches = [
+      played(1, "2021-02-06"),
+      played(1, "2021-03-04"),
+      played(2, "2021-02-06"),
+      played(2, "2021-02-21"),
+      played(3, "2021-03-06"),
+    ];
+
+    expect(ids(cupGroupOrder([list(1), list(2), list(3)], matches))).toEqual([3, 1, 2]);
+  });
+
+  it("puts any group tables after the match lists, in TASO's order", () => {
+    const groups = [group(1, "pass-through"), group(2, "pass-through"), list(3)];
+
+    expect(ids(cupGroupOrder(groups, [played(3, "2021-05-01")]))).toEqual([3, 1, 2]);
+  });
+
+  it("reads a round's first day in Helsinki, as the date column does", () => {
+    // 23.30 UTC on 1.4. is already 2.4. in Helsinki, the day round 2 starts:
+    // the two start on one day there, so TASO's order holds.
+    const matches = [
+      { groupId: 1, kickoffAt: new Date("2025-04-01T23:30:00Z") },
+      { groupId: 2, kickoffAt: new Date("2025-04-02T15:00:00Z") },
+    ];
+
+    expect(ids(cupGroupOrder([list(1), list(2)], matches))).toEqual([1, 2]);
+  });
+
+  it("puts an undated round after the dated ones", () => {
+    const matches = [played(1, "2025-04-01"), played(3, "2025-06-01")];
+
+    expect(ids(cupGroupOrder([list(1), list(2), list(3)], matches))).toEqual([3, 1, 2]);
   });
 });

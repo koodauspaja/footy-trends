@@ -395,9 +395,10 @@ export default async function DomesticStandingsPage({
       {result.status === "ok" &&
         !isGroupsAndPlayoff &&
         isCup &&
-        cupGroupOrder(result.groups).map((group) => (
-          <CupRoundSection group={group} key={group.groupId} teamHref={teamHref} />
-        ))}
+        cupGroupOrder(
+          result.groups,
+          result.groups.flatMap((group) => (group.kind === "match-list" ? group.matches : []))
+        ).map((group) => <CupRoundSection group={group} key={group.groupId} teamHref={teamHref} />)}
       {cupForecast.status === "unavailable" ? null : <CupForecastSection forecast={cupForecast} />}
       {!isGroupsAndPlayoff && <StandingsLegend />}
       {analytics}

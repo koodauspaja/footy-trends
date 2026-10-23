@@ -2084,8 +2084,8 @@ async function storedGroupLevels(
 }
 
 /**
- * A season's groups and levels. `order: "league"` puts a league's later phases
- * before its first; a cup keeps TASO's order.
+ * A season's groups and levels. `order: "league"` gives a league's tables, later
+ * phases first, then its match lists; the default keeps TASO's order.
  *
  * decisions/009-veikkausliiga.md
  * decisions/714-page-section-order.md
