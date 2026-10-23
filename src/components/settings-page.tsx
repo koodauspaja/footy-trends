@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Notice } from "@/components/notice";
 import { useSession } from "@/lib/auth-client";
 import { removeAvatarAction, saveAvatarAction } from "@/lib/avatar-actions";
@@ -61,7 +61,8 @@ const FIELD_NAME: Record<RegionSegment, keyof Preferences> = {
 const SELECT_CLASS = "rounded border border-border px-2 py-1 text-sm";
 const SECTION_CLASS = "mb-8";
 const HEADING_CLASS = "mb-3 font-medium text-lg";
-const NO_FILE_CHOSEN = "Ei valittua kuvaa.";
+const BUTTON_CLASS =
+  "rounded border border-border px-3 py-2 text-sm hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50";
 
 /**
  * The settings page: the start page and its competitions, the profile picture,
@@ -235,6 +236,7 @@ function ProfilePicture({
   // The chosen file in state, not read off the form at submit: the size check
   // needs it before anything is sent.
   const [chosen, setChosen] = useState<File | null>(null);
+  const input = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<AvatarError | null>(null);
   const [saved, setSaved] = useState<null | "saved" | "removed">(null);
   const [removeFailed, setRemoveFailed] = useState(false);
@@ -245,6 +247,13 @@ function ProfilePicture({
   const { refetch } = useSession();
 
   const source = current === null ? googleImage : `/api/avatar/me?v=${encodeURIComponent(current)}`;
+
+  // The input's own file goes with the state's, or picking the same file again
+  // would fire no change.
+  function clearChosen() {
+    setChosen(null);
+    if (input.current !== null) input.current.value = "";
+  }
 
   function announce(outcome: null | "saved" | "removed", failure: AvatarError | null) {
     setSaved(outcome);
@@ -268,35 +277,38 @@ function ProfilePicture({
         <span className="text-sm text-muted">{pictureInUse(current, googleImage)}</span>
       </div>
 
-      {/* The input is hidden and its label drawn as the button: a native file
-          input's own button and status are in the browser's language. */}
+      {/* Our own button opens a hidden input: a native file input's button and
+          status are in the browser's language, even to a screen reader. */}
       <input
         accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-        aria-describedby="avatar-chosen"
-        className="peer sr-only"
+        className="hidden"
+        data-testid="avatar-input"
         disabled={pending}
-        id="avatar"
         name="avatar"
         onChange={(event) => {
           setChosen(event.target.files?.[0] ?? null);
           announce(null, null);
         }}
+        ref={input}
         type="file"
       />
-      <label
-        className="mb-1 inline-block cursor-pointer rounded border border-border px-3 py-2 text-sm hover:bg-surface peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-disabled:cursor-not-allowed peer-disabled:opacity-50"
-        htmlFor="avatar"
+      <button
+        aria-describedby="avatar-chosen"
+        className={`mb-1 ${BUTTON_CLASS}`}
+        disabled={pending}
+        onClick={() => input.current?.click()}
+        type="button"
       >
         Valitse kuva
-      </label>
-      <p aria-live="polite" className="mb-1 text-sm" id="avatar-chosen">
-        {chosen?.name ?? NO_FILE_CHOSEN}
+      </button>
+      <p aria-live="polite" className="mb-1 text-sm wrap-anywhere" id="avatar-chosen">
+        {chosen?.name ?? "Ei valittua kuvaa."}
       </p>
       <p className="mb-3 text-sm text-muted">JPEG, PNG, WebP tai HEIC, enintään 8 Mt.</p>
 
       <div className="flex flex-wrap gap-2">
         <button
-          className="rounded border border-border px-3 py-2 text-sm hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
+          className={BUTTON_CLASS}
           disabled={pending}
           onClick={() => {
             if (chosen === null || chosen.size === 0) {
@@ -345,7 +357,7 @@ function ProfilePicture({
             disabled tells the reader nothing. */}
         {current !== null && (
           <button
-            className="rounded border border-border px-3 py-2 text-sm hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
+            className={BUTTON_CLASS}
             disabled={pending}
             onClick={() => {
               startTransition(async () => {
@@ -353,7 +365,7 @@ function ProfilePicture({
                   const outcome = await removeAvatarAction();
                   if (outcome.ok) {
                     setCurrent(null);
-                    setChosen(null);
+                    clearChosen();
                     announce("removed", null);
                     refetch().catch((error: unknown) => {
                       reportClientError(error, "avatar.remove.refetch");
@@ -465,7 +477,7 @@ function DeleteAccount() {
       />
       <p className="mb-3 text-sm text-muted">Kirjoita {CONFIRMATION} vahvistaaksesi.</p>
       <button
-        className="rounded border border-border px-3 py-2 text-sm hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
+        className={BUTTON_CLASS}
         disabled={!armed || pending}
         onClick={() => {
           startTransition(async () => {

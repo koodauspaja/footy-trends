@@ -72,8 +72,8 @@ JPEG, PNG, WebP tai HEIC, enintään 8 Mt.
 | State — custom avatar set | `Käytössä oma kuvasi.` |
 | State — Google's picture | `Käytössä Google-tilisi kuva.` |
 | State — neither | `Ei kuvaa käytössä. Valikossa näkyy nimesi.` |
-| File input label | `Valitse kuva`, drawn as the button: the native input, whose own button and status are in the browser's language, is hidden (#719) |
-| The chosen file | `Ei valittua kuvaa.` with none chosen, the file's name otherwise (#719) |
+| File picker button | `Valitse kuva`, our own button opening a hidden native input, whose own button and status are in the browser's language (decisions/719) |
+| The chosen file | `Ei valittua kuvaa.` with none chosen, the file's name otherwise (decisions/719) |
 | Hint under the input | `JPEG, PNG, WebP tai HEIC, enintään 8 Mt.` |
 | Save button | `Tallenna kuva` |
 | Remove button | `Poista oma kuva` |

@@ -33,7 +33,7 @@ test.describe("Settings, signed out", () => {
     await page.goto("/asetukset");
 
     await expect(page.getByRole("heading", { name: "Profiilikuva" })).toHaveCount(0);
-    await expect(page.getByLabel("Valitse kuva")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Valitse kuva" })).toHaveCount(0);
   });
 
   test("will not serve an avatar to nobody", async ({ request }) => {

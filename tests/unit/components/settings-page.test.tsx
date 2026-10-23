@@ -504,7 +504,7 @@ describe("Profiilikuva", () => {
   }
 
   function chooseFile(file: File) {
-    const input = screen.getByLabelText("Valitse kuva");
+    const input = screen.getByTestId("avatar-input");
     // `fireEvent.change` with a `files` list is the only way to put a File on a
     // file input in jsdom; `userEvent.upload` needs a real one.
     Object.defineProperty(input, "files", { value: [file], configurable: true });
@@ -560,25 +560,33 @@ describe("Profiilikuva", () => {
 
   it("shows its own Finnish button and file line, never the browser's input", () => {
     renderPicture(null);
+    const input = screen.getByTestId("avatar-input");
+    const opened = vi.spyOn(input, "click");
 
-    const input = screen.getByLabelText("Valitse kuva");
-    // The native input, whose button and status are the browser's words, is hidden.
-    expect(input).toHaveClass("sr-only");
-    expect(input).toHaveAccessibleDescription("Ei valittua kuvaa.");
-    expect(screen.getByText("Valitse kuva").tagName).toBe("LABEL");
+    // The native input, whose button and status are the browser's words, is
+    // hidden even from a screen reader, so nothing names it.
+    expect(input).toHaveClass("hidden");
+    expect(screen.queryByLabelText("Valitse kuva")).not.toBeInTheDocument();
+    const button = screen.getByRole("button", { name: "Valitse kuva" });
+    expect(button).toHaveAccessibleDescription("Ei valittua kuvaa.");
+
+    fireEvent.click(button);
+    expect(opened).toHaveBeenCalledOnce();
   });
 
-  it("names the chosen file, and says when none is chosen again", () => {
+  it("names the chosen file aloud, and says when none is chosen again", () => {
     renderPicture(null);
     chooseFile(new File(["x"], "kuva.png", { type: "image/png" }));
 
-    expect(screen.getByLabelText("Valitse kuva")).toHaveAccessibleDescription("kuva.png");
+    const button = screen.getByRole("button", { name: "Valitse kuva" });
+    expect(button).toHaveAccessibleDescription("kuva.png");
+    expect(screen.getByText("kuva.png")).toHaveAttribute("aria-live", "polite");
 
-    const input = screen.getByLabelText("Valitse kuva");
+    const input = screen.getByTestId("avatar-input");
     Object.defineProperty(input, "files", { value: [], configurable: true });
     fireEvent.change(input);
 
-    expect(input).toHaveAccessibleDescription("Ei valittua kuvaa.");
+    expect(button).toHaveAccessibleDescription("Ei valittua kuvaa.");
   });
 
   it("clears a chosen file when the reader empties the input", async () => {
@@ -587,7 +595,7 @@ describe("Profiilikuva", () => {
     renderPicture(null);
     chooseFile(imageOf(1024));
 
-    const input = screen.getByLabelText("Valitse kuva");
+    const input = screen.getByTestId("avatar-input");
     Object.defineProperty(input, "files", { value: [], configurable: true });
     fireEvent.change(input);
     fireEvent.click(screen.getByRole("button", { name: "Tallenna kuva" }));
@@ -670,6 +678,20 @@ describe("Profiilikuva", () => {
     expect(container.querySelector("img")).toHaveAttribute("src", GOOGLE);
     expect(screen.getByText("Käytössä Google-tilisi kuva.")).toBeInTheDocument();
     expect(refetch).toHaveBeenCalled();
+  });
+
+  it("forgets the chosen file on removal, so choosing it again counts as a change", async () => {
+    renderPicture(VERSION);
+    chooseFile(new File(["x"], "kuva.png", { type: "image/png" }));
+    const emptied = vi.spyOn(screen.getByTestId("avatar-input"), "value", "set");
+
+    fireEvent.click(screen.getByRole("button", { name: "Poista oma kuva" }));
+
+    await waitFor(() => expect(screen.getByText("Oma kuva poistettu.")).toBeInTheDocument());
+    expect(emptied).toHaveBeenCalledWith("");
+    expect(screen.getByRole("button", { name: "Valitse kuva" })).toHaveAccessibleDescription(
+      "Ei valittua kuvaa."
+    );
   });
 
   // The save or removal stood, so a session that cannot be re-read is neither
