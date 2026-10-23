@@ -173,6 +173,10 @@ describe("openCupGroups", () => {
     expect(open([list(1), list(2)], matches)).toEqual([2]);
   });
 
+  it("opens every round when none is dated, as the page did before", () => {
+    expect(open([list(1), list(2)], [])).toEqual([1, 2]);
+  });
+
   it("keeps an undated round closed beside a dated one", () => {
     expect(open([list(1), list(2)], [played(2, "2025-06-01")])).toEqual([2]);
   });

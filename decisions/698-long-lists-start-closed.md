@@ -13,6 +13,7 @@ starts **open**" under Collapsible rounds, and its `CupRoundSection` entry's
 |---|---|
 | The rounds that start open are the match lists starting on the Helsinki day the latest one does (`openCupGroups`) | A final and a third-place match can start on one day: NSC 2015 played `Pikkufinaali` and `Finaali` on 2.6. Reading by day, as `cupGroupOrder` does, opens both rather than whichever TASO listed first |
 | Every group of a Suomen Cup is a match list, MSC 2021's six groups included | `buildGroup` makes a table only of a round-robin group in a cup that has them, Liigacup and Ykkösliigacup, and those never reach `CupRoundSection` |
+| Huuhkajat's and Helmarit's years stay open, and spec 017 now gives its own reason | decisions/017 opened them "for the same reason" as the cups' rounds, which this record changes. Their 85 rows are about a quarter of a cup's height, as spec 017 already said |
 | The team page's `Ottelut` stays open | Agreed on the issue: since #714 it is the team page's most basic part, the part #697's section toggles will keep open |
 | Only Suomen Cups change: MSC and NSC are the knockout cups. Liigacup and Ykkösliigacup draw their own groups and playoff, with no `<details>` | `CupRoundSection` is the one place a cup's rounds fold |
 | A round's count reads `1 ottelu` for one match, through `matchCountLabel` | The count is what a closed round says, and it read `(1 ottelua)` on every final. The team pages and the national team years already used the helper |

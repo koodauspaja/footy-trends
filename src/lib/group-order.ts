@@ -49,7 +49,7 @@ export function cupGroupOrder<G extends Group>(
 /**
  * The rounds of a cup that start open: the match lists starting on the day the
  * latest one does, so a final and a third-place match played that day open
- * together.
+ * together. With no dated round, every round opens, as each did before.
  *
  * decisions/698-long-lists-start-closed.md
  */
