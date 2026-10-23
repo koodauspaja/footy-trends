@@ -336,8 +336,9 @@ export async function matchMetadata(options: MatchPageOptions): Promise<Metadata
 }
 
 /**
- * A side's name in the heading: the winner keeps the heading's weight and the
- * loser drops to normal, while a draw or a match to come leaves both as they are.
+ * A side's name in the heading. A level score with a declared winner (a TASO cup
+ * tie settled on penalties it never itemises) keeps the winner at the heading's
+ * weight and drops the loser to normal; any other score says who won itself.
  *
  * decisions/019-match-page.md
  * decisions/703-unambiguous-lines.md
@@ -421,8 +422,8 @@ export async function MatchPage(options: Readonly<MatchPageOptions>) {
     <PageShell
       heading={
         // The heading is the scoreboard: the names either side of the score,
-        // each a link to its team, so the page names its teams once. The spaces
-        // are text, so the heading reads `VPS 2–1 FC Lahti`, not `VPS2–1FC Lahti`.
+        // each a link where its team has a page, so the page names its teams
+        // once. The spaces are text: the heading reads `VPS 2–1 FC Lahti`.
         <>
           <TeamName
             href={view.homeHref}

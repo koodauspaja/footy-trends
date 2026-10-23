@@ -130,8 +130,10 @@ adds the same for the new ones, all `permanent: true`:
 
 ### Heading
 
-`{koti} – {vieras}`, e.g. `HJK – KuPS`. Same em-dash separator the match lists
-use.
+The scoreboard: `{koti} {tulos} {vieras}`, e.g. `HJK 2–1 KuPS`, each name a link
+to its team page where it has one; `{koti} – {vieras}` before the match. Since
+#703 (decisions/703), when the line that repeated it under the heading was
+removed. Same em-dash separator the match lists use.
 
 ### Metadata line, under the heading
 
@@ -226,7 +228,7 @@ The table is `MatchListTable`, so the columns are the site's usual
 TASO rows. Team names in these rows are not links (`teamHref={null}`) — they are
 the same two teams as the heading.
 
-Empty: `Aiempia kohtaamisia ei löytynyt.`
+Empty: `Ei kohtaamisia ennen tätä ottelua.` (since #703; it was `Aiempia kohtaamisia ei löytynyt.`)
 
 The window sentence sits directly under the heading, and is shown **whether or
 not** there are meetings — a short list and an empty list are the two cases it
@@ -466,9 +468,9 @@ The match page's own head-to-head table passes it too.
 | Numeric id with no row | `Ottelua ei löytynyt.` |
 | Row exists but fails the route's scope predicate | `Ottelua ei löytynyt.` — never render another region's match |
 | Match not yet played | Renders. Score is `–`; previous meetings still list |
-| Match played, no previous meeting stored | Table replaced by `Aiempia kohtaamisia ei löytynyt.`, window sentence still shown |
+| Match played, no previous meeting stored | Table replaced by `Ei kohtaamisia ennen tätä ottelua.`, window sentence still shown |
 | Fewer than five previous meetings | Shows what exists; window sentence explains the shortfall |
-| Level TASO cup tie with `winner` set | Winner in bold, no `(rp)` suffix |
+| Level TASO cup tie with `winner` set | The winner at the heading's weight and the loser at normal weight (since #703), no `(rp)` suffix |
 | `matchday`, `stage`, `group_name` null | The line is omitted, not rendered empty |
 | `getSeasonContext` fails on a football-data route | Match renders; season shows as the bare start year |
 | Head-to-head query throws | Match renders; section shows its own error line |

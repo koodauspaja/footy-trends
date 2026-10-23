@@ -208,8 +208,9 @@ describe("/kotimaa/ottelu/:id", () => {
 
     // No "(rp)" — TASO never itemises the shootout it was settled on.
     expect(screen.getByText("1–1")).toBeInTheDocument();
-    // The winner keeps the heading's weight; the loser drops to normal.
-    expect(screen.getByRole("link", { name: "FC Lahti" })).not.toHaveClass("font-normal");
+    // The winner keeps the heading's weight, setting none of its own; the loser
+    // drops to normal.
+    expect(screen.getByRole("link", { name: "FC Lahti" }).className).not.toMatch(/\bfont-/);
     expect(screen.getByRole("link", { name: "VPS" })).toHaveClass("font-normal");
   });
 
