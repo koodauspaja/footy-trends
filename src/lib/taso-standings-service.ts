@@ -2083,12 +2083,20 @@ async function storedGroupLevels(
     .orderBy(asc(tasoGroupZones.groupId), asc(tasoGroupZones.level));
 }
 
+/**
+ * A season's groups and levels. `order: "league"` puts a league's later phases
+ * before its first; a cup keeps TASO's order.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/714-page-section-order.md
+ */
 export async function getSeasonStandings(
   categoryId: string,
   competitionId: string,
   seasonId: number,
   activeSeasonId: number,
-  round: number | undefined
+  round: number | undefined,
+  order: "league" | "taso" = "taso"
 ): Promise<SeasonStandingsResult> {
   try {
     const classified = await classifySeasonGroups(
@@ -2098,17 +2106,15 @@ export async function getSeasonStandings(
       activeSeasonId
     );
     if (classified.status !== "ok") return { status: classified.status, groups: [] };
+    const ordered = (groups: GroupStandingsResult[]) =>
+      order === "league" ? leagueGroupOrder(groups, classified.matches) : groups;
     // After the classification, whose refresh is what writes them. A competition
     // that stores none is not asked.
     const levels = publishesZones(categoryId)
       ? await storedGroupLevels(categoryId, competitionId, seasonId)
       : [];
     if (round === undefined) {
-      return {
-        status: "ok",
-        groups: leagueGroupOrder(classified.groups, classified.matches),
-        levels,
-      };
+      return { status: "ok", groups: ordered(classified.groups), levels };
     }
 
     // Only an own-calculated group responds to a round; the classification
@@ -2130,7 +2136,7 @@ export async function getSeasonStandings(
         : group
     );
 
-    return { status: "ok", groups: leagueGroupOrder(groups, classified.matches), levels };
+    return { status: "ok", groups: ordered(groups), levels };
   } catch (error) {
     logger.error(
       { err: error, categoryId, competitionId, seasonId },

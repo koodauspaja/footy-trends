@@ -335,11 +335,34 @@ describe("getSeasonStandings", () => {
         COMPETITION_ID,
         seasonId,
         ACTIVE_SEASON,
-        round
+        round,
+        "league"
       );
 
       expect(result.status === "ok" && result.groups.map((group) => group.groupId)).toEqual([2, 1]);
     }
+  });
+
+  it("keeps TASO's order for a cup's season, which asks for no league order", async () => {
+    mockStoredMatches([
+      match({ providerMatchId: 1, groupId: 1, kickoffAt: new Date("2021-04-05T13:00:00Z") }),
+      match({
+        providerMatchId: 2,
+        groupId: 2,
+        groupName: "Cup-vaihe",
+        kickoffAt: new Date("2021-09-13T13:00:00Z"),
+      }),
+    ]);
+
+    const result = await getSeasonStandings(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      2103,
+      ACTIVE_SEASON,
+      undefined
+    );
+
+    expect(result.status === "ok" && result.groups.map((group) => group.groupId)).toEqual([1, 2]);
   });
 
   it("own-calculates a configured carry-over group by combining it with its parent's matches", async () => {

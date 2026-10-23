@@ -299,12 +299,14 @@ export default async function DomesticStandingsPage({
   const roundParam = parseTasoRoundParam(params.kierros, availableRounds);
   const selectedRound = roundParam.kind === "valid" ? roundParam.round : undefined;
 
+  const isCup = isDomesticCup(competitionCode);
   const result = await getSeasonStandings(
     categoryId,
     competitionId,
     seasonId,
     currentSeason,
-    selectedRound
+    selectedRound,
+    isCup ? "taso" : "league"
   );
 
   // Under the tables, on the leagues `CompetitionAnalyticsSection` covers;
@@ -323,7 +325,6 @@ export default async function DomesticStandingsPage({
       ? await getCupForecast(competitionCode, seasonId, currentSeason)
       : { status: "unavailable" as const };
 
-  const isCup = isDomesticCup(competitionCode);
   const isGroupsAndPlayoff = cupFormatFor(competitionCode) === "groups-and-playoff";
   const teamHref = (teamProviderId: number) =>
     `/kotimaa/joukkue/${teamProviderId}?kilpailu=${competitionCode}&kausi=${seasonId}`;

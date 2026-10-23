@@ -162,7 +162,14 @@ describe("Domestic standings page", () => {
     await renderStandings();
 
     expect(screen.getByRole("heading", { name: "Veikkausliiga 2026" })).toBeInTheDocument();
-    expect(getSeasonStandingsMock).toHaveBeenCalledWith("VL", "spljp26", 2026, 2026, undefined);
+    expect(getSeasonStandingsMock).toHaveBeenCalledWith(
+      "VL",
+      "spljp26",
+      2026,
+      2026,
+      undefined,
+      "league"
+    );
     expect(screen.getByText("HJK")).toBeInTheDocument();
     expect(screen.getByText("Runkosarja")).toBeInTheDocument();
   });
@@ -197,7 +204,14 @@ describe("Domestic standings page", () => {
     await renderStandings({ kausi: "2015" });
 
     expect(listSeasonRoundsMock).toHaveBeenCalledWith("VL", "spljp15", 2015, 2026);
-    expect(getSeasonStandingsMock).toHaveBeenCalledWith("VL", "spljp15", 2015, 2026, undefined);
+    expect(getSeasonStandingsMock).toHaveBeenCalledWith(
+      "VL",
+      "spljp15",
+      2015,
+      2026,
+      undefined,
+      "league"
+    );
     expect(screen.getByRole("heading", { name: "Veikkausliiga 2015" })).toBeInTheDocument();
   });
 
@@ -420,7 +434,7 @@ describe("Domestic standings page", () => {
   it("shows the round selector and passes the selected round through to getSeasonStandings", async () => {
     await renderStandings({ kierros: "1" });
 
-    expect(getSeasonStandingsMock).toHaveBeenCalledWith("VL", "spljp26", 2026, 2026, 1);
+    expect(getSeasonStandingsMock).toHaveBeenCalledWith("VL", "spljp26", 2026, 2026, 1, "league");
     expect(screen.getByLabelText("Kierros")).toHaveValue("1");
   });
 
@@ -430,7 +444,14 @@ describe("Domestic standings page", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Kierrosta ei löytynyt. Näytetään koko kausi."
     );
-    expect(getSeasonStandingsMock).toHaveBeenCalledWith("VL", "spljp26", 2026, 2026, undefined);
+    expect(getSeasonStandingsMock).toHaveBeenCalledWith(
+      "VL",
+      "spljp26",
+      2026,
+      2026,
+      undefined,
+      "league"
+    );
   });
 
   it("shows the empty message when the season has no matches at all", async () => {
@@ -589,6 +610,14 @@ describe("Domestic standings page, cup competitions", () => {
       "Puolivälierät",
       "Cupin ennuste",
     ]);
+    expect(getSeasonStandingsMock).toHaveBeenCalledWith(
+      "MSC",
+      expect.any(String),
+      2026,
+      2026,
+      undefined,
+      "taso"
+    );
     expect(getCupForecastMock).toHaveBeenCalledWith("MSC", 2026, 2026);
     expect(screen.getByRole("region", { name: "Cupin ennuste" })).toBeInTheDocument();
   });
@@ -712,6 +741,14 @@ describe("Domestic standings page, cup competitions", () => {
       "Välierät",
       "Loppuottelu",
     ]);
+    expect(getSeasonStandingsMock).toHaveBeenCalledWith(
+      "VL",
+      "spljp26",
+      2026,
+      2026,
+      undefined,
+      "league"
+    );
   });
 
   it("shows no Pudotuspelit section for a league competition", async () => {
