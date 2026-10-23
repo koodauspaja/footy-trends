@@ -1,10 +1,14 @@
-import type { ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
 
 export function PageShell({
   heading,
   headingAction,
   children,
-}: Readonly<{ heading: ReactNode; headingAction?: ReactNode; children: ReactNode }>) {
+}: Readonly<{
+  heading: string | ReactElement;
+  headingAction?: ReactNode;
+  children: ReactNode;
+}>) {
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-8">
       {/* The action sits beside the heading rather than under it, so a page

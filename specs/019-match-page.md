@@ -131,9 +131,8 @@ adds the same for the new ones, all `permanent: true`:
 ### Heading
 
 The scoreboard: `{koti} {tulos} {vieras}`, e.g. `HJK 2–1 KuPS`, each name a link
-to its team page where it has one; `{koti} – {vieras}` before the match. Since
-#703 (decisions/703), when the line that repeated it under the heading was
-removed. Same em-dash separator the match lists use.
+to its team page where it has one. Before the match the score is `–`, so it reads
+`HJK – KuPS`. It is the only line naming the teams (decisions/703).
 
 ### Metadata line, under the heading
 
@@ -192,7 +191,8 @@ Suffixes reuse the bracket's conventions verbatim (`src/components/cup-bracket.t
 - decided in extra time, no shootout → ` (ja)`
 - TASO's `winner` with a level score → **no suffix**. TASO never itemises the
   shootout, and printing `(rp)` would assert a shootout the data does not
-  record. The winner is shown in bold instead, as the bracket does.
+  record. The loser is set to normal weight instead, the winner keeping the
+  heading's (decisions/703).
 
 `home_goals`/`away_goals` is the provider's `fullTime` and **includes** the
 shootout, so the displayed score is `regular_time + extra_time` where the

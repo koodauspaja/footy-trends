@@ -10,6 +10,7 @@ import { warmModules } from "../../../../../support/warm-module";
  * decisions/019-match-page.md
  * decisions/042-head-to-head-view.md
  * decisions/529-one-whole-number-parser.md
+ * decisions/703-unambiguous-lines.md
  */
 
 const getMatchPageDataMock = vi.fn<() => Promise<MatchPageData>>();
@@ -85,8 +86,12 @@ describe("/kotimaa/ottelu/:id", () => {
     await renderPage();
 
     expect(screen.getByRole("heading", { level: 1, name: "VPS 2–1 FC Lahti" })).toBeInTheDocument();
-    // The heading is the only place the teams are named above the meetings.
+    // No element but the heading's link holds the name alone.
     expect(screen.getAllByText("VPS")).toHaveLength(1);
+    // A score that says who won leaves both names at the heading's weight.
+    for (const name of ["VPS", "FC Lahti"]) {
+      expect(screen.getByRole("link", { name }).className).not.toMatch(/\bfont-/);
+    }
   });
 
   it("shows the kickoff with its time, the competition, the series and the round", async () => {
@@ -195,7 +200,7 @@ describe("/kotimaa/ottelu/:id", () => {
     ).toBeInTheDocument();
   });
 
-  it("names TASO's winner in bold when the score is level", async () => {
+  it("sets the loser of a level TASO tie to normal weight, the winner at the heading's", async () => {
     getMatchPageDataMock.mockResolvedValue({
       status: "ok",
       match: {

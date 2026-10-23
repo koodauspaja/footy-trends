@@ -352,7 +352,7 @@ function TeamName({
   name: string;
   href: string | null;
   side: "home" | "away";
-  winner: "home" | "away" | null;
+  winner: MatchView["winnerSide"];
 }>) {
   const className = winner === null || winner === side ? undefined : "font-normal";
   if (href === null) return <span className={className}>{name}</span>;
@@ -397,6 +397,7 @@ function HeadToHead({ view, basePath }: Readonly<{ view: MatchView; basePath: st
  * decisions/019-match-page.md
  * decisions/042-head-to-head-view.md
  * decisions/057-surprise-index.md
+ * decisions/703-unambiguous-lines.md
  */
 export async function MatchPage(options: Readonly<MatchPageOptions>) {
   const resolved = await resolve(options);
