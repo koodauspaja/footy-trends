@@ -190,29 +190,58 @@ describe("how Analyysit's folds start", () => {
   const foldOf = (name: string) =>
     screen.getByRole("region", { name }).querySelector(":scope > details") as HTMLDetailsElement;
 
-  it("closes Analyysit and opens its groups, for a reader with no stored choice", async () => {
+  it("closes Analyysit and opens only its first group, for a reader with no stored choice", async () => {
     readerSections = { kind: "team", signedIn: false, choices: {} };
 
     await renderSection();
 
     expect(foldOf(ANALYTICS_HEADING).open).toBe(false);
     expect(foldOf(BY_MATCH_HEADING).open).toBe(true);
-    expect(foldOf(SEASON_AXIS.wholeHeading).open).toBe(true);
-    expect(foldOf(SEASON_AXIS.otherHeading).open).toBe(true);
+    expect(foldOf(SEASON_AXIS.wholeHeading).open).toBe(false);
+    expect(foldOf(SEASON_AXIS.otherHeading).open).toBe(false);
+  });
+
+  it("opens Kausi lyhyesti and not Ottelu ottelulta where the summary comes first", async () => {
+    readerSections = { kind: "team", signedIn: false, choices: {} };
+
+    await renderSection(
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      SEASON_AXIS,
+      undefined,
+      undefined,
+      vi.fn(
+        async (): Promise<SeasonSummaryPanelData> => ({
+          series: { status: "error" },
+          matchHref: String,
+        })
+      )
+    );
+
+    expect(foldOf(SUMMARY_HEADING).open).toBe(true);
+    expect(foldOf(BY_MATCH_HEADING).open).toBe(false);
   });
 
   it("follows the reader's stored choices on this kind of page", async () => {
     readerSections = {
       kind: "national-team",
       signedIn: true,
-      choices: { analytics: true, "analytics-other-seasons": false },
+      choices: { analytics: true, "analytics-by-match": false, "analytics-other-seasons": true },
     };
 
     await renderSection();
 
     expect(foldOf(ANALYTICS_HEADING).open).toBe(true);
-    expect(foldOf(BY_MATCH_HEADING).open).toBe(true);
-    expect(foldOf(SEASON_AXIS.otherHeading).open).toBe(false);
+    expect(foldOf(BY_MATCH_HEADING).open).toBe(false);
+    expect(foldOf(SEASON_AXIS.wholeHeading).open).toBe(false);
+    expect(foldOf(SEASON_AXIS.otherHeading).open).toBe(true);
   });
 
   it("closes Analyysit over a signed-out reader's prompt too", async () => {
@@ -384,7 +413,7 @@ describe("AnalyticsSection, signed in", () => {
     expect(screen.queryByText(SEASON_AXIS.otherHeading)).toBeNull();
   });
 
-  it("sits in a fold that starts open, like the match list", async () => {
+  it("sits in a fold, its heading in the summary and its charts inside", async () => {
     const { container } = await renderSection();
     const details = container.querySelector("details");
 

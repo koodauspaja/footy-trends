@@ -207,8 +207,9 @@ const OUTCOME_COLUMNS: ReadonlyArray<DataTableColumn<OutcomeRow>> = [
 
 /**
  * The competition standings page's `Analyysit`, a fold: this season's forecast
- * and surprises, then goals per game and table movement, then `Kilpailut
- * rinnakkain`. Gated before anything is read; awaited by the pages.
+ * and surprises, the group that opens with it, then goals per game and table
+ * movement, then `Kilpailut rinnakkain`. Gated before anything is read; awaited
+ * by the pages.
  *
  * decisions/048-league-goals-per-game-trend.md
  * decisions/049-home-advantage-and-draw-rate.md
@@ -258,7 +259,7 @@ export async function CompetitionAnalyticsSection({
   return (
     <Section sections={sections}>
       <GroupFold
-        fold={foldFor(sections, "analytics-this-season")}
+        fold={foldFor(sections, "analytics-this-season", true)}
         heading={THIS_SEASON_HEADING}
         headingId={THIS_SEASON_ID}
       >

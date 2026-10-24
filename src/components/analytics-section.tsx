@@ -58,9 +58,10 @@ export const SIGNED_OUT_MESSAGE = "Kirjaudu sisään nähdäksesi analyysit ja t
 const HEADING_ID = "analytics";
 
 /**
- * The team page's analytics: every panel under one heading. The gate comes
- * first, and once: a signed-out request gets one sign-in prompt before any
- * loader is called. `null` when no panel applies.
+ * The team page's analytics: every panel under one heading, in groups of which
+ * the first shown opens with it. The gate comes first, and once: a signed-out
+ * request gets one sign-in prompt before any loader is called. `null` when no
+ * panel applies.
  *
  * decisions/031-rolling-form-trend.md
  * decisions/036-halftime-comebacks.md
@@ -69,6 +70,7 @@ const HEADING_ID = "analytics";
  * decisions/053-elo-ratings.md
  * decisions/424-analytics-panel-groups.md
  * decisions/066-season-summary.md
+ * decisions/071-section-toggles.md
  */
 export async function AnalyticsSection({
   axis,
@@ -209,9 +211,9 @@ export async function AnalyticsSection({
 
   return (
     <Section sections={sections}>
-      {shown.map((group) => (
+      {shown.map((group, index) => (
         <GroupFold
-          fold={foldFor(sections, group.id)}
+          fold={foldFor(sections, group.id, index === 0)}
           heading={group.heading}
           headingId={group.id}
           key={group.id}

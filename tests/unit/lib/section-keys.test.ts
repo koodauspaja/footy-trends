@@ -23,34 +23,35 @@ const GROUPS = [
 ] as const;
 
 describe("the defaults, for a reader with no stored choice", () => {
-  it("opens a team page's match list and closes its Analyysit, whose groups start open", () => {
+  it("opens a team page's match list and closes its Analyysit and every group", () => {
     const team = defaultSections("team");
 
     expect(sectionOpen(team, "matches")).toBe(true);
     expect(sectionOpen(team, "analytics")).toBe(false);
-    for (const group of GROUPS) expect(sectionOpen(team, group), group).toBe(true);
+    for (const group of GROUPS) expect(sectionOpen(team, group), group).toBe(false);
   });
 
-  it("closes a national team page's Analyysit, whose groups start open", () => {
+  it("closes a national team page's Analyysit and every group", () => {
     const national = defaultSections("national-team");
 
     expect(sectionOpen(national, "analytics")).toBe(false);
-    for (const group of GROUPS) expect(sectionOpen(national, group), group).toBe(true);
+    for (const group of GROUPS) expect(sectionOpen(national, group), group).toBe(false);
   });
 
-  it("closes a standings page's knockout, forecast, Analyysit and Kilpailut rinnakkain", () => {
+  it("closes a standings page's knockout, forecast, Analyysit and every group", () => {
     const standings = defaultSections("standings");
 
     expect(sectionOpen(standings, "knockout")).toBe(false);
     expect(sectionOpen(standings, "cup-forecast")).toBe(false);
     expect(sectionOpen(standings, "analytics")).toBe(false);
-    expect(sectionOpen(standings, "analytics-this-season")).toBe(true);
-    expect(sectionOpen(standings, "analytics-season-by-season")).toBe(true);
+    expect(sectionOpen(standings, "analytics-this-season")).toBe(false);
+    expect(sectionOpen(standings, "analytics-season-by-season")).toBe(false);
     expect(sectionOpen(standings, "analytics-side-by-side")).toBe(false);
   });
 
-  it("opens a page's first section whatever its kind's default", () => {
+  it("opens a first section whatever its kind's default, a section or a group", () => {
     expect(sectionOpen(defaultSections("standings"), "knockout", true)).toBe(true);
+    expect(sectionOpen(defaultSections("team"), "analytics-by-match", true)).toBe(true);
   });
 });
 

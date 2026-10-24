@@ -24,8 +24,8 @@ came for: its most basic part open, everything else closed until they open it.
 - **Defaults:** on each kind of page, the section #714 names as its most basic
   part starts open, for example the season table on a standings page and the
   upcoming matches on a team page. Every other section starts closed.
-- **Remembered per signed-in reader, per kind of page:** closing `Muut kaudet`
-  on Arsenal's page closes it on every team page. The choice is stored in the
+- **Remembered per signed-in reader, per kind of page:** opening `Muut kaudet`
+  on Arsenal's page opens it on every team page. The choice is stored in the
   reader's account, so the server renders the page already folded and it
   follows them to another device.
 - **A signed-out reader** gets the defaults and can open and close sections,
@@ -81,7 +81,7 @@ came for: its most basic part open, everything else closed until they open it.
 - **A section added later** has no stored choice, so it starts at its default.
 - **A default changed later** does not override a choice the reader made.
 - **Rapid toggling:** each toggle saves its own choice, and the last save wins.
-- **Opening `Analyysit` for the first time:** its groups start open inside it, except `Kilpailut rinnakkain`, which starts closed (decisions/629). So the first open shows the panels, not a column of closed headings (Q1).
+- **Opening `Analyysit` for the first time:** its first group opens with it, and every other group, `Kilpailut rinnakkain` included, starts closed. The first group is the one the page shows first: `Kausi lyhyesti` where its sentences hold, otherwise `Ottelu ottelulta`, and `Tämä kausi` on a standings page (Q1).
 - **A save that fails:** the fold still opens or closes on the page, and the failure is logged. The reader is not told. The only cost is that the next load starts from the last stored state (Q4).
 - **A link to a section inside a closed fold:** checked during the build. If a page links within itself, the link opens the fold. If none does, the decision record says so and nothing is built for it (Q3).
 - **Lists inside a section, such as a cup's rounds and Huuhkajat' years:** they don't fold by this rule and are not remembered. #698 decides how they start. "Juuson kierros" on one cup is not a choice about every cup (Q2).
@@ -124,8 +124,8 @@ came for: its most basic part open, everything else closed until they open it.
 - [ ] Every section below the header and every `Analyysit` group opens and
       closes by mouse and from the keyboard (Enter and Space on its heading)
 - [ ] On a standings page `Analyysit` folds as on a team page
-- [ ] A signed-in reader who closes `Muut kaudet` on one team page and reloads
-      finds it closed, on that page and on another club's team page
+- [ ] A signed-in reader who opens `Muut kaudet` on one team page and reloads
+      finds it open, on that page and on another club's team page
 - [ ] The same reader, signed in on a second browser, finds the same choices
 - [ ] A signed-out reader can open and close sections, and after a reload sees
       the defaults again
@@ -159,9 +159,9 @@ came for: its most basic part open, everything else closed until they open it.
 
 ## Open Questions
 
-None open. Answered by Miikka on 2026-10-23 ("recommendations good"), each as recommended:
+None open. Answered by Miikka on 2026-10-23 ("recommendations good"), each as recommended, except Q1, answered again on 2026-10-24:
 
-1. Groups start open inside `Analyysit`, except `Kilpailut rinnakkain`
+1. Inside `Analyysit` only the first group starts open (2026-10-24: "once i open analyysit, it doesn't have to open EVERY sub foldable thing", then "First group only"). The 2026-10-23 answer, every group open but `Kilpailut rinnakkain`, no longer holds
 2. Lists inside a section (cup rounds, Huuhkajat' years) are not sections. #698 decides how they start, and they are not remembered
 3. Links within a page into a closed fold: checked during the build, and built only if one exists
 4. A failed save shows nothing and is logged

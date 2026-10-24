@@ -480,24 +480,29 @@ describe("Analyysit on a standings page, folded", () => {
     expect(fold?.open).toBe(false);
     expect(fold?.querySelector(":scope > summary h2")?.textContent).toBe(ANALYTICS_HEADING);
     expect(groupFold(container, THIS_SEASON_HEADING)?.open).toBe(true);
+    expect(groupFold(container, SEASON_BY_SEASON_HEADING)?.open).toBe(false);
   });
 
   it("follows a stored choice for a group", async () => {
     const { container } = await renderSection({
-      choices: { analytics: true, "analytics-side-by-side": true, "analytics-this-season": false },
+      choices: {
+        analytics: true,
+        "analytics-this-season": false,
+        "analytics-season-by-season": true,
+        "analytics-side-by-side": true,
+      },
     });
 
-    expect(groupFold(container, SIDE_BY_SIDE_HEADING)?.open).toBe(true);
     expect(groupFold(container, THIS_SEASON_HEADING)?.open).toBe(false);
+    expect(groupFold(container, SEASON_BY_SEASON_HEADING)?.open).toBe(true);
+    expect(groupFold(container, SIDE_BY_SIDE_HEADING)?.open).toBe(true);
   });
 });
 
 describe("Kilpailut rinnakkain, folded", () => {
-  it("starts closed while the other groups start open, its heading the thing to press", async () => {
+  it("starts closed, its heading the thing to press", async () => {
     const { container } = await renderSection();
 
-    expect(groupFold(container, THIS_SEASON_HEADING)?.open).toBe(true);
-    expect(groupFold(container, SEASON_BY_SEASON_HEADING)?.open).toBe(true);
     const fold = groupFold(container, SIDE_BY_SIDE_HEADING);
     expect(fold?.open).toBe(false);
     // The marker, hidden from assistive technology, then the group's heading.

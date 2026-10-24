@@ -1,9 +1,9 @@
 /**
  * How each section of each kind of page starts for a reader with no stored
  * choice, by a stable English key: the page's most basic part open
- * (decisions/714), everything else closed, and the groups inside `Analyysit`
- * open except `Kilpailut rinnakkain`. Its keys are the only sections a choice
- * can be stored for.
+ * (decisions/714) and everything else closed. Inside `Analyysit` the first
+ * group shown opens too, through `sectionOpen`'s `first`. Its keys are the only
+ * sections a choice can be stored for.
  *
  * decisions/071-section-toggles.md
  */
@@ -11,26 +11,26 @@ const DEFAULT_OPEN = {
   team: {
     matches: true,
     analytics: false,
-    "analytics-summary": true,
-    "analytics-by-match": true,
-    "analytics-whole-season": true,
-    "analytics-other-seasons": true,
-    "analytics-opponents": true,
+    "analytics-summary": false,
+    "analytics-by-match": false,
+    "analytics-whole-season": false,
+    "analytics-other-seasons": false,
+    "analytics-opponents": false,
   },
   "national-team": {
     analytics: false,
-    "analytics-summary": true,
-    "analytics-by-match": true,
-    "analytics-whole-season": true,
-    "analytics-other-seasons": true,
-    "analytics-opponents": true,
+    "analytics-summary": false,
+    "analytics-by-match": false,
+    "analytics-whole-season": false,
+    "analytics-other-seasons": false,
+    "analytics-opponents": false,
   },
   standings: {
     knockout: false,
     "cup-forecast": false,
     analytics: false,
-    "analytics-this-season": true,
-    "analytics-season-by-season": true,
+    "analytics-this-season": false,
+    "analytics-season-by-season": false,
     "analytics-side-by-side": false,
   },
 } as const;
@@ -80,8 +80,8 @@ export function isKnownSection(kind: unknown, section: unknown): kind is PageKin
 
 /**
  * Whether a section renders open: the reader's stored choice, else its
- * default. `first` marks the page's first section, its most basic part, which
- * opens whatever its kind's default, as `Pudotuspelit` does on a Suomen Cup.
+ * default. `first` marks a first section, which opens whatever its kind's
+ * default: `Pudotuspelit` on a Suomen Cup, and the first group in `Analyysit`.
  *
  * decisions/071-section-toggles.md
  */
