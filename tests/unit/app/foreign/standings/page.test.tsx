@@ -13,6 +13,7 @@ import { warmModules } from "../../../../support/warm-module";
  * decisions/014-champions-league.md
  * decisions/026-favourites.md
  * decisions/048-league-goals-per-game-trend.md
+ * decisions/071-section-toggles.md
  */
 
 // The favourite star in this tree calls `useSession`, and the real client must
@@ -28,6 +29,7 @@ const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
 const getCupSeasonMock = vi.fn<() => Promise<CupSeasonResult>>();
 const loggerErrorMock = vi.fn();
 
+vi.mock("@/lib/section-choices", () => import("../../../../support/page-sections"));
 vi.mock("@/lib/standings-service", () => ({
   getStandings: getStandingsMock,
   getMaxMatchday: getMaxMatchdayMock,
@@ -703,6 +705,22 @@ describe("Standings page, cup competitions", () => {
     // The listed round keeps a table; the drawn final does not add one.
     expect(screen.getAllByRole("table")).toHaveLength(1);
     expect(screen.getByText("Ottelupari")).toBeInTheDocument();
+  });
+
+  it("opens each phase's table and closes Pudotuspelit until the reader opens it", async () => {
+    getCupSeasonMock.mockResolvedValue({
+      status: "ok",
+      matches: [
+        cupMatch({ id: 1, stage: "LEAGUE_STAGE", home: [1, "A"], away: [2, "B"], score: [1, 0] }),
+      ],
+    });
+
+    await renderStandings({ kilpailu: "CL" });
+
+    const foldOf = (name: string) =>
+      screen.getByRole("region", { name }).querySelector<HTMLDetailsElement>(":scope > details");
+    expect(foldOf("Liigavaihe")?.open).toBe(true);
+    expect(foldOf("Pudotuspelit")?.open).toBe(false);
   });
 
   it("tells the user when the knockout rounds have not started", async () => {
