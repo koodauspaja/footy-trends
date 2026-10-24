@@ -119,7 +119,10 @@ because that is what eleven columns need, and a match list gets a floor from its
 own shape instead of nothing at all. Above the floor the table fills its
 container, which is why the two kinds already agree at 1280px and will continue
 to. Below it, the table scrolls horizontally inside its own container: nothing
-is hidden, no row changes height, no value is truncated.
+is hidden, no row changes height, no value is truncated. Since decisions/699,
+below `sm` a standings table keeps only `Sija`, `Joukkue`, `O` and `P`, a
+flexible column may narrow to 120px, and a box that still scrolls shadows its
+edge.
 
 **A long team name wraps** rather than widening its column, since the column can
 no longer stretch. That is the same rule in both tables, which is what #202's
@@ -179,7 +182,8 @@ None. No env var, no credential, no user input reaches the change.
       `Tulos` and every text column are left-aligned
 - [ ] Below its floor a table scrolls inside its own container, and the document
       itself never scrolls horizontally
-- [ ] No column is added, removed, reordered or hidden, at any viewport
+- [ ] No column is added, removed, reordered or hidden, at any viewport (below
+      `sm`, a standings table now hides seven: decisions/699)
 - [ ] Every Finnish heading is byte-identical to today's
 - [ ] The standings' team link, the match list's team and match links, and the
       `Vire` cell's `aria-label` all behave exactly as before
