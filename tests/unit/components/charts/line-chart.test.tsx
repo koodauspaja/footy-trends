@@ -643,6 +643,28 @@ describe("LineChart room for its labels on a phone", () => {
     expect(Number(first?.getAttribute("x")) - width / 2).toBeCloseTo(tickEnd);
   });
 
+  it("draws a one-match chart, its single tick mid-plot, without moving the plot", () => {
+    // A chart after one match has one value for its whole domain.
+    const container = render(
+      <LineChart
+        describedBy="chart-text"
+        labelledBy="chart-heading"
+        series={[{ name: "line", points: [{ x: 1, y: 2 }] }]}
+        title="Vire otteluittain"
+        xDomain={[1, 1]}
+        xLabel="Ottelu"
+        xTicks={[1]}
+        yDomain={[0, 3]}
+        yLabel="Vire"
+        yTicks={[0, 3]}
+      />
+    ).container;
+    const tick = Number(container.querySelector("[data-part=x-axis] text")?.getAttribute("x"));
+    const axis = container.querySelector("[data-part=x-axis] line");
+
+    expect(tick).toBeCloseTo((Number(axis?.getAttribute("x1")) + RIGHT) / 2);
+  });
+
   it("keeps the axis start for a first tick inside the domain", () => {
     // Ticks on whole years in a domain from mid-year: the first is already in
     // from the axis by its place.
