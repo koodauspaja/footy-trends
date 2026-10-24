@@ -7,8 +7,9 @@ import { saveSectionChoiceAction } from "@/lib/section-choice-actions";
 import type { FoldState } from "@/lib/section-keys";
 
 /**
- * The choices this tab has saved, by kind of page and section, so a page the
- * router restores from its cache shows them. Written only in the browser.
+ * The choices this tab has stored, by kind of page and section. A remembered
+ * fold mounts with them until a reload, so a page the router restores from its
+ * cache shows them too. Written only in the browser.
  *
  * decisions/071-section-toggles.md
  */
@@ -44,15 +45,15 @@ export function SectionFold({
   children: ReactNode;
 }>) {
   const { remember } = fold;
-  const start =
-    (remember === null ? undefined : savedInTab.get(keyOf(remember))) ?? fold.initiallyOpen;
-  const [open, setOpen] = useState(start);
-  const [rendered, setRendered] = useState(start);
+  const [open, setOpen] = useState(
+    () => (remember === null ? undefined : savedInTab.get(keyOf(remember))) ?? fold.initiallyOpen
+  );
+  const [rendered, setRendered] = useState(fold.initiallyOpen);
   // A navigation that keeps this fold and renders it otherwise, another season
   // for one, starts it over.
-  if (start !== rendered) {
-    setRendered(start);
-    setOpen(start);
+  if (fold.initiallyOpen !== rendered) {
+    setRendered(fold.initiallyOpen);
+    setOpen(fold.initiallyOpen);
   }
 
   const onToggle = (event: SyntheticEvent<HTMLDetailsElement>) => {
@@ -62,9 +63,11 @@ export function SectionFold({
     if (event.target !== event.currentTarget || next === open) return;
     setOpen(next);
     if (remember === null) return;
-    savedInTab.set(keyOf(remember), next);
-    saveSectionChoiceAction(remember.kind, remember.section, next).catch((error: unknown) =>
-      reportClientError(error, "section-fold")
+    saveSectionChoiceAction(remember.kind, remember.section, next).then(
+      ({ ok }) => {
+        if (ok) savedInTab.set(keyOf(remember), next);
+      },
+      (error: unknown) => reportClientError(error, "section-fold")
     );
   };
 

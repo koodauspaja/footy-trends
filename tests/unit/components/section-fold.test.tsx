@@ -126,6 +126,15 @@ describe("SectionFold", () => {
     expect(details.open).toBe(true);
   });
 
+  it("keeps nothing in the tab for a save the server refused", async () => {
+    saveSectionChoiceAction.mockResolvedValue({ ok: false });
+    const first = renderFold(false, remembered("refused"));
+    await act(async () => toggle(first.details, true));
+    first.unmount();
+
+    expect(renderFold(false, remembered("refused")).details.open).toBe(false);
+  });
+
   it("keeps nothing in the tab for a fold with nothing to remember", async () => {
     const first = renderFold(false, null);
     await act(async () => toggle(first.details, true));

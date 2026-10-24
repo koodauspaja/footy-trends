@@ -75,6 +75,7 @@ function analyticsFor(resolved: ResolvedContext, sections: PageSectionsOf<"stand
  *
  * decisions/014-champions-league.md
  * decisions/016-world-cup-and-euro.md
+ * decisions/071-section-toggles.md
  */
 async function renderCupStandings({
   resolved,
@@ -157,6 +158,7 @@ async function renderCupStandings({
  * decisions/014-champions-league.md
  * decisions/016-world-cup-and-euro.md
  * decisions/065-foreign-league-zones.md
+ * decisions/071-section-toggles.md
  */
 async function renderLeagueStandings({
   resolved,

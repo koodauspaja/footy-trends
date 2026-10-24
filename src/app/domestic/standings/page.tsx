@@ -153,6 +153,7 @@ function zonesOf(group: GroupStandingsResult, levels: readonly GroupLevel[]): Gr
  * under it, and the source of the labels once, under the last list.
  *
  * decisions/063-competition-zones.md
+ * decisions/071-section-toggles.md
  */
 function LeagueGroups({
   groups,
@@ -198,6 +199,7 @@ function LeagueGroups({
  * decisions/015-finnish-cups.md
  * decisions/419-shared-fold-marker.md
  * decisions/698-long-lists-start-closed.md
+ * decisions/071-section-toggles.md
  */
 function CupRoundSection({
   group,
@@ -255,6 +257,7 @@ function CupRounds({
  * before the tree. Suomen Cup never comes here.
  *
  * decisions/043-liigacup.md
+ * decisions/071-section-toggles.md
  */
 function GroupsAndPlayoff({
   groups,
@@ -322,6 +325,7 @@ export async function generateMetadata({
  * decisions/063-competition-zones.md
  * decisions/067-knockout-simulation.md
  * decisions/714-page-section-order.md
+ * decisions/071-section-toggles.md
  */
 export default async function DomesticStandingsPage({
   searchParams,

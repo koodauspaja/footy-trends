@@ -684,8 +684,8 @@ describe("Domestic standings page, cup competitions", () => {
 
     expect(rounds.length).toBeGreaterThan(0);
     for (const round of rounds) {
-      expect(round.classList.contains("group")).toBe(true);
-      expect(round.querySelector("summary > span[aria-hidden]")?.textContent).toBe("▸");
+      // The marker turns by its own details element, so it sits in its summary.
+      expect(round.querySelector(":scope > summary > span[aria-hidden]")?.textContent).toBe("▸");
     }
   });
 

@@ -201,8 +201,11 @@ test.describe("Signed in", () => {
     await expect(page).toHaveURL(/\/kotimaa\/sarjataulukko/);
     await page.goBack();
     await expect(page).toHaveURL(new URL(club, baseURL).href);
+    // The URL changes before the restored page is drawn: wait for the team
+    // page's own section, as the standings page has an `Analyysit` too.
+    await expect(page.getByRole("region", { name: "Ottelut" })).toBeVisible();
 
-    expect(await isOpen(fold(page, "Analyysit"))).toBe(true);
+    await expect.poll(() => isOpen(fold(page, "Analyysit"))).toBe(true);
   });
 
   test("signed out again, the page starts from its defaults", async ({ page, baseURL }) => {

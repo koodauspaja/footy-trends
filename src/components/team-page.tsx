@@ -173,6 +173,7 @@ export function teamPageMetadata<M extends MatchListRow>(data: TeamPageData<M>):
  *
  * decisions/416-team-page-folds.md
  * decisions/714-page-section-order.md
+ * decisions/071-section-toggles.md
  */
 export async function TeamPage<M extends MatchListRow>({
   data,

@@ -26,6 +26,7 @@ const ERROR_MESSAGE = "Otteluiden lataaminen epäonnistui. Yritä myöhemmin uud
  * decisions/017-huuhkajat.md
  * decisions/419-shared-fold-marker.md
  * decisions/714-page-section-order.md
+ * decisions/071-section-toggles.md
  */
 function YearSection({ year, basePath }: Readonly<{ year: NationalTeamYear; basePath: string }>) {
   return (
@@ -53,6 +54,7 @@ function YearSection({ year, basePath }: Readonly<{ year: NationalTeamYear; base
  * decisions/018-helmarit.md
  * decisions/041-national-team-analytics.md
  * decisions/714-page-section-order.md
+ * decisions/071-section-toggles.md
  */
 export async function NationalTeamPage({ team }: Readonly<{ team: NationalTeam }>) {
   const result = await getNationalTeamYears(team);
