@@ -8,6 +8,7 @@ import { expectedStatus, isAdminPage, UX_PAGES } from "../support/ux-pages";
  * or a bracket wider than the screen scrolls in its own box instead.
  *
  * decisions/695-ux-sweep.md
+ * decisions/698-long-lists-start-closed.md
  */
 
 let reader: Awaited<ReturnType<typeof storeSignedInReader>>;
@@ -39,6 +40,10 @@ for (const width of [375, 1024]) {
         expect(response?.status()).toBe(expectedStatus(name));
         // Signed in for real: the header names the reader.
         await expect(page.getByText(signedIn.name, { exact: true }).first()).toBeVisible();
+        // A folded section's content is laid out only once opened, so open them all.
+        await page.evaluate(() => {
+          for (const fold of document.querySelectorAll("details")) fold.open = true;
+        });
         const sideways = await page.evaluate(
           () => document.documentElement.scrollWidth - document.documentElement.clientWidth
         );

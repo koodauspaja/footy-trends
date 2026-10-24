@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cupGroupOrder, leagueGroupOrder } from "@/lib/group-order";
+import { cupGroupOrder, leagueGroupOrder, openCupGroups } from "@/lib/group-order";
 
 type Kind = "own-calculated" | "pass-through" | "match-list";
 
@@ -138,5 +138,46 @@ describe("cupGroupOrder", () => {
     const matches = [played(1, "2025-04-01"), played(3, "2025-06-01")];
 
     expect(ids(cupGroupOrder([list(1), list(2), list(3)], matches))).toEqual([3, 1, 2]);
+  });
+});
+
+describe("openCupGroups", () => {
+  const list = (groupId: number) => group(groupId, "match-list");
+  const open = (
+    groups: { groupId: number; kind: string }[],
+    matches: { groupId: number; kickoffAt: Date }[]
+  ) => [...openCupGroups(groups, matches)];
+
+  it("opens a knockout's latest round alone", () => {
+    // MSC 2025: Loppuottelu open, Juuson kierros and the eight rounds after it closed.
+    const matches = [played(1, "2025-02-09"), played(2, "2025-03-22"), played(3, "2025-09-20")];
+
+    expect(open([list(1), list(2), list(3)], matches)).toEqual([3]);
+  });
+
+  it("opens the rounds that start on the latest round's day together", () => {
+    // NSC 2015: Pikkufinaali at 15.15 and Finaali at 18.05 on 2.6.
+    const matches = [
+      played(1, "2015-05-05"),
+      { groupId: 2, kickoffAt: new Date("2015-06-02T12:15:00Z") },
+      { groupId: 3, kickoffAt: new Date("2015-06-02T15:05:00Z") },
+    ];
+
+    expect(open([list(1), list(2), list(3)], matches)).toEqual([2, 3]);
+  });
+
+  it("reads the latest round by its first day, not by its last", () => {
+    // A round still being played when the next one starts is the earlier one.
+    const matches = [played(1, "2025-02-09"), played(1, "2025-04-01"), played(2, "2025-03-22")];
+
+    expect(open([list(1), list(2)], matches)).toEqual([2]);
+  });
+
+  it("opens every round when none is dated, as the page did before", () => {
+    expect(open([list(1), list(2)], [])).toEqual([1, 2]);
+  });
+
+  it("keeps an undated round closed beside a dated one", () => {
+    expect(open([list(1), list(2)], [played(2, "2025-06-01")])).toEqual([2]);
   });
 });

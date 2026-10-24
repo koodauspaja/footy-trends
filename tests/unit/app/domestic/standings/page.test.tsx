@@ -20,6 +20,7 @@ import { warmModules } from "../../../../support/warm-module";
  * decisions/299-unit-suite-independent-of-order.md
  * decisions/419-shared-fold-marker.md
  * decisions/067-knockout-simulation.md
+ * decisions/698-long-lists-start-closed.md
  */
 
 // The favourite star in this tree calls `useSession`, and the real client must
@@ -674,6 +675,23 @@ describe("Domestic standings page, cup competitions", () => {
       expect(round.classList.contains("group")).toBe(true);
       expect(round.querySelector("summary > span[aria-hidden]")?.textContent).toBe("▸");
     }
+  });
+
+  it("opens only the latest round, each closed one still saying what it holds", async () => {
+    getSeasonStandingsMock.mockResolvedValue({ status: "ok", levels: [], groups: closingRounds });
+
+    await renderStandings({ kilpailu: "MSC", kausi: "2025" });
+
+    const rounds = [...document.querySelectorAll("details")].map((round) => ({
+      name: round.querySelector("summary h2")?.textContent,
+      open: round.open,
+      count: round.querySelector("summary > span:not([aria-hidden])")?.textContent,
+    }));
+    expect(rounds).toEqual([
+      { name: "Loppuottelu", open: true, count: "(1 ottelu)" },
+      { name: "Välierät", open: false, count: "(2 ottelua)" },
+      { name: "Puolivälierät", open: false, count: "(4 ottelua)" },
+    ]);
   });
 
   it("normalises Finaali to Loppuottelu in both the tree and the list", async () => {
