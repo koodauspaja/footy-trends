@@ -3,6 +3,7 @@ import { ChartPanel } from "@/components/charts/chart-panel";
 import { formatDecimal, LineChart, percentText } from "@/components/charts/line-chart";
 import { DataTable, type DataTableColumn } from "@/components/data-table";
 import { FoldMarker } from "@/components/fold-marker";
+import { GROUP_HEADING } from "@/components/heading-classes";
 import { KnockoutForecastBody } from "@/components/knockout-forecast";
 import { FORECAST_HEADING, SeasonForecastBody } from "@/components/season-forecast";
 import { SeasonSurprisesBody, SURPRISES_HEADING } from "@/components/season-surprises";
@@ -309,6 +310,7 @@ export async function CompetitionAnalyticsSection({
  *
  * decisions/424-analytics-panel-groups.md
  * decisions/629-fold-side-by-side.md
+ * decisions/696-headings-and-spacing.md
  */
 function Group({
   heading,
@@ -317,12 +319,12 @@ function Group({
   children,
 }: Readonly<{ heading: string; id: string; folded?: boolean; children: React.ReactNode }>) {
   const title = (
-    <h3 className="font-medium text-muted text-sm uppercase tracking-wide" id={id}>
+    <h3 className={GROUP_HEADING} id={id}>
       {heading}
     </h3>
   );
   return (
-    <section aria-labelledby={id} className="mt-4">
+    <section aria-labelledby={id} className="mt-12 first-of-type:mt-4">
       {folded ? (
         <details className="group">
           <summary className="flex cursor-pointer list-none items-baseline gap-2">

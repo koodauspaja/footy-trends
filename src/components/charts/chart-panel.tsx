@@ -5,6 +5,7 @@
  *
  * decisions/031-rolling-form-trend.md
  * decisions/424-analytics-panel-groups.md
+ * decisions/696-headings-and-spacing.md
  */
 export function ChartPanel({
   headingId,
@@ -12,7 +13,7 @@ export function ChartPanel({
   children,
 }: Readonly<{ headingId: string; heading: string; children: React.ReactNode }>) {
   return (
-    <section aria-labelledby={headingId} className="mt-4">
+    <section aria-labelledby={headingId} className="mt-8 first-of-type:mt-4">
       <h4 className="mb-2 font-medium text-sm" id={headingId}>
         {heading}
       </h4>

@@ -73,3 +73,30 @@ test("keeps the season comparison's line clear of its chart", async ({ page }) =
   });
   expect(gap).toBeGreaterThanOrEqual(8);
 });
+
+test("leaves space between one analytics panel and the next, and more between groups", async ({
+  page,
+}) => {
+  await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
+  await page.goto("/kotimaa/sarjataulukko?kilpailu=VL&kausi=2026");
+  await expect(page.getByRole("heading", { level: 4 }).first()).toBeVisible();
+
+  const gaps = await page.evaluate(() => {
+    // From each section to the next one beside it, where both are headed by `level`.
+    const between = (level: string) =>
+      [...document.querySelectorAll(`section > ${level}:first-child`)]
+        .map((heading) => heading.parentElement as Element)
+        .flatMap((section) => {
+          const next = section.nextElementSibling;
+          if (next?.tagName !== "SECTION" || next.querySelector(`:scope > ${level}`) === null) {
+            return [];
+          }
+          return [next.getBoundingClientRect().top - section.getBoundingClientRect().bottom];
+        });
+    return { panels: between("h4"), groups: between("h3") };
+  });
+  expect(gaps.panels.length).toBeGreaterThan(0);
+  expect(Math.min(...gaps.panels)).toBeGreaterThanOrEqual(32);
+  expect(gaps.groups.length).toBeGreaterThan(0);
+  expect(Math.min(...gaps.groups)).toBeGreaterThanOrEqual(48);
+});
