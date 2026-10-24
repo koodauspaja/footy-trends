@@ -12,7 +12,7 @@ import {
   TITLE_HEADER,
   WIDE_CHANCE_WIDTH,
 } from "@/components/season-forecast";
-import { getStageName } from "@/lib/cup-stages";
+import { getStageName, KNOCKOUT_PHASE } from "@/lib/cup-stages";
 import {
   type KnockoutRow,
   LEAGUE_PHASE_ZONES,
@@ -36,7 +36,7 @@ export const TIES_HEADING = "Kierroksen parit";
  * decisions/696-headings-and-spacing.md
  */
 export const LEAGUE_PHASE_LABEL = getStageName("LEAGUE_STAGE");
-export const KNOCKOUT_LABEL = "Pudotuspelit";
+export const KNOCKOUT_LABEL = KNOCKOUT_PHASE;
 export const KNOCKOUT_NOTE =
   "Loppukausi on pelattu 10 000 kertaa Poisson-mallin ennusteiden mukaan. Arpomattomat parit on arvottu sääntöjen mukaan, ja tasaiset ottelut on ratkaistu jatkoajalla ja rangaistuspotkuilla.";
 

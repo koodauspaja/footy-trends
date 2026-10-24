@@ -14,6 +14,7 @@ import { TasoStandingsControls } from "@/components/taso-standings-controls";
 import { canSeeAnalytics } from "@/lib/analytics-access";
 import { type GroupZones, groupZones, zoneLine } from "@/lib/competition-zones";
 import { buildCupBracket, buildPlayoffBracket, normaliseRoundName } from "@/lib/cup-rounds";
+import { KNOCKOUT_PHASE } from "@/lib/cup-stages";
 import { cupFormatFor, isDomesticCup } from "@/lib/domestic-competitions";
 import { resolveDomesticPageContext } from "@/lib/domestic-page-context";
 import { cupGroupOrder, openCupGroups } from "@/lib/group-order";
@@ -68,8 +69,6 @@ function displayGroupName(groupName: string): string {
   // eras. A league group name is never one of them.
   return normaliseRoundName(groupName);
 }
-
-const KNOCKOUT_HEADING = "Pudotuspelit";
 
 /**
  * One group's body. A group with no table renders as its matches; a
@@ -270,7 +269,7 @@ function GroupsAndPlayoff({
       {tables.length > 0 && <StandingsLegend />}
       {(listed.length > 0 || rounds.length > 0) && (
         <section className="mt-10 mb-10">
-          <h2 className={`mb-3 ${TABLE_HEADING}`}>{KNOCKOUT_HEADING}</h2>
+          <h2 className={`mb-3 ${TABLE_HEADING}`}>{KNOCKOUT_PHASE}</h2>
           {listed.map((group) => (
             <section className="mb-8" key={group.groupId}>
               <h3 className="mb-3 font-semibold text-lg">{displayGroupName(group.groupName)}</h3>
@@ -414,7 +413,7 @@ export default async function DomesticStandingsPage({
       )}
       {bracket.length > 0 && (
         <section className="mb-10">
-          <h2 className={`mb-3 ${TABLE_HEADING}`}>{KNOCKOUT_HEADING}</h2>
+          <h2 className={`mb-3 ${TABLE_HEADING}`}>{KNOCKOUT_PHASE}</h2>
           <BracketTree rounds={bracket} teamHref={teamHref} />
         </section>
       )}

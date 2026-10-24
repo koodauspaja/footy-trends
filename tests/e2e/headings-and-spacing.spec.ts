@@ -33,7 +33,8 @@ test("gives a standings table's heading one look on every page", async ({ page }
     await expect(heading).toBeVisible();
     looks.push(await typeOf(heading));
   }
-  expect(new Set(looks).size).toBe(1);
+  // The same look on every page, and the agreed one: `Runkosarja`'s 20 px semibold.
+  expect(looks).toEqual(TABLE_HEADINGS.map(() => "20px 600"));
 });
 
 test.describe("At 375 px", () => {
