@@ -103,6 +103,16 @@ export function sectionOpen<K extends PageKind>(
 }
 
 /**
+ * A section a choice can be stored for, with its kind of page: only the pairs
+ * `DEFAULT_OPEN` has.
+ *
+ * decisions/071-section-toggles.md
+ */
+export type RememberedSection = {
+  [K in PageKind]: Readonly<{ kind: K; section: SectionKey<K> }>;
+}[PageKind];
+
+/**
  * How a fold starts, and what it saves when toggled: nothing for a signed-out
  * reader, or for a fold that is never remembered.
  *
@@ -110,7 +120,7 @@ export function sectionOpen<K extends PageKind>(
  */
 export type FoldState = Readonly<{
   initiallyOpen: boolean;
-  remember: { kind: PageKind; section: string } | null;
+  remember: RememberedSection | null;
 }>;
 
 /**
@@ -125,7 +135,8 @@ export function foldFor<K extends PageKind>(
 ): FoldState {
   return {
     initiallyOpen: sectionOpen(sections, section, first),
-    remember: sections.signedIn ? { kind: sections.kind, section: section as string } : null,
+    // `section` is K's own key; TypeScript cannot match a generic K to the union.
+    remember: sections.signedIn ? ({ kind: sections.kind, section } as RememberedSection) : null,
   };
 }
 

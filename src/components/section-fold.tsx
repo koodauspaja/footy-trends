@@ -4,7 +4,7 @@ import { type ReactNode, type SyntheticEvent, useState } from "react";
 import { FoldMarker } from "@/components/fold-marker";
 import { reportClientError } from "@/lib/report-client-error";
 import { saveSectionChoiceAction } from "@/lib/section-choice-actions";
-import type { FoldState } from "@/lib/section-keys";
+import type { FoldState, RememberedSection } from "@/lib/section-keys";
 
 /**
  * The choices this tab has stored, by kind of page and section. A remembered
@@ -15,8 +15,13 @@ import type { FoldState } from "@/lib/section-keys";
  */
 const savedInTab = new Map<string, boolean>();
 
-function keyOf({ kind, section }: NonNullable<FoldState["remember"]>): string {
+function keyOf({ kind, section }: RememberedSection): string {
   return `${kind}/${section}`;
+}
+
+// Where a fold starts: the choice this tab stored, else its render's.
+function startOf({ initiallyOpen, remember }: FoldState): boolean {
+  return (remember === null ? undefined : savedInTab.get(keyOf(remember))) ?? initiallyOpen;
 }
 
 /**
@@ -45,15 +50,13 @@ export function SectionFold({
   children: ReactNode;
 }>) {
   const { remember } = fold;
-  const [open, setOpen] = useState(
-    () => (remember === null ? undefined : savedInTab.get(keyOf(remember))) ?? fold.initiallyOpen
-  );
+  const [open, setOpen] = useState(() => startOf(fold));
   const [rendered, setRendered] = useState(fold.initiallyOpen);
   // A navigation that keeps this fold and renders it otherwise, another season
   // for one, starts it over.
   if (fold.initiallyOpen !== rendered) {
     setRendered(fold.initiallyOpen);
-    setOpen(fold.initiallyOpen);
+    setOpen(startOf(fold));
   }
 
   const onToggle = (event: SyntheticEvent<HTMLDetailsElement>) => {

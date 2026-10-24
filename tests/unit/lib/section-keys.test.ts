@@ -4,6 +4,7 @@ import {
   foldFor,
   isKnownSection,
   type PageSectionsOf,
+  type RememberedSection,
   sectionOpen,
 } from "@/lib/section-keys";
 
@@ -92,6 +93,17 @@ describe("foldFor", () => {
       initiallyOpen: true,
       remember: null,
     });
+  });
+});
+
+describe("RememberedSection", () => {
+  it("pairs a kind of page only with its own sections", () => {
+    // @ts-expect-error `matches` is a team page's section, not a standings page's.
+    const wrong: RememberedSection = { kind: "standings", section: "matches" };
+    const right: RememberedSection = { kind: "team", section: "matches" };
+
+    expect(isKnownSection(wrong.kind, wrong.section)).toBe(false);
+    expect(isKnownSection(right.kind, right.section)).toBe(true);
   });
 });
 
