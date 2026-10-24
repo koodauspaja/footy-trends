@@ -321,10 +321,11 @@ function clearingStart(
   plotRight: number
 ): number {
   const reach = left - Y_TICK_GAP + Math.max(tick.labelWidth, tick.noteWidth) / 2;
-  if (scale(tick.value, xDomain, [left, plotRight]) >= reach) return left;
-  // The start that puts the tick's point at `reach`, the end held. Only a tick
-  // short of `reach` gets here: a flat domain draws it mid-plot, past `reach`.
-  const share = (tick.value - xDomain[0]) / (xDomain[1] - xDomain[0]);
+  const span = xDomain[1] - xDomain[0];
+  // A flat domain draws its one tick mid-plot, with no start to solve for.
+  if (span === 0 || scale(tick.value, xDomain, [left, plotRight]) >= reach) return left;
+  // The start that puts the tick's point at `reach`, the end held.
+  const share = (tick.value - xDomain[0]) / span;
   return (reach - share * plotRight) / (1 - share);
 }
 

@@ -665,6 +665,28 @@ describe("LineChart room for its labels on a phone", () => {
     expect(tick).toBeCloseTo((Number(axis?.getAttribute("x1")) + RIGHT) / 2);
   });
 
+  it("draws a one-match chart whatever its label's width", () => {
+    // Drawn mid-plot, a label this long would reach back past the y ticks.
+    const container = render(
+      <LineChart
+        describedBy="chart-text"
+        formatXTick={() => "Ottelu, jonka nimi on poikkeuksellisen pitkä ja jatkuu"}
+        labelledBy="chart-heading"
+        series={[{ name: "line", points: [{ x: 1, y: 2 }] }]}
+        title="Vire otteluittain"
+        xDomain={[1, 1]}
+        xLabel="Ottelu"
+        xTicks={[1]}
+        yDomain={[0, 3]}
+        yLabel="Vire"
+        yTicks={[0, 3]}
+      />
+    ).container;
+    const points = container.querySelector("[data-part=line]")?.getAttribute("points") ?? "";
+
+    expect(points.split(/[ ,]/).map(Number).every(Number.isFinite)).toBe(true);
+  });
+
   it("keeps the axis start for a first tick inside the domain", () => {
     // Ticks on whole years in a domain from mid-year: the first is already in
     // from the axis by its place.
