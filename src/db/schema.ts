@@ -551,3 +551,28 @@ export const predictions = pgTable(
     ),
   ]
 );
+
+/**
+ * A reader's choice to keep a page's section open or closed, per kind of page:
+ * closing `Muut kaudet` on one team page closes it on every team page.
+ *
+ * decisions/071-section-toggles.md
+ */
+export const sectionChoice = pgTable(
+  "section_choice",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    /** `"team"`, `"national-team"` or `"standings"`, checked before every write. */
+    pageKind: text("page_kind").notNull(),
+    /** A stable English key, not the Finnish heading, so a renamed heading keeps its choice. */
+    section: text("section").notNull(),
+    open: boolean("open").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("section_choice_identity_idx").on(table.userId, table.pageKind, table.section),
+  ]
+);

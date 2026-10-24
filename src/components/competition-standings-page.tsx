@@ -4,7 +4,7 @@ import { CompetitionAnalyticsSection } from "@/components/competition-analytics"
 import { ContextNotices } from "@/components/context-notices";
 import { CupBracket } from "@/components/cup-bracket";
 import { CupStandingsControls } from "@/components/cup-standings-controls";
-import { TABLE_HEADING } from "@/components/heading-classes";
+import { TABLE_FOLD, TableFold } from "@/components/heading-folds";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { StandingsControls } from "@/components/standings-controls";
@@ -19,6 +19,8 @@ import type { BasePageContext, CompetitionPageOptions } from "@/lib/page-context
 import { resolveBasePageContext } from "@/lib/page-context";
 import { listSelectableRounds, parseRoundParam } from "@/lib/rounds";
 import { formatSeasonLabel } from "@/lib/seasons";
+import { getPageSections } from "@/lib/section-choices";
+import { foldFor, type PageSections } from "@/lib/section-keys";
 import { getCupSeason, getMaxMatchday, getStandings } from "@/lib/standings-service";
 import { cupCaveat, registryLevels } from "@/lib/zone-registry";
 
@@ -52,10 +54,12 @@ export async function standingsMetadata({
  * Champions League.
  *
  * decisions/048-league-goals-per-game-trend.md
+ * decisions/071-section-toggles.md
  */
-function analyticsFor(resolved: ResolvedContext) {
+function analyticsFor(resolved: ResolvedContext, sections: PageSections & { kind: "standings" }) {
   const { competitionCode, context, seasonId } = resolved;
   return CompetitionAnalyticsSection({
+    sections,
     kind: "football-data",
     competitionCode,
     selectedSeasonId: seasonId,
@@ -87,7 +91,9 @@ async function renderCupStandings({
   const bracket = buildBracket(seasonMatches);
   const teamHref = (teamProviderId: number) =>
     `${basePath}/joukkue/${teamProviderId}?kilpailu=${competitionCode}&kausi=${seasonId}`;
-  const analytics = await analyticsFor(resolved);
+  // The reader's folds on every standings page, read once.
+  const sections = await getPageSections("standings");
+  const analytics = await analyticsFor(resolved, sections);
 
   return (
     <PageShell heading={`${competitionName} ${seasonLabel}`}>
@@ -112,24 +118,33 @@ async function renderCupStandings({
       {season.status !== "error" && phases.length === 0 && <p>{NO_STANDINGS_MESSAGE}</p>}
       {phases.length > 0 && (
         <div className="flex flex-col gap-8">
-          {phases.map((phase) => (
-            <section key={phase.group ?? phase.heading}>
-              <h2 className={`mb-3 ${TABLE_HEADING}`}>{phase.heading}</h2>
+          {phases.map((phase, index) => (
+            <TableFold
+              className=""
+              fold={TABLE_FOLD}
+              heading={phase.heading}
+              headingId={`standings-phase-${index}`}
+              key={phase.group ?? phase.heading}
+            >
               <StandingsTable
                 favouriteSource="football-data"
                 standings={phase.standings}
                 teamHref={teamHref}
               />
-            </section>
+            </TableFold>
           ))}
         </div>
       )}
       {phases.length > 0 && <StandingsLegend />}
       {season.status !== "error" && (
-        <section className="mt-8">
-          <h2 className={`mb-3 ${TABLE_HEADING}`}>{KNOCKOUT_PHASE}</h2>
+        <TableFold
+          className="mt-8"
+          fold={foldFor(sections, "knockout")}
+          heading={KNOCKOUT_PHASE}
+          headingId="standings-knockout"
+        >
           <CupBracket rounds={bracket} teamHref={teamHref} />
-        </section>
+        </TableFold>
       )}
       {analytics}
     </PageShell>
@@ -162,7 +177,7 @@ async function renderLeagueStandings({
     activeSeasonId: context.activeSeasonId,
     ...(selectedRound !== undefined ? { round: selectedRound } : {}),
   });
-  const analytics = await analyticsFor(resolved);
+  const analytics = await analyticsFor(resolved, await getPageSections("standings"));
   const levels = registryLevels(competitionCode, seasonId);
   const { zones, ruleAfter } = groupZones(
     levels,

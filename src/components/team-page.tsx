@@ -16,6 +16,8 @@ import { upcomingFirst } from "@/lib/match-order";
 import type { PositionSeries } from "@/lib/position-series";
 import type { SeasonComparisonSeries } from "@/lib/season-comparison";
 import type { SeasonSummarySeries } from "@/lib/season-summary";
+import { getPageSections } from "@/lib/section-choices";
+import { foldFor } from "@/lib/section-keys";
 import type { StreakRecordsSeries } from "@/lib/streak-records";
 import type { TeamPageSource } from "@/lib/team-context";
 import type { TeamPanelLoaders } from "@/lib/team-panels";
@@ -235,6 +237,8 @@ export async function TeamPage<M extends MatchListRow>({
   // where the club was instead.
   const outcome = { result: result.status, seasons: lookups, seasonLabel, sameSeason, newest };
 
+  // The reader's folds on every team page, read once.
+  const sections = await getPageSections("team");
   // Every competition, league or cup, and only for a team with matches this
   // season.
   const loaders = result.status === "ok" ? data.loaders(played) : null;
@@ -245,6 +249,7 @@ export async function TeamPage<M extends MatchListRow>({
           ...loaders,
           // A club page's periods are seasons.
           axis: SEASON_AXIS,
+          sections,
           // A failed season lookup reports the outage: read as `played = []` it would
           // say the club has no other seasons. `not_found` is not a failure.
           loadRecords: () =>
@@ -285,6 +290,7 @@ export async function TeamPage<M extends MatchListRow>({
               count={matchCountLabel(result.matches.length)}
               heading={MATCHES_HEADING}
               headingId="team-matches"
+              {...foldFor(sections, "matches")}
             >
               <MatchListTable
                 fourthColumn={data.fourthColumn}

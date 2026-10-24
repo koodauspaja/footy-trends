@@ -138,6 +138,8 @@ async function renderSection(
 ) {
   const view = await AnalyticsSection({
     axis,
+    // `Analyysit` opened, as a reader does, so its panels can be seen.
+    sections: { kind: "team", signedIn: false, choices: { analytics: true } },
     loadSummary,
     loadPosition,
     loadForm,

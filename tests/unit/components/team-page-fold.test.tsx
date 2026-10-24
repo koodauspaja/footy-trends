@@ -10,7 +10,13 @@ import { MATCHES_HEADING, TeamPageFold } from "@/components/team-page-fold";
 
 function renderFold(props: Partial<Parameters<typeof TeamPageFold>[0]> = {}) {
   return render(
-    <TeamPageFold heading="Ottelut" headingId="team-matches" {...props}>
+    <TeamPageFold
+      heading="Ottelut"
+      headingId="team-matches"
+      initiallyOpen
+      remember={null}
+      {...props}
+    >
       <p>Sisältö</p>
     </TeamPageFold>
   ).container;

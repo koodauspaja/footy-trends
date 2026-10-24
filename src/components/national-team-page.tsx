@@ -9,6 +9,7 @@ import { upcomingFirst } from "@/lib/match-order";
 import type { NationalTeam } from "@/lib/national-team";
 import { nationalTeamAnalytics } from "@/lib/national-team-analytics";
 import { getNationalTeamYears, type NationalTeamYear } from "@/lib/national-team-service";
+import { getPageSections } from "@/lib/section-choices";
 
 const EMPTY_MESSAGE = "Otteluita ei ole saatavilla.";
 /**
@@ -61,7 +62,11 @@ export async function NationalTeamPage({ team }: Readonly<{ team: NationalTeam }
   // only some buckets still gets its analytics, over what did load.
   const analyticsSection =
     result.status === "ok"
-      ? await AnalyticsSection({ axis: HISTORY_AXIS, ...nationalTeamAnalytics(result.years) })
+      ? await AnalyticsSection({
+          axis: HISTORY_AXIS,
+          sections: await getPageSections("national-team"),
+          ...nationalTeamAnalytics(result.years),
+        })
       : null;
 
   return (

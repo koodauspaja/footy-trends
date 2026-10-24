@@ -1,3 +1,4 @@
+import { TableFold } from "@/components/heading-folds";
 import { TIES_HEADING, TieLines } from "@/components/knockout-forecast";
 import {
   type ChanceColumn,
@@ -9,7 +10,7 @@ import {
 import type { KnockoutRow, TieChance } from "@/lib/knockout-simulation";
 import type { CupForecastResult } from "@/lib/knockout-simulation-service";
 import type { Chance } from "@/lib/season-simulation";
-
+import type { FoldState } from "@/lib/section-keys";
 /**
  * The section's strings; its failure and no-fixtures lines are the season
  * forecast's.
@@ -89,17 +90,19 @@ function Ties({ ties }: Readonly<{ ties: readonly TieChance[] }>) {
  * side's chances, then the rated ties; before it, the rated ties and the line.
  *
  * decisions/067-knockout-simulation.md
+ * decisions/071-section-toggles.md
  */
 export function CupForecastSection({
   forecast,
-}: Readonly<{ forecast: Exclude<CupForecastResult, { status: "unavailable" }> }>) {
+  fold,
+}: Readonly<{
+  forecast: Exclude<CupForecastResult, { status: "unavailable" }>;
+  fold: FoldState;
+}>) {
   return (
-    <section aria-labelledby="cup-forecast" className="mb-10">
-      <h2 className="mb-3 font-semibold text-xl" id="cup-forecast">
-        {CUP_FORECAST_HEADING}
-      </h2>
+    <TableFold fold={fold} heading={CUP_FORECAST_HEADING} headingId="cup-forecast">
       <CupForecastBody forecast={forecast} />
-    </section>
+    </TableFold>
   );
 }
 

@@ -203,6 +203,8 @@ async function renderSection({
   selectedSeasonId: number;
 }> = {}) {
   const view = await CompetitionAnalyticsSection({
+    // `Analyysit` opened, as a reader does, so its panels can be seen.
+    sections: { kind: "standings", signedIn: false, choices: { analytics: true } },
     kind,
     competitionCode,
     selectedSeasonId,
