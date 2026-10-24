@@ -47,7 +47,8 @@ test.describe("At 375 px", () => {
     const parted = await page.evaluate(() =>
       [...document.querySelectorAll("form label")].flatMap((label) => {
         const control = document.getElementById(label.getAttribute("for") ?? "");
-        if (control === null) return [];
+        // A label that names no control cannot be checked, so it fails.
+        if (control === null) return [`${label.textContent}: no control`];
         const middle = (element: Element) => {
           const box = element.getBoundingClientRect();
           return box.top + box.height / 2;
@@ -83,23 +84,31 @@ test("leaves space between one analytics panel and the next, and more between gr
   await expect(page.getByRole("heading", { level: 4 }).first()).toBeVisible();
 
   const gaps = await page.evaluate(() => {
-    // From each section to the next one beside it, where both are headed by `level`.
+    // A section headed by `level`, directly or inside a folded group's summary.
+    const headedBy = (element: Element | null, level: string) =>
+      element?.tagName === "SECTION" &&
+      element.querySelector(`:scope > ${level}, :scope > details > summary ${level}`) !== null;
+    // From each such section to the next one beside it.
     const between = (level: string) =>
-      [...document.querySelectorAll(`section > ${level}:first-child`)]
-        .map((heading) => heading.parentElement as Element)
+      [...document.querySelectorAll("section")]
+        .filter((section) => headedBy(section, level))
         .flatMap((section) => {
           const next = section.nextElementSibling;
-          if (next?.tagName !== "SECTION" || next.querySelector(`:scope > ${level}`) === null) {
-            return [];
-          }
-          return [next.getBoundingClientRect().top - section.getBoundingClientRect().bottom];
+          if (next === null || !headedBy(next, level)) return [];
+          return [
+            {
+              folded: next.querySelector(":scope > details") !== null,
+              gap: next.getBoundingClientRect().top - section.getBoundingClientRect().bottom,
+            },
+          ];
         });
     return { panels: between("h4"), groups: between("h3") };
   });
   expect(gaps.panels.length).toBeGreaterThan(0);
-  expect(Math.min(...gaps.panels)).toBeGreaterThanOrEqual(32);
-  expect(gaps.groups.length).toBeGreaterThan(0);
-  expect(Math.min(...gaps.groups)).toBeGreaterThanOrEqual(48);
+  expect(Math.min(...gaps.panels.map(({ gap }) => gap))).toBeGreaterThanOrEqual(32);
+  // The folded group is measured too, its heading inside its summary.
+  expect(gaps.groups.some(({ folded }) => folded)).toBe(true);
+  expect(Math.min(...gaps.groups.map(({ gap }) => gap))).toBeGreaterThanOrEqual(48);
 });
 
 test("sets a panel's heading above its labels and lines, and below its section's", async ({
