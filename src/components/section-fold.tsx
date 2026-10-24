@@ -4,29 +4,7 @@ import { type ReactNode, type SyntheticEvent, useState } from "react";
 import { FoldMarker } from "@/components/fold-marker";
 import { reportClientError } from "@/lib/report-client-error";
 import { saveSectionChoiceAction } from "@/lib/section-choice-actions";
-import type { FoldState, RememberedSection } from "@/lib/section-keys";
-
-/**
- * The choices this tab has stored, by kind of page and section. A remembered
- * fold mounts with them until a reload, so a page the router restores from its
- * cache shows them too. Written only in the browser.
- *
- * decisions/071-section-toggles.md
- */
-const savedInTab = new Map<string, boolean>();
-
-function keyOf({ kind, section }: RememberedSection): string {
-  return `${kind}/${section}`;
-}
-
-/**
- * Where a fold starts: the choice this tab stored, else its render's.
- *
- * decisions/071-section-toggles.md
- */
-function startOf({ initiallyOpen, remember }: FoldState): boolean {
-  return (remember === null ? undefined : savedInTab.get(keyOf(remember))) ?? initiallyOpen;
-}
+import type { FoldState } from "@/lib/section-keys";
 
 /**
  * A section a reader can fold away and back: a region named by its heading, in
@@ -54,14 +32,7 @@ export function SectionFold({
   children: ReactNode;
 }>) {
   const { remember } = fold;
-  const [open, setOpen] = useState(() => startOf(fold));
-  const [rendered, setRendered] = useState(fold.initiallyOpen);
-  // A navigation that keeps this fold and renders it otherwise, another season
-  // for one, starts it over.
-  if (fold.initiallyOpen !== rendered) {
-    setRendered(fold.initiallyOpen);
-    setOpen(startOf(fold));
-  }
+  const [open, setOpen] = useState(fold.initiallyOpen);
 
   const onToggle = (event: SyntheticEvent<HTMLDetailsElement>) => {
     const next = event.currentTarget.open;
@@ -70,11 +41,8 @@ export function SectionFold({
     if (event.target !== event.currentTarget || next === open) return;
     setOpen(next);
     if (remember === null) return;
-    saveSectionChoiceAction(remember.kind, remember.section, next).then(
-      ({ ok }) => {
-        if (ok) savedInTab.set(keyOf(remember), next);
-      },
-      (error: unknown) => reportClientError(error, "section-fold")
+    saveSectionChoiceAction(remember.kind, remember.section, next).catch((error: unknown) =>
+      reportClientError(error, "section-fold")
     );
   };
 

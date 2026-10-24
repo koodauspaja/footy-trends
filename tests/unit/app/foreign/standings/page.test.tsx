@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SeasonContext } from "@/lib/football-data";
 import type { CupSeasonResult, StandingsResult } from "@/lib/standings-service";
@@ -721,6 +721,34 @@ describe("Standings page, cup competitions", () => {
       screen.getByRole("region", { name }).querySelector<HTMLDetailsElement>(":scope > details");
     expect(foldOf("Liigavaihe")?.open).toBe(true);
     expect(foldOf("Pudotuspelit")?.open).toBe(false);
+  });
+
+  it("starts a folded phase over on another season, and keeps it folded on the same page", async () => {
+    getCupSeasonMock.mockResolvedValue({
+      status: "ok",
+      matches: [
+        cupMatch({ id: 1, stage: "LEAGUE_STAGE", home: [1, "A"], away: [2, "B"], score: [1, 0] }),
+      ],
+    });
+    const { default: StandingsPage } = await import("@/app/foreign/standings/page");
+    const page = (kausi: string) =>
+      StandingsPage({ searchParams: Promise.resolve({ kilpailu: "CL", kausi }) });
+    const view = render(await page("2025"));
+    const phase = () =>
+      screen
+        .getByRole("region", { name: "Liigavaihe" })
+        .querySelector(":scope > details") as HTMLDetailsElement;
+    await act(async () => {
+      phase().open = false;
+      fireEvent(phase(), new Event("toggle"));
+    });
+
+    // The same page drawn again, as starring a team does.
+    view.rerender(await page("2025"));
+    expect(phase().open).toBe(false);
+
+    view.rerender(await page("2023"));
+    expect(phase().open).toBe(true);
   });
 
   it("opens Pudotuspelit when the season has no table above it", async () => {

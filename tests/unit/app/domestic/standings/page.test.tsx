@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CupForecastResult } from "@/lib/knockout-simulation-service";
 import type { NormalizedTasoMatch } from "@/lib/taso";
@@ -1023,6 +1023,31 @@ describe("Domestic standings page, cup competitions", () => {
       expect(foldOf(ownCalculatedGroup.groupName).open).toBe(true);
       expect(screen.queryByRole("region", { name: "Pudotuspelit" })).toBeNull();
       expect(foldOf("Puolivälierät").open).toBe(false);
+    });
+
+    it("starts a folded table over on another round, and keeps it folded on the same page", async () => {
+      listSeasonRoundsMock.mockResolvedValue([1, 2]);
+      getSeasonStandingsMock.mockResolvedValue({
+        status: "ok",
+        levels: [],
+        groups: [ownCalculatedGroup],
+      });
+      const { default: DomesticStandingsPage } = await import("@/app/domestic/standings/page");
+      const page = (kierros: string) =>
+        DomesticStandingsPage({ searchParams: Promise.resolve({ kierros }) });
+      const view = render(await page("1"));
+      const table = () => foldOf(ownCalculatedGroup.groupName);
+      await act(async () => {
+        table().open = false;
+        fireEvent(table(), new Event("toggle"));
+      });
+
+      // The same page drawn again, as starring a team does.
+      view.rerender(await page("1"));
+      expect(table().open).toBe(false);
+
+      view.rerender(await page("2"));
+      expect(table().open).toBe(true);
     });
 
     it("closes Cupin ennuste until the reader opens it", async () => {

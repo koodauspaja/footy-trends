@@ -270,7 +270,13 @@ export async function TeamPage<M extends MatchListRow>({
         });
 
   return (
-    <PageShell heading={headingOf(data)} headingAction={favourite}>
+    // Keyed by what the page shows, so another competition or season starts
+    // every fold over from its render, as a load does.
+    <PageShell
+      heading={headingOf(data)}
+      headingAction={favourite}
+      key={`${teamProviderId}:${competitionCode}:${seasonId}`}
+    >
       {data.lead}
       <p className="mb-6">
         <Link

@@ -97,7 +97,8 @@ async function renderCupStandings({
   const analytics = await analyticsFor(resolved, sections);
 
   return (
-    <PageShell heading={`${competitionName} ${seasonLabel}`}>
+    // Keyed by what the page shows, so another season starts every fold over.
+    <PageShell heading={`${competitionName} ${seasonLabel}`} key={`${competitionCode}:${seasonId}`}>
       <p className="mb-6">
         <Link
           className="text-sm"
@@ -188,7 +189,12 @@ async function renderLeagueStandings({
   const caveat = zones.length > 0 ? cupCaveat(competitionCode, levels) : null;
 
   return (
-    <PageShell heading={`${competitionName} ${seasonLabel}`}>
+    // Keyed by what the page shows, so another season or round starts every
+    // fold over from its render, as a load does.
+    <PageShell
+      heading={`${competitionName} ${seasonLabel}`}
+      key={`${competitionCode}:${seasonId}:${selectedRound ?? ""}`}
+    >
       <p className="mb-6">
         <Link
           className="text-sm"

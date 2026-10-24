@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EloPanelData } from "@/components/elo-section";
 import type { SeasonSummaryPanelData } from "@/components/season-summary-section";
@@ -290,6 +290,31 @@ describe("Domestic team page", () => {
     expect(details?.querySelector("summary")?.textContent).toBe(
       `▸Ottelut(${rows === 1 ? "1 ottelu" : `${rows} ottelua`})`
     );
+  });
+
+  it("starts a folded match list over on another season, and keeps it folded on the same page", async () => {
+    const { default: DomesticTeamPage } = await import("@/app/domestic/team/[id]/page");
+    const page = (kausi: string) =>
+      DomesticTeamPage({
+        params: Promise.resolve({ id: "1" }),
+        searchParams: Promise.resolve({ kausi }),
+      });
+    const view = render(await page("2020"));
+    const matches = () =>
+      screen
+        .getByRole("region", { name: "Ottelut" })
+        .querySelector(":scope > details") as HTMLDetailsElement;
+    await act(async () => {
+      matches().open = false;
+      fireEvent(matches(), new Event("toggle"));
+    });
+
+    // The same page drawn again, as starring the team does.
+    view.rerender(await page("2020"));
+    expect(matches().open).toBe(false);
+
+    view.rerender(await page("2021"));
+    expect(matches().open).toBe(true);
   });
 
   it("starts the match list closed when the reader last left it so on a team page", async () => {

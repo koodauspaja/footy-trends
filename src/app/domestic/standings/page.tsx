@@ -408,7 +408,12 @@ export default async function DomesticStandingsPage({
     result.status === "ok" && result.groups.every((group) => group.kind === "match-list");
 
   return (
-    <PageShell heading={`${seasonCompetitionName} ${seasonLabel}`}>
+    // Keyed by what the page shows, so another season or round starts every
+    // fold over from its render, as a load does.
+    <PageShell
+      heading={`${seasonCompetitionName} ${seasonLabel}`}
+      key={`${competitionCode}:${seasonId}:${selectedRound ?? ""}`}
+    >
       <RenamedNotice renamedTo={renamedTo} />
       <p className="mb-6">
         <Link

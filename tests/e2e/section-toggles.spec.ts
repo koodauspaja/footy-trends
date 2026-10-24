@@ -97,6 +97,18 @@ test.describe("For a reader with no stored choice", () => {
     await expect(table.getByRole("table")).toBeVisible();
   });
 
+  test("a folded table starts over on another round, as a load does", async ({ page }) => {
+    await page.goto(STANDINGS);
+    const table = fold(page, "Runkosarja");
+    await table.locator(":scope > summary").click();
+    await expect.poll(() => isOpen(table)).toBe(false);
+
+    await page.getByLabel("Kierros").selectOption("5");
+    await expect(page).toHaveURL(/kierros=5/);
+
+    await expect.poll(() => isOpen(fold(page, "Runkosarja"))).toBe(true);
+  });
+
   test("a team page opens its matches and closes Analyysit, then opens only its first group", async ({
     page,
   }) => {
@@ -186,26 +198,6 @@ test.describe("Signed in", () => {
     } finally {
       await second.close();
     }
-  });
-
-  test("Back shows a fold as it was left, not as the page was first drawn", async ({
-    page,
-    baseURL,
-  }) => {
-    await signIn(page.context(), reader.cookie, baseURL as string);
-    const club = await aClub(page);
-    await page.goto(club);
-    await toggleSaved(page, fold(page, "Analyysit"));
-
-    await page.getByRole("link", { name: "Sarjataulukkoon" }).click();
-    await expect(page).toHaveURL(/\/kotimaa\/sarjataulukko/);
-    await page.goBack();
-    await expect(page).toHaveURL(new URL(club, baseURL).href);
-    // The URL changes before the restored page is drawn: wait for the team
-    // page's own section, as the standings page has an `Analyysit` too.
-    await expect(page.getByRole("region", { name: "Ottelut" })).toBeVisible();
-
-    await expect.poll(() => isOpen(fold(page, "Analyysit"))).toBe(true);
   });
 
   test("signed out again, the page starts from its defaults", async ({ page, baseURL }) => {

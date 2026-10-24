@@ -25,20 +25,7 @@ beforeEach(() => {
   saveSectionChoiceAction.mockResolvedValue({ ok: true });
 });
 
-// The tab keeps what it stored for as long as the module lives, so each test
-// names a section of its own.
-const SECTION = {
-  starts: { kind: "team", section: "matches" },
-  saves: { kind: "team", section: "analytics" },
-  announces: { kind: "team", section: "analytics-summary" },
-  fails: { kind: "team", section: "analytics-by-match" },
-  restarts: { kind: "team", section: "analytics-whole-season" },
-  cached: { kind: "team", section: "analytics-other-seasons" },
-  refused: { kind: "team", section: "analytics-opponents" },
-  restartsFromTab: { kind: "national-team", section: "analytics" },
-  outer: { kind: "standings", section: "analytics" },
-  inner: { kind: "standings", section: "analytics-this-season" },
-} as const satisfies Record<string, RememberedSection>;
+const ANALYTICS: RememberedSection = { kind: "team", section: "analytics" };
 
 function foldOf(
   initiallyOpen: boolean,
@@ -70,7 +57,7 @@ function toggle(details: HTMLDetailsElement, open: boolean) {
 
 describe("SectionFold", () => {
   it("starts open or closed as it is told, the heading inside its summary", () => {
-    const { details } = renderFold(false, SECTION.starts);
+    const { details } = renderFold(false, ANALYTICS);
 
     expect(details.open).toBe(false);
     expect(screen.getByText("Sisältö")).not.toBeVisible();
@@ -80,7 +67,7 @@ describe("SectionFold", () => {
   });
 
   it("saves the reader's toggle under its kind and section", async () => {
-    const { details } = renderFold(false, SECTION.saves);
+    const { details } = renderFold(false, ANALYTICS);
 
     await act(async () => toggle(details, true));
     expect(saveSectionChoiceAction).toHaveBeenLastCalledWith("team", "analytics", true);
@@ -91,7 +78,7 @@ describe("SectionFold", () => {
   });
 
   it("saves nothing when the browser only announces the state it was rendered in", async () => {
-    const { details } = renderFold(true, SECTION.announces);
+    const { details } = renderFold(true, ANALYTICS);
 
     await act(async () => toggle(details, true));
     expect(saveSectionChoiceAction).not.toHaveBeenCalled();
@@ -108,63 +95,21 @@ describe("SectionFold", () => {
   it("reports a save that could not be sent, and keeps the fold as the reader set it", async () => {
     const failure = new Error("offline");
     saveSectionChoiceAction.mockRejectedValue(failure);
-    const { details } = renderFold(false, SECTION.fails);
+    const { details } = renderFold(false, ANALYTICS);
 
     await act(async () => toggle(details, true));
     expect(details.open).toBe(true);
     expect(reportClientError).toHaveBeenCalledWith(failure, "section-fold");
   });
 
-  it("starts over when a navigation keeps it and renders it otherwise", () => {
-    const { details, rerender } = renderFold(false, SECTION.restarts);
-
-    rerender(foldOf(true, SECTION.restarts));
-
-    expect(details.open).toBe(true);
-    expect(saveSectionChoiceAction).not.toHaveBeenCalled();
-  });
-
-  it("starts over from the choice this tab stored, not from a render made before it", async () => {
-    const { details, rerender } = renderFold(false, SECTION.restartsFromTab);
-    await act(async () => toggle(details, true));
-    await act(async () => toggle(details, false));
-
-    // Back to a page the router cached open, before the reader closed it here.
-    rerender(foldOf(true, SECTION.restartsFromTab));
-
-    expect(details.open).toBe(false);
-  });
-
-  it("shows the choice this tab saved over the state a cached page renders", async () => {
-    const first = renderFold(false, SECTION.cached);
-    await act(async () => toggle(first.details, true));
-    first.unmount();
-
-    // Back to the page, from the router's copy made before the toggle.
-    const { details } = renderFold(false, SECTION.cached);
-
-    expect(details.open).toBe(true);
-  });
-
-  it("keeps nothing in the tab for a save the server refused", async () => {
-    saveSectionChoiceAction.mockResolvedValue({ ok: false });
-    const first = renderFold(false, SECTION.refused);
-    await act(async () => toggle(first.details, true));
-    first.unmount();
-
-    expect(renderFold(false, SECTION.refused).details.open).toBe(false);
-  });
-
-  it("keeps nothing in the tab for a fold with nothing to remember", async () => {
-    const first = renderFold(false, null);
-    await act(async () => toggle(first.details, true));
-    first.unmount();
-
-    expect(renderFold(false, null).details.open).toBe(false);
-  });
-
   it("saves a nested fold's toggle as that fold's alone", async () => {
-    const { container } = render(foldOf(false, SECTION.outer, foldOf(false, SECTION.inner)));
+    const { container } = render(
+      foldOf(
+        false,
+        { kind: "standings", section: "analytics" },
+        foldOf(false, { kind: "standings", section: "analytics-this-season" })
+      )
+    );
     const [outer, inner] = [...container.querySelectorAll("details")] as HTMLDetailsElement[];
     // The outer element disagreeing with its state, as after a press before
     // hydration, so only the target check tells the two toggles apart.
