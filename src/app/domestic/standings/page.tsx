@@ -159,20 +159,23 @@ function LeagueGroups({
   groups,
   levels,
   fold,
+  openFirst = false,
   teamHref,
 }: Readonly<{
   groups: GroupStandingsResult[];
   levels: readonly GroupLevel[];
   /** Tables start open, a league's knockout lists closed, neither remembered. */
   fold: FoldState;
+  /** The first group is the page's first section, so it opens whatever `fold` says. */
+  openFirst?: boolean;
   teamHref: (teamProviderId: number) => string;
 }>) {
   const zoned = groups.map((group) => ({ group, ...zonesOf(group, levels) }));
   const lastWithList = zoned.findLast(({ zones }) => zones.length > 0)?.group.groupId;
 
-  return zoned.map(({ group, zones, ruleAfter }) => (
+  return zoned.map(({ group, zones, ruleAfter }, index) => (
     <TableFold
-      fold={fold}
+      fold={openFirst && index === 0 ? { ...fold, initiallyOpen: true } : fold}
       heading={displayGroupName(group.groupName)}
       headingId={`standings-group-${group.groupId}`}
       key={group.groupId}
@@ -459,6 +462,7 @@ export default async function DomesticStandingsPage({
       {result.status === "ok" && !isGroupsAndPlayoff && !isCup && (
         <LeagueGroups
           fold={KNOCKOUT_LIST_FOLD}
+          openFirst={noTable && bracket.length === 0}
           groups={result.groups.filter((group) => group.kind === "match-list")}
           levels={result.levels}
           teamHref={teamHref}
