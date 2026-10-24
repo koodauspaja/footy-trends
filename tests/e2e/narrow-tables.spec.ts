@@ -48,6 +48,11 @@ test.describe("At 375 px", () => {
     // `Sarja` may scroll into view; the result is in view from the start.
     const { end, boxEnd } = await headerInBox(page, "Tulos");
     expect(end).toBeLessThanOrEqual(boxEnd);
+    // And each score with it, not merely the heading over them.
+    const score = page.getByRole("cell", { name: /^\d+–\d+$/ }).first();
+    await expect(score).toBeVisible();
+    const scoreEnd = await score.evaluate((cell) => cell.getBoundingClientRect().right);
+    expect(scoreEnd).toBeLessThanOrEqual(boxEnd);
   });
 
   test("a bracket wider than the screen shadows the edge it scrolls towards", async ({ page }) => {
@@ -58,12 +63,16 @@ test.describe("At 375 px", () => {
     const tree = page.locator("div.overflow-x-auto").filter({ has: page.locator("section h3") });
     await expect(tree).toHaveCount(1);
 
-    const { overflows, background } = await tree.evaluate((element) => ({
+    const { overflows, background, shadow } = await tree.evaluate((element) => ({
       overflows: element.scrollWidth > element.clientWidth,
       background: getComputedStyle(element).backgroundImage,
+      shadow: getComputedStyle(element).getPropertyValue("--scroll-shadow"),
     }));
     expect(overflows).toBe(true);
     expect(background).toContain("radial-gradient");
+    // A shadow of no strength would draw nothing.
+    const alpha = Number(/\/\s*([\d.]+)\s*\)/.exec(shadow)?.[1]);
+    expect(alpha).toBeGreaterThan(0);
   });
 });
 

@@ -91,7 +91,9 @@ export function StandingsTable({
           row.teamName
         ) : (
           <span className="flex items-center gap-1">
-            <RowLink className="hover:underline" href={teamHref(row.teamProviderId)}>
+            {/* Free to shrink below its longest word, so a phone's narrow
+                column breaks the name rather than let it overrun. */}
+            <RowLink className="min-w-0 hover:underline" href={teamHref(row.teamProviderId)}>
               {row.teamName}
             </RowLink>
             {/* No id, no star: the same rule as the link above it, since a

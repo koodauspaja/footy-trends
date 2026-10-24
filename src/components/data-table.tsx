@@ -120,7 +120,11 @@ export function phoneTableMinWidth<T>(columns: ReadonlyArray<DataTableColumn<T>>
   );
 }
 
-// Every cell of a column left out on a phone, its `<col>` included.
+/**
+ * Every cell of a column left out on a phone, its `<col>` included.
+ *
+ * decisions/699-narrow-tables.md
+ */
 const PHONE_HIDDEN = "max-sm:hidden";
 
 function zoneClassesOf(kind: ZoneKind | undefined) {

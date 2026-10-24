@@ -61,10 +61,10 @@ is recorded so "keep scrolling" stays a decision rather than an assumption.
 
 ### Out of scope
 
-- **Which columns exist, and what they contain.** No column is added, removed,
-  reordered or hidden — on any viewport. A phase that genuinely has no round
-  number keeps having no round column. (Since decisions/699, a standings table
-  hides seven columns below `sm`.)
+- **Which columns exist, and what they contain.** No column is added, removed
+  or reordered on any viewport, and none is hidden from `sm` up. Below `sm` a
+  standings table hides seven (decisions/699). A phase that genuinely has no
+  round number keeps having no round column.
 - Colours, typography, the spacing scale, dark mode.
 - `cup-bracket.tsx`. It is a bracket, drawn as ties rather than rows, and its
   own shape is the point of it.
@@ -184,8 +184,8 @@ None. No env var, no credential, no user input reaches the change.
       `Tulos` and every text column are left-aligned
 - [ ] Below its floor a table scrolls inside its own container, and the document
       itself never scrolls horizontally
-- [ ] No column is added, removed, reordered or hidden, at any viewport (below
-      `sm`, a standings table now hides seven: decisions/699)
+- [ ] No column is added, removed or reordered at any viewport, and none is
+      hidden from `sm` up; below it a standings table hides seven (decisions/699)
 - [ ] Every Finnish heading is byte-identical to today's
 - [ ] The standings' team link, the match list's team and match links, and the
       `Vire` cell's `aria-label` all behave exactly as before

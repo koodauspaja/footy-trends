@@ -177,6 +177,14 @@ describe("StandingsTable on a phone", () => {
     expect(kept).toEqual(["Sija", "Joukkue", "O", "P"]);
   });
 
+  it("lets a long team name break in the narrow column rather than overrun it", () => {
+    // The name sits in a flex row beside its star, which would hold it at its
+    // longest word.
+    render(<StandingsTable standings={[buildRow()]} teamHref={teamHref} />);
+
+    expect(screen.getByRole("link", { name: buildRow().teamName })).toHaveClass("min-w-0");
+  });
+
   it("fits those four on a 375 px screen", () => {
     // 375 less the page's 16 px gutters.
     const { container } = render(<StandingsTable standings={[buildRow()]} teamHref={teamHref} />);
