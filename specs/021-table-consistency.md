@@ -149,7 +149,7 @@ change behind two existing components.
 | Case | Behaviour |
 |---|---|
 | A four-team group (3 stat digits per row) | Numbers stay grouped rather than strung across the width — the reason `Joukkue` absorbs slack today, preserved by the shared rule |
-| A very long team name (`Sporting Clube de Portugal`) | Never truncated; the table scrolls instead |
+| A very long team name (`Sporting Clube de Portugal`) | Never truncated. It wraps within its column, and a word too long for the column breaks (decisions/699). The table scrolls only where its columns together exceed the width, never for a name |
 | A null stat, rendered `–` | Right-aligned with the numbers, as its column is |
 | `Vire` with five results, or none | Unchanged; it is text and stays left |
 | A pass-through row with no team id (`teamProviderId === 0`) | Still renders as plain text rather than a link |
