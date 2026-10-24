@@ -17,6 +17,7 @@ import type { TableVolatilitySeries } from "@/lib/table-volatility";
  * decisions/061-season-simulation.md
  * decisions/629-fold-side-by-side.md
  * decisions/700-legible-charts.md
+ * decisions/071-section-toggles.md
  */
 
 const {
@@ -197,12 +198,16 @@ async function renderSection({
   kind = "football-data",
   competitionCode = "PL",
   selectedSeasonId = 2024,
+  // `Analyysit` opened, as a reader does, so its panels can be seen.
+  choices = { analytics: true },
 }: Partial<{
   kind: "football-data" | "taso";
   competitionCode: string;
   selectedSeasonId: number;
+  choices: Record<string, boolean>;
 }> = {}) {
   const view = await CompetitionAnalyticsSection({
+    sections: { kind: "standings", signedIn: false, choices },
     kind,
     competitionCode,
     selectedSeasonId,
@@ -458,13 +463,47 @@ describe("CompetitionAnalyticsSection, signed in", () => {
   );
 });
 
+// A group's fold, found by the capitals label in its summary.
+function groupFold(container: HTMLElement, heading: string): HTMLDetailsElement | undefined {
+  return [...container.querySelectorAll("details")].find(
+    (fold) => fold.querySelector(":scope > summary h3")?.textContent === heading
+  );
+}
+
+describe("Analyysit on a standings page, folded", () => {
+  it("starts closed for a reader with no stored choice, as on a team page", async () => {
+    const { container } = await renderSection({ choices: {} });
+
+    const fold = screen
+      .getByRole("region", { name: ANALYTICS_HEADING })
+      .querySelector<HTMLDetailsElement>(":scope > details");
+    expect(fold?.open).toBe(false);
+    expect(fold?.querySelector(":scope > summary h2")?.textContent).toBe(ANALYTICS_HEADING);
+    expect(groupFold(container, THIS_SEASON_HEADING)?.open).toBe(true);
+    expect(groupFold(container, SEASON_BY_SEASON_HEADING)?.open).toBe(false);
+  });
+
+  it("follows a stored choice for a group", async () => {
+    const { container } = await renderSection({
+      choices: {
+        analytics: true,
+        "analytics-this-season": false,
+        "analytics-season-by-season": true,
+        "analytics-side-by-side": true,
+      },
+    });
+
+    expect(groupFold(container, THIS_SEASON_HEADING)?.open).toBe(false);
+    expect(groupFold(container, SEASON_BY_SEASON_HEADING)?.open).toBe(true);
+    expect(groupFold(container, SIDE_BY_SIDE_HEADING)?.open).toBe(true);
+  });
+});
+
 describe("Kilpailut rinnakkain, folded", () => {
-  it("is the one group a reader opens, closed on every load, its heading the thing to press", async () => {
+  it("starts closed, its heading the thing to press", async () => {
     const { container } = await renderSection();
 
-    const folds = [...container.querySelectorAll("details")];
-    expect(folds).toHaveLength(1);
-    const [fold] = folds;
+    const fold = groupFold(container, SIDE_BY_SIDE_HEADING);
     expect(fold?.open).toBe(false);
     // The marker, hidden from assistive technology, then the group's heading.
     const summary = fold?.querySelector("summary");
@@ -476,7 +515,7 @@ describe("Kilpailut rinnakkain, folded", () => {
   it("holds the comparison table and nothing of the other groups", async () => {
     const { container } = await renderSection();
 
-    const fold = container.querySelector("details");
+    const fold = groupFold(container, SIDE_BY_SIDE_HEADING);
     const headings = [...(fold?.querySelectorAll("h3, h4") ?? [])].map((h) => h.textContent);
     expect(headings).toEqual([SIDE_BY_SIDE_HEADING, HOME_ADVANTAGE_HEADING]);
     expect(fold?.querySelector("table")).not.toBeNull();

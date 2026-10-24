@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
+import { openAnalytics } from "./folds";
 
 /**
  * `Kääntyneet ottelut` on the team page, end to end. Signed in the way league-position.spec.ts
@@ -31,6 +32,7 @@ async function signedIn(page: Page): Promise<void> {
 
 // The panel's figures, by their label.
 async function figures(page: Page): Promise<Record<string, string>> {
+  await openAnalytics(page);
   const panel = page.getByRole("region", { name: HEADING });
   await panel.waitFor();
   const rows = await panel.locator("dl > div").all();
@@ -113,6 +115,7 @@ test.describe("Comebacks, signed in", () => {
     );
 
     await page.goto(LIVE_TEAM);
+    await openAnalytics(page);
     const panel = page.getByRole("region", { name: HEADING });
     await panel.waitFor();
     const shown = await figures(page);
@@ -135,6 +138,7 @@ test.describe("Comebacks, signed in", () => {
     // Placed within its group, not counted from the end of Analyysit: every
     // later panel moves the end.
     await page.goto(FIXTURE_TEAM);
+    await openAnalytics(page);
     const subheadings = page
       .getByRole("region", { name: "Kausi kokonaisuutena", exact: true })
       .getByRole("heading", { level: 4 });
@@ -146,6 +150,7 @@ test.describe("Comebacks, signed in", () => {
 test("sends neither direction to a signed-out reader", async ({ page }) => {
   const response = await page.goto(FIXTURE_TEAM);
   const html = (await response?.text()) ?? "";
+  await openAnalytics(page);
 
   await expect(page.getByRole("heading", { name: HEADING })).toHaveCount(0);
   expect(html).not.toContain("Tappioasemassa puoliajalla");

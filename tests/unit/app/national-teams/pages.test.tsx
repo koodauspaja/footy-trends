@@ -23,6 +23,7 @@ import { warmModules } from "../../../support/warm-module";
 vi.mock("@/lib/auth-client", () => ({
   useSession: () => ({ data: null, refetch: vi.fn() }),
 }));
+vi.mock("@/lib/section-choices", () => import("../../../support/page-sections"));
 
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
 const getCupSeasonMock = vi.fn<() => Promise<CupSeasonResult>>();

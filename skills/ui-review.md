@@ -51,8 +51,11 @@ legal pages (`/tietosuoja`) are the reference for heading levels and space.
 **What it looks like.** A long run of analytics with no way to put away what
 the reader does not want, or a group label that looks like a toggle and is not.
 
-**The counter.** A new panel or group follows the hide-and-show rule #697's
-spec sets: which ones toggle, how they start, and what is remembered.
+**The counter.** A new section or `Analyysit` group folds by the rule in
+`specs/071-section-toggles.md`: it renders through `SectionFold` (as a
+`TeamPageFold`, `TableFold` or `GroupFold`), and a remembered one takes its
+key and default from `DEFAULT_OPEN` in `src/lib/section-keys.ts`. Only the
+page's most basic part starts open.
 
 ### 3. Long lists open by default (#698)
 

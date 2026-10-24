@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
+import { openAnalytics } from "./folds";
 
 /**
  * The team page's `Ennätykset` panel, end to end. Signed in the way league-position.spec.ts
@@ -39,6 +40,7 @@ test.describe("Streak records, signed in", () => {
 
   test("is never shorter than the same run inside one season", async ({ page }) => {
     await page.goto(TEAM);
+    await openAnalytics(page);
 
     const thisSeason = await figure(page, STREAKS_HEADING, "Pisin tappioton putki");
     const ever = await figure(page, HEADING, "Pisin tappioton putki");
@@ -48,6 +50,7 @@ test.describe("Streak records, signed in", () => {
 
   test("says which season or seasons a record was set in", async ({ page }) => {
     await page.goto(TEAM);
+    await openAnalytics(page);
     const ever = await figure(page, HEADING, "Pisin tappioton putki");
 
     // A foreign league's seasons are written `2024/25`, as the selector writes
@@ -57,6 +60,7 @@ test.describe("Streak records, signed in", () => {
 
   test("names the four runs, and no current one", async ({ page }) => {
     await page.goto(TEAM);
+    await openAnalytics(page);
     const region = page.getByRole("region", { name: HEADING });
 
     await expect(region.locator("dt")).toHaveCount(4);
@@ -68,6 +72,7 @@ test.describe("Streak records, signed in", () => {
     // Placed within its group, not counted from the end of Analyysit, which a
     // later group moves. The Elo chart closes the group.
     await page.goto(TEAM);
+    await openAnalytics(page);
     const headings = page
       .getByRole("region", { name: "Muut kaudet", exact: true })
       .getByRole("heading", { level: 4 });
@@ -83,6 +88,7 @@ test.describe("Streak records, signed in", () => {
 test("sends no record to a signed-out reader", async ({ page }) => {
   const response = await page.goto(TEAM);
   const html = (await response?.text()) ?? "";
+  await openAnalytics(page);
 
   await expect(page.getByRole("heading", { name: HEADING })).toHaveCount(0);
   expect(html).not.toContain(HEADING);

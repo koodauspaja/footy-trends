@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
+import { openAnalytics } from "./folds";
 
 /**
  * The team page's `Putket` panel, end to end. Signed in the way
@@ -19,6 +20,7 @@ async function signedIn(page: Page): Promise<void> {
 
 // The panel's figures, by their label.
 async function figures(page: Page): Promise<Record<string, string>> {
+  await openAnalytics(page);
   const panel = page.getByRole("region", { name: HEADING });
   await panel.waitFor();
   const rows = await panel.locator("dl > div").all();
@@ -123,6 +125,7 @@ test.describe("Streaks, signed in", () => {
 test("sends no streak to a signed-out reader", async ({ page }) => {
   const response = await page.goto(TEAM);
   const html = (await response?.text()) ?? "";
+  await openAnalytics(page);
 
   await expect(page.getByRole("heading", { name: HEADING })).toHaveCount(0);
   expect(html).not.toContain("Tämänhetkinen putki");

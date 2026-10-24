@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
+import { openAnalytics } from "./folds";
 
 /**
  * `Maaleja ottelua kohden` on a competition's standings page, end to end.
@@ -43,7 +44,7 @@ test.describe("Goals per game, signed in", () => {
   ] as const) {
     test(`draws a point per stored season on ${name}, the page's own ringed`, async ({ page }) => {
       await page.goto(url);
-      await panel(page).waitFor();
+      await openAnalytics(page);
       const seasons = panel(page).getByRole("listitem");
       const { xs, ring } = await drawn(page);
 
@@ -62,14 +63,14 @@ test.describe("Goals per game, signed in", () => {
     page,
   }) => {
     await page.goto(PL);
-    await panel(page).waitFor();
+    await openAnalytics(page);
     const latest = await drawn(page);
 
     // The oldest drawn season: its label is the first sentence's.
     const first = await panel(page).getByRole("listitem").first().textContent();
     const season = /^Kausi (\d{4})/.exec(first ?? "")?.[1];
     await page.goto(`${PL}&kausi=${season}`);
-    await panel(page).waitFor();
+    await openAnalytics(page);
     const oldest = await drawn(page);
 
     expect(oldest.xs).toEqual(latest.xs);
@@ -84,6 +85,7 @@ test.describe("Goals per game, signed out", () => {
     const response = await page.goto(PL);
     const html = (await response?.text()) ?? "";
     const analytics = page.getByRole("region", { name: "Analyysit" });
+    await openAnalytics(page);
 
     await expect(
       analytics.getByText("Kirjaudu sisään nähdäksesi analyysit ja trendit.")

@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
+import { openAnalytics } from "./folds";
 
 /**
  * The team page's `Nollapelit` panel, end to end. Signed in the way
@@ -18,6 +19,7 @@ async function signedIn(page: Page): Promise<void> {
 
 // The last text row, as [match, percent, kept, of].
 async function lastRow(page: Page): Promise<number[]> {
+  await openAnalytics(page);
   const panel = page.getByRole("region", { name: HEADING });
   await expect(panel.getByRole("img", { name: HEADING })).toBeVisible();
   const rows = await panel.locator("ol > li").allTextContents();
@@ -69,6 +71,7 @@ test.describe("Clean sheets, signed in", () => {
     // series, and `Koti- ja vierastilastot` heads the next group. The order is
     // asserted in full in form-trend.spec.ts.
     await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
+    await openAnalytics(page);
     const headings = page
       .getByRole("region", { name: "Analyysit" })
       .getByRole("heading", { level: 4 });
@@ -80,6 +83,7 @@ test.describe("Clean sheets, signed in", () => {
 test("sends no clean-sheet value to a signed-out reader", async ({ page }) => {
   const response = await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
   const html = (await response?.text()) ?? "";
+  await openAnalytics(page);
 
   await expect(page.getByRole("heading", { name: HEADING })).toHaveCount(0);
   expect(html).not.toContain("Nollapelien osuus");

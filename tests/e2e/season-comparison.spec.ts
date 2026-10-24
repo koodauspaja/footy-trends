@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
+import { openAnalytics } from "./folds";
 
 /**
  * The team page's `Tämä kausi verrattuna` panel, end to end. Signed in the way
@@ -28,6 +29,7 @@ function toNumber(text: string): number {
 }
 
 async function rows(page: Page): Promise<string[]> {
+  await openAnalytics(page);
   const panel = page.getByRole("region", { name: HEADING });
   await expect(panel.getByRole("img", { name: HEADING })).toBeVisible();
   return panel.locator("ol > li").allTextContents();
@@ -66,6 +68,7 @@ test.describe("Season comparison, signed in", () => {
 
   test("names what it is comparing against, above the bars", async ({ page }) => {
     await page.goto(TEAM);
+    await openAnalytics(page);
     const panel = page.getByRole("region", { name: HEADING });
 
     // The competition is pinned and the count only required to be at least one: the e2e
@@ -78,6 +81,7 @@ test.describe("Season comparison, signed in", () => {
     // Placed within its group, not counted from the end of Analyysit, which a
     // later group moves.
     await page.goto(TEAM);
+    await openAnalytics(page);
     const headings = page
       .getByRole("region", { name: "Muut kaudet", exact: true })
       .getByRole("heading", { level: 4 });
@@ -89,6 +93,7 @@ test.describe("Season comparison, signed in", () => {
 test("sends no comparison value to a signed-out reader", async ({ page }) => {
   const response = await page.goto(TEAM);
   const html = (await response?.text()) ?? "";
+  await openAnalytics(page);
 
   await expect(page.getByRole("heading", { name: HEADING })).toHaveCount(0);
   expect(html).not.toContain(HEADING);

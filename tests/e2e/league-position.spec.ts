@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
+import { openAnalytics } from "./folds";
 
 /**
  * The team page's league-position chart, end to end. Signed in is simulated: the
@@ -43,6 +44,7 @@ test.describe("League position chart, signed in", () => {
 
   test("draws a point for every round of a completed season", async ({ page }) => {
     await page.goto(`${TEAM}?${SEASON}`);
+    await openAnalytics(page);
 
     await expect(page.getByRole("heading", { name: HEADING })).toBeVisible();
     await expect(chart(page)).toBeVisible();
@@ -69,6 +71,7 @@ test.describe("League position chart, signed in", () => {
   test("offers no chart for a cup, which has no league position", async ({ page }) => {
     await page.goto(`${TEAM}?kilpailu=CL&kausi=2024`);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await openAnalytics(page);
 
     await expect(page.getByRole("heading", { name: HEADING })).toHaveCount(0);
   });
@@ -79,6 +82,7 @@ test.describe("League position chart, signed in", () => {
     await page.goto("/kotimaa/sarjataulukko?kilpailu=VL&kausi=2025");
     await page.locator("table tbody tr").first().getByRole("link").first().click();
     await expect(page).toHaveURL(/\/kotimaa\/joukkue\/\d+/);
+    await openAnalytics(page);
 
     await expect(chart(page)).toBeVisible();
     await expect(page.getByText(/^Sijoitus 1\. kierroksen jälkeen: \d+\.$/)).toHaveCount(1);
@@ -106,6 +110,7 @@ test.describe("League position chart, signed in", () => {
     const club = await leader.getByRole("link").first().textContent();
     await leader.getByRole("link").first().click();
     await expect(page).toHaveURL(/\/kotimaa\/joukkue\/\d+/);
+    await openAnalytics(page);
 
     const sentences = page.getByText(/^Sijoitus \d+\. kierroksen jälkeen: \d+\.$/);
     await expect(chart(page)).toBeVisible();
@@ -143,6 +148,7 @@ test.describe("League position chart, rounds a team sat out", () => {
     const matchesPlayed = Number(await row.locator("td:nth-child(3)").textContent());
     await row.getByRole("link").first().click();
     await expect(page).toHaveURL(/\/kotimaa\/joukkue\/\d+/);
+    await openAnalytics(page);
     await expect(chart(page)).toBeVisible();
 
     const rows = page.getByText(/^Sijoitus \d+\. kierroksen jälkeen: \d+/);
@@ -166,6 +172,7 @@ test.describe("League position chart, signed out", () => {
     // One prompt for every chart on the page, so no chart's own heading is
     // shown to a signed-out reader.
     await page.goto(`${TEAM}?${SEASON}`);
+    await openAnalytics(page);
 
     await expect(page.getByRole("heading", { name: "Analyysit" })).toBeVisible();
     await expect(page.getByText(SIGNED_OUT)).toBeVisible();
@@ -184,6 +191,7 @@ test.describe("League position chart, signed out", () => {
     });
 
     await page.goto(`${TEAM}?${SEASON}`);
+    await openAnalytics(page);
     await page
       .getByRole("region", { name: "Analyysit" })
       .getByRole("button", { name: "Kirjaudu sisään" })

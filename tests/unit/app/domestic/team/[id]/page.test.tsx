@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EloPanelData } from "@/components/elo-section";
 import type { SeasonSummaryPanelData } from "@/components/season-summary-section";
@@ -20,6 +20,7 @@ import type { TeamMatchesResult } from "@/lib/taso-standings-service";
 import type { TeamContextResult } from "@/lib/team-context";
 import type { TeamPanelMatches } from "@/lib/team-panels";
 import type { TeamNameResult, TeamSeasonsResult } from "@/lib/team-seasons";
+import { resetStoredSections, storedSections } from "../../../../../support/page-sections";
 import { warmModules } from "../../../../../support/warm-module";
 
 /**
@@ -48,6 +49,7 @@ import { warmModules } from "../../../../../support/warm-module";
  * decisions/416-team-page-folds.md
  * decisions/529-one-whole-number-parser.md
  * decisions/530-one-team-panel-builder.md
+ * decisions/071-section-toggles.md
  */
 
 // The favourite star in this tree reads the session through `useSession`, and
@@ -119,6 +121,7 @@ vi.mock("@/lib/match-service", async (importOriginal) => ({
   getWorstOpponents: getWorstOpponentsMock,
 }));
 
+vi.mock("@/lib/section-choices", () => import("../../../../../support/page-sections"));
 vi.mock("@/components/analytics-section", () => ({
   AnalyticsSection: analyticsSectionMock,
 }));
@@ -227,6 +230,7 @@ async function renderTeam(
 // same arrangement wherever it sits.
 beforeEach(() => {
   vi.clearAllMocks();
+  resetStoredSections();
   session.data = null;
   getTeamSeasonsMock.mockResolvedValue({ status: "not_found" });
   getTeamNameMock.mockResolvedValue({ status: "not_found" });
@@ -286,6 +290,52 @@ describe("Domestic team page", () => {
     expect(details?.querySelector("summary")?.textContent).toBe(
       `▸Ottelut(${rows === 1 ? "1 ottelu" : `${rows} ottelua`})`
     );
+  });
+
+  it("starts a folded match list over on another season, and keeps it folded on the same page", async () => {
+    const { default: DomesticTeamPage } = await import("@/app/domestic/team/[id]/page");
+    const page = (kausi: string) =>
+      DomesticTeamPage({
+        params: Promise.resolve({ id: "1" }),
+        searchParams: Promise.resolve({ kausi }),
+      });
+    const view = render(await page("2020"));
+    const matches = () =>
+      screen
+        .getByRole("region", { name: "Ottelut" })
+        .querySelector(":scope > details") as HTMLDetailsElement;
+    await act(async () => {
+      matches().open = false;
+      fireEvent(matches(), new Event("toggle"));
+    });
+
+    // The same page drawn again, as starring the team does.
+    view.rerender(await page("2020"));
+    expect(matches().open).toBe(false);
+
+    view.rerender(await page("2021"));
+    expect(matches().open).toBe(true);
+  });
+
+  it("starts the match list closed when the reader last left it so on a team page", async () => {
+    storedSections.signedIn = true;
+    storedSections.choices = { matches: false };
+
+    await renderTeam("1");
+
+    expect(screen.getByRole("region", { name: "Ottelut" }).querySelector("details")?.open).toBe(
+      false
+    );
+  });
+
+  it("hands Analyysit the reader's sections on team pages", async () => {
+    storedSections.signedIn = true;
+    storedSections.choices = { analytics: true };
+
+    await renderTeam("1");
+
+    const props = analyticsSectionMock.mock.calls[0]?.[0] as unknown as { sections: unknown };
+    expect(props.sections).toEqual({ kind: "team", signedIn: true, choices: { analytics: true } });
   });
 
   it("links back to the standings page", async () => {

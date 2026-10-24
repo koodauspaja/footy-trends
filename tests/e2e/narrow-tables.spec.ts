@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { openFolds } from "./folds";
 
 /**
  * Tables on a phone keep their key column in view: a standings table its
@@ -108,7 +109,7 @@ test.describe("At 375 px", () => {
 
   test("a bracket wider than the screen shadows the edge it scrolls towards", async ({ page }) => {
     await page.goto(BRACKET);
-    await page.getByRole("heading", { name: "Pudotuspelit" }).waitFor();
+    await openFolds(page, "Pudotuspelit");
 
     // The tree's box holds its rounds, each a section under its own heading.
     const tree = page.locator("div.overflow-x-auto").filter({ has: page.locator("section h3") });

@@ -6,6 +6,7 @@ import type { EloPanelData } from "@/components/elo-section";
 import { FavouriteToggle } from "@/components/favourite-toggle";
 import { type MatchListRow, MatchListTable } from "@/components/match-list-table";
 import { PageShell } from "@/components/page-shell";
+import { FoldsFor } from "@/components/section-fold";
 import { TeamMatchesOutcome } from "@/components/team-matches-outcome";
 import { MATCHES_HEADING, TeamPageFold } from "@/components/team-page-fold";
 import { SEASON_AXIS } from "@/lib/analytics-axis";
@@ -16,6 +17,8 @@ import { upcomingFirst } from "@/lib/match-order";
 import type { PositionSeries } from "@/lib/position-series";
 import type { SeasonComparisonSeries } from "@/lib/season-comparison";
 import type { SeasonSummarySeries } from "@/lib/season-summary";
+import { getPageSections } from "@/lib/section-choices";
+import { foldFor } from "@/lib/section-keys";
 import type { StreakRecordsSeries } from "@/lib/streak-records";
 import type { TeamPageSource } from "@/lib/team-context";
 import type { TeamPanelLoaders } from "@/lib/team-panels";
@@ -171,6 +174,7 @@ export function teamPageMetadata<M extends MatchListRow>(data: TeamPageData<M>):
  *
  * decisions/416-team-page-folds.md
  * decisions/714-page-section-order.md
+ * decisions/071-section-toggles.md
  */
 export async function TeamPage<M extends MatchListRow>({
   data,
@@ -235,6 +239,8 @@ export async function TeamPage<M extends MatchListRow>({
   // where the club was instead.
   const outcome = { result: result.status, seasons: lookups, seasonLabel, sameSeason, newest };
 
+  // The reader's folds on every team page, read once.
+  const sections = await getPageSections("team");
   // Every competition, league or cup, and only for a team with matches this
   // season.
   const loaders = result.status === "ok" ? data.loaders(played) : null;
@@ -245,6 +251,7 @@ export async function TeamPage<M extends MatchListRow>({
           ...loaders,
           // A club page's periods are seasons.
           axis: SEASON_AXIS,
+          sections,
           // A failed season lookup reports the outage: read as `played = []` it would
           // say the club has no other seasons. `not_found` is not a failure.
           loadRecords: () =>
@@ -264,39 +271,42 @@ export async function TeamPage<M extends MatchListRow>({
         });
 
   return (
-    <PageShell heading={headingOf(data)} headingAction={favourite}>
-      {data.lead}
-      <p className="mb-6">
-        <Link
-          className="text-sm"
-          href={`${basePath}/sarjataulukko?kilpailu=${competitionCode}&kausi=${seasonId}`}
-        >
-          Sarjataulukkoon
-        </Link>
-      </p>
-      {data.notices}
-      {data.controls({ offeredSeasons, seasonCompetitions })}
-      <TeamMatchesOutcome
-        outcome={outcome}
-        table={
-          result.status === "ok" ? (
-            <TeamPageFold
-              className="mt-4"
-              count={matchCountLabel(result.matches.length)}
-              heading={MATCHES_HEADING}
-              headingId="team-matches"
-            >
-              <MatchListTable
-                fourthColumn={data.fourthColumn}
-                matchHref={(match) => matchHref(match.providerMatchId)}
-                matches={upcomingFirst(result.matches)}
-                teamHref={null}
-              />
-            </TeamPageFold>
-          ) : null
-        }
-      />
-      {analyticsSection}
-    </PageShell>
+    <FoldsFor page={`${teamProviderId}:${competitionCode}:${seasonId}`}>
+      <PageShell heading={headingOf(data)} headingAction={favourite}>
+        {data.lead}
+        <p className="mb-6">
+          <Link
+            className="text-sm"
+            href={`${basePath}/sarjataulukko?kilpailu=${competitionCode}&kausi=${seasonId}`}
+          >
+            Sarjataulukkoon
+          </Link>
+        </p>
+        {data.notices}
+        {data.controls({ offeredSeasons, seasonCompetitions })}
+        <TeamMatchesOutcome
+          outcome={outcome}
+          table={
+            result.status === "ok" ? (
+              <TeamPageFold
+                className="mt-4"
+                count={matchCountLabel(result.matches.length)}
+                heading={MATCHES_HEADING}
+                headingId="team-matches"
+                fold={foldFor(sections, "matches")}
+              >
+                <MatchListTable
+                  fourthColumn={data.fourthColumn}
+                  matchHref={(match) => matchHref(match.providerMatchId)}
+                  matches={upcomingFirst(result.matches)}
+                  teamHref={null}
+                />
+              </TeamPageFold>
+            ) : null
+          }
+        />
+        {analyticsSection}
+      </PageShell>
+    </FoldsFor>
   );
 }

@@ -1,8 +1,9 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CupForecastResult } from "@/lib/knockout-simulation-service";
 import type { NormalizedTasoMatch } from "@/lib/taso";
 import type { GroupStandingsResult, SeasonStandingsResult } from "@/lib/taso-standings-service";
+import { resetStoredSections, storedSections } from "../../../../support/page-sections";
 import { warmModules } from "../../../../support/warm-module";
 
 /**
@@ -21,6 +22,7 @@ import { warmModules } from "../../../../support/warm-module";
  * decisions/419-shared-fold-marker.md
  * decisions/067-knockout-simulation.md
  * decisions/698-long-lists-start-closed.md
+ * decisions/071-section-toggles.md
  */
 
 // The favourite star in this tree calls `useSession`, and the real client must
@@ -58,6 +60,7 @@ const canSeeAnalyticsMock = vi.hoisted(() => vi.fn<() => Promise<boolean>>());
 const getCupForecastMock = vi.hoisted(() =>
   vi.fn<(code: string, season: number, active: number) => Promise<CupForecastResult>>()
 );
+vi.mock("@/lib/section-choices", () => import("../../../../support/page-sections"));
 vi.mock("@/lib/analytics-access", () => ({ canSeeAnalytics: canSeeAnalyticsMock }));
 vi.mock("@/lib/knockout-simulation-service", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/knockout-simulation-service")>()),
@@ -145,6 +148,7 @@ async function getMetadata(searchParams: Record<string, string | string[] | unde
 // same arrangement wherever it sits.
 beforeEach(() => {
   vi.clearAllMocks();
+  resetStoredSections();
   canSeeAnalyticsMock.mockResolvedValue(false);
   getCupForecastMock.mockResolvedValue({ status: "unavailable" });
   listSeasonRoundsMock.mockResolvedValue([1, 2]);
@@ -157,6 +161,14 @@ beforeEach(() => {
 });
 
 warmModules(() => import("@/app/domestic/standings/page"));
+
+// A cup's rounds: each a `<details>` of its own, where a section's fold sits in
+// the region its heading names.
+function roundFolds(): HTMLDetailsElement[] {
+  return [...document.querySelectorAll("details")].filter(
+    (fold) => !fold.parentElement?.matches("section[aria-labelledby]")
+  );
+}
 
 describe("Domestic standings page", () => {
   it("shows the Finnish heading and calculated standings for the default (latest) season", async () => {
@@ -672,8 +684,8 @@ describe("Domestic standings page, cup competitions", () => {
 
     expect(rounds.length).toBeGreaterThan(0);
     for (const round of rounds) {
-      expect(round.classList.contains("group")).toBe(true);
-      expect(round.querySelector("summary > span[aria-hidden]")?.textContent).toBe("▸");
+      // The marker turns by its own details element, so it sits in its summary.
+      expect(round.querySelector(":scope > summary > span[aria-hidden]")?.textContent).toBe("▸");
     }
   });
 
@@ -682,7 +694,7 @@ describe("Domestic standings page, cup competitions", () => {
 
     await renderStandings({ kilpailu: "MSC", kausi: "2025" });
 
-    const rounds = [...document.querySelectorAll("details")].map((round) => ({
+    const rounds = roundFolds().map((round) => ({
       name: round.querySelector("summary h2")?.textContent,
       open: round.open,
       count: round.querySelector("summary > span:not([aria-hidden])")?.textContent,
@@ -819,7 +831,7 @@ describe("Domestic standings page, cup competitions", () => {
     const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
     expect(headings[0]).toBe("Pudotuspelit");
     expect(headings).toContain("Lohko A");
-    expect(document.querySelectorAll("details")).toHaveLength(4);
+    expect(roundFolds()).toHaveLength(4);
   });
 
   describe("a cup of groups then a playoff", () => {
@@ -863,7 +875,7 @@ describe("Domestic standings page, cup competitions", () => {
       expect(screen.getByRole("heading", { name: "Välierät" })).toBeInTheDocument();
       expect(screen.getByRole("heading", { name: "Loppuottelu" })).toBeInTheDocument();
       expect(screen.queryByRole("heading", { name: "1-4" })).not.toBeInTheDocument();
-      expect(document.querySelectorAll("details")).toHaveLength(0);
+      expect(roundFolds()).toHaveLength(0);
     });
 
     it("lists 1-4 under Pudotuspelit while its final is still to be played", async () => {
@@ -909,6 +921,175 @@ describe("Domestic standings page, cup competitions", () => {
       await renderStandings({ kilpailu: "LC", kausi: "2026" });
 
       expect(screen.queryByRole("heading", { name: "Pudotuspelit" })).not.toBeInTheDocument();
+    });
+  });
+
+  describe("how its folds start", () => {
+    // The fold in the region a heading names.
+    const foldOf = (name: string) =>
+      screen.getByRole("region", { name }).querySelector(":scope > details") as HTMLDetailsElement;
+
+    it("opens a Suomen Cup's Pudotuspelit, its first section", async () => {
+      getSeasonStandingsMock.mockResolvedValue({ status: "ok", levels: [], groups: closingRounds });
+
+      await renderStandings({ kilpailu: "MSC", kausi: "2025" });
+
+      expect(foldOf("Pudotuspelit").open).toBe(true);
+    });
+
+    it("opens a league's tables and closes its Pudotuspelit and knockout lists", async () => {
+      getSeasonStandingsMock.mockResolvedValue({
+        status: "ok",
+        levels: [],
+        groups: [ownCalculatedGroup, ...closingRounds.slice(1)],
+      });
+
+      await renderStandings();
+
+      expect(foldOf(ownCalculatedGroup.groupName).open).toBe(true);
+      expect(foldOf("Pudotuspelit").open).toBe(false);
+      expect(foldOf("Välierät").open).toBe(false);
+      expect(foldOf("Loppuottelu").open).toBe(false);
+    });
+
+    it("opens a groups-then-playoff cup's tables and closes its Pudotuspelit", async () => {
+      getSeasonStandingsMock.mockResolvedValue({
+        status: "ok",
+        levels: [],
+        groups: [
+          { ...ownCalculatedGroup, groupId: 1, groupName: "Lohko A" },
+          ...closingRounds.slice(1),
+        ],
+      });
+
+      await renderStandings({ kilpailu: "LC", kausi: "2026" });
+
+      expect(foldOf("Lohko A").open).toBe(true);
+      expect(foldOf("Pudotuspelit").open).toBe(false);
+    });
+
+    it.each([
+      ["a league's", {}],
+      ["a groups-then-playoff cup's", { kilpailu: "LC", kausi: "2026" }],
+    ])("opens %s Pudotuspelit when no table comes above it", async (_page, query) => {
+      getSeasonStandingsMock.mockResolvedValue({
+        status: "ok",
+        levels: [],
+        groups: closingRounds.slice(1),
+      });
+
+      await renderStandings(query);
+
+      expect(foldOf("Pudotuspelit").open).toBe(true);
+    });
+
+    it("opens a league's first knockout list when neither a table nor a tree comes above it", async () => {
+      // No final, so the lists draw no tree.
+      getSeasonStandingsMock.mockResolvedValue({
+        status: "ok",
+        levels: [],
+        groups: closingRounds.slice(0, 2),
+      });
+
+      await renderStandings();
+
+      expect(screen.queryByRole("region", { name: "Pudotuspelit" })).toBeNull();
+      expect(foldOf("Puolivälierät").open).toBe(true);
+      expect(foldOf("Välierät").open).toBe(false);
+    });
+
+    it("keeps a league's knockout lists closed below a tree that opens first", async () => {
+      getSeasonStandingsMock.mockResolvedValue({
+        status: "ok",
+        levels: [],
+        groups: closingRounds.slice(1),
+      });
+
+      await renderStandings();
+
+      expect(foldOf("Pudotuspelit").open).toBe(true);
+      expect(foldOf("Välierät").open).toBe(false);
+    });
+
+    it("keeps a league's knockout lists closed below a table, with no tree", async () => {
+      getSeasonStandingsMock.mockResolvedValue({
+        status: "ok",
+        levels: [],
+        groups: [ownCalculatedGroup, ...closingRounds.slice(0, 2)],
+      });
+
+      await renderStandings();
+
+      expect(foldOf(ownCalculatedGroup.groupName).open).toBe(true);
+      expect(screen.queryByRole("region", { name: "Pudotuspelit" })).toBeNull();
+      expect(foldOf("Puolivälierät").open).toBe(false);
+    });
+
+    it("starts a folded table over on another round, and keeps it folded on the same page", async () => {
+      listSeasonRoundsMock.mockResolvedValue([1, 2]);
+      getSeasonStandingsMock.mockResolvedValue({
+        status: "ok",
+        levels: [],
+        groups: [ownCalculatedGroup],
+      });
+      const { default: DomesticStandingsPage } = await import("@/app/domestic/standings/page");
+      const page = (kierros: string) =>
+        DomesticStandingsPage({ searchParams: Promise.resolve({ kierros }) });
+      const view = render(await page("1"));
+      const table = () => foldOf(ownCalculatedGroup.groupName);
+      await act(async () => {
+        table().open = false;
+        fireEvent(table(), new Event("toggle"));
+      });
+
+      // The same page drawn again, as starring a team does.
+      view.rerender(await page("1"));
+      expect(table().open).toBe(false);
+
+      view.rerender(await page("2"));
+      expect(table().open).toBe(true);
+    });
+
+    it("keeps the round selector, and the focus on it, when another round starts the folds over", async () => {
+      listSeasonRoundsMock.mockResolvedValue([1, 2]);
+      getSeasonStandingsMock.mockResolvedValue({
+        status: "ok",
+        levels: [],
+        groups: [ownCalculatedGroup],
+      });
+      const { default: DomesticStandingsPage } = await import("@/app/domestic/standings/page");
+      const page = (kierros: string) =>
+        DomesticStandingsPage({ searchParams: Promise.resolve({ kierros }) });
+      const view = render(await page("1"));
+      const select = screen.getByLabelText("Kierros");
+      select.focus();
+
+      view.rerender(await page("2"));
+
+      expect(screen.getByLabelText("Kierros")).toBe(select);
+      expect(document.activeElement).toBe(select);
+    });
+
+    it("closes Cupin ennuste until the reader opens it", async () => {
+      canSeeAnalyticsMock.mockResolvedValue(true);
+      getCupForecastMock.mockResolvedValue({ status: "no-fixtures" });
+      getSeasonStandingsMock.mockResolvedValue({ status: "ok", levels: [], groups: closingRounds });
+
+      await renderStandings({ kilpailu: "MSC", kausi: "2026" });
+
+      expect(foldOf("Cupin ennuste").open).toBe(false);
+    });
+
+    it("follows the reader's stored choices over the defaults", async () => {
+      storedSections.choices = { knockout: false, "cup-forecast": true };
+      canSeeAnalyticsMock.mockResolvedValue(true);
+      getCupForecastMock.mockResolvedValue({ status: "no-fixtures" });
+      getSeasonStandingsMock.mockResolvedValue({ status: "ok", levels: [], groups: closingRounds });
+
+      await renderStandings({ kilpailu: "MSC", kausi: "2026" });
+
+      expect(foldOf("Pudotuspelit").open).toBe(false);
+      expect(foldOf("Cupin ennuste").open).toBe(true);
     });
   });
 });

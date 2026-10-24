@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
+import { openAnalytics } from "./folds";
 
 /**
  * `Analyysit` on a national-team page, end to end. Signed in the way league-position.spec.ts
@@ -33,7 +34,7 @@ test.describe("National-team analytics, signed in", () => {
   ] as const) {
     test(`shows the panels ${team} can have, and never a league position`, async ({ page }) => {
       await page.goto(path);
-      await analytics(page).waitFor();
+      await openAnalytics(page);
       const panels = await analytics(page).getByRole("heading", { level: 4 }).allTextContents();
 
       expect(panels.length).toBeGreaterThan(0);
@@ -46,7 +47,7 @@ test.describe("National-team analytics, signed in", () => {
 
   test("names its groups for what they cover, not for a season", async ({ page }) => {
     await page.goto(HUUHKAJAT);
-    await analytics(page).waitFor();
+    await openAnalytics(page);
     const groups = await analytics(page).getByRole("heading", { level: 3 }).allTextContents();
 
     // The middle group covers every match since 2018, so `Kausi kokonaisuutena`
@@ -59,6 +60,7 @@ test.describe("National-team analytics, signed in", () => {
 
   test("compares a year rather than a season", async ({ page }) => {
     await page.goto(HUUHKAJAT);
+    await openAnalytics(page);
     const comparison = page.getByRole("region", { name: "Tämä vuosi verrattuna" });
     await comparison.waitFor();
 
@@ -71,6 +73,7 @@ test.describe("National-team analytics, signed in", () => {
 
   test("says how far back its records reach", async ({ page }) => {
     await page.goto(HUUHKAJAT);
+    await openAnalytics(page);
     const records = page.getByRole("region", { name: "Ennätykset" });
     await records.waitFor();
 
@@ -81,7 +84,7 @@ test.describe("National-team analytics, signed in", () => {
 
   test("puts the section below the year list", async ({ page }) => {
     await page.goto(HUUHKAJAT);
-    await analytics(page).waitFor();
+    await openAnalytics(page);
 
     // The panels describe every year, so they cannot sit inside one.
     const headings = await page.getByRole("heading", { level: 2 }).allTextContents();
@@ -98,6 +101,7 @@ test.describe("National-team analytics, signed in", () => {
       // internationals, which is not this test's to know. The 40 % rule is pinned
       // by the unit tests; this proves the page shows one outcome of it, whole.
       await page.goto(path);
+      await openAnalytics(page);
       const panel = analytics(page).getByRole("region", { name: "Kääntyneet ottelut" });
       await panel.waitFor();
 
@@ -136,6 +140,7 @@ test.describe("National-team analytics, signed in", () => {
 test("sends no national-team analytics value to a signed-out reader", async ({ page }) => {
   const response = await page.goto(HUUHKAJAT);
   const html = (await response?.text()) ?? "";
+  await openAnalytics(page);
 
   // The section and its sign-in prompt are shown, as on a club page; what a
   // signed-out reader must not get is any panel or any computed value.

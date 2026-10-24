@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { openFolds } from "./folds";
 
 /**
  * The Finnish cups, end to end: the picker, each cup's rounds and bracket,
@@ -103,6 +104,7 @@ test.describe("Finnish cups", () => {
     // and listed otherwise. TASO's 2026 season has that shape, so it is drawn,
     // and not listed as well.
     await expect(page.getByRole("heading", { level: 2, name: "Pudotuspelit" })).toBeVisible();
+    await openFolds(page, "Pudotuspelit");
     await expect(
       page.getByRole("heading", { level: 3, name: "Välierät", exact: true })
     ).toBeVisible();
@@ -123,6 +125,7 @@ test.describe("Finnish cups", () => {
       });
       await expect(section.getByRole("table")).toBeVisible();
     }
+    await openFolds(page, "Pudotuspelit");
     await expect(
       page.getByRole("heading", { level: 3, name: "Välierät", exact: true })
     ).toBeVisible();
@@ -175,7 +178,11 @@ test.describe("Finnish cups", () => {
     await page.setViewportSize({ width: 375, height: 812 });
     await openCupSeason(page);
 
-    await expect(page.locator("details[open]")).toHaveCount(1);
+    // The rounds' folds: `Pudotuspelit` above them is a fold of its own, open.
+    const openRounds = page
+      .locator("details[open]")
+      .filter({ hasNot: page.getByRole("heading", { name: "Pudotuspelit" }) });
+    await expect(openRounds).toHaveCount(1);
     const folded = await page.evaluate(() => document.documentElement.scrollHeight);
     await unfoldRounds(page);
     const unfolded = await page.evaluate(() => document.documentElement.scrollHeight);

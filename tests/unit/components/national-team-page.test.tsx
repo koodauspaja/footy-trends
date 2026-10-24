@@ -8,6 +8,7 @@ import type { NationalTeamMatch, NationalTeamResult } from "@/lib/national-team-
  * `national-team-analytics.test.ts`'s, so the section stands in with a marker.
  *
  * decisions/041-national-team-analytics.md
+ * decisions/071-section-toggles.md
  */
 
 const getNationalTeamYearsMock = vi.fn<() => Promise<NationalTeamResult>>();
@@ -19,6 +20,7 @@ vi.mock("@/lib/national-team-service", () => ({
 const analyticsSectionMock = vi.fn(async (_props: Record<string, unknown>) => (
   <p>analytics section placeholder</p>
 ));
+vi.mock("@/lib/section-choices", () => import("../../support/page-sections"));
 vi.mock("@/components/analytics-section", () => ({
   AnalyticsSection: analyticsSectionMock,
 }));
@@ -126,6 +128,13 @@ describe("NationalTeamPage analytics", () => {
     expect(dates).toEqual(["04.09.2026", "05.06.2026", "20.03.2026"]);
   });
 
+  it("hands Analyysit the reader's sections on national team pages, not team pages", async () => {
+    await renderPage();
+
+    const props = analyticsSectionMock.mock.calls[0]?.[0] as { sections: unknown };
+    expect(props.sections).toEqual({ kind: "national-team", signedIn: false, choices: {} });
+  });
+
   it("computes nothing before the section is rendered", async () => {
     await renderPage();
 
@@ -133,7 +142,7 @@ describe("NationalTeamPage analytics", () => {
     // Loaders, not values: the sign-in gate inside the section decides whether
     // any analytics value is computed at all.
     for (const [name, value] of Object.entries(props)) {
-      if (name === "axis") continue;
+      if (name === "axis" || name === "sections") continue;
       expect(typeof value, name).toBe("function");
     }
   });
