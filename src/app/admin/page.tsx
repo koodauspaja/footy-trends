@@ -57,7 +57,7 @@ export default async function Admin({
       {/* Above the table rather than below it: the user list runs to fifty rows
           and a link under it would be out of sight. */}
       <p className="mb-6">
-        <Link className="text-sm underline" href="/yllapito/data">
+        <Link className="text-sm" href="/yllapito/data">
           {REFRESH_LINK}
         </Link>
       </p>

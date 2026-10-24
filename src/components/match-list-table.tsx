@@ -62,7 +62,7 @@ export function MatchListTable<T extends MatchListRow>({
 }: Readonly<MatchListTableProps<T>>) {
   const linkToMatch = (match: T, text: string): ReactNode =>
     matchHref ? (
-      <RowLink className="hover:underline" href={matchHref(match)}>
+      <RowLink className="quiet-link" href={matchHref(match)}>
         {text}
       </RowLink>
     ) : (
@@ -83,11 +83,11 @@ export function MatchListTable<T extends MatchListRow>({
       render: (match) =>
         teamHref ? (
           <>
-            <RowLink className="hover:underline" href={teamHref(match.homeTeamProviderId)}>
+            <RowLink className="quiet-link" href={teamHref(match.homeTeamProviderId)}>
               {match.homeTeamName}
             </RowLink>
             {" – "}
-            <RowLink className="hover:underline" href={teamHref(match.awayTeamProviderId)}>
+            <RowLink className="quiet-link" href={teamHref(match.awayTeamProviderId)}>
               {match.awayTeamName}
             </RowLink>
           </>

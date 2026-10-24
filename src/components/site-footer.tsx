@@ -12,10 +12,10 @@ export function SiteFooter() {
     <footer className="mt-auto border-border border-t px-4 py-6 text-muted text-sm sm:px-8">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-2">
         <nav className="flex gap-4" aria-label="Sivuston tiedot">
-          <Link className="hover:underline" href="/tietosuoja">
+          <Link className="quiet-link" href="/tietosuoja">
             Tietosuoja
           </Link>
-          <Link className="hover:underline" href="/kayttoehdot">
+          <Link className="quiet-link" href="/kayttoehdot">
             Käyttöehdot
           </Link>
         </nav>
@@ -24,10 +24,7 @@ export function SiteFooter() {
         {/* A joint credit, not a split one: the precise split is on
             `/kayttoehdot`, where there is room for it. */}
         <p>
-          Tiedot tarjoaa{" "}
-          <a className="hover:underline" href="https://www.football-data.org/">
-            football-data.org
-          </a>
+          Tiedot tarjoaa <a href="https://www.football-data.org/">football-data.org</a>
           {" ja Suomen Palloliitto."}
         </p>
       </div>

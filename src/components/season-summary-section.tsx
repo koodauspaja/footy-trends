@@ -154,9 +154,7 @@ function Sentence({
   return (
     <>
       {before}
-      <Link className="hover:underline" href={matchHref(fact.match.providerMatchId)}>
-        {match}
-      </Link>
+      <Link href={matchHref(fact.match.providerMatchId)}>{match}</Link>
       {after}
     </>
   );

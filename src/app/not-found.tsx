@@ -18,9 +18,7 @@ export default function NotFound() {
     <PageShell heading={HEADING}>
       <p>Etsimääsi sivua ei ole olemassa.</p>
       <p className="mt-4">
-        <Link className="hover:underline" href="/">
-          Etusivulle
-        </Link>
+        <Link href="/">Etusivulle</Link>
       </p>
     </PageShell>
   );

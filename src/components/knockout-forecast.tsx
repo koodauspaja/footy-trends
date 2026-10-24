@@ -129,9 +129,7 @@ export function KnockoutForecastBody({
       <ChanceTable columns={KNOCKOUT_COLUMNS} rows={forecast.rows} />
       <p className="mt-2 text-muted text-sm">{KNOCKOUT_NOTE}</p>
       <p className="mt-2 text-sm">
-        <Link className="hover:underline" href={qualityHref}>
-          {QUALITY_LINK}
-        </Link>
+        <Link href={qualityHref}>{QUALITY_LINK}</Link>
       </p>
     </div>
   );

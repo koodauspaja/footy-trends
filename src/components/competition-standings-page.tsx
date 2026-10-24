@@ -92,7 +92,7 @@ async function renderCupStandings({
     <PageShell heading={`${competitionName} ${seasonLabel}`}>
       <p className="mb-6">
         <Link
-          className="text-sm hover:underline"
+          className="text-sm"
           href={`${basePath}/ottelut?kilpailu=${competitionCode}&kausi=${seasonId}`}
         >
           Kaikki ottelut
@@ -173,7 +173,7 @@ async function renderLeagueStandings({
     <PageShell heading={`${competitionName} ${seasonLabel}`}>
       <p className="mb-6">
         <Link
-          className="text-sm hover:underline"
+          className="text-sm"
           href={`${basePath}/ottelut?kilpailu=${competitionCode}&kausi=${seasonId}${
             selectedRound !== undefined ? `&kierros=${selectedRound}` : ""
           }`}
