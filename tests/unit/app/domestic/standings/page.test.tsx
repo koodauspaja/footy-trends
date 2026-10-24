@@ -998,6 +998,33 @@ describe("Domestic standings page, cup competitions", () => {
       expect(foldOf("Välierät").open).toBe(false);
     });
 
+    it("keeps a league's knockout lists closed below a tree that opens first", async () => {
+      getSeasonStandingsMock.mockResolvedValue({
+        status: "ok",
+        levels: [],
+        groups: closingRounds.slice(1),
+      });
+
+      await renderStandings();
+
+      expect(foldOf("Pudotuspelit").open).toBe(true);
+      expect(foldOf("Välierät").open).toBe(false);
+    });
+
+    it("keeps a league's knockout lists closed below a table, with no tree", async () => {
+      getSeasonStandingsMock.mockResolvedValue({
+        status: "ok",
+        levels: [],
+        groups: [ownCalculatedGroup, ...closingRounds.slice(0, 2)],
+      });
+
+      await renderStandings();
+
+      expect(foldOf(ownCalculatedGroup.groupName).open).toBe(true);
+      expect(screen.queryByRole("region", { name: "Pudotuspelit" })).toBeNull();
+      expect(foldOf("Puolivälierät").open).toBe(false);
+    });
+
     it("closes Cupin ennuste until the reader opens it", async () => {
       canSeeAnalyticsMock.mockResolvedValue(true);
       getCupForecastMock.mockResolvedValue({ status: "no-fixtures" });

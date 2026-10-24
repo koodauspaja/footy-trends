@@ -19,7 +19,11 @@ function keyOf({ kind, section }: RememberedSection): string {
   return `${kind}/${section}`;
 }
 
-// Where a fold starts: the choice this tab stored, else its render's.
+/**
+ * Where a fold starts: the choice this tab stored, else its render's.
+ *
+ * decisions/071-section-toggles.md
+ */
 function startOf({ initiallyOpen, remember }: FoldState): boolean {
   return (remember === null ? undefined : savedInTab.get(keyOf(remember))) ?? initiallyOpen;
 }
