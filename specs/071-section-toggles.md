@@ -85,6 +85,8 @@ came for: its most basic part open, everything else closed until they open it.
 - **A save that fails:** the fold still opens or closes on the page, and the failure is logged. The reader is not told. The only cost is that the next load starts from the last stored state (Q4).
 - **A link to a section inside a closed fold:** checked during the build. If a page links within itself, the link opens the fold. If none does, the decision record says so and nothing is built for it (Q3).
 - **Lists inside a section, such as a cup's rounds and Huuhkajat' years:** they don't fold by this rule and are not remembered. #698 decides how they start. "Juuson kierros" on one cup is not a choice about every cup (Q2).
+- **A standings page's tables** (`Mestaruussarja`, `Lohko A`, `Liigavaihe`): each headed table is a fold that starts open, and folding one is not remembered, so the tables always open as the page's most basic part (Q6). A table with no heading, a one-table league's, does not fold.
+- **A league's knockout match lists** after the `Pudotuspelit` tree: each is a fold that starts closed, and is not remembered (Q7).
 
 ## Performance & Limits
 
@@ -164,5 +166,7 @@ None open. Answered by Miikka on 2026-10-23 ("recommendations good"), each as re
 3. Links within a page into a closed fold: checked during the build, and built only if one exists
 4. A failed save shows nothing and is logged
 5. One save per toggle, no debouncing, last write wins
+6. A standings page's tables: all start open and can be folded; whether folding them is stored was left to the implementation, which does not store it (2026-10-24: "they start open, can be folded, storing that folding is a technical decision i leave up to you")
+7. A league's knockout match lists: closed, not stored (2026-10-24, "Closed, not stored (Recommended)")
 
 Asked and answered before them, on the same day: groups are the unit, not panels. Every section of a page folds. Choices are stored in the account, per kind of page. Each page opens only its most basic part (#714). `Analyysit` folds on standings pages too. Closed sections are still computed. A signed-out reader gets the defaults, not remembered.
