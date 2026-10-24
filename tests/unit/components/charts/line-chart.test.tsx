@@ -687,6 +687,96 @@ describe("LineChart room for its labels on a phone", () => {
     expect(points.split(/[ ,]/).map(Number).every(Number.isFinite)).toBe(true);
   });
 
+  it("leaves a one-match chart's plot alone when its label clears from mid-plot", () => {
+    // Drawn mid-plot, a 20-character label is well clear of the y ticks.
+    const label = "x".repeat(20);
+    const container = render(
+      <LineChart
+        describedBy="chart-text"
+        formatXTick={() => label}
+        labelledBy="chart-heading"
+        series={[{ name: "line", points: [{ x: 1, y: 2 }] }]}
+        title="Vire otteluittain"
+        xDomain={[1, 1]}
+        xLabel="Ottelu"
+        xTicks={[1]}
+        yDomain={[0, 3]}
+        yLabel="Vire"
+        yTicks={[0, 3]}
+      />
+    ).container;
+    const tick = Number(container.querySelector("[data-part=x-axis] text")?.getAttribute("x"));
+    const width = label.length * DIGIT_WIDTH * mobileAxisSize(container, "x-axis");
+    const plotRight = RIGHT - (width / 2 - MARGIN.right);
+
+    expect(tick).toBeCloseTo((LEFT + plotRight) / 2);
+  });
+
+  it("leaves the plot where it is for a first tick at the domain's end", () => {
+    // Moving the start moves that tick with it: nothing would clear.
+    const container = render(
+      <LineChart
+        describedBy="chart-text"
+        formatXTick={() => "Viimeinen ottelu, jonka nimi on poikkeuksellisen pitkä"}
+        labelledBy="chart-heading"
+        series={[
+          {
+            name: "line",
+            points: [
+              { x: 1, y: 1 },
+              { x: 10, y: 2 },
+            ],
+          },
+        ]}
+        title="Vire otteluittain"
+        xDomain={[1, 10]}
+        xLabel="Ottelu"
+        xTicks={[10]}
+        yDomain={[1, 2]}
+        yLabel="Vire"
+        yTicks={[1, 2]}
+      />
+    ).container;
+    const firstX = container
+      .querySelector("[data-part=line]")
+      ?.getAttribute("points")
+      ?.split(",")[0];
+
+    expect(Number(firstX)).toBe(LEFT);
+  });
+
+  it("never starts the plot past its middle, however wide the first label", () => {
+    const container = render(
+      <LineChart
+        describedBy="chart-text"
+        formatXTick={() => "x".repeat(80)}
+        labelledBy="chart-heading"
+        series={[
+          {
+            name: "line",
+            points: [
+              { x: 0, y: 1 },
+              { x: 10, y: 2 },
+            ],
+          },
+        ]}
+        title="Vire otteluittain"
+        xDomain={[0, 10]}
+        xLabel="Ottelu"
+        xTicks={[9]}
+        yDomain={[1, 2]}
+        yLabel="Vire"
+        yTicks={[1, 2]}
+      />
+    ).container;
+    const firstX = container
+      .querySelector("[data-part=line]")
+      ?.getAttribute("points")
+      ?.split(",")[0];
+
+    expect(Number(firstX)).toBeLessThanOrEqual((LEFT + RIGHT) / 2);
+  });
+
   it("keeps the axis start for a first tick inside the domain", () => {
     // Ticks on whole years in a domain from mid-year: the first is already in
     // from the axis by its place.
@@ -846,11 +936,17 @@ describe("LineChart season axis", () => {
 });
 
 // Twelve seasons of a calendar-year league: too many labels for a phone.
-function twelveSeasons(thin: boolean, from = 2015, count = 12) {
+function twelveSeasons(
+  thin: boolean,
+  from = 2015,
+  count = 12,
+  formatXTick: (tick: number) => string = String
+) {
   const seasons = Array.from({ length: count }, (_, index) => from + index);
   return render(
     <LineChart
       describedBy="chart-text"
+      formatXTick={formatXTick}
       labelledBy="chart-heading"
       series={[{ name: "line", points: seasons.map((x) => ({ x, y: 3 })) }]}
       thinXTicksOnPhone={thin}
@@ -886,6 +982,35 @@ describe("LineChart season labels on a phone", () => {
 
   it("keeps every label when they fit", () => {
     expect(phoneHiddenTicks(twelveSeasons(true, 2020, 4))).toEqual([]);
+  });
+
+  it("hides as many as it takes when every other label would still touch", () => {
+    // Twelve seasons that span two years, `2015/16`, twice a year's width.
+    const container = twelveSeasons(
+      true,
+      2015,
+      12,
+      (tick) => `${tick}/${String(tick + 1).slice(2)}`
+    );
+    const shown = [...container.querySelectorAll("[data-part=x-axis] text")]
+      .filter((text) => text.getAttribute("class") === null && text.getAttribute("x") !== null)
+      .slice(0, -1);
+    const size = mobileAxisSize(container, "x-axis");
+    const ends = shown.map((text) => {
+      const width = (text.firstChild?.textContent ?? "").length * DIGIT_WIDTH * size;
+      const x = Number(text.getAttribute("x"));
+      return [x - width / 2, x + width / 2] as const;
+    });
+
+    expect(shown.map((text) => text.firstChild?.textContent)).toEqual([
+      "2017/18",
+      "2020/21",
+      "2023/24",
+      "2026/27",
+    ]);
+    for (let index = 1; index < ends.length; index += 1) {
+      expect((ends[index]?.[0] ?? 0) - (ends[index - 1]?.[1] ?? 0)).toBeGreaterThan(0);
+    }
   });
 
   it("thins only a chart that asks for it", () => {

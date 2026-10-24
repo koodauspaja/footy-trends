@@ -135,6 +135,21 @@ function crowdedOnPhone(labels: readonly { x: number; width: number }[]): boolea
 }
 
 /**
+ * How many ticks apart a phone's labels are: the least step, counted back from
+ * the latest, at which the labels kept no longer touch. 1 when all of them fit.
+ *
+ * decisions/048-league-goals-per-game-trend.md
+ * decisions/700-legible-charts.md
+ */
+export function phoneStride(labels: readonly { x: number; width: number }[]): number {
+  const kept = (stride: number) =>
+    labels.filter((_, index) => (labels.length - 1 - index) % stride === 0);
+  let stride = 1;
+  while (crowdedOnPhone(kept(stride))) stride += 1;
+  return stride;
+}
+
+/**
  * `value` mapped from `domain` onto `range`, linearly. A domain of one value
  * maps to the middle of the range.
  *
@@ -322,11 +337,13 @@ function clearingStart(
 ): number {
   const reach = left - Y_TICK_GAP + Math.max(tick.labelWidth, tick.noteWidth) / 2;
   const span = xDomain[1] - xDomain[0];
-  // A flat domain draws its one tick mid-plot, with no start to solve for.
-  if (span === 0 || scale(tick.value, xDomain, [left, plotRight]) >= reach) return left;
-  // The start that puts the tick's point at `reach`, the end held.
-  const share = (tick.value - xDomain[0]) / span;
-  return (reach - share * plotRight) / (1 - share);
+  // A flat domain draws its one tick mid-plot, as `scale` does.
+  const share = span === 0 ? 0.5 : (tick.value - xDomain[0]) / span;
+  // A tick at the end moves with it: no start helps.
+  if (share >= 1 || left + share * (plotRight - left) >= reach) return left;
+  // The start that puts the tick's point at `reach`, the end held, and never
+  // past the plot's middle, so a label wider than the plot still leaves one.
+  return Math.min((reach - share * plotRight) / (1 - share), (left + plotRight) / 2);
 }
 
 type LineChartProps = {
@@ -405,10 +422,10 @@ export function LineChart({
   );
 
   const toX = (value: number) => scale(value, xDomain, [plotLeft, plotRight]);
-  const crowded =
-    thinXTicksOnPhone &&
-    crowdedOnPhone(ticks.map((tick) => ({ x: toX(tick.value), width: tick.labelWidth })));
-  const phoneHidden = (index: number) => crowded && (ticks.length - 1 - index) % 2 === 1;
+  const stride = thinXTicksOnPhone
+    ? phoneStride(ticks.map((tick) => ({ x: toX(tick.value), width: tick.labelWidth })))
+    : 1;
+  const phoneHidden = (index: number) => (ticks.length - 1 - index) % stride !== 0;
   const toY = (value: number) => scale(value, yDomain, yRange);
 
   return (
