@@ -81,6 +81,7 @@ for (const scheme of ["light", "dark"] as const) {
           otherFill: other ? getComputedStyle(other).backgroundColor : "",
           border: group.borderTopWidth,
           borderColour: group.borderTopColor,
+          clips: group.overflowX !== "visible",
         };
       });
       expect(painted.fill).toBe(painted.pageText);
@@ -89,6 +90,11 @@ for (const scheme of ["light", "dark"] as const) {
       expect(painted.border).toBe("1px");
       expect(painted.borderColour).not.toMatch(CLEAR);
       expect(painted.borderColour).not.toBe(painted.pageBackground);
+      // A focused option's outline reaches past the group's edge.
+      expect(painted.clips).toBe(false);
+      await chosen.focus();
+      const outline = await chosen.evaluate((element) => getComputedStyle(element).outlineStyle);
+      expect(outline).not.toBe("none");
     });
   });
 }
@@ -118,14 +124,16 @@ for (const path of WALKED) {
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await expect(page.getByText("Ladataan...")).toHaveCount(0);
 
-    const plain = await page.evaluate(() => {
+    const plain = await page.evaluate((clearSource) => {
+      const clear = new RegExp(clearSource);
+      const behind = getComputedStyle(document.body).backgroundColor;
+      const shows = (colour: string) => !clear.test(colour) && colour !== behind;
+      // A border or a fill marks a link only when it can be seen.
       const boxed = (element: Element | null) => {
         if (element === null) return false;
         const style = getComputedStyle(element);
-        return (
-          Number.parseFloat(style.borderTopWidth) > 0 ||
-          style.backgroundColor !== "rgba(0, 0, 0, 0)"
-        );
+        const border = Number.parseFloat(style.borderTopWidth) > 0 && shows(style.borderTopColor);
+        return border || shows(style.backgroundColor);
       };
       return [...document.querySelectorAll("a")]
         .filter((link) => link.getClientRects().length > 0)
@@ -133,7 +141,7 @@ for (const path of WALKED) {
         .filter((link) => !link.classList.contains("quiet-link"))
         .filter((link) => !boxed(link) && !boxed(link.closest("ul")))
         .map((link) => link.textContent);
-    });
+    }, CLEAR.source);
     expect(plain).toEqual([]);
   });
 }
