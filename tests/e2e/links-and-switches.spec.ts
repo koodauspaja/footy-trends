@@ -110,7 +110,9 @@ const WALKED = ["/", "/tietosuoja", "/ennusteet", ...FOUND.map(([, path]) => pat
 for (const path of WALKED) {
   test(`leaves no link on ${path} looking like plain text`, async ({ page }) => {
     await page.goto(path);
-    await expect(page.locator("footer")).toBeVisible();
+    // The page streams behind `Ladataan...`, which holds no link to judge.
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.getByText("Ladataan...")).toHaveCount(0);
 
     const plain = await page.evaluate(() => {
       const boxed = (element: Element | null) => {
