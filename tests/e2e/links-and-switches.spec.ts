@@ -81,7 +81,7 @@ for (const scheme of ["light", "dark"] as const) {
           otherFill: other ? getComputedStyle(other).backgroundColor : "",
           border: group.borderTopWidth,
           borderColour: group.borderTopColor,
-          clips: group.overflowX !== "visible",
+          clips: group.overflowX !== "visible" || group.overflowY !== "visible",
         };
       });
       expect(painted.fill).toBe(painted.pageText);
@@ -152,14 +152,22 @@ test("draws the header's search button as a control", async ({ page }) => {
   const button = page.getByRole("button", { name: "Hae" });
   await expect(button).toBeVisible();
 
-  const { width, colour, behind } = await button.evaluate((element) => ({
-    width: getComputedStyle(element).borderTopWidth,
-    colour: getComputedStyle(element).borderTopColor,
-    behind: getComputedStyle(document.body).backgroundColor,
-  }));
-  expect(width).toBe("1px");
-  expect(colour).not.toMatch(CLEAR);
-  expect(colour).not.toBe(behind);
+  // Every side, so a button drawn as a line rather than a box fails.
+  const { sides, behind } = await button.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      sides: (["Top", "Right", "Bottom", "Left"] as const).map((side) => ({
+        width: style.getPropertyValue(`border-${side.toLowerCase()}-width`),
+        colour: style.getPropertyValue(`border-${side.toLowerCase()}-color`),
+      })),
+      behind: getComputedStyle(document.body).backgroundColor,
+    };
+  });
+  for (const { width, colour } of sides) {
+    expect(width).toBe("1px");
+    expect(colour).not.toMatch(CLEAR);
+    expect(colour).not.toBe(behind);
+  }
 });
 
 test.describe("Signed in as the admin", () => {
