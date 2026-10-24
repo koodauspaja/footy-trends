@@ -6,6 +6,7 @@ import type { ZoneKind } from "@/lib/competition-zones";
  * sibling tables line up.
  *
  * decisions/021-table-consistency.md
+ * decisions/699-narrow-tables.md
  */
 export const COLUMN_WIDTHS = {
   /** `Sija`, which holds at most three digits. */
@@ -56,6 +57,7 @@ const ZONE_CLASSES: Record<ZoneKind, { row: string; edge: string }> = {
  * whatever the container leaves; every other width comes from the scale above.
  *
  * decisions/021-table-consistency.md
+ * decisions/699-narrow-tables.md
  */
 export type DataTableColumn<T> = {
   /** Stable across renders, and unique within the table. */

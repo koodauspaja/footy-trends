@@ -16,6 +16,7 @@ import { reportClientError } from "@/lib/report-client-error";
  * `admin-user-view.ts`, never `admin-users.ts`, which reaches the database.
  *
  * decisions/028-admin-tools-and-roles.md
+ * decisions/699-narrow-tables.md
  */
 
 const SECTION = "Käyttäjät";

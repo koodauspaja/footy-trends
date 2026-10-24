@@ -51,6 +51,7 @@ function cell(value: number | null): string {
  * decisions/026-favourites.md
  * decisions/063-competition-zones.md
  * decisions/065-foreign-league-zones.md
+ * decisions/699-narrow-tables.md
  */
 export function StandingsTable({
   standings,

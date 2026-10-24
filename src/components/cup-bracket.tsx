@@ -161,6 +161,7 @@ function TieCard({
  *
  * decisions/014-champions-league.md
  * decisions/015-finnish-cups.md
+ * decisions/699-narrow-tables.md
  */
 export function BracketTree({ rounds, teamHref }: Readonly<CupBracketProps>) {
   // Aligned so each tie sits against the two that feed it; a round's own
@@ -197,6 +198,7 @@ export function BracketTree({ rounds, teamHref }: Readonly<CupBracketProps>) {
  *
  * decisions/014-champions-league.md
  * decisions/016-world-cup-and-euro.md
+ * decisions/699-narrow-tables.md
  */
 function RoundTable({ round, teamHref }: Readonly<{ round: BracketRound; teamHref: TeamHref }>) {
   const twoLegged = round.ties.some((tie) => tie.legs.length > 1);
