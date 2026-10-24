@@ -238,15 +238,3 @@ export function groupByPlayedYear<T extends { kickoffAt: Date; providerMatchId: 
     .toSorted(([left], [right]) => right - left)
     .map(([year, yearMatches]) => ({ year, matches: yearMatches.toSorted(byKickoffThenId) }));
 }
-
-/**
- * `1 ottelu`, `10 ottelua`: the count in a summary line, a national team's year
- * or a cup's round.
- *
- * decisions/017-huuhkajat.md
- * decisions/018-helmarit.md
- * decisions/698-long-lists-start-closed.md
- */
-export function matchCountLabel(count: number): string {
-  return count === 1 ? "1 ottelu" : `${count} ottelua`;
-}

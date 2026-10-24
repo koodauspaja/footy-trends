@@ -1,5 +1,6 @@
 import { ChartPanel } from "@/components/charts/chart-panel";
 import type { ComebacksSeries, HalfTimeOutcomes } from "@/lib/comebacks";
+import { matchCountLabel } from "@/lib/match-count";
 
 /**
  * The panel's strings.
@@ -20,15 +21,6 @@ export const COMEBACKS_ERROR_MESSAGE =
   "Kääntyneitä otteluita ei voitu laskea. Yritä myöhemmin uudelleen.";
 
 const HEADING_ID = "comebacks";
-
-/**
- * `1 ottelu` / `3 ottelua`: Finnish counts one thing differently.
- *
- * decisions/036-halftime-comebacks.md
- */
-export function matchCount(count: number): string {
-  return `${count} ${count === 1 ? "ottelu" : "ottelua"}`;
-}
 
 /**
  * How many matches the panel could not read a half-time score for. The
@@ -168,7 +160,7 @@ function Figure({ label, value }: Readonly<{ label: string; value: number }>) {
   return (
     <div>
       <dt className="text-muted text-sm">{label}</dt>
-      <dd>{matchCount(value)}</dd>
+      <dd>{matchCountLabel(value)}</dd>
     </div>
   );
 }

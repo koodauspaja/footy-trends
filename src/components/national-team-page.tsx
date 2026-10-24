@@ -4,8 +4,9 @@ import { MatchListTable } from "@/components/match-list-table";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { HISTORY_AXIS } from "@/lib/analytics-axis";
+import { matchCountLabel } from "@/lib/match-count";
 import { upcomingFirst } from "@/lib/match-order";
-import { matchCountLabel, type NationalTeam } from "@/lib/national-team";
+import type { NationalTeam } from "@/lib/national-team";
 import { nationalTeamAnalytics } from "@/lib/national-team-analytics";
 import { getNationalTeamYears, type NationalTeamYear } from "@/lib/national-team-service";
 

@@ -7,7 +7,6 @@ import {
   groupByPlayedYear,
   isFinlandMatch,
   MENS_TEAM,
-  matchCountLabel,
   NATIONAL_TEAM_ACTIVE_YEAR,
   NATIONAL_TEAM_YEARS,
   nationalTeamCategories,
@@ -170,18 +169,6 @@ describe("byKickoffThenId", () => {
     );
 
     expect(sorted.map((m) => m.providerMatchId)).toEqual([4, 9]);
-  });
-});
-
-describe("matchCountLabel", () => {
-  it("uses the singular for one match", () => {
-    expect(matchCountLabel(1)).toBe("1 ottelu");
-  });
-
-  it("uses the partitive for any other count", () => {
-    expect(matchCountLabel(0)).toBe("0 ottelua");
-    expect(matchCountLabel(12)).toBe("12 ottelua");
-    expect(matchCountLabel(33)).toBe("33 ottelua");
   });
 });
 
