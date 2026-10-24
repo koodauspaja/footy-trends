@@ -92,10 +92,12 @@ place as a league's `Kauden ennuste`:
 
 `Kauden ennuste` — panel heading, as specs/061.
 
-During the league phase, a table per team in the current `Liigavaihe` order:
+During the league phase, a table per team in the current `Liigavaihe` order,
+labelled `Liigavaihe` (decisions/696):
 `Joukkue` · `Odotetut pisteet` · `Sijat 1–8` · `Sijat 9–24` · `Sijat 25–36`
 
-Then, for every team still able to reach it, in the order of `Mestaruus`:
+Then, for every team still able to reach it, in the order of `Mestaruus`,
+labelled `Pudotuspelit` while the league phase's table is shown above it:
 `Joukkue` · `Neljännesvälierät` · `Puolivälierät` · `Välierät` ·
 `Loppuottelu` · `Mestaruus`
 — the chance of reaching each round, with specs/014's stage names. A round
