@@ -45,15 +45,16 @@ test.describe("At 375 px", () => {
     await page.goto(BRACKET);
     await page.getByRole("heading", { name: "Pudotuspelit" }).waitFor();
 
-    const boxes = await page.locator(".scroll-edge").evaluateAll((elements) =>
-      elements.map((element) => ({
-        overflows: element.scrollWidth > element.clientWidth,
-        background: getComputedStyle(element).backgroundImage,
-      }))
-    );
-    const scrolling = boxes.filter((box) => box.overflows);
-    expect(scrolling.length).toBeGreaterThan(0);
-    for (const box of scrolling) expect(box.background).toContain("radial-gradient");
+    // The tree's box holds its rounds, each a section under its own heading.
+    const tree = page.locator("div.overflow-x-auto").filter({ has: page.locator("section h3") });
+    await expect(tree).toHaveCount(1);
+
+    const { overflows, background } = await tree.evaluate((element) => ({
+      overflows: element.scrollWidth > element.clientWidth,
+      background: getComputedStyle(element).backgroundImage,
+    }));
+    expect(overflows).toBe(true);
+    expect(background).toContain("radial-gradient");
   });
 });
 
