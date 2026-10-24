@@ -70,7 +70,7 @@ export function SectionFold({
 
   return (
     <section aria-labelledby={headingId} className={className}>
-      <details className="group" onToggle={onToggle} open={open}>
+      <details onToggle={onToggle} open={open}>
         <summary
           className={`flex cursor-pointer list-none items-baseline gap-2 ${summaryClassName}`.trim()}
         >

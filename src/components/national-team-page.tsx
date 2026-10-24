@@ -29,7 +29,7 @@ const ERROR_MESSAGE = "Otteluiden lataaminen epäonnistui. Yritä myöhemmin uud
  */
 function YearSection({ year, basePath }: Readonly<{ year: NationalTeamYear; basePath: string }>) {
   return (
-    <details className="group mb-10 border-border-subtle border-b pb-4" open>
+    <details className="mb-10 border-border-subtle border-b pb-4" open>
       <summary className="mb-3 flex cursor-pointer list-none items-baseline gap-2">
         <FoldMarker />
         <h2 className="font-semibold text-xl">{year.year}</h2>

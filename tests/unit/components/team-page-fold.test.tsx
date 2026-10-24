@@ -61,7 +61,7 @@ describe("TeamPageFold", () => {
     const marker = renderFold().querySelector("summary > span");
 
     expect(marker?.getAttribute("aria-hidden")).toBe("true");
-    expect(marker?.getAttribute("class")).toContain("group-open:rotate-90");
+    expect(marker?.getAttribute("class")).toContain("[details[open]>summary>&]:rotate-90");
   });
 
   it("takes the page's spacing, by default the sections'", () => {

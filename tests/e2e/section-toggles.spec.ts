@@ -7,20 +7,27 @@ import { waitForSession } from "./session";
 /**
  * A page's sections fold, each starting as its kind of page has it, and a
  * signed-in reader's choices follow them to every page of that kind and to
- * another browser. jsdom has no `<details>` toggling, so only a browser shows it.
+ * another browser, which only a browser against the server can show.
  *
  * decisions/071-section-toggles.md
  */
 
 // A split season: three headed tables, so each folds.
 const STANDINGS = "/kotimaa/sarjataulukko?kausi=2025";
-// FC Inter, as bogey-teams.spec.ts has it.
-const INTER = "/kotimaa/joukkue/60987";
 
 // Whether each group inside `Analyysit` is open, in the page's order.
 function groupsOpen(page: Page): Promise<boolean[]> {
   return fold(page, "Analyysit").evaluate((analytics) =>
     [...analytics.querySelectorAll("details")].map((group) => group.open)
+  );
+}
+
+// How far each group's marker inside `Analyysit` is turned, in the page's order.
+function markersTurned(page: Page): Promise<string[]> {
+  return fold(page, "Analyysit").evaluate((analytics) =>
+    [...analytics.querySelectorAll(":scope details > summary > [aria-hidden]")].map(
+      (marker) => getComputedStyle(marker).rotate
+    )
   );
 }
 
@@ -48,6 +55,13 @@ async function twoClubs(page: Page): Promise<[string, string]> {
   const club = async (row: number) =>
     (await rows.nth(row).getByRole("link").first().getAttribute("href")) ?? "";
   return [await club(0), await club(1)];
+}
+
+// A club's page, read off the table: on an empty database a club is known only
+// once its season has been opened.
+async function aClub(page: Page): Promise<string> {
+  const [club] = await twoClubs(page);
+  return club;
 }
 
 test.describe("For a reader with no stored choice", () => {
@@ -86,7 +100,7 @@ test.describe("For a reader with no stored choice", () => {
   test("a team page opens its matches and closes Analyysit, then opens only its first group", async ({
     page,
   }) => {
-    await page.goto(INTER);
+    await page.goto(await aClub(page));
 
     expect(await isOpen(fold(page, "Ottelut"))).toBe(true);
     const analytics = fold(page, "Analyysit");
@@ -96,10 +110,14 @@ test.describe("For a reader with no stored choice", () => {
     const groups = await groupsOpen(page);
     expect(groups.length).toBeGreaterThan(1);
     expect(groups).toEqual([true, ...groups.slice(1).map(() => false)]);
+    // Each marker by its own group, not by the open `Analyysit` around it.
+    await expect
+      .poll(() => markersTurned(page))
+      .toEqual(groups.map((open) => (open ? "90deg" : "none")));
   });
 
   test("a fold opens and closes from the keyboard", async ({ page }) => {
-    await page.goto(INTER);
+    await page.goto(await aClub(page));
     const analytics = fold(page, "Analyysit");
 
     await analytics.locator(":scope > summary").focus();
@@ -110,7 +128,7 @@ test.describe("For a reader with no stored choice", () => {
   });
 
   test("a choice is not kept past a reload", async ({ page }) => {
-    await page.goto(INTER);
+    await page.goto(await aClub(page));
     const analytics = fold(page, "Analyysit");
 
     await analytics.locator(":scope > summary").click();
@@ -175,13 +193,14 @@ test.describe("Signed in", () => {
     baseURL,
   }) => {
     await signIn(page.context(), reader.cookie, baseURL as string);
-    await page.goto(INTER);
+    const club = await aClub(page);
+    await page.goto(club);
     await toggleSaved(page, fold(page, "Analyysit"));
 
     await page.getByRole("link", { name: "Sarjataulukkoon" }).click();
     await expect(page).toHaveURL(/\/kotimaa\/sarjataulukko/);
     await page.goBack();
-    await expect(page).toHaveURL(/\/kotimaa\/joukkue\/60987/);
+    await expect(page).toHaveURL(new URL(club, baseURL).href);
 
     expect(await isOpen(fold(page, "Analyysit"))).toBe(true);
   });
@@ -189,7 +208,7 @@ test.describe("Signed in", () => {
   test("signed out again, the page starts from its defaults", async ({ page, baseURL }) => {
     const context = page.context();
     await signIn(context, reader.cookie, baseURL as string);
-    await page.goto(INTER);
+    await page.goto(await aClub(page));
     await toggleSaved(page, fold(page, "Analyysit"));
 
     await context.clearCookies();

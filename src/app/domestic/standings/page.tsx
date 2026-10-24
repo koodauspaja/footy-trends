@@ -209,7 +209,7 @@ function CupRoundSection({
   teamHref: (teamProviderId: number) => string;
 }>) {
   return (
-    <details className="group mb-10 border-border-subtle border-b pb-4" open={open}>
+    <details className="mb-10 border-border-subtle border-b pb-4" open={open}>
       <summary className="mb-3 flex cursor-pointer list-none items-baseline gap-2">
         <FoldMarker />
         <h2 className={TABLE_HEADING}>{displayGroupName(group.groupName)}</h2>
