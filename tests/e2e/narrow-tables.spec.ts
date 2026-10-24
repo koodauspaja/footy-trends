@@ -13,15 +13,22 @@ const STANDINGS = "/kotimaa/sarjataulukko?kilpailu=VL&kausi=2026";
 const TEAM = "/kotimaa/joukkue/60987";
 // Veikkausliiga 2017, whose knockout bracket is wider than a phone.
 const BRACKET = "/kotimaa/sarjataulukko?kausi=2017";
+// Pages with `Wolverhampton Wanderers FC`, whose first word is wider than a
+// phone leaves the flexible column.
+const LONG_NAMES = [
+  "/ulkomaat/sarjataulukko?kilpailu=PL&kausi=2024",
+  "/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024",
+];
 
 // The first header named `name`: where it ends, and where the box it scrolls
 // in ends and whether that box scrolls.
 async function headerInBox(page: Page, name: string) {
   const header = page.getByRole("columnheader", { name, exact: true }).first();
-  await header.waitFor();
+  await expect(header).toBeVisible();
   return header.evaluate((element) => {
     const box = element.closest(".overflow-x-auto");
     return {
+      width: element.getBoundingClientRect().width,
       end: element.getBoundingClientRect().right,
       boxEnd: box?.getBoundingClientRect().right ?? 0,
       scrolls: (box?.scrollWidth ?? 0) > (box?.clientWidth ?? 0),
@@ -35,7 +42,8 @@ test.describe("At 375 px", () => {
   test("a standings table shows its points without scrolling sideways", async ({ page }) => {
     await page.goto(STANDINGS);
 
-    const { end, boxEnd, scrolls } = await headerInBox(page, "P");
+    const { width, end, boxEnd, scrolls } = await headerInBox(page, "P");
+    expect(width).toBeGreaterThan(0);
     expect(end).toBeLessThanOrEqual(boxEnd);
     expect(scrolls).toBe(false);
     // The columns a phone leaves out are not merely scrolled away.
@@ -46,7 +54,8 @@ test.describe("At 375 px", () => {
     await page.goto(TEAM);
 
     // `Sarja` may scroll into view; the result is in view from the start.
-    const { end, boxEnd } = await headerInBox(page, "Tulos");
+    const { width, end, boxEnd } = await headerInBox(page, "Tulos");
+    expect(width).toBeGreaterThan(0);
     expect(end).toBeLessThanOrEqual(boxEnd);
     // And each score with it, not merely the heading over them.
     const score = page.getByRole("cell", { name: /^\d+–\d+$/ }).first();
@@ -54,6 +63,21 @@ test.describe("At 375 px", () => {
     const scoreEnd = await score.evaluate((cell) => cell.getBoundingClientRect().right);
     expect(scoreEnd).toBeLessThanOrEqual(boxEnd);
   });
+
+  for (const path of LONG_NAMES) {
+    test(`lets no name overrun its cell on ${path}`, async ({ page }) => {
+      await page.goto(path);
+      await expect(page.getByText("Wolverhampton Wanderers FC").first()).toBeVisible();
+
+      // A cell whose content is wider than itself would print over its neighbour.
+      const overrun = await page.evaluate(() =>
+        [...document.querySelectorAll("table td, table th")]
+          .filter((cell) => cell.scrollWidth > cell.clientWidth + 1)
+          .map((cell) => cell.textContent)
+      );
+      expect(overrun).toEqual([]);
+    });
+  }
 
   test("a bracket wider than the screen shadows the edge it scrolls towards", async ({ page }) => {
     await page.goto(BRACKET);
