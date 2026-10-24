@@ -16,6 +16,7 @@ import type { TableVolatilitySeries } from "@/lib/table-volatility";
  * decisions/057-surprise-index.md
  * decisions/061-season-simulation.md
  * decisions/629-fold-side-by-side.md
+ * decisions/700-legible-charts.md
  */
 
 const {
@@ -384,7 +385,7 @@ describe("CompetitionAnalyticsSection, signed in", () => {
     expect(notes[0]?.parentElement).toBe(ticks[2]);
   });
 
-  it("labels every other season on a phone when a long line would crowd them", async () => {
+  it("labels only the seasons a phone has room for when a long line would crowd them", async () => {
     getGoalsPerGame.mockResolvedValue({
       ...series,
       points: Array.from({ length: 12 }, (_, index) => ({
@@ -399,7 +400,9 @@ describe("CompetitionAnalyticsSection, signed in", () => {
     const container = goalsPanel();
     const hidden = container.querySelectorAll("[data-part=x-axis] text.max-sm\\:hidden");
 
-    expect(hidden).toHaveLength(6);
+    // `2015/16` at the phone's size: every other label would still touch, so
+    // every third is kept, counting back from the latest.
+    expect(hidden).toHaveLength(8);
   });
 
   it("prints the y-axis the Finnish way, from the series' own zoom", async () => {
