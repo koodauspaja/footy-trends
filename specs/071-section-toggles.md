@@ -22,8 +22,14 @@ came for: its most basic part open, everything else closed until they open it.
 - **`Analyysit` folds the same way on standings pages as on team pages.** Today
   it is a plain heading there.
 - **Defaults:** on each kind of page, the section #714 names as its most basic
-  part starts open, for example the season table on a standings page and the
-  upcoming matches on a team page. Every other section starts closed.
+  part starts open, for example the upcoming matches on a team page. Every other
+  section starts closed.
+  - On a standings page the most basic part is its tables: every headed table
+    starts open and can be folded, and folding one is not remembered (Q6).
+  - Where no table comes above it, the page's first section opens instead:
+    `Pudotuspelit` on a Suomen Cup or on a season with no table, or a league's
+    first knockout list when there is no tree either.
+  - `Analyysit` starts closed, and opened, only its first group is open (Q1).
 - **Remembered per signed-in reader, per kind of page:** opening `Muut kaudet`
   on Arsenal's page opens it on every team page. The choice is stored in the
   reader's account, so the server renders the page already folded and it
@@ -51,8 +57,11 @@ came for: its most basic part open, everything else closed until they open it.
   - A section keeps its heading level and look: `h2` for a section, `h3` in
     capitals for an `Analyysit` group.
   - A list keeps its count in the toggle, `(24 ottelua)`.
-- **No new strings.** No "Näytä" / "Piilota". The heading is the control and
-  the marker shows its state. A failed save shows nothing (Q4).
+- **No new strings in the folds.** No "Näytä" / "Piilota". The heading is the
+  control and the marker shows its state. A failed save shows nothing (Q4).
+- **The privacy page** names the stored choices, and that deleting the account
+  removes them: "Sivujen osiot, jotka olet avannut tai sulkenut, jotta ne näkyvät
+  seuraavalla kerralla samoin." and "osioiden valinnat".
 - **Keyboard:** `<summary>` is focusable and opens and closes with Enter and
   Space, as the existing folds do.
 
@@ -70,8 +79,10 @@ came for: its most basic part open, everything else closed until they open it.
 - **Reading:** the page reads the reader's choices once, on the server, with
   the session it already reads, and renders each `<details>` open or closed
   from them.
-- **Caching:** none. The choices are per reader and read with the page, which
-  is `force-dynamic`. No Redis key.
+- **Caching:** none on the server. The choices are per reader and read with the
+  page, which is `force-dynamic`. No Redis key. In the browser, a tab keeps the
+  choices it has stored until a reload, so a page that Back restores from the
+  router's cache shows them.
 
 ## Edge Cases
 
@@ -86,7 +97,11 @@ came for: its most basic part open, everything else closed until they open it.
 - **A link to a section inside a closed fold:** checked during the build. If a page links within itself, the link opens the fold. If none does, the decision record says so and nothing is built for it (Q3).
 - **Lists inside a section, such as a cup's rounds and Huuhkajat' years:** they don't fold by this rule and are not remembered. #698 decides how they start. "Juuson kierros" on one cup is not a choice about every cup (Q2).
 - **A standings page's tables** (`Mestaruussarja`, `Lohko A`, `Liigavaihe`): each headed table is a fold that starts open, and folding one is not remembered, so the tables always open as the page's most basic part (Q6). A table with no heading, a one-table league's, does not fold.
-- **A league's knockout match lists** after the `Pudotuspelit` tree: each is a fold that starts closed, and is not remembered (Q7).
+- **A league's knockout match lists** after the `Pudotuspelit` tree: each is a fold that starts closed, and is not remembered (Q7). The first opens when neither a table nor a tree comes above it, as the page's first section.
+- **Another season or round of the same page:** a fold the reader folded stays as they left it, unless the new render starts it otherwise, as when another group becomes the first. Every load starts from the defaults.
+- **The browser opening a fold itself**, for find in page: saved as the reader's choice, like a press.
+- **A press before the page hydrates:** the fold opens or closes, and the choice is not saved.
+- **Signing out without leaving the page:** the page stays as it was rendered. A toggle on it is refused and logged.
 
 ## Performance & Limits
 
@@ -119,8 +134,10 @@ came for: its most basic part open, everything else closed until they open it.
 ## Acceptance Criteria
 
 - [ ] On each kind of page #714 orders, its most basic part starts open and
-      every other section and `Analyysit` group starts closed, for a reader with
-      no stored choices
+      every other section starts closed, for a reader with no stored choices.
+      On a standings page the most basic part is its tables: every headed table
+      starts open, however many the page has (Q6). Opened, `Analyysit` shows
+      only its first group open, the rest closed (Q1)
 - [ ] Every section below the header and every `Analyysit` group opens and
       closes by mouse and from the keyboard (Enter and Space on its heading)
 - [ ] On a standings page `Analyysit` folds as on a team page
