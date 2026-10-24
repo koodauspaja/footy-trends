@@ -120,3 +120,30 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/*
+ * A sideways-scrolling box's cue: a shadow at each edge with more beyond it.
+ * The covers scroll with the content and the shadows stay put, so reaching an
+ * end hides its shadow, with no script.
+ *
+ * decisions/699-narrow-tables.md
+ */
+@utility scroll-edge {
+  background:
+    linear-gradient(to right, var(--background) 30%, transparent) left center / 2.5rem 100%
+    no-repeat local,
+    linear-gradient(to left, var(--background) 30%, transparent) right center / 2.5rem 100%
+    no-repeat local,
+    radial-gradient(
+      farthest-side at 0 50%,
+      color-mix(in srgb, var(--foreground) 25%, transparent),
+      transparent
+    )
+    left center / 1rem 100% no-repeat scroll,
+    radial-gradient(
+      farthest-side at 100% 50%,
+      color-mix(in srgb, var(--foreground) 25%, transparent),
+      transparent
+    )
+    right center / 1rem 100% no-repeat scroll;
+}

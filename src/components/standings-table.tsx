@@ -114,12 +114,15 @@ export function StandingsTable({
       align: "right" as const,
       // Points carry the weight, as they always have.
       ...(short === "P" ? { cellClassName: "font-semibold" } : {}),
+      // A phone keeps the games played and the points.
+      hideOnPhone: short !== "O" && short !== "P",
       render: (row: StandingsRow) => cell(value(row)),
     })),
     {
       key: "form",
       header: "Vire",
       width: COLUMN_WIDTHS.form,
+      hideOnPhone: true,
       cellLabel: (row) => row.form.map((item) => item.label).join(", "),
       render: (row) =>
         row.form.map((item) => (

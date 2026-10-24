@@ -4,6 +4,7 @@ import {
   COLUMN_WIDTHS,
   DataTable,
   type DataTableColumn,
+  phoneTableMinWidth,
   tableMinWidth,
 } from "@/components/data-table";
 
@@ -13,6 +14,7 @@ import {
  * decisions/021-table-consistency.md
  * decisions/049-home-advantage-and-draw-rate.md
  * decisions/063-competition-zones.md
+ * decisions/699-narrow-tables.md
  */
 
 type Row = { id: number; name: string; points: number };
@@ -34,6 +36,11 @@ const columns: Array<DataTableColumn<Row>> = [
     render: (row) => row.points,
   },
 ];
+
+// One more stat column, keyed by what it counts.
+function stat(key: string): DataTableColumn<Row> {
+  return { key, header: key, width: COLUMN_WIDTHS.stat, align: "right", render: () => 0 };
+}
 
 describe("DataTable", () => {
   it("renders the headers it is given, in order", () => {
@@ -74,10 +81,64 @@ describe("DataTable", () => {
     );
 
     // This is what stops a table sizing itself from its own rows.
-    expect(container.querySelector("table")?.style.minWidth).toBe(
+    const table = container.querySelector("table");
+    expect(table?.style.getPropertyValue("--table-floor")).toBe(
       `${COLUMN_WIDTHS.flexMinimum + COLUMN_WIDTHS.stat}px`
     );
+    expect(table).toHaveClass("sm:min-w-(--table-floor)");
     expect(tableMinWidth(columns)).toBe(COLUMN_WIDTHS.flexMinimum + COLUMN_WIDTHS.stat);
+  });
+
+  it("floors a phone's table at the columns it keeps, the flexible one narrower", () => {
+    const withDraws: Array<DataTableColumn<Row>> = [
+      ...columns,
+      { ...stat("drawn"), hideOnPhone: true },
+    ];
+    const { container } = render(
+      <DataTable columns={withDraws} rowKey={(row) => row.id} rows={rows} />
+    );
+    const table = container.querySelector("table");
+
+    expect(table?.style.getPropertyValue("--table-floor-phone")).toBe(
+      `${COLUMN_WIDTHS.flexMinimumPhone + COLUMN_WIDTHS.stat}px`
+    );
+    expect(table).toHaveClass("min-w-(--table-floor-phone)");
+    expect(phoneTableMinWidth(withDraws)).toBe(COLUMN_WIDTHS.flexMinimumPhone + COLUMN_WIDTHS.stat);
+  });
+
+  it("leaves a phone-hidden column out below sm, its col, header and cells alike", () => {
+    const withDraws: Array<DataTableColumn<Row>> = [
+      ...columns,
+      { ...stat("drawn"), hideOnPhone: true },
+    ];
+    const { container } = render(
+      <DataTable columns={withDraws} rowKey={(row) => row.id} rows={rows} />
+    );
+    const hidden = (selector: string) =>
+      [...container.querySelectorAll(selector)].map((element) =>
+        element.classList.contains("max-sm:hidden")
+      );
+
+    expect(hidden("col")).toEqual([false, false, true]);
+    expect(hidden("thead th")).toEqual([false, false, true]);
+    for (const row of container.querySelectorAll("tbody tr")) {
+      expect([...row.children].map((cell) => cell.classList.contains("max-sm:hidden"))).toEqual([
+        false,
+        false,
+        true,
+      ]);
+    }
+  });
+
+  it("shadows the edge its wrapper scrolls towards", () => {
+    const { container } = render(
+      <DataTable columns={columns} rowKey={(row) => row.id} rows={rows} />
+    );
+
+    expect(container.querySelector("table")?.parentElement).toHaveClass(
+      "scroll-edge",
+      "overflow-x-auto"
+    );
   });
 
   it("renders a declared row header as a header cell, not a data cell", () => {

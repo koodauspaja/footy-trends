@@ -102,7 +102,7 @@ export function AdminUserTable({ users, currentAdminId, page, pages, total, page
       {users.length === 0 && <p className="text-muted">{EMPTY}</p>}
 
       {users.length > 0 && (
-        <div className="overflow-x-auto">
+        <div className="scroll-edge overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-border border-b">
