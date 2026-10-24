@@ -161,6 +161,7 @@ function TieCard({
  *
  * decisions/014-champions-league.md
  * decisions/015-finnish-cups.md
+ * decisions/699-narrow-tables.md
  */
 export function BracketTree({ rounds, teamHref }: Readonly<CupBracketProps>) {
   // Aligned so each tie sits against the two that feed it; a round's own
@@ -168,7 +169,7 @@ export function BracketTree({ rounds, teamHref }: Readonly<CupBracketProps>) {
   const aligned = orderRoundsForTree(rounds);
 
   return (
-    <div className="overflow-x-auto pr-1">
+    <div className="scroll-edge overflow-x-auto pr-1">
       <div className="flex w-max gap-8">
         {aligned.map((round, index) => (
           <section className="flex w-56 shrink-0 flex-col" key={round.stage}>
@@ -197,6 +198,7 @@ export function BracketTree({ rounds, teamHref }: Readonly<CupBracketProps>) {
  *
  * decisions/014-champions-league.md
  * decisions/016-world-cup-and-euro.md
+ * decisions/699-narrow-tables.md
  */
 function RoundTable({ round, teamHref }: Readonly<{ round: BracketRound; teamHref: TeamHref }>) {
   const twoLegged = round.ties.some((tie) => tie.legs.length > 1);
@@ -204,7 +206,7 @@ function RoundTable({ round, teamHref }: Readonly<{ round: BracketRound; teamHre
   return (
     <section>
       <h3 className="mb-2 font-medium">{getStageName(round.stage)}</h3>
-      <div className="overflow-x-auto">
+      <div className="scroll-edge overflow-x-auto">
         {/* Fixed layout with explicit widths: consecutive rounds are separate
             tables, and letting each size its own columns leaves them visibly
             out of step down the page. */}

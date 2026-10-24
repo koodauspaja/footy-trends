@@ -48,6 +48,7 @@ standings' `min-w-[760px]` floor (760 vs 704 at 768px, 760 vs 343 or 560 at
 stat off-screen, because `w-full` hands the name column 296 of the 343 visible
 pixels. Eleven columns cannot fit a phone, so scrolling is inherent; the number
 is recorded so "keep scrolling" stays a decision rather than an assumption.
+(Since decisions/699 a phone shows four of them instead.)
 
 ## Scope
 
@@ -60,9 +61,10 @@ is recorded so "keep scrolling" stays a decision rather than an assumption.
 
 ### Out of scope
 
-- **Which columns exist, and what they contain.** No column is added, removed,
-  reordered or hidden — on any viewport. A phase that genuinely has no round
-  number keeps having no round column.
+- **Which columns exist, and what they contain.** No column is added, removed
+  or reordered on any viewport, and none is hidden from `sm` up. Below `sm` a
+  standings table hides seven (decisions/699). A phase that genuinely has no
+  round number keeps having no round column.
 - Colours, typography, the spacing scale, dark mode.
 - `cup-bracket.tsx`. It is a bracket, drawn as ties rather than rows, and its
   own shape is the point of it.
@@ -119,7 +121,10 @@ because that is what eleven columns need, and a match list gets a floor from its
 own shape instead of nothing at all. Above the floor the table fills its
 container, which is why the two kinds already agree at 1280px and will continue
 to. Below it, the table scrolls horizontally inside its own container: nothing
-is hidden, no row changes height, no value is truncated.
+is hidden, no row changes height, no value is truncated. Since decisions/699,
+below `sm` a standings table keeps only `Sija`, `Joukkue`, `O` and `P`, a
+flexible column may narrow to 120px, and a box that still scrolls shadows its
+edge.
 
 **A long team name wraps** rather than widening its column, since the column can
 no longer stretch. That is the same rule in both tables, which is what #202's
@@ -179,7 +184,8 @@ None. No env var, no credential, no user input reaches the change.
       `Tulos` and every text column are left-aligned
 - [ ] Below its floor a table scrolls inside its own container, and the document
       itself never scrolls horizontally
-- [ ] No column is added, removed, reordered or hidden, at any viewport
+- [ ] No column is added, removed or reordered at any viewport, and none is
+      hidden from `sm` up; below it a standings table hides seven (decisions/699)
 - [ ] Every Finnish heading is byte-identical to today's
 - [ ] The standings' team link, the match list's team and match links, and the
       `Vire` cell's `aria-label` all behave exactly as before
@@ -222,6 +228,8 @@ asserted as numbers:
   `Tulos`, with `Ottelu` absorbing the rest
 - at 375px each table's width equals its declared floor, and `document.scrollWidth`
   equals the viewport width — the scrolling is inside the table's container
+  (since decisions/699 the floor below `sm` is the phone's: 272 for the
+  standings, 336 for a three-column match list)
 
 ## Files To Update
 
