@@ -46,6 +46,24 @@ test.describe("At 375 px", () => {
     expect(width).toBeGreaterThan(0);
     expect(end).toBeLessThanOrEqual(boxEnd);
     expect(scrolls).toBe(false);
+    // And the points under it, not merely the heading over them.
+    const points = await page
+      .getByRole("columnheader", { name: "P", exact: true })
+      .first()
+      .evaluate((header) => {
+        const index = (header as HTMLTableCellElement).cellIndex;
+        const cell = header.closest("table")?.tBodies[0]?.rows[0]?.cells[index];
+        return {
+          text: cell?.textContent ?? "",
+          width: cell?.getBoundingClientRect().width ?? 0,
+          end: cell?.getBoundingClientRect().right ?? Number.POSITIVE_INFINITY,
+          shown: cell !== undefined && getComputedStyle(cell).visibility === "visible",
+        };
+      });
+    expect(points.text).toMatch(/^\d+$/);
+    expect(points.width).toBeGreaterThan(0);
+    expect(points.shown).toBe(true);
+    expect(points.end).toBeLessThanOrEqual(boxEnd);
     // The columns a phone leaves out are not merely scrolled away.
     await expect(page.getByRole("columnheader", { name: "TM", exact: true }).first()).toBeHidden();
   });
@@ -69,11 +87,13 @@ test.describe("At 375 px", () => {
       await page.goto(path);
       await expect(page.getByText("Wolverhampton Wanderers FC").first()).toBeVisible();
 
-      // A cell whose content is wider than itself would print over its neighbour.
+      // A box whose content is wider than itself prints over its neighbour, or
+      // clips what it holds: any box in the table, so a name cut short inside
+      // its cell counts too. An inline box measures zero and never counts.
       const overrun = await page.evaluate(() =>
-        [...document.querySelectorAll("table td, table th")]
-          .filter((cell) => cell.scrollWidth > cell.clientWidth + 1)
-          .map((cell) => cell.textContent)
+        [...document.querySelectorAll("table, table *")]
+          .filter((box) => box.scrollWidth > box.clientWidth + 1)
+          .map((box) => box.textContent)
       );
       expect(overrun).toEqual([]);
     });
