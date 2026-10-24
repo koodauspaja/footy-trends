@@ -1,10 +1,28 @@
 "use client";
 
-import { type ReactNode, type SyntheticEvent, useState } from "react";
+import { createContext, type ReactNode, type SyntheticEvent, useContext, useState } from "react";
 import { FoldMarker } from "@/components/fold-marker";
 import { reportClientError } from "@/lib/report-client-error";
 import { saveSectionChoiceAction } from "@/lib/section-choice-actions";
 import type { FoldState } from "@/lib/section-keys";
+
+/**
+ * What the page shows, such as its competition, season and round. A fold under
+ * it starts over from its render when it changes, as on a load.
+ *
+ * decisions/071-section-toggles.md
+ */
+const FoldPage = createContext("");
+
+/**
+ * Tells every fold under it which page it is on, so another season or round
+ * starts each over without remounting the page.
+ *
+ * decisions/071-section-toggles.md
+ */
+export function FoldsFor({ page, children }: Readonly<{ page: string; children: ReactNode }>) {
+  return <FoldPage value={page}>{children}</FoldPage>;
+}
 
 /**
  * A section a reader can fold away and back: a region named by its heading, in
@@ -32,7 +50,14 @@ export function SectionFold({
   children: ReactNode;
 }>) {
   const { remember } = fold;
+  const page = useContext(FoldPage);
   const [open, setOpen] = useState(fold.initiallyOpen);
+  const [drawnFor, setDrawnFor] = useState(page);
+  // Another season or round: the fold starts over from its new render.
+  if (page !== drawnFor) {
+    setDrawnFor(page);
+    setOpen(fold.initiallyOpen);
+  }
 
   const onToggle = (event: SyntheticEvent<HTMLDetailsElement>) => {
     const next = event.currentTarget.open;

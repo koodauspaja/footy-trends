@@ -7,6 +7,7 @@ import { CupStandingsControls } from "@/components/cup-standings-controls";
 import { TABLE_FOLD, TableFold } from "@/components/heading-folds";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
+import { FoldsFor } from "@/components/section-fold";
 import { StandingsControls } from "@/components/standings-controls";
 import { StandingsLegend, StandingsTable } from "@/components/standings-table";
 import { groupZones, zoneLine } from "@/lib/competition-zones";
@@ -97,59 +98,60 @@ async function renderCupStandings({
   const analytics = await analyticsFor(resolved, sections);
 
   return (
-    // Keyed by what the page shows, so another season starts every fold over.
-    <PageShell heading={`${competitionName} ${seasonLabel}`} key={`${competitionCode}:${seasonId}`}>
-      <p className="mb-6">
-        <Link
-          className="text-sm"
-          href={`${basePath}/ottelut?kilpailu=${competitionCode}&kausi=${seasonId}`}
-        >
-          Kaikki ottelut
-        </Link>
-      </p>
-      <ContextNotices resolved={resolved} />
-      <CupStandingsControls
-        basePath={basePath}
-        competitions={competitionsInRegion(region)}
-        showCompetitionSelect={showCompetitionSelect}
-        selectedCompetitionCode={competitionCode}
-        seasons={context.selectableSeasons}
-        selectedSeasonId={seasonId}
-      />
-      {season.status === "error" && <p>{ERROR_MESSAGE}</p>}
-      {season.status !== "error" && phases.length === 0 && <p>{NO_STANDINGS_MESSAGE}</p>}
-      {phases.length > 0 && (
-        <div className="flex flex-col gap-8">
-          {phases.map((phase, index) => (
-            <TableFold
-              className=""
-              fold={TABLE_FOLD}
-              heading={phase.heading}
-              headingId={`standings-phase-${index}`}
-              key={phase.group ?? phase.heading}
-            >
-              <StandingsTable
-                favouriteSource="football-data"
-                standings={phase.standings}
-                teamHref={teamHref}
-              />
-            </TableFold>
-          ))}
-        </div>
-      )}
-      {phases.length > 0 && <StandingsLegend />}
-      {season.status !== "error" && (
-        <TableFold
-          className="mt-8"
-          fold={foldFor(sections, "knockout", phases.length === 0)}
-          heading={KNOCKOUT_PHASE}
-          headingId="standings-knockout"
-        >
-          <CupBracket rounds={bracket} teamHref={teamHref} />
-        </TableFold>
-      )}
-      {analytics}
-    </PageShell>
+    <FoldsFor page={`${competitionCode}:${seasonId}`}>
+      <PageShell heading={`${competitionName} ${seasonLabel}`}>
+        <p className="mb-6">
+          <Link
+            className="text-sm"
+            href={`${basePath}/ottelut?kilpailu=${competitionCode}&kausi=${seasonId}`}
+          >
+            Kaikki ottelut
+          </Link>
+        </p>
+        <ContextNotices resolved={resolved} />
+        <CupStandingsControls
+          basePath={basePath}
+          competitions={competitionsInRegion(region)}
+          showCompetitionSelect={showCompetitionSelect}
+          selectedCompetitionCode={competitionCode}
+          seasons={context.selectableSeasons}
+          selectedSeasonId={seasonId}
+        />
+        {season.status === "error" && <p>{ERROR_MESSAGE}</p>}
+        {season.status !== "error" && phases.length === 0 && <p>{NO_STANDINGS_MESSAGE}</p>}
+        {phases.length > 0 && (
+          <div className="flex flex-col gap-8">
+            {phases.map((phase, index) => (
+              <TableFold
+                className=""
+                fold={TABLE_FOLD}
+                heading={phase.heading}
+                headingId={`standings-phase-${index}`}
+                key={phase.group ?? phase.heading}
+              >
+                <StandingsTable
+                  favouriteSource="football-data"
+                  standings={phase.standings}
+                  teamHref={teamHref}
+                />
+              </TableFold>
+            ))}
+          </div>
+        )}
+        {phases.length > 0 && <StandingsLegend />}
+        {season.status !== "error" && (
+          <TableFold
+            className="mt-8"
+            fold={foldFor(sections, "knockout", phases.length === 0)}
+            heading={KNOCKOUT_PHASE}
+            headingId="standings-knockout"
+          >
+            <CupBracket rounds={bracket} teamHref={teamHref} />
+          </TableFold>
+        )}
+        {analytics}
+      </PageShell>
+    </FoldsFor>
   );
 }
 
@@ -189,57 +191,54 @@ async function renderLeagueStandings({
   const caveat = zones.length > 0 ? cupCaveat(competitionCode, levels) : null;
 
   return (
-    // Keyed by what the page shows, so another season or round starts every
-    // fold over from its render, as a load does.
-    <PageShell
-      heading={`${competitionName} ${seasonLabel}`}
-      key={`${competitionCode}:${seasonId}:${selectedRound ?? ""}`}
-    >
-      <p className="mb-6">
-        <Link
-          className="text-sm"
-          href={`${basePath}/ottelut?kilpailu=${competitionCode}&kausi=${seasonId}${
-            selectedRound !== undefined ? `&kierros=${selectedRound}` : ""
-          }`}
-        >
-          Kaikki ottelut
-        </Link>
-      </p>
-      <ContextNotices resolved={resolved} />
-      {round.kind === "invalid" && <Notice>{INVALID_ROUND_MESSAGE}</Notice>}
-      <StandingsControls
-        availableRounds={availableRounds}
-        basePath={basePath}
-        competitions={competitionsInRegion(region)}
-        selectedCompetitionCode={competitionCode}
-        selectedRound={selectedRound}
-        seasons={context.selectableSeasons}
-        selectedSeasonId={seasonId}
-      />
-      {result.status === "empty" && <p>{NO_STANDINGS_MESSAGE}</p>}
-      {result.status === "error" && <p>{ERROR_MESSAGE}</p>}
-      {result.status === "ok" && (
-        <StandingsTable
-          favouriteSource="football-data"
-          ruleAfter={ruleAfter}
-          standings={result.standings}
-          teamHref={(teamProviderId) =>
-            `${basePath}/joukkue/${teamProviderId}?kilpailu=${competitionCode}&kausi=${seasonId}`
-          }
-          zones={zones}
+    <FoldsFor page={`${competitionCode}:${seasonId}:${selectedRound ?? ""}`}>
+      <PageShell heading={`${competitionName} ${seasonLabel}`}>
+        <p className="mb-6">
+          <Link
+            className="text-sm"
+            href={`${basePath}/ottelut?kilpailu=${competitionCode}&kausi=${seasonId}${
+              selectedRound !== undefined ? `&kierros=${selectedRound}` : ""
+            }`}
+          >
+            Kaikki ottelut
+          </Link>
+        </p>
+        <ContextNotices resolved={resolved} />
+        {round.kind === "invalid" && <Notice>{INVALID_ROUND_MESSAGE}</Notice>}
+        <StandingsControls
+          availableRounds={availableRounds}
+          basePath={basePath}
+          competitions={competitionsInRegion(region)}
+          selectedCompetitionCode={competitionCode}
+          selectedRound={selectedRound}
+          seasons={context.selectableSeasons}
+          selectedSeasonId={seasonId}
         />
-      )}
-      {zones.length > 0 && (
-        <ul className="mt-3 text-sm">
-          {zones.map((zone) => (
-            <li key={zone.from}>{zoneLine(zone)}</li>
-          ))}
-        </ul>
-      )}
-      {caveat !== null && <p className="mt-2 text-sm text-muted">{caveat}</p>}
-      <StandingsLegend />
-      {analytics}
-    </PageShell>
+        {result.status === "empty" && <p>{NO_STANDINGS_MESSAGE}</p>}
+        {result.status === "error" && <p>{ERROR_MESSAGE}</p>}
+        {result.status === "ok" && (
+          <StandingsTable
+            favouriteSource="football-data"
+            ruleAfter={ruleAfter}
+            standings={result.standings}
+            teamHref={(teamProviderId) =>
+              `${basePath}/joukkue/${teamProviderId}?kilpailu=${competitionCode}&kausi=${seasonId}`
+            }
+            zones={zones}
+          />
+        )}
+        {zones.length > 0 && (
+          <ul className="mt-3 text-sm">
+            {zones.map((zone) => (
+              <li key={zone.from}>{zoneLine(zone)}</li>
+            ))}
+          </ul>
+        )}
+        {caveat !== null && <p className="mt-2 text-sm text-muted">{caveat}</p>}
+        <StandingsLegend />
+        {analytics}
+      </PageShell>
+    </FoldsFor>
   );
 }
 

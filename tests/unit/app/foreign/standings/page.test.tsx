@@ -724,9 +724,13 @@ describe("Standings page, cup competitions", () => {
   });
 
   it("starts an opened Analyysit over on another round of a league, and keeps it on the same page", async () => {
+    // This block's own arrangement: a league page, which takes the league path.
+    getSeasonContextMock.mockResolvedValue(seasonContext);
+    getStandingsMock.mockResolvedValue(standings);
+    getMaxMatchdayMock.mockResolvedValue(10);
     const { SectionFold } = await import("@/components/section-fold");
     // A real fold in place of the section, once for each of the three renders.
-    for (let render = 0; render < 3; render += 1) {
+    for (let drawn = 0; drawn < 3; drawn += 1) {
       competitionAnalyticsMock.mockImplementationOnce(async () => (
         <SectionFold
           fold={{ initiallyOpen: false, remember: null }}

@@ -99,6 +99,8 @@ test.describe("For a reader with no stored choice", () => {
 
   test("a folded table starts over on another round, as a load does", async ({ page }) => {
     await page.goto(STANDINGS);
+    // Hydrated, or the round selector would change without navigating.
+    await page.getByRole("button", { name: "Kirjaudu sisään" }).waitFor();
     const table = fold(page, "Runkosarja");
     await table.locator(":scope > summary").click();
     await expect.poll(() => isOpen(table)).toBe(false);

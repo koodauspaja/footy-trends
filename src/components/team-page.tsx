@@ -6,6 +6,7 @@ import type { EloPanelData } from "@/components/elo-section";
 import { FavouriteToggle } from "@/components/favourite-toggle";
 import { type MatchListRow, MatchListTable } from "@/components/match-list-table";
 import { PageShell } from "@/components/page-shell";
+import { FoldsFor } from "@/components/section-fold";
 import { TeamMatchesOutcome } from "@/components/team-matches-outcome";
 import { MATCHES_HEADING, TeamPageFold } from "@/components/team-page-fold";
 import { SEASON_AXIS } from "@/lib/analytics-axis";
@@ -270,46 +271,42 @@ export async function TeamPage<M extends MatchListRow>({
         });
 
   return (
-    // Keyed by what the page shows, so another competition or season starts
-    // every fold over from its render, as a load does.
-    <PageShell
-      heading={headingOf(data)}
-      headingAction={favourite}
-      key={`${teamProviderId}:${competitionCode}:${seasonId}`}
-    >
-      {data.lead}
-      <p className="mb-6">
-        <Link
-          className="text-sm"
-          href={`${basePath}/sarjataulukko?kilpailu=${competitionCode}&kausi=${seasonId}`}
-        >
-          Sarjataulukkoon
-        </Link>
-      </p>
-      {data.notices}
-      {data.controls({ offeredSeasons, seasonCompetitions })}
-      <TeamMatchesOutcome
-        outcome={outcome}
-        table={
-          result.status === "ok" ? (
-            <TeamPageFold
-              className="mt-4"
-              count={matchCountLabel(result.matches.length)}
-              heading={MATCHES_HEADING}
-              headingId="team-matches"
-              fold={foldFor(sections, "matches")}
-            >
-              <MatchListTable
-                fourthColumn={data.fourthColumn}
-                matchHref={(match) => matchHref(match.providerMatchId)}
-                matches={upcomingFirst(result.matches)}
-                teamHref={null}
-              />
-            </TeamPageFold>
-          ) : null
-        }
-      />
-      {analyticsSection}
-    </PageShell>
+    <FoldsFor page={`${teamProviderId}:${competitionCode}:${seasonId}`}>
+      <PageShell heading={headingOf(data)} headingAction={favourite}>
+        {data.lead}
+        <p className="mb-6">
+          <Link
+            className="text-sm"
+            href={`${basePath}/sarjataulukko?kilpailu=${competitionCode}&kausi=${seasonId}`}
+          >
+            Sarjataulukkoon
+          </Link>
+        </p>
+        {data.notices}
+        {data.controls({ offeredSeasons, seasonCompetitions })}
+        <TeamMatchesOutcome
+          outcome={outcome}
+          table={
+            result.status === "ok" ? (
+              <TeamPageFold
+                className="mt-4"
+                count={matchCountLabel(result.matches.length)}
+                heading={MATCHES_HEADING}
+                headingId="team-matches"
+                fold={foldFor(sections, "matches")}
+              >
+                <MatchListTable
+                  fourthColumn={data.fourthColumn}
+                  matchHref={(match) => matchHref(match.providerMatchId)}
+                  matches={upcomingFirst(result.matches)}
+                  teamHref={null}
+                />
+              </TeamPageFold>
+            ) : null
+          }
+        />
+        {analyticsSection}
+      </PageShell>
+    </FoldsFor>
   );
 }

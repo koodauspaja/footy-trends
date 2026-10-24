@@ -10,6 +10,7 @@ import { MatchListTable } from "@/components/match-list-table";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { RenamedNotice } from "@/components/renamed-notice";
+import { FoldsFor } from "@/components/section-fold";
 import { StandingsLegend, StandingsTable } from "@/components/standings-table";
 import { TasoStandingsControls } from "@/components/taso-standings-controls";
 import { canSeeAnalytics } from "@/lib/analytics-access";
@@ -408,79 +409,76 @@ export default async function DomesticStandingsPage({
     result.status === "ok" && result.groups.every((group) => group.kind === "match-list");
 
   return (
-    // Keyed by what the page shows, so another season or round starts every
-    // fold over from its render, as a load does.
-    <PageShell
-      heading={`${seasonCompetitionName} ${seasonLabel}`}
-      key={`${competitionCode}:${seasonId}:${selectedRound ?? ""}`}
-    >
-      <RenamedNotice renamedTo={renamedTo} />
-      <p className="mb-6">
-        <Link
-          className="text-sm"
-          href={`/kotimaa/ottelut?kilpailu=${competitionCode}&kausi=${seasonId}`}
-        >
-          Kaikki ottelut
-        </Link>
-      </p>
-      {competitionParam.kind === "invalid" && (
-        <Notice>Kilpailua ei löytynyt. Näytetään {competitionName}.</Notice>
-      )}
-      {season.kind === "invalid" && (
-        <Notice>Kautta ei löytynyt. Näytetään kausi {seasonLabel}.</Notice>
-      )}
-      {roundParam.kind === "invalid" && <Notice>{INVALID_ROUND_MESSAGE}</Notice>}
-      <TasoStandingsControls
-        competitionCode={competitionCode}
-        seasons={selectableSeasons}
-        selectedSeasonId={seasonId}
-        availableRounds={availableRounds}
-        selectedRound={selectedRound}
-      />
-      {result.status === "empty" && <p>{EMPTY_MESSAGE}</p>}
-      {result.status === "error" && <p>{ERROR_MESSAGE}</p>}
-      {result.status === "ok" && isGroupsAndPlayoff && (
-        <GroupsAndPlayoff
-          groups={result.groups}
-          knockoutFold={foldFor(sections, "knockout", noTable)}
-          teamHref={teamHref}
+    <FoldsFor page={`${competitionCode}:${seasonId}:${selectedRound ?? ""}`}>
+      <PageShell heading={`${seasonCompetitionName} ${seasonLabel}`}>
+        <RenamedNotice renamedTo={renamedTo} />
+        <p className="mb-6">
+          <Link
+            className="text-sm"
+            href={`/kotimaa/ottelut?kilpailu=${competitionCode}&kausi=${seasonId}`}
+          >
+            Kaikki ottelut
+          </Link>
+        </p>
+        {competitionParam.kind === "invalid" && (
+          <Notice>Kilpailua ei löytynyt. Näytetään {competitionName}.</Notice>
+        )}
+        {season.kind === "invalid" && (
+          <Notice>Kautta ei löytynyt. Näytetään kausi {seasonLabel}.</Notice>
+        )}
+        {roundParam.kind === "invalid" && <Notice>{INVALID_ROUND_MESSAGE}</Notice>}
+        <TasoStandingsControls
+          competitionCode={competitionCode}
+          seasons={selectableSeasons}
+          selectedSeasonId={seasonId}
+          availableRounds={availableRounds}
+          selectedRound={selectedRound}
         />
-      )}
-      {result.status === "ok" && !isGroupsAndPlayoff && !isCup && (
-        <LeagueGroups
-          fold={TABLE_FOLD}
-          groups={result.groups.filter((group) => group.kind !== "match-list")}
-          levels={result.levels}
-          teamHref={teamHref}
-        />
-      )}
-      {bracket.length > 0 && (
-        // A Suomen Cup's bracket comes before its rounds.
-        <TableFold
-          fold={foldFor(sections, "knockout", isCup || noTable)}
-          heading={KNOCKOUT_PHASE}
-          headingId="standings-knockout"
-        >
-          <BracketTree rounds={bracket} teamHref={teamHref} />
-        </TableFold>
-      )}
-      {result.status === "ok" && !isGroupsAndPlayoff && !isCup && (
-        <LeagueGroups
-          fold={KNOCKOUT_LIST_FOLD}
-          openFirst={noTable && bracket.length === 0}
-          groups={result.groups.filter((group) => group.kind === "match-list")}
-          levels={result.levels}
-          teamHref={teamHref}
-        />
-      )}
-      {result.status === "ok" && !isGroupsAndPlayoff && isCup && (
-        <CupRounds groups={result.groups} teamHref={teamHref} />
-      )}
-      {cupForecast.status === "unavailable" ? null : (
-        <CupForecastSection fold={foldFor(sections, "cup-forecast")} forecast={cupForecast} />
-      )}
-      {!isGroupsAndPlayoff && <StandingsLegend />}
-      {analytics}
-    </PageShell>
+        {result.status === "empty" && <p>{EMPTY_MESSAGE}</p>}
+        {result.status === "error" && <p>{ERROR_MESSAGE}</p>}
+        {result.status === "ok" && isGroupsAndPlayoff && (
+          <GroupsAndPlayoff
+            groups={result.groups}
+            knockoutFold={foldFor(sections, "knockout", noTable)}
+            teamHref={teamHref}
+          />
+        )}
+        {result.status === "ok" && !isGroupsAndPlayoff && !isCup && (
+          <LeagueGroups
+            fold={TABLE_FOLD}
+            groups={result.groups.filter((group) => group.kind !== "match-list")}
+            levels={result.levels}
+            teamHref={teamHref}
+          />
+        )}
+        {bracket.length > 0 && (
+          // A Suomen Cup's bracket comes before its rounds.
+          <TableFold
+            fold={foldFor(sections, "knockout", isCup || noTable)}
+            heading={KNOCKOUT_PHASE}
+            headingId="standings-knockout"
+          >
+            <BracketTree rounds={bracket} teamHref={teamHref} />
+          </TableFold>
+        )}
+        {result.status === "ok" && !isGroupsAndPlayoff && !isCup && (
+          <LeagueGroups
+            fold={KNOCKOUT_LIST_FOLD}
+            openFirst={noTable && bracket.length === 0}
+            groups={result.groups.filter((group) => group.kind === "match-list")}
+            levels={result.levels}
+            teamHref={teamHref}
+          />
+        )}
+        {result.status === "ok" && !isGroupsAndPlayoff && isCup && (
+          <CupRounds groups={result.groups} teamHref={teamHref} />
+        )}
+        {cupForecast.status === "unavailable" ? null : (
+          <CupForecastSection fold={foldFor(sections, "cup-forecast")} forecast={cupForecast} />
+        )}
+        {!isGroupsAndPlayoff && <StandingsLegend />}
+        {analytics}
+      </PageShell>
+    </FoldsFor>
   );
 }

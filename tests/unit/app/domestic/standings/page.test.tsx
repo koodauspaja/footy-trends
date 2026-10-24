@@ -1050,6 +1050,26 @@ describe("Domestic standings page, cup competitions", () => {
       expect(table().open).toBe(true);
     });
 
+    it("keeps the round selector, and the focus on it, when another round starts the folds over", async () => {
+      listSeasonRoundsMock.mockResolvedValue([1, 2]);
+      getSeasonStandingsMock.mockResolvedValue({
+        status: "ok",
+        levels: [],
+        groups: [ownCalculatedGroup],
+      });
+      const { default: DomesticStandingsPage } = await import("@/app/domestic/standings/page");
+      const page = (kierros: string) =>
+        DomesticStandingsPage({ searchParams: Promise.resolve({ kierros }) });
+      const view = render(await page("1"));
+      const select = screen.getByLabelText("Kierros");
+      select.focus();
+
+      view.rerender(await page("2"));
+
+      expect(screen.getByLabelText("Kierros")).toBe(select);
+      expect(document.activeElement).toBe(select);
+    });
+
     it("closes Cupin ennuste until the reader opens it", async () => {
       canSeeAnalyticsMock.mockResolvedValue(true);
       getCupForecastMock.mockResolvedValue({ status: "no-fixtures" });
