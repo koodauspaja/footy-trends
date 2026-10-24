@@ -682,9 +682,12 @@ describe("LineChart room for its labels on a phone", () => {
         yTicks={[0, 3]}
       />
     ).container;
-    const points = container.querySelector("[data-part=line]")?.getAttribute("points") ?? "";
+    const points = container.querySelector("[data-part=line]")?.getAttribute("points");
+    const coordinates = (points ?? "").split(",").map(Number);
 
-    expect(points.split(/[ ,]/).map(Number).every(Number.isFinite)).toBe(true);
+    // One point: an x and a y, both drawable.
+    expect(coordinates).toHaveLength(2);
+    expect(coordinates.every(Number.isFinite)).toBe(true);
   });
 
   it("leaves a one-match chart's plot alone when its label clears from mid-plot", () => {

@@ -38,8 +38,10 @@ async function textSizes(page: Page, width: number, selector: string): Promise<n
   );
 }
 
+// Every label on an axis, read on the label itself, not its group.
 const axisSizes = (page: Page, width: number) =>
-  textSizes(page, width, "[data-part=x-axis], [data-part=y-axis]");
+  textSizes(page, width, "[data-part=x-axis] text, [data-part=y-axis] text");
+const AXES = "[data-part=x-axis], [data-part=y-axis]";
 // A bar row's label and each bar's value.
 const barSizes = (page: Page, width: number) =>
   textSizes(page, width, "[data-part=row] > text, [data-part=value]");
@@ -50,14 +52,16 @@ test.describe("Line chart axis text", () => {
 
     // Six charts, both axes each: the position, form, rolling-goals,
     // total-goals, clean-sheet and Elo panels.
-    expect(sizes).toHaveLength(12);
+    await expect(page.locator(AXES)).toHaveCount(12);
+    expect(sizes.length).toBeGreaterThan(12);
     expect(sizes.every((size) => size === PHONE_UNITS)).toBe(true);
   });
 
   test("keeps its usual size from the sm breakpoint up", async ({ page }) => {
     const sizes = await axisSizes(page, 1280);
 
-    expect(sizes).toHaveLength(12);
+    await expect(page.locator(AXES)).toHaveCount(12);
+    expect(sizes.length).toBeGreaterThan(12);
     expect(sizes.every((size) => size === DESKTOP_UNITS)).toBe(true);
   });
 });
