@@ -14,6 +14,9 @@ import { signedInAs } from "./session";
 
 const STANDINGS = "/kotimaa/sarjataulukko?kilpailu=VL&kausi=2026";
 
+// A computed colour with no strength, which paints nothing whatever it differs from.
+const CLEAR = /^rgba\(.*,\s*0\)$/;
+
 // The links the sweep found looking like plain text, each on a page that has it.
 const FOUND: ReadonlyArray<readonly [string, string, string | RegExp]> = [
   ["a standings page's", STANDINGS, "Kaikki ottelut"],
@@ -84,6 +87,7 @@ for (const scheme of ["light", "dark"] as const) {
       expect(painted.text).toBe(painted.pageBackground);
       expect(painted.otherFill).toBe("rgba(0, 0, 0, 0)");
       expect(painted.border).toBe("1px");
+      expect(painted.borderColour).not.toMatch(CLEAR);
       expect(painted.borderColour).not.toBe(painted.pageBackground);
     });
   });
@@ -146,6 +150,7 @@ test("draws the header's search button as a control", async ({ page }) => {
     behind: getComputedStyle(document.body).backgroundColor,
   }));
   expect(width).toBe("1px");
+  expect(colour).not.toMatch(CLEAR);
   expect(colour).not.toBe(behind);
 });
 

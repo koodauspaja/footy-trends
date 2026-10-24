@@ -162,13 +162,9 @@ body {
   a:hover {
     text-decoration-thickness: 2px;
   }
-}
 
-/* Underlined on hover only: the breadcrumb, a table's team names, a bracket's. */
-@utility quiet-link {
-  text-decoration-line: none;
-
-  &:hover {
-    text-decoration-line: underline;
+  /* Underlined on hover only: the breadcrumb, a table's team names, a bracket's. */
+  a.quiet-link:not(:hover) {
+    text-decoration-line: none;
   }
 }
