@@ -9,6 +9,7 @@ import type { Chance, ForecastRow } from "@/lib/season-simulation";
  * decided, how a chance is printed, its lines and its link.
  *
  * decisions/067-knockout-simulation.md
+ * decisions/696-headings-and-spacing.md
  */
 
 // `Ennuste`'s own link string; its component reads the models, which this panel does not.
@@ -17,8 +18,10 @@ vi.mock("@/components/match-prediction", () => ({
 }));
 
 import {
+  KNOCKOUT_LABEL,
   KNOCKOUT_NOTE,
   KnockoutForecastBody,
+  LEAGUE_PHASE_LABEL,
   TIES_HEADING,
   tieText,
 } from "@/components/knockout-forecast";
@@ -78,6 +81,8 @@ const OK = {
 describe("the strings the spec agreed", () => {
   it("names the ties and says what the figures are", () => {
     expect(TIES_HEADING).toBe("Kierroksen parit");
+    expect(LEAGUE_PHASE_LABEL).toBe("Liigavaihe");
+    expect(KNOCKOUT_LABEL).toBe("Pudotuspelit");
     expect(KNOCKOUT_NOTE).toBe(
       "Loppukausi on pelattu 10 000 kertaa Poisson-mallin ennusteiden mukaan. Arpomattomat parit on arvottu sääntöjen mukaan, ja tasaiset ottelut on ratkaistu jatkoajalla ja rangaistuspotkuilla."
     );
@@ -148,6 +153,18 @@ describe("KnockoutForecastBody", () => {
 
     expect(screen.getAllByRole("table")).toHaveLength(1);
     expect(screen.queryByText(TIES_HEADING)).toBeNull();
+    // A lone table needs no name to tell it from another.
+    expect(screen.queryByRole("heading", { level: 5 })).toBeNull();
+  });
+
+  it("labels the league phase's table and the knockout's when both are shown", () => {
+    const { container } = renderBody(OK);
+
+    const labels = [...container.querySelectorAll("h5")].map((heading) => heading.textContent);
+    expect(labels).toEqual([LEAGUE_PHASE_LABEL, TIES_HEADING, KNOCKOUT_LABEL]);
+    for (const table of screen.getAllByRole("table")) {
+      expect(table.closest("div.mt-2")?.querySelector("h5")).not.toBeNull();
+    }
   });
 
   it("says what the figures are and links to the model's record", () => {
