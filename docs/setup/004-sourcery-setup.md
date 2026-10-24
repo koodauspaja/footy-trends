@@ -67,7 +67,7 @@ request leaves alone.
 
 **Block 6** — path: `**`
 ```
-- Identifiers, comments, headings, documentation, prose, configuration files and tooling settings must be English, in every file this pull request changes. Finnish is expected as data: user-facing UI copy, and that same copy asserted in a test or quoted in a spec, is not a violation. Flag Finnish used as the language of a comment, a test name, a heading or an explanation.
+- Identifiers, comments, headings, documentation, prose, configuration files and tooling settings must be English, in every file this pull request changes. Finnish is expected as data: user-facing UI copy is not a violation, whether in source, asserted in a test, or quoted in any document, a spec or a decision record among them. A UI label in backticks or quotation marks is quoted. Flag Finnish used as the language of a comment, a test name, a heading or an explanation.
 ```
 
 **Block 7** — path: `src/**/*.ts,src/**/*.tsx,scripts/**/*.ts,tests/**/*.ts,tests/**/*.tsx`
