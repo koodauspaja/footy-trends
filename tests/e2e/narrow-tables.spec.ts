@@ -20,8 +20,8 @@ const LONG_NAMES = [
   "/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024",
 ];
 
-// The first header named `name`: where it ends, and where the box it scrolls
-// in ends and whether that box scrolls.
+// The first header named `name`: where it starts and ends, where the box it
+// scrolls in does, and whether that box scrolls.
 async function headerInBox(page: Page, name: string) {
   const header = page.getByRole("columnheader", { name, exact: true }).first();
   await expect(header).toBeVisible();
@@ -29,7 +29,9 @@ async function headerInBox(page: Page, name: string) {
     const box = element.closest(".overflow-x-auto");
     return {
       width: element.getBoundingClientRect().width,
+      start: element.getBoundingClientRect().left,
       end: element.getBoundingClientRect().right,
+      boxStart: box?.getBoundingClientRect().left ?? 0,
       boxEnd: box?.getBoundingClientRect().right ?? 0,
       scrolls: (box?.scrollWidth ?? 0) > (box?.clientWidth ?? 0),
     };
@@ -42,8 +44,9 @@ test.describe("At 375 px", () => {
   test("a standings table shows its points without scrolling sideways", async ({ page }) => {
     await page.goto(STANDINGS);
 
-    const { width, end, boxEnd, scrolls } = await headerInBox(page, "P");
+    const { width, start, end, boxStart, boxEnd, scrolls } = await headerInBox(page, "P");
     expect(width).toBeGreaterThan(0);
+    expect(start).toBeGreaterThanOrEqual(boxStart);
     expect(end).toBeLessThanOrEqual(boxEnd);
     expect(scrolls).toBe(false);
     // And the points under it, not merely the heading over them.
@@ -56,6 +59,7 @@ test.describe("At 375 px", () => {
         return {
           text: cell?.textContent ?? "",
           width: cell?.getBoundingClientRect().width ?? 0,
+          start: cell?.getBoundingClientRect().left ?? Number.NEGATIVE_INFINITY,
           end: cell?.getBoundingClientRect().right ?? Number.POSITIVE_INFINITY,
           shown: cell !== undefined && getComputedStyle(cell).visibility === "visible",
         };
@@ -63,6 +67,7 @@ test.describe("At 375 px", () => {
     expect(points.text).toMatch(/^\d+$/);
     expect(points.width).toBeGreaterThan(0);
     expect(points.shown).toBe(true);
+    expect(points.start).toBeGreaterThanOrEqual(boxStart);
     expect(points.end).toBeLessThanOrEqual(boxEnd);
     // The columns a phone leaves out are not merely scrolled away.
     await expect(page.getByRole("columnheader", { name: "TM", exact: true }).first()).toBeHidden();
@@ -72,14 +77,16 @@ test.describe("At 375 px", () => {
     await page.goto(TEAM);
 
     // `Sarja` may scroll into view; the result is in view from the start.
-    const { width, end, boxEnd } = await headerInBox(page, "Tulos");
+    const { width, start, end, boxStart, boxEnd } = await headerInBox(page, "Tulos");
     expect(width).toBeGreaterThan(0);
+    expect(start).toBeGreaterThanOrEqual(boxStart);
     expect(end).toBeLessThanOrEqual(boxEnd);
     // And each score with it, not merely the heading over them.
     const score = page.getByRole("cell", { name: /^\d+–\d+$/ }).first();
     await expect(score).toBeVisible();
-    const scoreEnd = await score.evaluate((cell) => cell.getBoundingClientRect().right);
-    expect(scoreEnd).toBeLessThanOrEqual(boxEnd);
+    const { left, right } = await score.evaluate((cell) => cell.getBoundingClientRect().toJSON());
+    expect(left).toBeGreaterThanOrEqual(boxStart);
+    expect(right).toBeLessThanOrEqual(boxEnd);
   });
 
   for (const path of LONG_NAMES) {
