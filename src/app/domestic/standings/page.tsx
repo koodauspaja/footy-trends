@@ -440,7 +440,7 @@ export default async function DomesticStandingsPage({
         />
       )}
       {bracket.length > 0 && (
-        // A Suomen Cup's first section, so its most basic part (decisions/714).
+        // A Suomen Cup's first section, so it opens there.
         <TableFold
           fold={foldFor(sections, "knockout", isCup)}
           heading={KNOCKOUT_PHASE}

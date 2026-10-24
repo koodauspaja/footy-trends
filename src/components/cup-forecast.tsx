@@ -11,6 +11,7 @@ import type { KnockoutRow, TieChance } from "@/lib/knockout-simulation";
 import type { CupForecastResult } from "@/lib/knockout-simulation-service";
 import type { Chance } from "@/lib/season-simulation";
 import type { FoldState } from "@/lib/section-keys";
+
 /**
  * The section's strings; its failure and no-fixtures lines are the season
  * forecast's.
