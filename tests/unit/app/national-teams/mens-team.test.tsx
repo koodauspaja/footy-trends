@@ -15,6 +15,7 @@ import { warmModules } from "../../../support/warm-module";
 
 const getNationalTeamYearsMock = vi.fn<() => Promise<NationalTeamResult>>();
 
+vi.mock("@/lib/section-choices", () => import("../../../support/page-sections"));
 vi.mock("@/lib/national-team-service", () => ({
   getNationalTeamYears: getNationalTeamYearsMock,
 }));

@@ -20,6 +20,7 @@ import { warmModules } from "../../../support/warm-module";
 // The favourite star in this tree calls `useSession`, and the real client must
 // not load in a unit test: its cleanup timer outlives the file's jsdom. Signed
 // out is what these tests assume.
+vi.mock("@/lib/section-choices", () => import("../../../support/page-sections"));
 vi.mock("@/lib/auth-client", () => ({
   useSession: () => ({ data: null, refetch: vi.fn() }),
 }));
