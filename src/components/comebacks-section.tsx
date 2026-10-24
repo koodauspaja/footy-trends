@@ -25,7 +25,7 @@ const HEADING_ID = "comebacks";
 /**
  * How many matches the panel could not read a half-time score for. The
  * elative is the same for one as for many (`1 ottelusta`, `5 ottelusta`), so
- * unlike {@link matchCount} this needs no singular form.
+ * unlike {@link matchCountLabel} this needs no singular form.
  *
  * decisions/036-halftime-comebacks.md
  */
