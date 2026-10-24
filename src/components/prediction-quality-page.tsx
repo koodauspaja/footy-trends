@@ -9,6 +9,7 @@ import {
 import { PageShell } from "@/components/page-shell";
 import { SameRouteLink } from "@/components/same-route-link";
 import { SignInPrompt } from "@/components/sign-in-prompt";
+import { ViewSwitch } from "@/components/view-switch";
 import { canSeeAnalytics } from "@/lib/analytics-access";
 import { ELO_MODEL } from "@/lib/elo";
 import { ELO_FORM_MODEL, ELO_HOME_MODEL } from "@/lib/elo-variants";
@@ -198,26 +199,6 @@ export function parseQualityParams(params: QualityParams): {
   };
 }
 
-function Switch({
-  options,
-}: Readonly<{ options: ReadonlyArray<{ label: string; href: string; current: boolean }> }>) {
-  return (
-    <ul className="flex gap-4 text-sm">
-      {options.map((option) => (
-        <li key={option.label}>
-          <SameRouteLink
-            aria-current={option.current ? "page" : undefined}
-            className={option.current ? "font-semibold" : "text-muted hover:underline"}
-            href={option.href}
-          >
-            {option.label}
-          </SameRouteLink>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 /**
  * One toggle per model, above the two charts: each links to the page with that
  * model shown or hidden, but the last one shown cannot be hidden. Its name is
@@ -253,7 +234,7 @@ function DrawnToggles({
                 <span className="flex items-center gap-2 font-semibold">{content}</span>
               ) : (
                 <SameRouteLink
-                  className={`flex items-center gap-2 ${shown ? "font-semibold" : "text-muted hover:underline"}`}
+                  className={`flex items-center gap-2 ${shown ? "font-semibold" : "text-muted"}`}
                   href={hrefFor(toggleDrawn(drawn, model))}
                 >
                   {content}
@@ -414,7 +395,7 @@ function CompetitionTable({
               <th className="py-2 pr-2 text-left sm:pr-4 font-normal" scope="row">
                 <SameRouteLink
                   aria-current={row.code === competition ? "page" : undefined}
-                  className={row.code === competition ? "font-semibold" : "underline"}
+                  className={row.code === competition ? "font-semibold no-underline" : undefined}
                   href={qualityHref(source, kind, row.code, drawn)}
                 >
                   {comparedCompetitionName(source, row.code)}
@@ -613,7 +594,7 @@ export async function PredictionQualityPage({ params }: Readonly<{ params: Quali
     <PageShell heading={QUALITY_HEADING}>
       <p className="mb-4">{QUALITY_INTRO}</p>
       <div className="flex flex-col gap-2">
-        <Switch
+        <ViewSwitch
           options={[
             {
               label: "Kotimaa",
@@ -627,7 +608,7 @@ export async function PredictionQualityPage({ params }: Readonly<{ params: Quali
             },
           ]}
         />
-        <Switch
+        <ViewSwitch
           options={[
             {
               label: "Jälkikäteen lasketut",
@@ -645,7 +626,7 @@ export async function PredictionQualityPage({ params }: Readonly<{ params: Quali
       {competition === null ? null : (
         <p className="mt-4 text-sm">
           {filteredSentence(comparedCompetitionName(source, competition))}{" "}
-          <SameRouteLink className="underline" href={qualityHref(source, kind, null, drawn)}>
+          <SameRouteLink href={qualityHref(source, kind, null, drawn)}>
             {ALL_COMPETITIONS_LINK}
           </SameRouteLink>
         </p>

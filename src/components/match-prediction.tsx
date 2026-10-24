@@ -326,9 +326,7 @@ function Body({
       <p className="mt-2 text-muted text-sm">{MOVES_NOTE}</p>
       <p className="mt-2 text-muted text-sm">{ROUNDING_NOTE}</p>
       <p className="mt-2 text-sm">
-        <Link className="hover:underline" href={qualityHref(sides.kind, "backtest", sides.code)}>
-          {QUALITY_LINK}
-        </Link>
+        <Link href={qualityHref(sides.kind, "backtest", sides.code)}>{QUALITY_LINK}</Link>
       </p>
     </div>
   );

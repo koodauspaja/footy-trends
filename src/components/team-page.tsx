@@ -268,7 +268,7 @@ export async function TeamPage<M extends MatchListRow>({
       {data.lead}
       <p className="mb-6">
         <Link
-          className="text-sm hover:underline"
+          className="text-sm"
           href={`${basePath}/sarjataulukko?kilpailu=${competitionCode}&kausi=${seasonId}`}
         >
           Sarjataulukkoon

@@ -70,7 +70,7 @@ function OpponentsTable({ rows }: Readonly<{ rows: readonly Row[] }>) {
         {rows.map((row) => (
           <tr className="border-border-subtle border-b" key={row.opponentProviderId}>
             <th className="py-2 pr-2 font-medium" scope="row">
-              <RowLink className="hover:underline" href={row.href}>
+              <RowLink className="quiet-link" href={row.href}>
                 {row.opponentName}
               </RowLink>
             </th>

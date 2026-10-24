@@ -86,7 +86,9 @@ chart uses its column's width unless a record says why not.
 views as plain bold and grey words.
 
 **The counter.** Links and switches take their look from one place, and can be
-told from text in both themes.
+told from text in both themes: a link from `globals.css`'s base rule, a switch
+from `ViewSwitch`. `links-and-switches.spec.ts` walks pages for a link that is
+neither underlined, quiet nor boxed.
 
 ### 7. An empty line that says the wrong thing (#702)
 

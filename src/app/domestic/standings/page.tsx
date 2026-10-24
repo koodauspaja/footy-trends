@@ -379,7 +379,7 @@ export default async function DomesticStandingsPage({
       <RenamedNotice renamedTo={renamedTo} />
       <p className="mb-6">
         <Link
-          className="text-sm hover:underline"
+          className="text-sm"
           href={`/kotimaa/ottelut?kilpailu=${competitionCode}&kausi=${seasonId}`}
         >
           Kaikki ottelut

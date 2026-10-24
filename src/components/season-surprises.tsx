@@ -52,10 +52,7 @@ function SurpriseItem({
     <li>
       {matchDateFormatter.format(surprise.kickoffAt)}
       {" · "}
-      <RowLink
-        className="hover:underline"
-        href={`${MATCH_BASE_PATH[kind]}/ottelu/${surprise.providerMatchId}`}
-      >
+      <RowLink href={`${MATCH_BASE_PATH[kind]}/ottelu/${surprise.providerMatchId}`}>
         {home} – {away}
       </RowLink>{" "}
       {formatMatchResult(surprise.homeGoals, surprise.awayGoals)}

@@ -357,7 +357,7 @@ function TeamName({
   const className = winner === null || winner === side ? undefined : "font-normal";
   if (href === null) return <span className={className}>{name}</span>;
   return (
-    <Link className={`hover:underline ${className ?? ""}`.trim()} href={href}>
+    <Link className={className} href={href}>
       {name}
     </Link>
   );
@@ -381,7 +381,7 @@ function HeadToHead({ view, basePath }: Readonly<{ view: MatchView; basePath: st
       {/* Offered whenever there is a history to open, even when this block shows all of it. */}
       {view.allMeetings !== null && (
         <p className="mt-4">
-          <Link className="text-sm hover:underline" href={view.allMeetings.href}>
+          <Link className="text-sm" href={view.allMeetings.href}>
             {allMeetingsLabel(view.allMeetings.count)}
           </Link>
         </p>

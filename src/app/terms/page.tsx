@@ -39,9 +39,7 @@ export default function Terms() {
         <ul className={LIST}>
           <li>
             <strong>Ulkomaiset sarjat ja arvokisat:</strong> tiedot tarjoaa{" "}
-            <a className="hover:underline" href="https://www.football-data.org/">
-              football-data.org
-            </a>
+            <a href="https://www.football-data.org/">football-data.org</a>
             {"."}
           </li>
           <li>
@@ -87,11 +85,8 @@ export default function Terms() {
       <section className={SECTION}>
         <h2 className={HEADING_2}>Tili</h2>
         <p>
-          Voit poistaa tilisi milloin tahansa sivulla{" "}
-          <Link className="hover:underline" href="/asetukset">
-            Asetukset
-          </Link>
-          . Voimme sulkea tilin, jos palvelua käytetään näiden ehtojen vastaisesti. Palvelu voi myös
+          Voit poistaa tilisi milloin tahansa sivulla <Link href="/asetukset">Asetukset</Link>.
+          Voimme sulkea tilin, jos palvelua käytetään näiden ehtojen vastaisesti. Palvelu voi myös
           muuttua tai lakata olemasta ilman erillistä ilmoitusta — se on harrasteprojekti, ei
           sitoumus.
         </p>
@@ -116,14 +111,8 @@ export default function Terms() {
         <h2 className={HEADING_2}>Yhteystiedot</h2>
         <p>
           Palvelusta vastaa Koodauspaja.{" "}
-          <a className="hover:underline" href="mailto:info@koodauspaja.fi">
-            info@koodauspaja.fi
-          </a>
-          . Henkilötietojen käsittely on kuvattu{" "}
-          <Link className="hover:underline" href="/tietosuoja">
-            tietosuojaselosteessa
-          </Link>
-          .
+          <a href="mailto:info@koodauspaja.fi">info@koodauspaja.fi</a>. Henkilötietojen käsittely on
+          kuvattu <Link href="/tietosuoja">tietosuojaselosteessa</Link>.
         </p>
       </section>
     </PageShell>

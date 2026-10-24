@@ -42,10 +42,7 @@ export default function Privacy() {
           </li>
           <li>
             Istunnot: milloin kirjauduit ja millä selaimella. Nämä näkyvät sinulle itsellesi sivulla{" "}
-            <Link className="hover:underline" href="/asetukset">
-              Asetukset
-            </Link>
-            .
+            <Link href="/asetukset">Asetukset</Link>.
           </li>
           <li>Valitsemasi aloitusnäkymä ja oletussarjat.</li>
           <li>Itse lataamasi profiilikuva, jos olet lisännyt sellaisen.</li>
@@ -105,11 +102,7 @@ export default function Privacy() {
       <section className={SECTION}>
         <h2 className={HEADING_2}>Miten saat tietosi pois</h2>
         <p>
-          Sivulla{" "}
-          <Link className="hover:underline" href="/asetukset">
-            Asetukset
-          </Link>{" "}
-          on
+          Sivulla <Link href="/asetukset">Asetukset</Link> on
           <strong> Poista tili</strong>. Se poistaa tilin ja kaiken siihen liittyvän heti:
           asetukset, profiilikuvan, suosikit ja kirjautumistiedot. Erillistä pyyntöä ei tarvita.
         </p>
@@ -127,9 +120,7 @@ export default function Privacy() {
         <h2 className={HEADING_2}>Yhteystiedot</h2>
         <p>
           Rekisterinpitäjä on Koodauspaja. Tietosuojaa koskevat kysymykset:{" "}
-          <a className="hover:underline" href="mailto:info@koodauspaja.fi">
-            info@koodauspaja.fi
-          </a>
+          <a href="mailto:info@koodauspaja.fi">info@koodauspaja.fi</a>
           {"."}
         </p>
       </section>

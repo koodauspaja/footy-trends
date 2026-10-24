@@ -73,7 +73,7 @@ async function renderCupMatches({
     <PageShell heading={heading}>
       <p className="mb-6">
         <Link
-          className="text-sm hover:underline"
+          className="text-sm"
           href={`${basePath}/sarjataulukko?kilpailu=${competitionCode}&kausi=${seasonId}`}
         >
           Sarjataulukkoon
@@ -182,7 +182,7 @@ async function renderLeagueMatches({
     <PageShell heading={heading}>
       <p className="mb-6">
         <Link
-          className="text-sm hover:underline"
+          className="text-sm"
           href={`${basePath}/sarjataulukko?kilpailu=${competitionCode}&kausi=${seasonId}${
             result.status === "ok" ? `&kierros=${result.round}` : ""
           }`}
@@ -207,7 +207,6 @@ async function renderLeagueMatches({
           {/* Same route, other search params: decisions/189-same-route-links.md */}
           {result.round > 1 && (
             <SameRouteLink
-              className="hover:underline"
               href={`${basePath}/ottelut?kilpailu=${competitionCode}&kausi=${seasonId}&kierros=${result.round - 1}`}
             >
               ◀ Edellinen kierros
@@ -215,7 +214,6 @@ async function renderLeagueMatches({
           )}
           {result.round < maxMatchday && (
             <SameRouteLink
-              className="hover:underline"
               href={`${basePath}/ottelut?kilpailu=${competitionCode}&kausi=${seasonId}&kierros=${result.round + 1}`}
             >
               Seuraava kierros ▶

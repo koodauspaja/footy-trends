@@ -69,7 +69,7 @@ function TeamName({
 }>) {
   return (
     <RowLink
-      className={`hover:underline${isWinner ? " font-semibold" : ""}`}
+      className={`quiet-link${isWinner ? " font-semibold" : ""}`}
       href={teamHref(teamProviderId)}
     >
       {teamName}

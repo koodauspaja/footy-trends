@@ -144,3 +144,27 @@ body {
     radial-gradient(farthest-side at 100% 50%, var(--scroll-shadow), transparent) right center /
     1rem 100% no-repeat scroll;
 }
+
+/*
+ * A link is underlined in its text's colour, and the line thickens on hover.
+ * The few whose place already says they are links opt out: `quiet-link` for a
+ * name among many alike, `no-underline` for a card, a menu item or a switch.
+ *
+ * decisions/701-links-and-switches.md
+ */
+@layer base {
+  a {
+    text-decoration-line: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.2em;
+  }
+
+  a:hover {
+    text-decoration-thickness: 2px;
+  }
+
+  /* Underlined on hover only: the breadcrumb, a table's team names, a bracket's. */
+  a.quiet-link:not(:hover) {
+    text-decoration-line: none;
+  }
+}

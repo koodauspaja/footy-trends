@@ -56,11 +56,7 @@ function TeamLabel({ entry }: Readonly<{ entry: FavouriteTeamEntry }>) {
   if (entry.href === null) {
     return <span>{entry.name}</span>;
   }
-  return (
-    <Link className="hover:underline" href={entry.href}>
-      {entry.name}
-    </Link>
-  );
+  return <Link href={entry.href}>{entry.name}</Link>;
 }
 
 export function FavouritesPage({ teams, competitions }: Props) {
@@ -113,9 +109,7 @@ export function FavouritesPage({ teams, competitions }: Props) {
                 {entry.name === null ? (
                   <span className="text-muted">Sarjaa ei enää ole.</span>
                 ) : (
-                  <Link className="hover:underline" href={entry.href}>
-                    {entry.name}
-                  </Link>
+                  <Link href={entry.href}>{entry.name}</Link>
                 )}
                 <button
                   className={REMOVE_CLASS}
