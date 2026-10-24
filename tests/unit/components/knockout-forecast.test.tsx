@@ -162,9 +162,11 @@ describe("KnockoutForecastBody", () => {
 
     const labels = [...container.querySelectorAll("h5")].map((heading) => heading.textContent);
     expect(labels).toEqual([LEAGUE_PHASE_LABEL, TIES_HEADING, KNOCKOUT_LABEL]);
-    for (const table of screen.getAllByRole("table")) {
-      expect(table.closest("div.mt-2")?.querySelector("h5")).not.toBeNull();
-    }
+    // Each label sits with its own table, not merely in the right order.
+    const named = screen
+      .getAllByRole("table")
+      .map((table) => table.closest("div.mt-2")?.querySelector("h5")?.textContent ?? null);
+    expect(named).toEqual([LEAGUE_PHASE_LABEL, KNOCKOUT_LABEL]);
   });
 
   it("says what the figures are and links to the model's record", () => {
