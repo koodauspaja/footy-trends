@@ -19,7 +19,7 @@ import { cupFormatFor, isDomesticCup } from "@/lib/domestic-competitions";
 import { resolveDomesticPageContext } from "@/lib/domestic-page-context";
 import { cupGroupOrder, openCupGroups } from "@/lib/group-order";
 import { getCupForecast, hasCupForecast } from "@/lib/knockout-simulation-service";
-import { matchCountLabel } from "@/lib/national-team";
+import { matchCountLabel } from "@/lib/match-count";
 import {
   type GroupLevel,
   type GroupStandingsResult,

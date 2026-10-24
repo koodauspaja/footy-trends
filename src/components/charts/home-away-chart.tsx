@@ -5,7 +5,7 @@ import {
   scoredPerMatch,
   winPercentage,
 } from "@/lib/home-away";
-import { matchCountLabel } from "@/lib/national-team";
+import { matchCountLabel } from "@/lib/match-count";
 import { BarChart, BarLegend, type BarRow } from "./bar-chart";
 import { formatDecimal, percentText } from "./line-chart";
 
