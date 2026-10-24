@@ -9,20 +9,24 @@ import { warmModules } from "../../support/warm-module";
  * decisions/071-section-toggles.md
  */
 
-const { state, currentUserId, logger } = vi.hoisted(() => {
+const { state, currentUserId, logger, values, onConflictDoUpdate } = vi.hoisted(() => {
   const state = {
     rows: [] as Array<{ section: string; open: boolean }>,
     readFails: false,
   };
+  const onConflictDoUpdate = vi.fn(async () => undefined);
   return {
     state,
     currentUserId: vi.fn(async (): Promise<string | null> => "user-1"),
     logger: { error: vi.fn(), warn: vi.fn() },
+    onConflictDoUpdate,
+    values: vi.fn(() => ({ onConflictDoUpdate })),
   };
 });
 
 vi.mock("@/db", () => ({
   db: {
+    insert: () => ({ values }),
     select: () => ({
       from: () => ({
         where: async () => {
@@ -36,7 +40,8 @@ vi.mock("@/db", () => ({
 vi.mock("@/lib/current-user", () => ({ currentUserId }));
 vi.mock("@/lib/logger", () => ({ logger }));
 
-const { getPageSections } = await import("@/lib/section-choices");
+const { getPageSections, writeSectionChoice } = await import("@/lib/section-choices");
+const { sectionChoice } = await import("@/db/schema");
 
 warmModules(() => import("@/lib/section-choices"));
 
@@ -93,5 +98,24 @@ describe("getPageSections", () => {
       { err: expect.any(Error) },
       "Reading section choices failed"
     );
+  });
+});
+
+describe("writeSectionChoice", () => {
+  it("replaces the reader's earlier choice for the same kind and section", async () => {
+    await writeSectionChoice("user-1", "team", "analytics", true);
+
+    expect(values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user-1",
+        pageKind: "team",
+        section: "analytics",
+        open: true,
+      })
+    );
+    expect(onConflictDoUpdate).toHaveBeenCalledWith({
+      target: [sectionChoice.userId, sectionChoice.pageKind, sectionChoice.section],
+      set: { open: true, updatedAt: expect.any(Date) },
+    });
   });
 });
