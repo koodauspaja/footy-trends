@@ -51,8 +51,11 @@ legal pages (`/tietosuoja`) are the reference for heading levels and space.
 **What it looks like.** A long run of analytics with no way to put away what
 the reader does not want, or a group label that looks like a toggle and is not.
 
-**The counter.** A new panel or group follows the hide-and-show rule #697's
-spec sets: which ones toggle, how they start, and what is remembered.
+**The counter.** A new section or `Analyysit` group folds by the rule in
+`specs/071-section-toggles.md`: it renders through `SectionFold` (as a
+`TeamPageFold`, `TableFold` or `GroupFold`), and a remembered one takes its
+key and default from `DEFAULT_OPEN` in `src/lib/section-keys.ts`. Only the
+page's most basic part starts open.
 
 ### 3. Long lists open by default (#698)
 
@@ -86,7 +89,9 @@ chart uses its column's width unless a record says why not.
 views as plain bold and grey words.
 
 **The counter.** Links and switches take their look from one place, and can be
-told from text in both themes.
+told from text in both themes: a link from `globals.css`'s base rule, a switch
+from `ViewSwitch`. `links-and-switches.spec.ts` walks pages for a link that is
+neither underlined, quiet nor boxed.
 
 ### 7. An empty line that says the wrong thing (#702)
 
@@ -106,6 +111,15 @@ page.
 
 **The counter.** Read the page's lines in order, as a reader would, and check
 that no two of them contradict each other or say the same thing twice.
+
+### 9. A section out of place (#714)
+
+**What it looks like.** A new section appended at the bottom, or placed above
+the part of the page the reader came for.
+
+**The counter.** Place it by the order in `decisions/714-page-section-order.md`:
+each kind of page has its most basic part first, and #697 opens only that part
+by default.
 
 ### Width (no issue: none found)
 

@@ -51,7 +51,7 @@ export default async function DomesticMatchesPage({
       <RenamedNotice renamedTo={renamedTo} />
       <p className="mb-6">
         <Link
-          className="text-sm hover:underline"
+          className="text-sm"
           href={`/kotimaa/sarjataulukko?kilpailu=${competitionCode}&kausi=${seasonId}`}
         >
           Sarjataulukkoon

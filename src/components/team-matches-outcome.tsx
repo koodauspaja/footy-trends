@@ -63,9 +63,7 @@ export function TeamMatchesOutcome({
           {sameSeason.map((link, index) => (
             <span key={link.href}>
               {index > 0 && ", "}
-              <SameRouteLink className="hover:underline" href={link.href}>
-                {link.label}
-              </SameRouteLink>
+              <SameRouteLink href={link.href}>{link.label}</SameRouteLink>
             </span>
           ))}
         </p>
@@ -73,9 +71,7 @@ export function TeamMatchesOutcome({
       {sameSeason.length === 0 && newest !== null && (
         <p className="mb-4">
           {"Joukkueen uusin kausi: "}
-          <SameRouteLink className="hover:underline" href={newest.href}>
-            {newest.label}
-          </SameRouteLink>
+          <SameRouteLink href={newest.href}>{newest.label}</SameRouteLink>
         </p>
       )}
     </>

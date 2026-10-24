@@ -26,6 +26,16 @@ export const LEAGUE_STAGE = "LEAGUE_STAGE";
 export const GROUP_STAGE = "GROUP_STAGE";
 
 /**
+ * The knockout phase's name: a standings page's heading over it, and the label
+ * over a forecast's knockout table.
+ *
+ * decisions/014-champions-league.md
+ * decisions/015-finnish-cups.md
+ * decisions/696-headings-and-spacing.md
+ */
+export const KNOCKOUT_PHASE = "Pudotuspelit";
+
+/**
  * Provider stage to Finnish. Knockout rounds are named by fraction: the round
  * of 16 is `Neljännesvälierät`. Every stage the provider is known to emit
  * belongs here.

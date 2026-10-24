@@ -19,6 +19,7 @@ export const DRAWS_LEFT_OUT_NOTE =
 export const FIRST_SEASON_MESSAGE =
   "Kilpailun ensimmäiseltä tallennetulta kaudelta ei näytetä yllätyksiä: kilpailusta ei ole silloin vielä aiempia otteluita, joihin ennuste nojaisi.";
 export const NO_MATCHES_MESSAGE = "Kaudelta ei ole vielä pelattuja otteluita.";
+export const UNPREDICTED_MESSAGE = "Pelatuille otteluille ei ole vielä laskettu ennusteita.";
 export const ALL_DRAWN_MESSAGE = "Kauden ottelut ovat toistaiseksi päättyneet tasan.";
 export const SURPRISES_ERROR_MESSAGE = "Yllätyksiä ei voitu laskea. Yritä myöhemmin uudelleen.";
 
@@ -51,10 +52,7 @@ function SurpriseItem({
     <li>
       {matchDateFormatter.format(surprise.kickoffAt)}
       {" · "}
-      <RowLink
-        className="hover:underline"
-        href={`${MATCH_BASE_PATH[kind]}/ottelu/${surprise.providerMatchId}`}
-      >
+      <RowLink href={`${MATCH_BASE_PATH[kind]}/ottelu/${surprise.providerMatchId}`}>
         {home} – {away}
       </RowLink>{" "}
       {formatMatchResult(surprise.homeGoals, surprise.awayGoals)}
@@ -65,12 +63,30 @@ function SurpriseItem({
 }
 
 /**
+ * The line a season that has no list, and is neither the first stored season
+ * nor a failed read, says by why it has none.
+ *
+ * decisions/057-surprise-index.md
+ * decisions/702-surprises-without-backtest.md
+ */
+const EMPTY_LINES: Record<
+  Exclude<SeasonSurprises["status"], "ok" | "first-season" | "error">,
+  string
+> = {
+  empty: NO_MATCHES_MESSAGE,
+  unpredicted: UNPREDICTED_MESSAGE,
+  "all-drawn": ALL_DRAWN_MESSAGE,
+};
+
+/**
  * A season's biggest surprises: a numbered list of the wins Elo thought least
  * likely, each linking to its match, or the line saying why there is none.
  * `inProgressLine` names the season, and is shown while it is being played:
- * above the list, the no-matches line and the all-drawn line.
+ * above the list, the no-matches line, the unpredicted line and the all-drawn
+ * line.
  *
  * decisions/057-surprise-index.md
+ * decisions/702-surprises-without-backtest.md
  */
 export function SeasonSurprisesBody({
   surprises,
@@ -85,7 +101,7 @@ export function SeasonSurprisesBody({
     return (
       <div>
         {season}
-        <p>{surprises.status === "empty" ? NO_MATCHES_MESSAGE : ALL_DRAWN_MESSAGE}</p>
+        <p>{EMPTY_LINES[surprises.status]}</p>
       </div>
     );
   }

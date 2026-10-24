@@ -16,6 +16,7 @@ import { reportClientError } from "@/lib/report-client-error";
  * `admin-user-view.ts`, never `admin-users.ts`, which reaches the database.
  *
  * decisions/028-admin-tools-and-roles.md
+ * decisions/699-narrow-tables.md
  */
 
 const SECTION = "Käyttäjät";
@@ -102,7 +103,7 @@ export function AdminUserTable({ users, currentAdminId, page, pages, total, page
       {users.length === 0 && <p className="text-muted">{EMPTY}</p>}
 
       {users.length > 0 && (
-        <div className="overflow-x-auto">
+        <div className="scroll-edge overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-border border-b">

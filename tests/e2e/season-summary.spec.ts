@@ -3,6 +3,7 @@ import postgres from "postgres";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 import { dropCached } from "../support/e2e-redis";
 import { testDatabaseUrl } from "../support/test-database";
+import { openAnalytics } from "./folds";
 
 /**
  * `Kausi lyhyesti`, end to end, on two clubs seeded into four Premier League
@@ -226,6 +227,7 @@ test.describe("Kausi lyhyesti, signed in", () => {
     page,
   }) => {
     await page.goto(TEAM);
+    await openAnalytics(page);
     const groups = page
       .getByRole("region", { name: "Analyysit" })
       .getByRole("heading", { level: 3 });
@@ -243,6 +245,7 @@ test.describe("Kausi lyhyesti, signed in", () => {
 
   test("states the home figure Koti- ja vierastilastot shows", async ({ page }) => {
     await page.goto(TEAM);
+    await openAnalytics(page);
     // The chart's text alternative: one line per measure, both sides.
     const points = page
       .getByRole("region", { name: "Koti- ja vierastilastot" })
@@ -253,6 +256,7 @@ test.describe("Kausi lyhyesti, signed in", () => {
 
   test("states the winning run Ennätykset shows, set this season", async ({ page }) => {
     await page.goto(TEAM);
+    await openAnalytics(page);
     const figure = page
       .getByRole("region", { name: "Ennätykset" })
       .locator("dt", { hasText: "Pisin voittoputki" })
@@ -263,6 +267,7 @@ test.describe("Kausi lyhyesti, signed in", () => {
 
   test("links the upset to its match, whose page gives the same Elo figure", async ({ page }) => {
     await page.goto(TEAM);
+    await openAnalytics(page);
     await page
       .getByRole("region", { name: HEADING })
       .getByRole("link", { name: `${OPPONENT_NAME} – ${CLUB_NAME}` })
@@ -280,6 +285,7 @@ test.describe("Kausi lyhyesti's clean-sheet share and place, signed in", () => {
 
   test("states the share Nollapelit shows after the season's last match", async ({ page }) => {
     await page.goto(SHARE_TEAM);
+    await openAnalytics(page);
 
     await expect(page.getByRole("region", { name: HEADING }).locator("p")).toHaveText([
       "Paras nollapeliosuus tallennetuilla kausilla: 30 % otteluista.",
@@ -292,6 +298,7 @@ test.describe("Kausi lyhyesti's clean-sheet share and place, signed in", () => {
 
   test("states the place Tämä kausi verrattuna shows for the season", async ({ page }) => {
     await page.goto(SHARE_TEAM);
+    await openAnalytics(page);
     // The chart's text alternative: `Sijoitus: tämä kausi 9., tavallisesti 1,7.`
     const row = page
       .getByRole("region", { name: "Tämä kausi verrattuna" })
@@ -315,6 +322,7 @@ test("takes the block away once the club has played in a later season", async ({
   });
   try {
     await page.goto(TEAM);
+    await openAnalytics(page);
     await expect(page.getByRole("heading", { level: 3, name: "Ottelu ottelulta" })).toBeVisible();
     await expect(page.getByRole("heading", { name: HEADING })).toHaveCount(0);
   } finally {
@@ -328,6 +336,7 @@ test("shows no block for a cup season", async ({ page }) => {
   await signedIn(page);
 
   await page.goto("/ulkomaat/joukkue/57?kilpailu=CL&kausi=2024");
+  await openAnalytics(page);
   await expect(page.getByRole("heading", { level: 3, name: "Ottelu ottelulta" })).toBeVisible();
   await expect(page.getByRole("heading", { name: HEADING })).toHaveCount(0);
 });
@@ -340,6 +349,7 @@ test("shows no block on a national team's pages", async ({ page }) => {
     "/maajoukkueet/huuhkajat",
   ]) {
     await page.goto(url);
+    await openAnalytics(page);
     await expect(page.getByRole("heading", { level: 2, name: "Analyysit" })).toBeVisible();
     await expect(page.getByRole("heading", { name: HEADING })).toHaveCount(0);
   }

@@ -51,8 +51,10 @@ export type SeasonSurprises =
     }
   /** The competition's first stored season, which has no history of its own behind it. */
   | { status: "first-season" }
-  /** No predicted match in the season. */
+  /** No played match in the season. */
   | { status: "empty"; inProgress: boolean }
+  /** Played matches, none of them with Elo's backtest row yet. */
+  | { status: "unpredicted"; inProgress: boolean }
   /** Predicted matches, every one a draw. */
   | { status: "all-drawn"; inProgress: boolean }
   | { status: "error" };
@@ -73,12 +75,13 @@ export function surpriseOf(
 
 /**
  * Whether a season is the one a competition's stored history starts with, or
- * earlier, where no list is shown.
+ * earlier, where no list is shown: at or before the earliest played season.
  *
  * decisions/057-surprise-index.md
+ * decisions/702-surprises-without-backtest.md
  */
-export function isFirstStoredSeason(seasonId: number, firstSeasonId: number | null): boolean {
-  return firstSeasonId !== null && seasonId <= firstSeasonId;
+export function isFirstStoredSeason(seasonId: number, playedSeasons: readonly number[]): boolean {
+  return playedSeasons.length > 0 && seasonId <= Math.min(...playedSeasons);
 }
 
 /**
@@ -86,12 +89,13 @@ export function isFirstStoredSeason(seasonId: number, firstSeasonId: number | nu
  * smallest first, the earlier kickoff first among equals.
  *
  * decisions/057-surprise-index.md
+ * decisions/702-surprises-without-backtest.md
  */
 export function seasonSurprises(
   matches: readonly PredictedMatch[],
-  inProgress: boolean
+  { inProgress, played }: Readonly<{ inProgress: boolean; played: boolean }>
 ): SeasonSurprises {
-  if (matches.length === 0) return { status: "empty", inProgress };
+  if (matches.length === 0) return { status: played ? "unpredicted" : "empty", inProgress };
 
   const surprises = ranked(matches).slice(0, SURPRISE_LIMIT);
   return surprises.length === 0

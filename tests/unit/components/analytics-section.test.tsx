@@ -13,6 +13,7 @@ import type { GoalsSeries } from "@/lib/goals-series";
 import type { HomeAwaySeries } from "@/lib/home-away";
 import type { PositionSeries } from "@/lib/position-series";
 import { MEASURES, type SeasonComparisonSeries } from "@/lib/season-comparison";
+import type { PageSectionsOf } from "@/lib/section-keys";
 import type { StreakRecordsSeries } from "@/lib/streak-records";
 import type { StreaksSeries } from "@/lib/streaks";
 
@@ -28,6 +29,7 @@ import type { StreaksSeries } from "@/lib/streaks";
  * decisions/053-elo-ratings.md
  * decisions/416-team-page-folds.md
  * decisions/424-analytics-panel-groups.md
+ * decisions/071-section-toggles.md
  */
 
 const { canSeeAnalytics } = vi.hoisted(() => ({
@@ -115,6 +117,15 @@ const comparison: SeasonComparisonSeries = {
   teamCount: 20,
 };
 
+// `Analyysit` opened, as a reader does, so its panels can be seen; the fold
+// tests below set their own.
+const OPENED: PageSectionsOf<"team"> = {
+  kind: "team",
+  signedIn: false,
+  choices: { analytics: true },
+};
+let readerSections: PageSectionsOf<"team" | "national-team"> = OPENED;
+
 async function renderSection(
   loadPosition = vi.fn(async (): Promise<PositionSeries> => position),
   loadForm = vi.fn(async (): Promise<FormSeries> => form),
@@ -138,6 +149,7 @@ async function renderSection(
 ) {
   const view = await AnalyticsSection({
     axis,
+    sections: readerSections,
     loadSummary,
     loadPosition,
     loadForm,
@@ -170,6 +182,76 @@ async function renderSection(
 beforeEach(() => {
   canSeeAnalytics.mockReset();
   canSeeAnalytics.mockResolvedValue(true);
+  readerSections = OPENED;
+});
+
+describe("how Analyysit's folds start", () => {
+  // The fold in the region a heading names.
+  const foldOf = (name: string) =>
+    screen.getByRole("region", { name }).querySelector(":scope > details") as HTMLDetailsElement;
+
+  it("closes Analyysit and opens only its first group, for a reader with no stored choice", async () => {
+    readerSections = { kind: "team", signedIn: false, choices: {} };
+
+    await renderSection();
+
+    expect(foldOf(ANALYTICS_HEADING).open).toBe(false);
+    expect(foldOf(BY_MATCH_HEADING).open).toBe(true);
+    expect(foldOf(SEASON_AXIS.wholeHeading).open).toBe(false);
+    expect(foldOf(SEASON_AXIS.otherHeading).open).toBe(false);
+  });
+
+  it("opens Kausi lyhyesti and not Ottelu ottelulta where the summary comes first", async () => {
+    readerSections = { kind: "team", signedIn: false, choices: {} };
+
+    await renderSection(
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      SEASON_AXIS,
+      undefined,
+      undefined,
+      vi.fn(
+        async (): Promise<SeasonSummaryPanelData> => ({
+          series: { status: "error" },
+          matchHref: String,
+        })
+      )
+    );
+
+    expect(foldOf(SUMMARY_HEADING).open).toBe(true);
+    expect(foldOf(BY_MATCH_HEADING).open).toBe(false);
+  });
+
+  it("follows the reader's stored choices on this kind of page", async () => {
+    readerSections = {
+      kind: "national-team",
+      signedIn: true,
+      choices: { analytics: true, "analytics-by-match": false, "analytics-other-seasons": true },
+    };
+
+    await renderSection();
+
+    expect(foldOf(ANALYTICS_HEADING).open).toBe(true);
+    expect(foldOf(BY_MATCH_HEADING).open).toBe(false);
+    expect(foldOf(SEASON_AXIS.wholeHeading).open).toBe(false);
+    expect(foldOf(SEASON_AXIS.otherHeading).open).toBe(true);
+  });
+
+  it("closes Analyysit over a signed-out reader's prompt too", async () => {
+    canSeeAnalytics.mockResolvedValue(false);
+    readerSections = { kind: "team", signedIn: false, choices: {} };
+
+    await renderSection();
+
+    expect(foldOf(ANALYTICS_HEADING).open).toBe(false);
+  });
 });
 
 describe("the groups a page's axis names", () => {
@@ -331,7 +413,7 @@ describe("AnalyticsSection, signed in", () => {
     expect(screen.queryByText(SEASON_AXIS.otherHeading)).toBeNull();
   });
 
-  it("sits in a fold that starts open, like the match list", async () => {
+  it("sits in a fold, its heading in the summary and its charts inside", async () => {
     const { container } = await renderSection();
     const details = container.querySelector("details");
 

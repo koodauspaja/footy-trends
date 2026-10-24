@@ -280,9 +280,7 @@ export function SeasonForecastBody({
         <p className="mt-2 text-muted text-sm">{BEFORE_SPLIT_NOTE}</p>
       ) : null}
       <p className="mt-2 text-sm">
-        <Link className="hover:underline" href={qualityHref}>
-          {QUALITY_LINK}
-        </Link>
+        <Link href={qualityHref}>{QUALITY_LINK}</Link>
       </p>
     </div>
   );

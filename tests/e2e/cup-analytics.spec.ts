@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
+import { openAnalytics } from "./folds";
 
 /**
  * `Analyysit` on a cup team page, end to end. Signed in the way league-position.spec.ts
@@ -29,7 +30,7 @@ test.describe("Cup analytics, signed in", () => {
 
   test("shows the panels a cup can have, and never a league position", async ({ page }) => {
     await page.goto(ARSENAL_CUP);
-    await analytics(page).waitFor();
+    await openAnalytics(page);
     const panels = await analytics(page).getByRole("heading", { level: 4 }).allTextContents();
 
     expect(panels.length).toBeGreaterThan(0);
@@ -42,7 +43,7 @@ test.describe("Cup analytics, signed in", () => {
 
   test("keeps the league page unchanged, position chart and all", async ({ page }) => {
     await page.goto(ARSENAL_LEAGUE);
-    await analytics(page).waitFor();
+    await openAnalytics(page);
     const panels = await analytics(page).getByRole("heading", { level: 4 }).allTextContents();
 
     expect(panels[0]).toBe(POSITION);
@@ -50,6 +51,7 @@ test.describe("Cup analytics, signed in", () => {
 
   test("drops the Sijoitus row from the comparison on a cup", async ({ page }) => {
     await page.goto(ARSENAL_CUP);
+    await openAnalytics(page);
     const comparison = page.getByRole("region", { name: "Tämä kausi verrattuna" });
     await comparison.waitFor();
 
@@ -61,6 +63,7 @@ test.describe("Cup analytics, signed in", () => {
 
   test("names the cup in the records it covers", async ({ page }) => {
     await page.goto(ARSENAL_CUP);
+    await openAnalytics(page);
     const records = page.getByRole("region", { name: "Ennätykset" });
     await records.waitFor();
 
@@ -81,7 +84,7 @@ test.describe("Liigacup team page, signed in", () => {
 
   test("renders its Analyysit as a cup team page", async ({ page }) => {
     await page.goto(INTER_LIIGACUP);
-    await analytics(page).waitFor();
+    await openAnalytics(page);
     const panels = await analytics(page).getByRole("heading", { level: 4 }).allTextContents();
 
     expect(panels).not.toContain(POSITION);
@@ -90,6 +93,7 @@ test.describe("Liigacup team page, signed in", () => {
 
   test("compares the season against the cup's own previous one", async ({ page }) => {
     await page.goto(INTER_LIIGACUP);
+    await openAnalytics(page);
     const comparison = page.getByRole("region", { name: "Tämä kausi verrattuna" });
     await comparison.waitFor();
 
@@ -103,6 +107,7 @@ test.describe("Liigacup team page, signed in", () => {
 test("sends no cup analytics value to a signed-out reader", async ({ page }) => {
   const response = await page.goto(ARSENAL_CUP);
   const html = (await response?.text()) ?? "";
+  await openAnalytics(page);
 
   // The section and its sign-in prompt are shown, as on a league page; what a
   // signed-out reader must not get is any panel or any computed value.

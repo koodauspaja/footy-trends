@@ -101,6 +101,12 @@ describe("CupBracket", () => {
       expect(screen.getByText("0")).toBeInTheDocument();
     });
 
+    it("shadows the edge a listed round's table scrolls towards", () => {
+      renderBracket([listedRound()]);
+
+      expect(screen.getByRole("table").parentElement).toHaveClass("scroll-edge", "overflow-x-auto");
+    });
+
     it("does not render a table for a drawn round", () => {
       renderBracket([{ stage: "FINAL", ties: [tie()] }]);
 

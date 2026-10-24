@@ -73,7 +73,7 @@ CI runs the unit and integration suites; the end-to-end suite runs locally
 (the pre-push hook asks for a fresh run) and in `release.yml`, against a
 production build in both, before anything reaches production.
 
-The project targets Node 24, and expects npm 12.2.0.
+The project targets Node 24, and expects npm 12.2.1.
 
 ---
 

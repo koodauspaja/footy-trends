@@ -4,6 +4,7 @@ import { comebacksPanel } from "@/components/comebacks-section";
 import { type EloPanelData, eloPanel } from "@/components/elo-section";
 import { formPanel } from "@/components/form-section";
 import { rollingGoalsPanel, totalGoalsPanel } from "@/components/goals-section";
+import { GroupFold } from "@/components/heading-folds";
 import { homeAwayPanel } from "@/components/home-away-section";
 import { positionPanel } from "@/components/league-position-section";
 import { OPPONENTS_GROUP_HEADING, opponentsPanel } from "@/components/opponents-section";
@@ -27,6 +28,7 @@ import type { OpponentsSeries } from "@/lib/head-to-head";
 import type { HomeAwaySeries } from "@/lib/home-away";
 import type { PositionSeries } from "@/lib/position-series";
 import type { SeasonComparisonSeries } from "@/lib/season-comparison";
+import { foldFor, type PageSectionsOf } from "@/lib/section-keys";
 import type { StreakRecordsSeries } from "@/lib/streak-records";
 import type { StreaksSeries } from "@/lib/streaks";
 
@@ -56,9 +58,9 @@ export const SIGNED_OUT_MESSAGE = "Kirjaudu sisään nähdäksesi analyysit ja t
 const HEADING_ID = "analytics";
 
 /**
- * The team page's analytics: every panel under one heading. The gate comes
- * first, and once: a signed-out request gets one sign-in prompt before any
- * loader is called. `null` when no panel applies.
+ * The team page's analytics, in groups of which the first opens with it. The
+ * gate comes first, and once: a signed-out request gets one sign-in prompt
+ * before any loader is called. `null` when no panel applies.
  *
  * decisions/031-rolling-form-trend.md
  * decisions/036-halftime-comebacks.md
@@ -67,9 +69,11 @@ const HEADING_ID = "analytics";
  * decisions/053-elo-ratings.md
  * decisions/424-analytics-panel-groups.md
  * decisions/066-season-summary.md
+ * decisions/071-section-toggles.md
  */
 export async function AnalyticsSection({
   axis,
+  sections,
   loadSummary,
   loadPosition,
   loadForm,
@@ -88,6 +92,8 @@ export async function AnalyticsSection({
    * not defaulted.
    */
   axis: AnalyticsAxis;
+  /** The reader's folds on this kind of page: `Analyysit` and each group. */
+  sections: AnalyticsSections;
   /** `Kausi lyhyesti`; `unavailable` wherever no sentence holds, a national team's page always. */
   loadSummary: () => Promise<SeasonSummaryPanelData>;
   loadPosition: () => Promise<PositionSeries>;
@@ -106,7 +112,7 @@ export async function AnalyticsSection({
 }>) {
   if (!(await canSeeAnalytics())) {
     return (
-      <Section>
+      <Section sections={sections}>
         <SignInPrompt message={SIGNED_OUT_MESSAGE} />
       </Section>
     );
@@ -160,12 +166,12 @@ export async function AnalyticsSection({
     {
       // Its own group, so the block needs no heading of its own.
       heading: SUMMARY_HEADING,
-      id: "analytics-summary",
+      id: "analytics-summary" as const,
       panels: { summary: seasonSummaryPanel(summary) },
     },
     {
       heading: BY_MATCH_HEADING,
-      id: "analytics-by-match",
+      id: "analytics-by-match" as const,
       // Keyed by name rather than listed, so each panel carries a stable key
       // into the group and the membership stays one list rather than two.
       panels: {
@@ -178,12 +184,12 @@ export async function AnalyticsSection({
     },
     {
       heading: axis.wholeHeading,
-      id: "analytics-whole-season",
+      id: "analytics-whole-season" as const,
       panels: { homeAway: panels.homeAway, streaks: panels.streaks, comebacks: panels.comebacks },
     },
     {
       heading: axis.otherHeading,
-      id: "analytics-other-seasons",
+      id: "analytics-other-seasons" as const,
       // A club's strength across every stored season.
       panels: { comparison: panels.comparison, records: panels.records, elo: panels.elo },
     },
@@ -191,7 +197,7 @@ export async function AnalyticsSection({
       // Its own group: "who do we struggle against" is a question none of the
       // three periods asks.
       heading: OPPONENTS_GROUP_HEADING,
-      id: "analytics-opponents",
+      id: "analytics-opponents" as const,
       panels: { opponents: panels.opponents },
     },
   ];
@@ -203,47 +209,46 @@ export async function AnalyticsSection({
   if (shown.length === 0) return null;
 
   return (
-    <Section>
-      {shown.map((group) => (
-        <PanelGroup heading={group.heading} headingId={group.id} key={group.id}>
+    <Section sections={sections}>
+      {shown.map((group, index) => (
+        <GroupFold
+          fold={foldFor(sections, group.id, index === 0)}
+          heading={group.heading}
+          headingId={group.id}
+          key={group.id}
+        >
           {Object.entries(group.panels).map(([name, panel]) => (
             <Fragment key={name}>{panel}</Fragment>
           ))}
-        </PanelGroup>
+        </GroupFold>
       ))}
     </Section>
   );
 }
 
 /**
- * One group of panels under `Analyysit`: a region named by its own heading, so
- * a screen reader can move between groups as it moves between panels.
+ * The folds of `Analyysit` on a team or national team page.
  *
- * decisions/424-analytics-panel-groups.md
+ * decisions/071-section-toggles.md
  */
-function PanelGroup({
-  heading,
-  headingId,
-  children,
-}: Readonly<{ heading: string; headingId: string; children: React.ReactNode }>) {
-  return (
-    <section aria-labelledby={headingId} className="mt-6">
-      <h3 className="font-medium text-muted text-sm uppercase tracking-wide" id={headingId}>
-        {heading}
-      </h3>
-      {children}
-    </section>
-  );
-}
+type AnalyticsSections = PageSectionsOf<"team" | "national-team">;
 
 /**
- * Foldable, like the match list above it.
+ * Foldable, like the match list above it, and closed until the reader opens it.
  *
  * decisions/031-rolling-form-trend.md
+ * decisions/071-section-toggles.md
  */
-function Section({ children }: Readonly<{ children: React.ReactNode }>) {
+function Section({
+  sections,
+  children,
+}: Readonly<{ sections: AnalyticsSections; children: React.ReactNode }>) {
   return (
-    <TeamPageFold heading={ANALYTICS_HEADING} headingId={HEADING_ID}>
+    <TeamPageFold
+      fold={foldFor(sections, "analytics")}
+      heading={ANALYTICS_HEADING}
+      headingId={HEADING_ID}
+    >
       {children}
     </TeamPageFold>
   );

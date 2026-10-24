@@ -3,28 +3,34 @@ import { describe, expect, it } from "vitest";
 import { MATCHES_HEADING, TeamPageFold } from "@/components/team-page-fold";
 
 /**
- * One fold of the team page: a native `<details>` that starts open.
+ * One fold of the team page: a `<details>` that starts as it is told.
  *
  * decisions/416-team-page-folds.md
+ * decisions/071-section-toggles.md
  */
 
 function renderFold(props: Partial<Parameters<typeof TeamPageFold>[0]> = {}) {
   return render(
-    <TeamPageFold heading="Ottelut" headingId="team-matches" {...props}>
+    <TeamPageFold
+      fold={{ initiallyOpen: true, remember: null }}
+      heading="Ottelut"
+      headingId="team-matches"
+      {...props}
+    >
       <p>Sisältö</p>
     </TeamPageFold>
   ).container;
 }
 
 describe("TeamPageFold", () => {
-  it("starts open, so nothing is hidden until the reader hides it", () => {
+  it("starts open when told to, its content shown", () => {
     const details = renderFold().querySelector("details");
 
     expect(details?.open).toBe(true);
     expect(screen.getByText("Sisältö")).toBeVisible();
   });
 
-  it("folds with no client state: a native details element", () => {
+  it("folds as a details element, its content beside the summary", () => {
     const container = renderFold();
 
     expect(container.querySelector("details > summary")).not.toBeNull();
@@ -55,7 +61,7 @@ describe("TeamPageFold", () => {
     const marker = renderFold().querySelector("summary > span");
 
     expect(marker?.getAttribute("aria-hidden")).toBe("true");
-    expect(marker?.getAttribute("class")).toContain("group-open:rotate-90");
+    expect(marker?.getAttribute("class")).toContain("[details[open]>summary>&]:rotate-90");
   });
 
   it("takes the page's spacing, by default the sections'", () => {

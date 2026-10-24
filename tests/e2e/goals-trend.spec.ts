@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
+import { openAnalytics } from "./folds";
 
 /**
  * The team page's two goals charts, end to end. Signed in the way
@@ -29,6 +30,7 @@ async function tableFigures(row: Locator): Promise<[number, number, number]> {
 
 // The last running-total row, as [match, scored, conceded].
 async function lastTotals(page: Page): Promise<number[]> {
+  await openAnalytics(page);
   await expect(page.getByRole("img", { name: TOTALS })).toBeVisible();
   const rows = await page.getByText(TOTAL_ROW).allTextContents();
   const [, ...figures] = TOTAL_ROW.exec(rows.at(-1) ?? "") ?? [];
@@ -69,6 +71,7 @@ test.describe("Goals charts, signed in", () => {
 
   test("line the rolling chart up with the form chart, match for match", async ({ page }) => {
     await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
+    await openAnalytics(page);
     await expect(page.getByRole("img", { name: ROLLING })).toBeVisible();
 
     const matchesOf = async (pattern: RegExp) =>
@@ -81,6 +84,7 @@ test.describe("Goals charts, signed in", () => {
 
   test("tell the lines apart by style and name them in a legend", async ({ page }) => {
     await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
+    await openAnalytics(page);
 
     for (const name of [ROLLING, TOTALS]) {
       const panel = page.getByRole("region", { name });
@@ -93,6 +97,7 @@ test.describe("Goals charts, signed in", () => {
 
   test("sit in Analyysit after the form chart", async ({ page }) => {
     await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
+    await openAnalytics(page);
 
     await expect(
       page.getByRole("region", { name: "Analyysit" }).getByRole("heading", { level: 4 })
@@ -117,6 +122,7 @@ test.describe("Goals charts, signed out", () => {
   test("send no goal value, and leave one prompt", async ({ page }) => {
     const response = await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
     const html = (await response?.text()) ?? "";
+    await openAnalytics(page);
 
     await expect(page.getByText("Kirjaudu sisään nähdäksesi analyysit ja trendit.")).toHaveCount(1);
     await expect(page.getByRole("heading", { name: TOTALS })).toHaveCount(0);

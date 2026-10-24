@@ -1,6 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 import { dropCached } from "../support/e2e-redis";
+import { openAnalytics } from "./folds";
 
 /**
  * `Kauden ennuste` on a league's standings page, end to end, on a real season
@@ -57,6 +58,7 @@ test.describe("Season forecast, signed in", () => {
       await dropCaches();
 
       await page.goto(STANDINGS(code));
+      await openAnalytics(page);
       await expect(forecastPanel(page)).toBeVisible();
       if ((await forecastPanel(page).getByRole("table").count()) > 0) {
         league = code;
@@ -109,6 +111,7 @@ test.describe("Season forecast, signed in", () => {
     const [, previous] = await seasonsOffered(page);
 
     await page.goto(`${PL}&kausi=${previous}`);
+    await openAnalytics(page);
 
     await expect(page.getByRole("region", { name: "Tämä kausi" })).toBeVisible();
     await expect(page.getByRole("region", { name: HEADING })).toHaveCount(0);

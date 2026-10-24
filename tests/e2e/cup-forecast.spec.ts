@@ -3,6 +3,7 @@ import postgres from "postgres";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 import { dropCached } from "../support/e2e-redis";
 import { testDatabaseUrl } from "../support/test-database";
+import { openFolds } from "./folds";
 
 /**
  * A Suomen Cup's `Cupin ennuste`, end to end, on a round of 16 in progress.
@@ -134,12 +135,16 @@ test.describe("Suomen Cup forecast, signed in", () => {
     await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
   });
 
-  test("follows Pudotuspelit on the cup's page", async ({ page }) => {
+  test("comes last on the cup's page, after its rounds", async ({ page }) => {
     await page.goto(STANDINGS);
     await section(page).waitFor();
     const headings = await page.getByRole("heading", { level: 2 }).allTextContents();
 
-    expect(headings.indexOf(HEADING)).toBe(headings.indexOf("Pudotuspelit") + 1);
+    // From the round of 16 the cup draws no tree yet, so its rounds come first,
+    // the latest on top.
+    expect(headings.at(-1)).toBe(HEADING);
+    expect(headings.slice(0, -1).length).toBeGreaterThan(0);
+    expect(headings.slice(0, -1)).not.toContain("Analyysit");
     // A cup page still has no Analyysit.
     await expect(page.getByRole("region", { name: "Analyysit" })).toHaveCount(0);
   });
@@ -148,6 +153,7 @@ test.describe("Suomen Cup forecast, signed in", () => {
     page,
   }) => {
     await page.goto(STANDINGS);
+    await openFolds(page, HEADING);
     const table = section(page).getByRole("table");
 
     await expect(table.getByRole("columnheader")).toHaveText([
@@ -170,6 +176,7 @@ test.describe("Suomen Cup forecast, signed in", () => {
     page,
   }) => {
     await page.goto(STANDINGS);
+    await openFolds(page, HEADING);
     const ties = section(page).getByRole("listitem");
 
     // The two still to play between league sides, 4 against 5 and 7 against 8.
@@ -180,6 +187,7 @@ test.describe("Suomen Cup forecast, signed in", () => {
     page,
   }) => {
     await page.goto(STANDINGS);
+    await openFolds(page, HEADING);
 
     await expect(section(page).getByText(/^Loppukilpailu on pelattu 10 000 kertaa/)).toBeVisible();
     await expect(section(page).getByText(/laskettu Kakkosen keskitasoisiksi\.$/)).toBeVisible();

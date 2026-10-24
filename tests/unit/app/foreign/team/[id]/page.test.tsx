@@ -57,6 +57,7 @@ const { session } = vi.hoisted(() => ({ session: { data: null as unknown } }));
 vi.mock("@/lib/auth-client", () => ({
   useSession: () => ({ data: session.data, refetch: vi.fn() }),
 }));
+vi.mock("@/lib/section-choices", () => import("../../../../../support/page-sections"));
 
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
 const getTeamMatchesMock = vi.fn<() => Promise<TeamMatchesResult>>();

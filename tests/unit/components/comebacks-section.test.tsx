@@ -10,7 +10,6 @@ import {
   LED_DREW_LABEL,
   LED_LABEL,
   LED_LOST_LABEL,
-  matchCount,
   missingText,
   NO_DEFICIT_MESSAGE,
   NO_LEAD_MESSAGE,
@@ -46,17 +45,6 @@ function figures(container: HTMLElement) {
     (row.textContent ?? "").replace(/\s+/g, " ")
   );
 }
-
-describe("matchCount", () => {
-  it("uses the singular for one match, as Finnish does", () => {
-    expect(matchCount(1)).toBe("1 ottelu");
-  });
-
-  it("uses the plural for every other count, zero included", () => {
-    expect(matchCount(0)).toBe("0 ottelua");
-    expect(matchCount(4)).toBe("4 ottelua");
-  });
-});
 
 describe("missingText", () => {
   it("names how many matches have no half-time score", () => {

@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
+import { openAnalytics } from "./folds";
 
 /**
  * `Sijoitusten vaihtelu` on a competition's standings page, end to end. Signed
@@ -38,7 +39,7 @@ test.describe("Table movement, signed in", () => {
 
   test("draws a point per completed season, after goals per game", async ({ page }) => {
     await page.goto(PL);
-    await panel(page).waitFor();
+    await openAnalytics(page);
     const points = panel(page).locator("[data-part=points] circle:not([data-marked])");
     const panels = await page
       .getByRole("region", { name: "Kausi kaudelta" })
@@ -65,7 +66,7 @@ test.describe("Table movement, signed in", () => {
     }
 
     await page.goto(PL);
-    await panel(page).waitFor();
+    await openAnalytics(page);
     const sentence = (await panel(page).getByRole("listitem").first().textContent()) ?? "";
     const [, season, shown, teams] =
       /^Kausi (\d{4})\/\d{2}: .* keskimäärin (\d+,\d) sijaa \((\d+) joukkuetta\)\.$/.exec(
@@ -92,6 +93,7 @@ test.describe("Table movement, signed in", () => {
 
   test("has no panel on the Champions League", async ({ page }) => {
     await page.goto("/ulkomaat/sarjataulukko?kilpailu=CL");
+    await openAnalytics(page);
     await page.getByRole("region", { name: "Maaleja ottelua kohden" }).waitFor();
 
     await expect(panel(page)).toHaveCount(0);

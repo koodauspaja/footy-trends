@@ -12,6 +12,7 @@ import { warmModules } from "../../../../../support/warm-module";
  * decisions/019-match-page.md
  * decisions/051-home-win-baseline.md
  * decisions/057-surprise-index.md
+ * decisions/703-unambiguous-lines.md
  */
 
 const getMatchPageDataMock = vi.fn<() => Promise<MatchPageData>>();
@@ -133,6 +134,10 @@ describe("/ulkomaat/ottelu/:id", () => {
 
     await renderPage();
 
+    // Before the match the score is a dash.
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Arsenal FC – Chelsea FC" })
+    ).toBeInTheDocument();
     const details = screen.getByText("Kierros 26");
     const prediction = screen.getByRole("heading", { name: "Ennuste" });
     const meetings = screen.getByRole("heading", { name: "Aiemmat kohtaamiset" });

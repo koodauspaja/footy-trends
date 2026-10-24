@@ -71,15 +71,16 @@ league pages keep their `Kierros` column, but a cup round *is* one round and
 the heading directly above already names it, so the column would repeat the
 same value down every row.
 
-Each round is **collapsible**, as a native `<details>`/`<summary>`, and starts
-open. A cup season stacks up to ten rounds and the opening round can be 248
-teams: MSC 2025 measures ~27,000px tall on a 375px screen with everything open,
-and ~1,800px with every round folded away. No client-side state is involved.
+Each round is **collapsible**, as a native `<details>`/`<summary>`. The rounds
+starting on the latest round's day start open, every earlier round closed
+(decisions/698). A cup season stacks up to ten rounds and the opening round can
+be 248 teams: on a 375px screen MSC 2025 measures 23,749px with everything open,
+1,999px as it starts, and 1,905px with every round folded away (measured
+2026-10-24). No client-side state is involved.
 The summary carries the round name and its match count — `Juuson kierros
 (123 ottelua)` — so a folded round still says how much it hides.
 
-Open by default rather than collapsed: a round that starts hidden reads as
-missing data, the same reasoning that keeps the drawn rounds listed below.
+A closed round's count is what keeps it from reading as missing data.
 
 Headings come from TASO's `group_name`, **normalised for the two names TASO
 spells inconsistently across eras**. Counted across every MSC and NSC season
@@ -303,8 +304,8 @@ dropped.
 - [ ] `N. Kierros` seasons (MSC 2024) display `Kierros N`, and `Finaali`
       seasons (MSC 2018, NSC 2015) display `Loppuottelu`.
 - [ ] `Pikkufinaali` and `Finaali-Kakkonen` are **not** renamed.
-- [ ] Each cup round is collapsible and starts open, and its summary shows the
-      match count.
+- [ ] Each cup round is collapsible, only the rounds starting on the latest
+      round's day start open, and its summary shows the match count.
 - [ ] A cup round's match list has no `Kierros` column; a league's playoff
       group still has one.
 - [ ] A cup page shows no round selector, since none of its groups respond to
@@ -372,5 +373,5 @@ None outstanding. The four raised during spec review were resolved in chat on
    carries the date the tree does not.
 3. **`Juuson kierros` at 248 teams — resolved: one plain table**, like every
    other round — and revisited on seeing it: at ~27,000px the page needed a way
-   to fold a round away, so every round became a collapsible `<details>` that
-   starts open.
+   to fold a round away, so every round became a collapsible `<details>`. Since
+   decisions/698 only the rounds starting on the latest round's day start open.

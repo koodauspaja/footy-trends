@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import postgres from "postgres";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 import { testDatabaseUrl } from "../support/test-database";
+import { openAnalytics } from "./folds";
 
 /**
  * `Kauden suurimmat yllätykset` and the match page's line, end to end, on the
@@ -103,6 +104,7 @@ test.describe("Surprises, signed in", () => {
     page,
   }) => {
     await page.goto(STANDINGS);
+    await openAnalytics(page);
 
     const analytics = page.getByRole("region", { name: "Analyysit" });
     await expect(analytics.getByRole("heading", { level: 3 }).first()).toHaveText("Tämä kausi");

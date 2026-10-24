@@ -36,7 +36,7 @@ export default function Home() {
         {REGIONS.map((region) => (
           <li key={region.href}>
             <Link
-              className="flex flex-col gap-1 rounded border border-border-subtle px-4 py-3 hover:bg-surface"
+              className="flex flex-col gap-1 rounded border border-border-subtle px-4 py-3 no-underline hover:bg-surface"
               href={region.href}
             >
               <span className="font-medium">{region.label}</span>

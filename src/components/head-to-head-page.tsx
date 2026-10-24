@@ -44,6 +44,7 @@ import {
   spansCalendarYears,
 } from "@/lib/head-to-head";
 import { baselineCompetition } from "@/lib/home-baseline";
+import { matchCountLabel } from "@/lib/match-count";
 import { formatKickoff, PLACEHOLDER_TEAM_ID, teamDisplayName } from "@/lib/match-detail";
 import {
   type FootballDataMatchRow,
@@ -63,7 +64,7 @@ import {
   labelFootballDataRows,
   labelTasoRows,
 } from "@/lib/meeting-labels";
-import { matchCountLabel, type NationalTeam } from "@/lib/national-team";
+import type { NationalTeam } from "@/lib/national-team";
 import { comparedCompetitionName } from "@/lib/prediction-quality";
 import { parseWholeNumber } from "@/lib/provider-ids";
 import { toFinishedMatches } from "@/lib/standings";
@@ -587,7 +588,6 @@ function FormBlock({
           <p className="flex gap-2 font-medium">
             {form.entries.map((entry) => (
               <RowLink
-                className="hover:underline"
                 href={`${basePath}/ottelu/${entry.match.providerMatchId}`}
                 key={entry.match.providerMatchId}
                 title={entry.label}
@@ -684,9 +684,7 @@ export async function HeadToHeadPage(options: Readonly<HeadToHeadPageOptions>) {
             <Group heading={NEXT_GROUP_HEADING} id="h2h-next">
               <p className="text-muted text-sm">{next.line}</p>
               <p className="mt-1 mb-4 font-medium text-lg">
-                <Link className="hover:underline" href={next.href}>
-                  {next.match}
-                </Link>
+                <Link href={next.href}>{next.match}</Link>
               </p>
               {next.prediction}
             </Group>

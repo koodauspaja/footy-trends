@@ -11,6 +11,7 @@ type CompetitionSelectProps = {
  * an `<option>` renders only text, so the flag cannot sit in the list.
  *
  * decisions/006-other-competitions.md
+ * decisions/696-headings-and-spacing.md
  */
 export function CompetitionSelect({
   competitions,
@@ -20,7 +21,7 @@ export function CompetitionSelect({
   const selected = competitions.find((competition) => competition.code === selectedCompetitionCode);
 
   return (
-    <>
+    <span className="flex items-center gap-3">
       <label className="text-sm text-muted" htmlFor="kilpailu">
         Kilpailu
       </label>
@@ -47,6 +48,6 @@ export function CompetitionSelect({
           </option>
         ))}
       </select>
-    </>
+    </span>
   );
 }

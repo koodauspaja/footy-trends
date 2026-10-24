@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
+import { openAnalytics } from "./folds";
 
 /**
  * `Vaikeimmat vastustajat`, end to end. Signed in the way league-position.spec.ts
@@ -19,6 +20,7 @@ test.describe("Bogey teams, signed in", () => {
 
   test("names at most three opponents under Vastustajat, last of the groups", async ({ page }) => {
     await page.goto(INTER);
+    await openAnalytics(page);
     const panel = page.getByRole("region", { name: "Vaikeimmat vastustajat" });
     await panel.waitFor();
 
@@ -32,6 +34,7 @@ test.describe("Bogey teams, signed in", () => {
 
   test("a row's record is the head-to-head page's record for that pair", async ({ page }) => {
     await page.goto(INTER);
+    await openAnalytics(page);
     const panel = page.getByRole("region", { name: "Vaikeimmat vastustajat" });
     const first = panel.locator("tbody tr").first();
     await first.waitFor();
@@ -57,6 +60,7 @@ test.describe("Bogey teams, signed in", () => {
     // one. Both seasons are stored first, then compared.
     const rows = async (url: string) => {
       await page.goto(url);
+      await openAnalytics(page);
       const panel = page.getByRole("region", { name: "Vaikeimmat vastustajat" });
       await panel.waitFor();
       return panel.locator("tbody tr").allTextContents();
@@ -74,7 +78,7 @@ test.describe("Bogey teams, signed in", () => {
 test("the national-team pages have no opponents panel", async ({ page }) => {
   await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
   await page.goto("/maajoukkueet/huuhkajat");
-  await page.getByRole("heading", { level: 2, name: "Analyysit" }).waitFor();
+  await openAnalytics(page);
 
   await expect(page.getByRole("heading", { name: "Vaikeimmat vastustajat" })).toHaveCount(0);
   await expect(page.getByRole("heading", { level: 3, name: "Vastustajat" })).toHaveCount(0);
