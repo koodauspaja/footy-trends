@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { openEveryFold } from "./folds";
 
 /**
  * Whether sibling tables line up is a browser question, asked as numbers and
@@ -44,6 +45,8 @@ test.describe("Table consistency", () => {
   ] as const) {
     test(`every table of a shape has identical columns — ${name}`, async ({ page }) => {
       await page.goto(url);
+      // Every fold open, so a table that starts closed is measured too.
+      await openEveryFold(page);
 
       for (const [headers, widths] of byShape(await layouts(page))) {
         expect(widths.size, `${headers} rendered ${widths.size} different layouts`).toBe(1);
@@ -82,6 +85,7 @@ test.describe("Table consistency", () => {
   test("a narrow screen scrolls the table, never the document", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 900 });
     await page.goto("/kotimaa/sarjataulukko?kilpailu=VL&kausi=2019");
+    await openEveryFold(page);
 
     const doc = await page.evaluate(() => ({
       scroll: document.documentElement.scrollWidth,

@@ -1,5 +1,6 @@
 import { expect, type Locator, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
+import { openAnalytics } from "./folds";
 
 /**
  * A heading looks like what it heads on every page, a label stays on its
@@ -64,6 +65,7 @@ test.describe("At 375 px", () => {
 test("keeps the season comparison's line clear of its chart", async ({ page }) => {
   await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
   await page.goto("/kotimaa/joukkue/60987");
+  await openAnalytics(page);
   const panel = page.getByRole("region", { name: "Tämä kausi verrattuna" });
   await expect(panel.locator("svg").first()).toBeVisible();
 
@@ -81,6 +83,7 @@ test("leaves space between one analytics panel and the next, and more between gr
 }) => {
   await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
   await page.goto("/kotimaa/sarjataulukko?kilpailu=VL&kausi=2026");
+  await openAnalytics(page);
   await expect(page.getByRole("heading", { level: 4 }).first()).toBeVisible();
 
   const gaps = await page.evaluate(() => {
@@ -116,6 +119,7 @@ test("sets a panel's heading above its labels and lines, and below its section's
 }) => {
   await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
   await page.goto("/kotimaa/sarjataulukko?kilpailu=VL&kausi=2026");
+  await openAnalytics(page);
   const forecast = page.getByRole("region", { name: "Kauden ennuste" });
   await expect(forecast).toBeVisible();
 

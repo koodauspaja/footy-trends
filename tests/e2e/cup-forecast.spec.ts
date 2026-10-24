@@ -3,6 +3,7 @@ import postgres from "postgres";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 import { dropCached } from "../support/e2e-redis";
 import { testDatabaseUrl } from "../support/test-database";
+import { openFolds } from "./folds";
 
 /**
  * A Suomen Cup's `Cupin ennuste`, end to end, on a round of 16 in progress.
@@ -152,6 +153,7 @@ test.describe("Suomen Cup forecast, signed in", () => {
     page,
   }) => {
     await page.goto(STANDINGS);
+    await openFolds(page, HEADING);
     const table = section(page).getByRole("table");
 
     await expect(table.getByRole("columnheader")).toHaveText([
@@ -174,6 +176,7 @@ test.describe("Suomen Cup forecast, signed in", () => {
     page,
   }) => {
     await page.goto(STANDINGS);
+    await openFolds(page, HEADING);
     const ties = section(page).getByRole("listitem");
 
     // The two still to play between league sides, 4 against 5 and 7 against 8.
@@ -184,6 +187,7 @@ test.describe("Suomen Cup forecast, signed in", () => {
     page,
   }) => {
     await page.goto(STANDINGS);
+    await openFolds(page, HEADING);
 
     await expect(section(page).getByText(/^Loppukilpailu on pelattu 10 000 kertaa/)).toBeVisible();
     await expect(section(page).getByText(/laskettu Kakkosen keskitasoisiksi\.$/)).toBeVisible();

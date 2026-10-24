@@ -1,6 +1,7 @@
 import { expect, type Locator, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 import { SESSION_COOKIE, storeSignedInReader } from "../support/e2e-session";
+import { openEveryFold } from "./folds";
 import { signedInAs } from "./session";
 
 /**
@@ -123,6 +124,7 @@ for (const path of WALKED) {
     // The page streams behind `Ladataan...`, which holds no link to judge.
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await expect(page.getByText("Ladataan...")).toHaveCount(0);
+    await openEveryFold(page);
 
     const plain = await page.evaluate((clearSource) => {
       const clear = new RegExp(clearSource);

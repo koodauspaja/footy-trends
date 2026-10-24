@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
+import { openAnalytics } from "./folds";
 
 /**
  * The size the charts' text is painted at, in both layouts. jsdom has
@@ -27,6 +28,7 @@ async function textSizes(page: Page, width: number, selector: string): Promise<n
   await page.setViewportSize({ width, height: 900 });
   await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
   await page.goto(TEAM);
+  await openAnalytics(page);
   await page.getByRole("img", { name: "Sijoitus kierroksittain" }).waitFor();
 
   return page.evaluate(

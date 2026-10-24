@@ -1,14 +1,16 @@
 import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
+import { fold, isOpen, openFolds } from "./folds";
 
 /**
- * The team page's two folds: the match list and Analyysit, each a native
- * `<details>` that starts open and folds on its own, with no client state.
- * Signed in the way league-position.spec.ts explains.
+ * The team page's two folds: the match list, which starts open, and Analyysit,
+ * which starts closed, each folding on its own. Signed in the way
+ * league-position.spec.ts explains.
  *
  * decisions/416-team-page-folds.md
  * decisions/040-cup-analytics.md
  * decisions/045-bogey-teams.md
+ * decisions/071-section-toggles.md
  */
 
 async function signedIn(page: Page): Promise<void> {
@@ -42,16 +44,23 @@ for (const [provider, path] of [
       }
     });
 
-    test("start open, the match list counted in its summary", async ({ page }) => {
+    test("start with the match list open, counted in its summary, and Analyysit closed", async ({
+      page,
+    }) => {
       const rows = await page.locator("details").first().locator("tbody tr").count();
 
       await expect(summary(page, "Ottelut")).toHaveText(`▸Ottelut(${rows} ottelua)`);
-      await expect(page.locator("details[open]")).toHaveCount(2);
+      expect(await isOpen(fold(page, "Ottelut"))).toBe(true);
+      expect(await isOpen(fold(page, "Analyysit"))).toBe(false);
       await expect(matchTable(page)).toBeVisible();
-      await expect(page.getByRole("img", { name: "Vire otteluittain" })).toBeVisible();
+      await expect(page.getByRole("img", { name: "Vire otteluittain" })).toBeHidden();
     });
 
     test("fold each part away and back, independently", async ({ page }) => {
+      // The form chart's group, which is not the first where `Kausi lyhyesti` is.
+      await openFolds(page, "Analyysit", "Ottelu ottelulta");
+      await expect(page.getByRole("img", { name: "Vire otteluittain" })).toBeVisible();
+
       await summary(page, "Ottelut").click();
       await expect(matchTable(page)).toBeHidden();
       await expect(page.getByRole("img", { name: "Vire otteluittain" })).toBeVisible();
@@ -80,6 +89,7 @@ test("keeps no analytics value in a folded signed-out page", async ({ page }) =>
   const html = (await response?.text()) ?? "";
 
   await expect(summary(page, "Analyysit")).toBeVisible();
+  await openFolds(page, "Analyysit");
   await expect(page.getByText("Kirjaudu sisään nähdäksesi analyysit ja trendit.")).toBeVisible();
   expect(html).not.toContain("ottelun jälkeen");
 });

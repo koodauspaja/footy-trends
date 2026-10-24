@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { openFolds } from "./folds";
 import { signedInAs, waitForSession } from "./session";
 
 /**
@@ -110,7 +111,8 @@ test.describe("Domestic standings page (Veikkausliiga)", () => {
       "Sijoitusten merkitykset ovat Palloliiton tulospalvelusta."
     );
 
-    // The match-list groups carry neither.
+    // The match-list groups carry neither. They start closed, so one is opened.
+    await openFolds(page, "Eurolopputurnaus");
     const knockout = page.locator("section").filter({
       has: page.getByRole("heading", { name: "Eurolopputurnaus", exact: true, level: 2 }),
     });

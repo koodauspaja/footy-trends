@@ -3,6 +3,7 @@ import { competitionsInRegion } from "../../src/lib/competitions";
 import { getDomesticCompetitionName } from "../../src/lib/domestic-competitions";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 import { COMPETITIONS } from "../../src/lib/goals-per-game";
+import { openFolds } from "./folds";
 
 /**
  * `Kotietu ja tasapelit` on a competition's standings page, end to end. Signed in
@@ -33,6 +34,7 @@ function fold(page: Page) {
 
 // The group starts folded, so the panel is opened before it is read.
 async function openPanel(page: Page) {
+  await openFolds(page, "Analyysit");
   await fold(page).click();
   await panel(page).waitFor();
 }
@@ -75,6 +77,7 @@ test.describe("Home advantage, signed in", () => {
 
   test("sits in its own group, after goals per game", async ({ page }) => {
     await page.goto("/kotimaa/sarjataulukko?kilpailu=VL");
+    await openFolds(page, "Analyysit");
     await fold(page).waitFor();
     const groups = await page
       .getByRole("region", { name: "Analyysit" })
@@ -89,6 +92,7 @@ test.describe("Kilpailut rinnakkain, folded", () => {
   test.beforeEach(async ({ page }) => {
     await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
     await page.goto("/kotimaa/sarjataulukko?kilpailu=VL");
+    await openFolds(page, "Analyysit", "Kausi kaudelta");
     await fold(page).waitFor();
   });
 
@@ -121,6 +125,7 @@ test.describe("Kilpailut rinnakkain, folded", () => {
     await expect(panel(page)).toBeVisible();
 
     await page.reload();
+    await openFolds(page, "Analyysit");
     await fold(page).waitFor();
     await expect(panel(page)).toBeHidden();
   });
@@ -130,6 +135,7 @@ test.describe("Home advantage, signed out", () => {
   test("carries no share in the page", async ({ page }) => {
     const response = await page.goto("/kotimaa/sarjataulukko?kilpailu=VL");
     const html = (await response?.text()) ?? "";
+    await openFolds(page, "Analyysit");
 
     await expect(page.getByText("Kirjaudu sisään nähdäksesi analyysit ja trendit.")).toBeVisible();
     expect(html).not.toContain(HEADING);
