@@ -63,6 +63,9 @@
   --zone-playoff-edge: #a16207;
   --zone-relegation-background: #ffe4e6;
   --zone-relegation-edge: #be123c;
+
+  /* The shadow at a scrolling box's edge: the text colour, faint. */
+  --scroll-shadow: rgb(23 23 23 / 0.25);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -89,6 +92,8 @@
     --zone-playoff-edge: #fbbf24;
     --zone-relegation-background: #3b1219;
     --zone-relegation-edge: #fb7185;
+
+    --scroll-shadow: rgb(237 237 237 / 0.25);
   }
 }
 
@@ -134,16 +139,8 @@ body {
     no-repeat local,
     linear-gradient(to left, var(--background) 30%, transparent) right center / 2.5rem 100%
     no-repeat local,
-    radial-gradient(
-      farthest-side at 0 50%,
-      color-mix(in srgb, var(--foreground) 25%, transparent),
-      transparent
-    )
-    left center / 1rem 100% no-repeat scroll,
-    radial-gradient(
-      farthest-side at 100% 50%,
-      color-mix(in srgb, var(--foreground) 25%, transparent),
-      transparent
-    )
-    right center / 1rem 100% no-repeat scroll;
+    radial-gradient(farthest-side at 0 50%, var(--scroll-shadow), transparent) left center / 1rem
+    100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, var(--scroll-shadow), transparent) right center /
+    1rem 100% no-repeat scroll;
 }

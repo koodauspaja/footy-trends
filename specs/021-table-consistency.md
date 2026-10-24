@@ -48,6 +48,7 @@ standings' `min-w-[760px]` floor (760 vs 704 at 768px, 760 vs 343 or 560 at
 stat off-screen, because `w-full` hands the name column 296 of the 343 visible
 pixels. Eleven columns cannot fit a phone, so scrolling is inherent; the number
 is recorded so "keep scrolling" stays a decision rather than an assumption.
+(Since decisions/699 a phone shows four of them instead.)
 
 ## Scope
 
@@ -62,7 +63,8 @@ is recorded so "keep scrolling" stays a decision rather than an assumption.
 
 - **Which columns exist, and what they contain.** No column is added, removed,
   reordered or hidden — on any viewport. A phase that genuinely has no round
-  number keeps having no round column.
+  number keeps having no round column. (Since decisions/699, a standings table
+  hides seven columns below `sm`.)
 - Colours, typography, the spacing scale, dark mode.
 - `cup-bracket.tsx`. It is a bracket, drawn as ties rather than rows, and its
   own shape is the point of it.
@@ -226,6 +228,8 @@ asserted as numbers:
   `Tulos`, with `Ottelu` absorbing the rest
 - at 375px each table's width equals its declared floor, and `document.scrollWidth`
   equals the viewport width — the scrolling is inside the table's container
+  (since decisions/699 the floor below `sm` is the phone's: 272 for the
+  standings, 336 for a three-column match list)
 
 ## Files To Update
 

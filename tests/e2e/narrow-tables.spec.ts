@@ -9,17 +9,24 @@ import { expect, type Page, test } from "@playwright/test";
  */
 
 const STANDINGS = "/kotimaa/sarjataulukko?kilpailu=VL&kausi=2026";
-// Inter's team page: its `Ottelut` list, three columns and no team links.
+// Inter's team page: its `Ottelut` list, with a `Sarja` column after `Tulos`.
 const TEAM = "/kotimaa/joukkue/60987";
 // Veikkausliiga 2017, whose knockout bracket is wider than a phone.
 const BRACKET = "/kotimaa/sarjataulukko?kausi=2017";
 
-// The right edge of the first header named `name`, and the screen's width.
-async function headerEnd(page: Page, name: string): Promise<{ end: number; screen: number }> {
+// The first header named `name`: where it ends, and where the box it scrolls
+// in ends and whether that box scrolls.
+async function headerInBox(page: Page, name: string) {
   const header = page.getByRole("columnheader", { name, exact: true }).first();
   await header.waitFor();
-  const box = await header.boundingBox();
-  return { end: (box?.x ?? 0) + (box?.width ?? 0), screen: page.viewportSize()?.width ?? 0 };
+  return header.evaluate((element) => {
+    const box = element.closest(".overflow-x-auto");
+    return {
+      end: element.getBoundingClientRect().right,
+      boxEnd: box?.getBoundingClientRect().right ?? 0,
+      scrolls: (box?.scrollWidth ?? 0) > (box?.clientWidth ?? 0),
+    };
+  });
 }
 
 test.describe("At 375 px", () => {
@@ -28,8 +35,9 @@ test.describe("At 375 px", () => {
   test("a standings table shows its points without scrolling sideways", async ({ page }) => {
     await page.goto(STANDINGS);
 
-    const { end, screen } = await headerEnd(page, "P");
-    expect(end).toBeLessThanOrEqual(screen);
+    const { end, boxEnd, scrolls } = await headerInBox(page, "P");
+    expect(end).toBeLessThanOrEqual(boxEnd);
+    expect(scrolls).toBe(false);
     // The columns a phone leaves out are not merely scrolled away.
     await expect(page.getByRole("columnheader", { name: "TM", exact: true }).first()).toBeHidden();
   });
@@ -37,8 +45,9 @@ test.describe("At 375 px", () => {
   test("a match list shows each result without scrolling sideways", async ({ page }) => {
     await page.goto(TEAM);
 
-    const { end, screen } = await headerEnd(page, "Tulos");
-    expect(end).toBeLessThanOrEqual(screen);
+    // `Sarja` may scroll into view; the result is in view from the start.
+    const { end, boxEnd } = await headerInBox(page, "Tulos");
+    expect(end).toBeLessThanOrEqual(boxEnd);
   });
 
   test("a bracket wider than the screen shadows the edge it scrolls towards", async ({ page }) => {

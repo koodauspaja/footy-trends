@@ -130,6 +130,16 @@ describe("DataTable", () => {
     }
   });
 
+  it("breaks a word too long for the flexible column, and only there", () => {
+    const { container } = render(
+      <DataTable columns={columns} rowKey={(row) => row.id} rows={rows} />
+    );
+    const [name, points] = container.querySelector("tbody tr")?.children ?? [];
+
+    expect(name).toHaveClass("wrap-break-word");
+    expect(points).not.toHaveClass("wrap-break-word");
+  });
+
   it("shadows the edge its wrapper scrolls towards", () => {
     const { container } = render(
       <DataTable columns={columns} rowKey={(row) => row.id} rows={rows} />

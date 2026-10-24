@@ -214,6 +214,9 @@ export function DataTable<T>({
                     alignClass(column.align),
                     column.cellClassName,
                     phoneClass(column),
+                    // A word longer than a phone's column breaks rather than
+                    // print over the next one.
+                    column.width === "flex" ? "wrap-break-word" : undefined,
                     columnIndex === 0 ? zone?.edge : undefined,
                   ]
                     .filter(Boolean)
