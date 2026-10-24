@@ -294,6 +294,39 @@ const CAPTION_X = 18;
  */
 const CAPTION_LINE = 28;
 
+/**
+ * The least space between the rotated caption and the widest y tick, in units.
+ *
+ * decisions/700-legible-charts.md
+ */
+const CAPTION_GAP = 2;
+
+/**
+ * The gap between the x ticks' row and the axis line above it, in units.
+ *
+ * decisions/700-legible-charts.md
+ */
+const TICK_ROW = 22;
+
+/**
+ * Where the plot must start for the first x label, centred on its point, to
+ * clear the ends of the y ticks, the plot ending at `plotRight`.
+ *
+ * decisions/700-legible-charts.md
+ */
+function clearingStart(
+  tick: { value: number; labelWidth: number; noteWidth: number },
+  xDomain: readonly [number, number],
+  left: number,
+  plotRight: number
+): number {
+  const reach = left - Y_TICK_GAP + Math.max(tick.labelWidth, tick.noteWidth) / 2;
+  if (scale(tick.value, xDomain, [left, plotRight]) >= reach) return left;
+  // The start that puts the tick's point at `reach`, the end held.
+  const share = (tick.value - xDomain[0]) / (xDomain[1] - xDomain[0]);
+  return (reach - share * plotRight) / (1 - share);
+}
+
 type LineChartProps = {
   /** The chart's own name, in a `<title>`: it travels with the SVG wherever it is shown. */
   title: string;
@@ -353,21 +386,21 @@ export function LineChart({
   const top = MARGIN.top;
   const bottom = CHART.height - MARGIN.bottom - (hasNotes ? NOTE_ROW : 0);
   const caption = captionLines(yLabel, bottom - top);
-  const left = MARGIN.left + (caption.length - 1) * CAPTION_LINE;
+  // The gutter holds the caption, a gap, then the widest y tick and its own gap.
+  const captionEnd = CAPTION_X + (caption.length - 1) * CAPTION_LINE + PHONE_AXIS_UNITS / 2;
+  const widestYTick = Math.max(0, ...yTicks.map((tick) => phoneWidth(formatYTick(tick))));
+  const left = Math.max(MARGIN.left, captionEnd + CAPTION_GAP + widestYTick + Y_TICK_GAP);
   const yRange: [number, number] = invertY ? [top, bottom] : [bottom, top];
-  // A first tick on the domain's start is centred on the plot's, so the plot
-  // starts in from the axis by what a wider label would reach under the y ticks.
-  const underhang = ticks
-    .slice(0, 1)
-    .filter((tick) => tick.value === xDomain[0])
-    .map((tick) => Math.max(tick.labelWidth, tick.noteWidth) / 2 - Y_TICK_GAP);
-  const plotLeft = left + Math.max(0, ...underhang);
   // The last tick is centred on the plot's end, so the plot ends short of the
   // axis by what a wider label or note would overhang.
   const overhang = ticks
     .slice(-1)
     .map((tick) => Math.max(tick.labelWidth, tick.noteWidth) / 2 - MARGIN.right);
   const plotRight = right - Math.max(0, ...overhang);
+  const plotLeft = Math.max(
+    left,
+    ...ticks.slice(0, 1).map((tick) => clearingStart(tick, xDomain, left, plotRight))
+  );
 
   const toX = (value: number) => scale(value, xDomain, [plotLeft, plotRight]);
   const crowded =
@@ -427,7 +460,7 @@ export function LineChart({
             key={tick.value}
             textAnchor="middle"
             x={toX(tick.value)}
-            y={bottom + 22}
+            y={bottom + TICK_ROW}
           >
             {tick.label}
             {tick.note === undefined ? null : (

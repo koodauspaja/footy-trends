@@ -29,6 +29,7 @@ import {
  * decisions/060-elo-variants.md
  * decisions/413-rounds-a-team-sat-out.md
  * decisions/441-line-chart-text-on-a-phone.md
+ * decisions/700-legible-charts.md
  */
 
 const TOP = MARGIN.top;
@@ -439,6 +440,35 @@ const DIGIT_WIDTH = 0.6;
 // How far a glyph rises above its baseline, as a share of the font size.
 const ASCENT = 0.75;
 
+// The least room between the axis line and the tops of the x ticks, in units.
+const TICK_CLEARANCE = 4;
+
+// The Elo panel's axis: ratings in the thousands under a short caption.
+function eloChart() {
+  return render(
+    <LineChart
+      describedBy="chart-text"
+      labelledBy="chart-heading"
+      series={[
+        {
+          name: "elo",
+          points: [
+            { x: 1, y: 1500 },
+            { x: 38, y: 1700 },
+          ],
+        },
+      ]}
+      title="Joukkueen vahvuus (Elo)"
+      xDomain={[1, 38]}
+      xLabel="Ottelu"
+      xTicks={[1, 38]}
+      yDomain={[1500, 1700]}
+      yLabel="Elo-luku"
+      yTicks={[1500, 1600, 1700]}
+    />
+  ).container;
+}
+
 // The x a rotated caption is translated to.
 function captionX(container: HTMLElement): number {
   const caption = container.querySelector("[data-part=y-axis] text:last-of-type");
@@ -505,23 +535,41 @@ describe("LineChart axis text on a phone", () => {
     expect(caption - tick).toBeGreaterThanOrEqual(mobileAxisSize(container, "x-axis") * LINE_BOX);
   });
 
-  it("fits the widest y tick between the rotated caption and the plot", () => {
-    // The clean-sheet chart's own axis, which is the tight case: a share runs
-    // to 100, the widest tick any chart prints, under a long caption.
-    const container = shareChart();
-    const texts = [...container.querySelectorAll("[data-part=y-axis] text")];
-    const ticks = texts.slice(0, -1);
-    const caption = texts.at(-1)?.getAttribute("transform") ?? "";
-    // The ticks are anchored at their end, so their x is where they stop.
-    const tickEnd = Number(ticks[0]?.getAttribute("x"));
-    const captionCentre = Number(/translate\((-?[\d.]+)/.exec(caption)?.[1]);
-    const size = mobileAxisSize(container, "y-axis");
-    const digits = Math.max(...ticks.map((tick) => (tick.textContent ?? "").length));
+  it.each([
+    // The clean-sheet chart's axis: a share runs to 100 under a long caption.
+    ["a share to 100", shareChart, 3],
+    // The Elo chart's: ratings print four digits.
+    ["a rating in the thousands", eloChart, 4],
+  ])(
+    "fits the widest y tick between the rotated caption and the plot — %s",
+    (_case, draw, width) => {
+      const container = draw();
+      const ticks = [...container.querySelectorAll("[data-part=y-axis] text")].slice(0, -1);
+      // The ticks are anchored at their end, so their x is where they stop.
+      const tickEnd = Number(ticks[0]?.getAttribute("x"));
+      const size = mobileAxisSize(container, "y-axis");
+      const digits = Math.max(...ticks.map((tick) => (tick.textContent ?? "").length));
 
-    expect(digits).toBe(3);
-    expect(tickEnd - (captionCentre + size / 2)).toBeGreaterThanOrEqual(
-      digits * size * DIGIT_WIDTH
-    );
+      expect(digits).toBe(width);
+      expect(tickEnd - (captionX(container) + size / 2)).toBeGreaterThanOrEqual(
+        digits * size * DIGIT_WIDTH
+      );
+    }
+  );
+
+  it("keeps the x ticks' ascent clear of the axis line", () => {
+    const container = chart(true);
+    const tick = Number(container.querySelector("[data-part=x-axis] text")?.getAttribute("y"));
+    const size = mobileAxisSize(container, "x-axis");
+
+    expect(tick - size * ASCENT - BOTTOM).toBeGreaterThanOrEqual(TICK_CLEARANCE);
+  });
+
+  it("puts a tick's note a whole line under its label", () => {
+    const container = seasonChart();
+    const dy = Number(container.querySelector("[data-part=tick-note]")?.getAttribute("dy"));
+
+    expect(dy).toBeGreaterThanOrEqual(mobileAxisSize(container, "x-axis") * LINE_BOX);
   });
 });
 
@@ -554,6 +602,39 @@ describe("LineChart room for its labels on a phone", () => {
   it("starts the plot in from the axis by what a wide first label would reach under the y ticks", () => {
     // `2024/25`, centred on the plot's start, would print over the lowest y tick.
     const container = seasonChart({});
+    const first = container.querySelector("[data-part=x-axis] text");
+    const tickEnd = Number(container.querySelector("[data-part=y-axis] text")?.getAttribute("x"));
+    const width =
+      (first?.textContent ?? "").length * DIGIT_WIDTH * mobileAxisSize(container, "x-axis");
+
+    expect(Number(first?.getAttribute("x")) - width / 2).toBeCloseTo(tickEnd);
+  });
+
+  it("starts the plot in for a first tick just inside the domain, its label clear of the y ticks", () => {
+    // Whole years from late December: the first tick is in from the axis, but
+    // not by enough for its label.
+    const container = render(
+      <LineChart
+        describedBy="chart-text"
+        labelledBy="chart-heading"
+        series={[
+          {
+            name: "line",
+            points: [
+              { x: 2017.95, y: 1 },
+              { x: 2020, y: 2 },
+            ],
+          },
+        ]}
+        title="Osumat"
+        xDomain={[2017.95, 2020]}
+        xLabel="Vuosi"
+        xTicks={[2018, 2019, 2020]}
+        yDomain={[1, 2]}
+        yLabel="Osuma"
+        yTicks={[1, 2]}
+      />
+    ).container;
     const first = container.querySelector("[data-part=x-axis] text");
     const tickEnd = Number(container.querySelector("[data-part=y-axis] text")?.getAttribute("x"));
     const width =

@@ -43,7 +43,7 @@ export function totalsSentence(point: GoalsPoint): string {
 
 /**
  * The running totals' y-axis top: the team's highest total, rounded up to a
- * whole `totalsStep`, and never below one. One fixed value cannot serve a
+ * whole `totalsStep`, and never below one step. One fixed value cannot serve a
  * Bundesliga attack with 99 goals and a Veikkausliiga side with 30.
  *
  * decisions/032-goals-scored-vs-conceded.md

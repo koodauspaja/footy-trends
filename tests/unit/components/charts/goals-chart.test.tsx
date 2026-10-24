@@ -18,6 +18,7 @@ import type { GoalsPoint } from "@/lib/goals-series";
  * The two goals charts: their axes and their text alternatives.
  *
  * decisions/032-goals-scored-vs-conceded.md
+ * decisions/700-legible-charts.md
  */
 
 const TOP = MARGIN.top;
