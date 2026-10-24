@@ -67,8 +67,9 @@ chart, so their points line up; the running totals start at the first.
 from the data below.
 
 **Y-axis, running totals: 0 to the team's own highest total, rounded up to a
-whole ten** (Q1). One fixed value cannot serve both a Bundesliga attack with 99
-goals and a Veikkausliiga side with 30.
+whole step** (Q1): ten while six tens reach it, then 20, 25, 50, 100 and so on,
+so the axis prints seven labels at most (decisions/700). One fixed value cannot
+serve both a Bundesliga attack with 99 goals and a Veikkausliiga side with 30.
 
 ## API & Data
 
@@ -160,7 +161,7 @@ No new environment variables. No secrets.
       football-data and one TASO league
 - [ ] Scored is solid, conceded dashed; both charts have the legend
 - [ ] The rolling y-axis is 0 to 5 for every team; the running-total y-axis is 0
-      to the team's highest total rounded up to a ten
+      to the team's highest total rounded up to a whole step
 - [ ] The rolling chart's points line up with the form chart's matches
 - [ ] Text alternatives list both values for every point, the rolling ones with
       decimal commas
