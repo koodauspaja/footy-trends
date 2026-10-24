@@ -14,6 +14,7 @@ type RoundSelectProps = {
  *
  * decisions/005-listing-matches-for-selected-season.md
  * decisions/532-one-transaction-type-one-round-dropdown.md
+ * decisions/696-headings-and-spacing.md
  */
 export function RoundSelect({
   availableRounds,
@@ -22,7 +23,7 @@ export function RoundSelect({
   wholeSeason = false,
 }: Readonly<RoundSelectProps>) {
   return (
-    <>
+    <span className="flex items-center gap-3">
       <label className="text-sm text-muted" htmlFor="kierros">
         Kierros
       </label>
@@ -43,6 +44,6 @@ export function RoundSelect({
           </option>
         ))}
       </select>
-    </>
+    </span>
   );
 }

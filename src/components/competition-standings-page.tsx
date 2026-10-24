@@ -4,6 +4,7 @@ import { CompetitionAnalyticsSection } from "@/components/competition-analytics"
 import { ContextNotices } from "@/components/context-notices";
 import { CupBracket } from "@/components/cup-bracket";
 import { CupStandingsControls } from "@/components/cup-standings-controls";
+import { TABLE_HEADING } from "@/components/heading-classes";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { StandingsControls } from "@/components/standings-controls";
@@ -113,7 +114,7 @@ async function renderCupStandings({
         <div className="flex flex-col gap-8">
           {phases.map((phase) => (
             <section key={phase.group ?? phase.heading}>
-              <h2 className="mb-2 font-medium">{phase.heading}</h2>
+              <h2 className={`mb-3 ${TABLE_HEADING}`}>{phase.heading}</h2>
               <StandingsTable
                 favouriteSource="football-data"
                 standings={phase.standings}
@@ -126,7 +127,7 @@ async function renderCupStandings({
       {phases.length > 0 && <StandingsLegend />}
       {season.status !== "error" && (
         <section className="mt-8">
-          <h2 className="mb-2 font-medium">{KNOCKOUT_HEADING}</h2>
+          <h2 className={`mb-3 ${TABLE_HEADING}`}>{KNOCKOUT_HEADING}</h2>
           <CupBracket rounds={bracket} teamHref={teamHref} />
         </section>
       )}

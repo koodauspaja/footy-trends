@@ -4,6 +4,7 @@ import { CompetitionAnalyticsSection } from "@/components/competition-analytics"
 import { BracketTree } from "@/components/cup-bracket";
 import { CupForecastSection } from "@/components/cup-forecast";
 import { FoldMarker } from "@/components/fold-marker";
+import { TABLE_HEADING } from "@/components/heading-classes";
 import { MatchListTable } from "@/components/match-list-table";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
@@ -165,7 +166,7 @@ function LeagueGroups({
 
   return zoned.map(({ group, zones, ruleAfter }) => (
     <section className="mb-10" key={group.groupId}>
-      <h2 className="mb-3 font-semibold text-xl">{displayGroupName(group.groupName)}</h2>
+      <h2 className={`mb-3 ${TABLE_HEADING}`}>{displayGroupName(group.groupName)}</h2>
       <GroupBody group={group} isCup={false} ruleAfter={ruleAfter} teamHref={teamHref} />
       {zones.length > 0 && (
         <ul className="mt-3 text-sm">
@@ -202,7 +203,7 @@ function CupRoundSection({
     <details className="group mb-10 border-border-subtle border-b pb-4" open={open}>
       <summary className="mb-3 flex cursor-pointer list-none items-baseline gap-2">
         <FoldMarker />
-        <h2 className="font-semibold text-xl">{displayGroupName(group.groupName)}</h2>
+        <h2 className={TABLE_HEADING}>{displayGroupName(group.groupName)}</h2>
         {group.kind === "match-list" && (
           <span className="text-sm text-muted">{`(${matchCountLabel(group.matches.length)})`}</span>
         )}
@@ -262,14 +263,14 @@ function GroupsAndPlayoff({
     <>
       {tables.map((group) => (
         <section className="mb-10" key={group.groupId}>
-          <h2 className="mb-3 font-semibold text-xl">{displayGroupName(group.groupName)}</h2>
+          <h2 className={`mb-3 ${TABLE_HEADING}`}>{displayGroupName(group.groupName)}</h2>
           <GroupBody group={group} isCup teamHref={teamHref} />
         </section>
       ))}
       {tables.length > 0 && <StandingsLegend />}
       {(listed.length > 0 || rounds.length > 0) && (
         <section className="mt-10 mb-10">
-          <h2 className="mb-3 font-semibold text-xl">{KNOCKOUT_HEADING}</h2>
+          <h2 className={`mb-3 ${TABLE_HEADING}`}>{KNOCKOUT_HEADING}</h2>
           {listed.map((group) => (
             <section className="mb-8" key={group.groupId}>
               <h3 className="mb-3 font-semibold text-lg">{displayGroupName(group.groupName)}</h3>
@@ -413,7 +414,7 @@ export default async function DomesticStandingsPage({
       )}
       {bracket.length > 0 && (
         <section className="mb-10">
-          <h2 className="mb-3 font-semibold text-xl">{KNOCKOUT_HEADING}</h2>
+          <h2 className={`mb-3 ${TABLE_HEADING}`}>{KNOCKOUT_HEADING}</h2>
           <BracketTree rounds={bracket} teamHref={teamHref} />
         </section>
       )}

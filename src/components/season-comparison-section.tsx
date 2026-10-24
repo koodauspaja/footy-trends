@@ -46,7 +46,7 @@ function bodyFor(
   // is empty — every bar `–` rather than 0 — and the line says why.
   return (
     <div>
-      <p className="text-muted text-sm">
+      <p className="mb-2 text-muted text-sm">
         {series.seasons === 0
           ? axis.noOthersMessage
           : axis.baselineLine(series.seasons, series.competitions)}

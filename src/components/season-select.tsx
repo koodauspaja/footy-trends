@@ -11,10 +11,11 @@ type SeasonSelectProps = {
  * between the home page and the team page.
  *
  * decisions/004-listing-matches-for-selected-team.md
+ * decisions/696-headings-and-spacing.md
  */
 export function SeasonSelect({ seasons, selectedSeasonId, onChange }: Readonly<SeasonSelectProps>) {
   return (
-    <>
+    <span className="flex items-center gap-3">
       <label className="text-sm text-muted" htmlFor="kausi">
         Kausi
       </label>
@@ -31,6 +32,6 @@ export function SeasonSelect({ seasons, selectedSeasonId, onChange }: Readonly<S
           </option>
         ))}
       </select>
-    </>
+    </span>
   );
 }
