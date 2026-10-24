@@ -81,10 +81,8 @@ came for: its most basic part open, everything else closed until they open it.
 - **Reading:** the page reads the reader's choices once, on the server, with
   the session it already reads, and renders each `<details>` open or closed
   from them.
-- **Caching:** none on the server. The choices are per reader and read with the
-  page, which is `force-dynamic`. No Redis key. In the browser, a tab keeps the
-  choices it has stored until a reload, so a page that Back restores from the
-  router's cache shows them.
+- **Caching:** none. The choices are per reader and read with the page, which
+  is `force-dynamic`. No Redis key, and no copy in the browser.
 
 ## Edge Cases
 
@@ -100,7 +98,8 @@ came for: its most basic part open, everything else closed until they open it.
 - **Lists inside a section, such as a cup's rounds and Huuhkajat' years:** they don't fold by this rule and are not remembered. #698 decides how they start. "Juuson kierros" on one cup is not a choice about every cup (Q2).
 - **A standings page's tables** (`Mestaruussarja`, `Lohko A`, `Liigavaihe`): each headed table is a fold that starts open, and folding one is not remembered, so the tables always open as the page's most basic part (Q6). A table with no heading, a one-table league's, does not fold.
 - **A league's knockout match lists** after the `Pudotuspelit` tree: each is a fold that starts closed, and is not remembered (Q7). The first opens when neither a table nor a tree comes above it, as the page's first section (decisions/714).
-- **Another season or round of the same page:** a fold keeps the state the reader left it in, unless the new render starts it otherwise, as when another group becomes the first. It then starts from the choice this tab stored, else from the new render. A reload starts from the stored choices, or from the defaults for a signed-out reader.
+- **Another season or round of the same page:** every fold starts over from the new render, as a load does. The same page drawn again, as starring a team does, keeps the folds as the reader left them.
+- **Back and Forward** show a page as the router cached it, its folds as they were first drawn. A reload shows the stored choices.
 - **The browser opening a fold itself**, for find in page: saved as the reader's choice, like a press.
 - **A press before the page hydrates:** the fold opens or closes, and the choice is not saved.
 - **Signing out without leaving the page:** the page stays as it was rendered. A toggle on it is refused and logged.
