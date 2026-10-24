@@ -63,15 +63,24 @@ test.describe("At 375 px", () => {
     const tree = page.locator("div.overflow-x-auto").filter({ has: page.locator("section h3") });
     await expect(tree).toHaveCount(1);
 
-    const { overflows, background, shadow } = await tree.evaluate((element) => ({
-      overflows: element.scrollWidth > element.clientWidth,
-      background: getComputedStyle(element).backgroundImage,
-      shadow: getComputedStyle(element).getPropertyValue("--scroll-shadow"),
-    }));
+    const { overflows, background, shadow } = await tree.evaluate((element) => {
+      // The browser spells the token's colour out as `rgba(…)`, however the
+      // stylesheet wrote it.
+      const probe = document.createElement("span");
+      probe.style.color = "var(--scroll-shadow)";
+      element.append(probe);
+      const colour = getComputedStyle(probe).color;
+      probe.remove();
+      return {
+        overflows: element.scrollWidth > element.clientWidth,
+        background: getComputedStyle(element).backgroundImage,
+        shadow: colour,
+      };
+    });
     expect(overflows).toBe(true);
     expect(background).toContain("radial-gradient");
     // A shadow of no strength would draw nothing.
-    const alpha = Number(/\/\s*([\d.]+)\s*\)/.exec(shadow)?.[1]);
+    const alpha = Number(/rgba\([^)]*,\s*([\d.]+)\)/.exec(shadow)?.[1]);
     expect(alpha).toBeGreaterThan(0);
   });
 });
