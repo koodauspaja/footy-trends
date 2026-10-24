@@ -4,6 +4,7 @@ import { comebacksPanel } from "@/components/comebacks-section";
 import { type EloPanelData, eloPanel } from "@/components/elo-section";
 import { formPanel } from "@/components/form-section";
 import { rollingGoalsPanel, totalGoalsPanel } from "@/components/goals-section";
+import { GROUP_HEADING } from "@/components/heading-classes";
 import { homeAwayPanel } from "@/components/home-away-section";
 import { positionPanel } from "@/components/league-position-section";
 import { OPPONENTS_GROUP_HEADING, opponentsPanel } from "@/components/opponents-section";
@@ -220,6 +221,7 @@ export async function AnalyticsSection({
  * a screen reader can move between groups as it moves between panels.
  *
  * decisions/424-analytics-panel-groups.md
+ * decisions/696-headings-and-spacing.md
  */
 function PanelGroup({
   heading,
@@ -227,8 +229,8 @@ function PanelGroup({
   children,
 }: Readonly<{ heading: string; headingId: string; children: React.ReactNode }>) {
   return (
-    <section aria-labelledby={headingId} className="mt-6">
-      <h3 className="font-medium text-muted text-sm uppercase tracking-wide" id={headingId}>
+    <section aria-labelledby={headingId} className="mt-12 first-of-type:mt-4">
+      <h3 className={GROUP_HEADING} id={headingId}>
         {heading}
       </h3>
       {children}

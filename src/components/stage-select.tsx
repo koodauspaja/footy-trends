@@ -12,6 +12,7 @@ type StageSelectProps = {
  * elsewhere on the page.
  *
  * decisions/014-champions-league.md
+ * decisions/696-headings-and-spacing.md
  */
 export function StageSelect({
   availableStages,
@@ -19,7 +20,7 @@ export function StageSelect({
   onChange,
 }: Readonly<StageSelectProps>) {
   return (
-    <>
+    <span className="flex items-center gap-3">
       <label className="text-sm text-muted" htmlFor="vaihe">
         Vaihe
       </label>
@@ -36,6 +37,6 @@ export function StageSelect({
           </option>
         ))}
       </select>
-    </>
+    </span>
   );
 }

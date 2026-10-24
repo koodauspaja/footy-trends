@@ -1,3 +1,5 @@
+import { PANEL_HEADING } from "@/components/heading-classes";
+
 /**
  * One chart inside the team page's `Analyysit` section: a region named by its
  * own subheading, so a screen reader can move between the charts. The heading
@@ -5,6 +7,7 @@
  *
  * decisions/031-rolling-form-trend.md
  * decisions/424-analytics-panel-groups.md
+ * decisions/696-headings-and-spacing.md
  */
 export function ChartPanel({
   headingId,
@@ -12,8 +15,8 @@ export function ChartPanel({
   children,
 }: Readonly<{ headingId: string; heading: string; children: React.ReactNode }>) {
   return (
-    <section aria-labelledby={headingId} className="mt-4">
-      <h4 className="mb-2 font-medium text-sm" id={headingId}>
+    <section aria-labelledby={headingId} className="mt-8 first-of-type:mt-4">
+      <h4 className={`mb-2 ${PANEL_HEADING}`} id={headingId}>
         {heading}
       </h4>
       {children}
