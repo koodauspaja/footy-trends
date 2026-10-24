@@ -50,7 +50,7 @@
   "dependencies": {
     "@axiomhq/pino": "2.0.0",
     "@sentry/nextjs": "11.7.0",
-    "better-auth": "1.7.7",
+    "better-auth": "1.7.12",
     "drizzle-orm": "0.45.4",
     "ioredis": "6.0.0",
     "next": "16.4.2",
