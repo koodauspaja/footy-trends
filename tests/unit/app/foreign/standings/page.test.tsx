@@ -723,6 +723,40 @@ describe("Standings page, cup competitions", () => {
     expect(foldOf("Pudotuspelit")?.open).toBe(false);
   });
 
+  it("starts an opened Analyysit over on another round of a league, and keeps it on the same page", async () => {
+    const { SectionFold } = await import("@/components/section-fold");
+    // A real fold in place of the section, once for each of the three renders.
+    for (let render = 0; render < 3; render += 1) {
+      competitionAnalyticsMock.mockImplementationOnce(async () => (
+        <SectionFold
+          fold={{ initiallyOpen: false, remember: null }}
+          headingId="competition-analytics"
+          summary={<h2 id="competition-analytics">Analyysit</h2>}
+        >
+          <p>Sisältö</p>
+        </SectionFold>
+      ));
+    }
+    const { default: StandingsPage } = await import("@/app/foreign/standings/page");
+    const page = (kierros: string) =>
+      StandingsPage({ searchParams: Promise.resolve({ kilpailu: "PL", kausi: "2024", kierros }) });
+    const view = render(await page("5"));
+    const analytics = () =>
+      screen
+        .getByRole("region", { name: "Analyysit" })
+        .querySelector(":scope > details") as HTMLDetailsElement;
+    await act(async () => {
+      analytics().open = true;
+      fireEvent(analytics(), new Event("toggle"));
+    });
+
+    view.rerender(await page("5"));
+    expect(analytics().open).toBe(true);
+
+    view.rerender(await page("6"));
+    expect(analytics().open).toBe(false);
+  });
+
   it("starts a folded phase over on another season, and keeps it folded on the same page", async () => {
     getCupSeasonMock.mockResolvedValue({
       status: "ok",
