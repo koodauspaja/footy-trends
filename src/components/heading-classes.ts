@@ -14,3 +14,11 @@ export const TABLE_HEADING = "font-semibold text-xl";
  * decisions/696-headings-and-spacing.md
  */
 export const GROUP_HEADING = "font-medium text-muted text-sm uppercase tracking-wide";
+
+/**
+ * An analytics panel's heading, `Kauden ennuste` or `Maalit yhteensä`: above
+ * the labels inside a panel, below `Analyysit` and a table's heading.
+ *
+ * decisions/696-headings-and-spacing.md
+ */
+export const PANEL_HEADING = "font-semibold text-lg";

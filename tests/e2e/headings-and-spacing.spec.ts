@@ -100,3 +100,30 @@ test("leaves space between one analytics panel and the next, and more between gr
   expect(gaps.groups.length).toBeGreaterThan(0);
   expect(Math.min(...gaps.groups)).toBeGreaterThanOrEqual(48);
 });
+
+test("sets a panel's heading above its labels and lines, and below its section's", async ({
+  page,
+}) => {
+  await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
+  await page.goto("/kotimaa/sarjataulukko?kilpailu=VL&kausi=2026");
+  const forecast = page.getByRole("region", { name: "Kauden ennuste" });
+  await expect(forecast).toBeVisible();
+
+  const size = (locator: Locator) =>
+    locator.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
+  const section = await size(page.getByRole("heading", { level: 2, name: "Analyysit" }));
+  const panel = await size(forecast.getByRole("heading", { level: 4 }));
+  const label = await size(forecast.getByRole("heading", { level: 5 }).first());
+  expect(label).toBeLessThan(panel);
+  expect(panel).toBeLessThan(section);
+
+  // An empty line, such as the surprises' before any match is predicted.
+  const surprises = page.getByRole("region", { name: "Kauden suurimmat yllätykset" });
+  const lines = await surprises
+    .locator("p")
+    .evaluateAll((paragraphs) =>
+      paragraphs.map((paragraph) => Number.parseFloat(getComputedStyle(paragraph).fontSize))
+    );
+  expect(lines.length).toBeGreaterThan(0);
+  expect(Math.max(...lines)).toBeLessThan(await size(surprises.getByRole("heading", { level: 4 })));
+});
