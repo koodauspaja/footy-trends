@@ -290,7 +290,7 @@ export async function TeamPage<M extends MatchListRow>({
               count={matchCountLabel(result.matches.length)}
               heading={MATCHES_HEADING}
               headingId="team-matches"
-              {...foldFor(sections, "matches")}
+              fold={foldFor(sections, "matches")}
             >
               <MatchListTable
                 fourthColumn={data.fourthColumn}

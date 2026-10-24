@@ -968,6 +968,21 @@ describe("Domestic standings page, cup competitions", () => {
       expect(foldOf("Pudotuspelit").open).toBe(false);
     });
 
+    it.each([
+      ["a league's", {}],
+      ["a groups-then-playoff cup's", { kilpailu: "LC", kausi: "2026" }],
+    ])("opens %s Pudotuspelit when no table comes above it", async (_page, query) => {
+      getSeasonStandingsMock.mockResolvedValue({
+        status: "ok",
+        levels: [],
+        groups: closingRounds.slice(1),
+      });
+
+      await renderStandings(query);
+
+      expect(foldOf("Pudotuspelit").open).toBe(true);
+    });
+
     it("closes Cupin ennuste until the reader opens it", async () => {
       canSeeAnalyticsMock.mockResolvedValue(true);
       getCupForecastMock.mockResolvedValue({ status: "no-fixtures" });

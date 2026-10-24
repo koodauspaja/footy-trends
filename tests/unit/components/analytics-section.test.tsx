@@ -13,7 +13,7 @@ import type { GoalsSeries } from "@/lib/goals-series";
 import type { HomeAwaySeries } from "@/lib/home-away";
 import type { PositionSeries } from "@/lib/position-series";
 import { MEASURES, type SeasonComparisonSeries } from "@/lib/season-comparison";
-import type { PageSections } from "@/lib/section-keys";
+import type { PageSectionsOf } from "@/lib/section-keys";
 import type { StreakRecordsSeries } from "@/lib/streak-records";
 import type { StreaksSeries } from "@/lib/streaks";
 
@@ -119,12 +119,12 @@ const comparison: SeasonComparisonSeries = {
 
 // `Analyysit` opened, as a reader does, so its panels can be seen; the fold
 // tests below set their own.
-const OPENED: PageSections & { kind: "team" } = {
+const OPENED: PageSectionsOf<"team"> = {
   kind: "team",
   signedIn: false,
   choices: { analytics: true },
 };
-let readerSections: PageSections & { kind: "team" | "national-team" } = OPENED;
+let readerSections: PageSectionsOf<"team" | "national-team"> = OPENED;
 
 async function renderSection(
   loadPosition = vi.fn(async (): Promise<PositionSeries> => position),

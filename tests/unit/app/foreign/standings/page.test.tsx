@@ -723,6 +723,23 @@ describe("Standings page, cup competitions", () => {
     expect(foldOf("Pudotuspelit")?.open).toBe(false);
   });
 
+  it("opens Pudotuspelit when the season has no table above it", async () => {
+    getCupSeasonMock.mockResolvedValue({
+      status: "ok",
+      matches: [
+        cupMatch({ id: 10, stage: "FINAL", home: [1, "A"], away: [2, "B"], score: [1, 0] }),
+      ],
+    });
+
+    await renderStandings({ kilpailu: "CL" });
+
+    expect(
+      screen
+        .getByRole("region", { name: "Pudotuspelit" })
+        .querySelector<HTMLDetailsElement>(":scope > details")?.open
+    ).toBe(true);
+  });
+
   it("tells the user when the knockout rounds have not started", async () => {
     getCupSeasonMock.mockResolvedValue({
       status: "ok",

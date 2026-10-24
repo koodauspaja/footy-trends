@@ -2,6 +2,7 @@ import { type BrowserContext, expect, type Locator, type Page, test } from "@pla
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 import { SESSION_COOKIE, storeSignedInReader } from "../support/e2e-session";
 import { fold, isOpen } from "./folds";
+import { waitForSession } from "./session";
 
 /**
  * A page's sections fold, each starting as its kind of page has it, and a
@@ -24,7 +25,10 @@ function groupsOpen(page: Page): Promise<boolean[]> {
 }
 
 // Presses a fold's heading and waits for the server action saving its choice.
+// The page has hydrated by then: a press before it is toggled by the browser
+// alone, with nothing listening to save it.
 async function toggleSaved(page: Page, details: Locator): Promise<void> {
+  await waitForSession(page);
   const saved = page.waitForResponse(
     (response) => "next-action" in response.request().headers() && response.ok()
   );
@@ -164,6 +168,22 @@ test.describe("Signed in", () => {
     } finally {
       await second.close();
     }
+  });
+
+  test("Back shows a fold as it was left, not as the page was first drawn", async ({
+    page,
+    baseURL,
+  }) => {
+    await signIn(page.context(), reader.cookie, baseURL as string);
+    await page.goto(INTER);
+    await toggleSaved(page, fold(page, "Analyysit"));
+
+    await page.getByRole("link", { name: "Sarjataulukkoon" }).click();
+    await expect(page).toHaveURL(/\/kotimaa\/sarjataulukko/);
+    await page.goBack();
+    await expect(page).toHaveURL(/\/kotimaa\/joukkue\/60987/);
+
+    expect(await isOpen(fold(page, "Analyysit"))).toBe(true);
   });
 
   test("signed out again, the page starts from its defaults", async ({ page, baseURL }) => {

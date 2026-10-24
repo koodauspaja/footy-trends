@@ -20,7 +20,7 @@ import { resolveBasePageContext } from "@/lib/page-context";
 import { listSelectableRounds, parseRoundParam } from "@/lib/rounds";
 import { formatSeasonLabel } from "@/lib/seasons";
 import { getPageSections } from "@/lib/section-choices";
-import { foldFor, type PageSections } from "@/lib/section-keys";
+import { foldFor, type PageSectionsOf } from "@/lib/section-keys";
 import { getCupSeason, getMaxMatchday, getStandings } from "@/lib/standings-service";
 import { cupCaveat, registryLevels } from "@/lib/zone-registry";
 
@@ -56,7 +56,7 @@ export async function standingsMetadata({
  * decisions/048-league-goals-per-game-trend.md
  * decisions/071-section-toggles.md
  */
-function analyticsFor(resolved: ResolvedContext, sections: PageSections & { kind: "standings" }) {
+function analyticsFor(resolved: ResolvedContext, sections: PageSectionsOf<"standings">) {
   const { competitionCode, context, seasonId } = resolved;
   return CompetitionAnalyticsSection({
     sections,
@@ -139,7 +139,7 @@ async function renderCupStandings({
       {season.status !== "error" && (
         <TableFold
           className="mt-8"
-          fold={foldFor(sections, "knockout")}
+          fold={foldFor(sections, "knockout", phases.length === 0)}
           heading={KNOCKOUT_PHASE}
           headingId="standings-knockout"
         >

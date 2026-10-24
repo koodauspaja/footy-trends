@@ -3,7 +3,12 @@ import { db } from "@/db";
 import { sectionChoice } from "@/db/schema";
 import { currentUserId } from "@/lib/current-user";
 import { logger } from "@/lib/logger";
-import type { PageKind, PageSections, SectionChoices } from "@/lib/section-keys";
+import {
+  defaultSections,
+  type PageKind,
+  type PageSectionsOf,
+  type SectionChoices,
+} from "@/lib/section-keys";
 
 /**
  * One reader's stored choices on one kind of page, by section.
@@ -46,16 +51,14 @@ export async function writeSectionChoice(
  *
  * decisions/071-section-toggles.md
  */
-export async function getPageSections<K extends PageKind>(
-  kind: K
-): Promise<PageSections & { kind: K }> {
+export async function getPageSections<K extends PageKind>(kind: K): Promise<PageSectionsOf<K>> {
   let userId: string | null = null;
   try {
     userId = await currentUserId();
-    if (userId === null) return { kind, signedIn: false, choices: {} };
+    if (userId === null) return defaultSections(kind);
     return { kind, signedIn: true, choices: await readSectionChoices(userId, kind) };
   } catch (error) {
     logger.error({ err: error }, "Reading section choices failed");
-    return { kind, signedIn: userId !== null, choices: {} };
+    return { ...defaultSections(kind), signedIn: userId !== null };
   }
 }

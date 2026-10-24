@@ -26,7 +26,7 @@ import {
 import { qualityHref } from "@/lib/prediction-quality";
 import { getSeasonForecast } from "@/lib/season-simulation-service";
 import { formatSeasonLabel } from "@/lib/seasons";
-import { foldFor, type PageSections } from "@/lib/section-keys";
+import { foldFor, type PageSectionsOf } from "@/lib/section-keys";
 import { getSeasonSurprises } from "@/lib/surprise-service";
 import {
   hasTableVolatility,
@@ -206,10 +206,9 @@ const OUTCOME_COLUMNS: ReadonlyArray<DataTableColumn<OutcomeRow>> = [
 ];
 
 /**
- * The competition standings page's `Analyysit`, a fold: this season's forecast
- * and surprises, the group that opens with it, then goals per game and table
- * movement, then `Kilpailut rinnakkain`. Gated before anything is read; awaited
- * by the pages.
+ * A standings page's `Analyysit`: this season's forecast and surprises, which
+ * open with it, then goals per game and table movement, then `Kilpailut
+ * rinnakkain`. Gated before anything is read; awaited by the pages.
  *
  * decisions/048-league-goals-per-game-trend.md
  * decisions/049-home-advantage-and-draw-rate.md
@@ -327,7 +326,7 @@ export async function CompetitionAnalyticsSection({
  *
  * decisions/071-section-toggles.md
  */
-type StandingsSections = PageSections & { kind: "standings" };
+type StandingsSections = PageSectionsOf<"standings">;
 
 /**
  * The table of every compared competition, this one's row marked. Without
@@ -371,13 +370,11 @@ function Section({
   sections,
   children,
 }: Readonly<{ sections: StandingsSections; children: React.ReactNode }>) {
-  const fold = foldFor(sections, "analytics");
   return (
     <SectionFold
       className="mt-10"
+      fold={foldFor(sections, "analytics")}
       headingId={SECTION_ID}
-      initiallyOpen={fold.initiallyOpen}
-      remember={fold.remember}
       summary={
         <h2 className="font-semibold text-xl" id={SECTION_ID}>
           {ANALYTICS_HEADING}

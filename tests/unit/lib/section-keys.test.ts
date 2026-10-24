@@ -3,7 +3,7 @@ import {
   defaultSections,
   foldFor,
   isKnownSection,
-  type PageSections,
+  type PageSectionsOf,
   sectionOpen,
 } from "@/lib/section-keys";
 
@@ -56,7 +56,7 @@ describe("the defaults, for a reader with no stored choice", () => {
 });
 
 describe("a stored choice", () => {
-  const stored: PageSections & { kind: "team" } = {
+  const stored: PageSectionsOf<"team"> = {
     kind: "team",
     signedIn: true,
     choices: { analytics: true, matches: false, "analytics-other-seasons": false },
@@ -69,7 +69,7 @@ describe("a stored choice", () => {
   });
 
   it("wins over a first section's opening too", () => {
-    const closed: PageSections & { kind: "standings" } = {
+    const closed: PageSectionsOf<"standings"> = {
       kind: "standings",
       signedIn: true,
       choices: { knockout: false },

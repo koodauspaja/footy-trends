@@ -396,6 +396,9 @@ export default async function DomesticStandingsPage({
           )
         )
       : [];
+  // With no table above it, `Pudotuspelit` is the page's first section.
+  const noTable =
+    result.status === "ok" && result.groups.every((group) => group.kind === "match-list");
 
   return (
     <PageShell heading={`${seasonCompetitionName} ${seasonLabel}`}>
@@ -427,7 +430,7 @@ export default async function DomesticStandingsPage({
       {result.status === "ok" && isGroupsAndPlayoff && (
         <GroupsAndPlayoff
           groups={result.groups}
-          knockoutFold={foldFor(sections, "knockout")}
+          knockoutFold={foldFor(sections, "knockout", noTable)}
           teamHref={teamHref}
         />
       )}
@@ -440,9 +443,9 @@ export default async function DomesticStandingsPage({
         />
       )}
       {bracket.length > 0 && (
-        // A Suomen Cup's first section, so it opens there.
+        // A Suomen Cup's bracket comes before its rounds.
         <TableFold
-          fold={foldFor(sections, "knockout", isCup)}
+          fold={foldFor(sections, "knockout", isCup || noTable)}
           heading={KNOCKOUT_PHASE}
           headingId="standings-knockout"
         >

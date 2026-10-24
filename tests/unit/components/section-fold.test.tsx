@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { FoldState } from "@/lib/section-keys";
 
 /**
  * A fold: a region named by its heading, in a `<details>` that starts as it is
@@ -24,20 +25,30 @@ beforeEach(() => {
   saveSectionChoiceAction.mockResolvedValue({ ok: true });
 });
 
-function renderFold(
+// The tab keeps what it saved for as long as the module lives, so each test
+// names a section of its own.
+function remembered(section: string): FoldState["remember"] {
+  return { kind: "team", section };
+}
+
+function foldOf(
   initiallyOpen: boolean,
-  remember: { kind: "team"; section: string } | null = { kind: "team", section: "analytics" }
+  remember: FoldState["remember"],
+  children: React.ReactNode = <p>Sisältö</p>
 ) {
-  const view = render(
+  return (
     <SectionFold
+      fold={{ initiallyOpen, remember }}
       headingId="analytics"
-      initiallyOpen={initiallyOpen}
-      remember={remember}
       summary={<h2 id="analytics">Analyysit</h2>}
     >
-      <p>Sisältö</p>
+      {children}
     </SectionFold>
   );
+}
+
+function renderFold(initiallyOpen: boolean, remember: FoldState["remember"]) {
+  const view = render(foldOf(initiallyOpen, remember));
   const details = view.container.querySelector("details") as HTMLDetailsElement;
   return { ...view, details };
 }
@@ -50,7 +61,7 @@ function toggle(details: HTMLDetailsElement, open: boolean) {
 
 describe("SectionFold", () => {
   it("starts open or closed as it is told, the heading inside its summary", () => {
-    const { details } = renderFold(false);
+    const { details } = renderFold(false, remembered("starts"));
 
     expect(details.open).toBe(false);
     expect(screen.getByText("Sisältö")).not.toBeVisible();
@@ -60,18 +71,18 @@ describe("SectionFold", () => {
   });
 
   it("saves the reader's toggle under its kind and section", async () => {
-    const { details } = renderFold(false);
+    const { details } = renderFold(false, remembered("saves"));
 
     await act(async () => toggle(details, true));
-    expect(saveSectionChoiceAction).toHaveBeenLastCalledWith("team", "analytics", true);
+    expect(saveSectionChoiceAction).toHaveBeenLastCalledWith("team", "saves", true);
 
     await act(async () => toggle(details, false));
-    expect(saveSectionChoiceAction).toHaveBeenLastCalledWith("team", "analytics", false);
+    expect(saveSectionChoiceAction).toHaveBeenLastCalledWith("team", "saves", false);
     expect(saveSectionChoiceAction).toHaveBeenCalledTimes(2);
   });
 
   it("saves nothing when the browser only announces the state it was rendered in", async () => {
-    const { details } = renderFold(true);
+    const { details } = renderFold(true, remembered("announces"));
 
     await act(async () => toggle(details, true));
     expect(saveSectionChoiceAction).not.toHaveBeenCalled();
@@ -88,10 +99,53 @@ describe("SectionFold", () => {
   it("reports a save that could not be sent, and keeps the fold as the reader set it", async () => {
     const failure = new Error("offline");
     saveSectionChoiceAction.mockRejectedValue(failure);
-    const { details } = renderFold(false);
+    const { details } = renderFold(false, remembered("fails"));
 
     await act(async () => toggle(details, true));
     expect(details.open).toBe(true);
     expect(reportClientError).toHaveBeenCalledWith(failure, "section-fold");
+  });
+
+  it("starts over when a navigation keeps it and renders it otherwise", () => {
+    const { details, rerender } = renderFold(false, remembered("restarts"));
+
+    rerender(foldOf(true, remembered("restarts")));
+
+    expect(details.open).toBe(true);
+    expect(saveSectionChoiceAction).not.toHaveBeenCalled();
+  });
+
+  it("shows the choice this tab saved over the state a cached page renders", async () => {
+    const first = renderFold(false, remembered("cached"));
+    await act(async () => toggle(first.details, true));
+    first.unmount();
+
+    // Back to the page, from the router's copy made before the toggle.
+    const { details } = renderFold(false, remembered("cached"));
+
+    expect(details.open).toBe(true);
+  });
+
+  it("keeps nothing in the tab for a fold with nothing to remember", async () => {
+    const first = renderFold(false, null);
+    await act(async () => toggle(first.details, true));
+    first.unmount();
+
+    expect(renderFold(false, null).details.open).toBe(false);
+  });
+
+  it("saves a nested fold's toggle as that fold's alone", async () => {
+    const { container } = render(
+      foldOf(false, remembered("outer"), foldOf(false, remembered("inner")))
+    );
+    const [outer, inner] = [...container.querySelectorAll("details")] as HTMLDetailsElement[];
+    // The outer element disagreeing with its state, as after a press before
+    // hydration, so only the target check tells the two toggles apart.
+    Object.defineProperty(outer, "open", { configurable: true, value: true });
+
+    await act(async () => toggle(inner as HTMLDetailsElement, true));
+
+    expect(saveSectionChoiceAction).toHaveBeenCalledTimes(1);
+    expect(saveSectionChoiceAction).toHaveBeenCalledWith("team", "inner", true);
   });
 });

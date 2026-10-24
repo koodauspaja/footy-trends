@@ -1,10 +1,9 @@
 /**
- * How each section of each kind of page starts for a reader with no stored
- * choice, by a stable English key: the page's most basic part open
- * (decisions/714) and everything else closed. Inside `Analyysit` the first
- * group shown opens too, through `sectionOpen`'s `first`. Its keys are the only
+ * How each kind of page's sections start with no stored choice, by a stable
+ * English key: closed, but for the most basic part. Its keys are the only
  * sections a choice can be stored for.
  *
+ * decisions/714-page-section-order.md
  * decisions/071-section-toggles.md
  */
 const DEFAULT_OPEN = {
@@ -64,6 +63,13 @@ export type PageSections = Readonly<{
 }>;
 
 /**
+ * A page's sections on one kind of page.
+ *
+ * decisions/071-section-toggles.md
+ */
+export type PageSectionsOf<K extends PageKind> = PageSections & { kind: K };
+
+/**
  * Whether `section` is one a choice can be stored for on `kind`. It takes
  * anything, because a server action's arguments are whatever the request sent.
  *
@@ -80,13 +86,13 @@ export function isKnownSection(kind: unknown, section: unknown): kind is PageKin
 
 /**
  * Whether a section renders open: the reader's stored choice, else its
- * default. `first` marks a first section, which opens whatever its kind's
- * default: `Pudotuspelit` on a Suomen Cup, and the first group in `Analyysit`.
+ * default. A `first` section, the first a page or `Analyysit` shows, opens
+ * whatever its default.
  *
  * decisions/071-section-toggles.md
  */
 export function sectionOpen<K extends PageKind>(
-  sections: PageSections & { kind: K },
+  sections: PageSectionsOf<K>,
   section: SectionKey<K>,
   first = false
 ): boolean {
@@ -113,7 +119,7 @@ export type FoldState = Readonly<{
  * decisions/071-section-toggles.md
  */
 export function foldFor<K extends PageKind>(
-  sections: PageSections & { kind: K },
+  sections: PageSectionsOf<K>,
   section: SectionKey<K>,
   first = false
 ): FoldState {
@@ -128,6 +134,6 @@ export function foldFor<K extends PageKind>(
  *
  * decisions/071-section-toggles.md
  */
-export function defaultSections<K extends PageKind>(kind: K): PageSections & { kind: K } {
+export function defaultSections<K extends PageKind>(kind: K): PageSectionsOf<K> {
   return { kind, signedIn: false, choices: {} };
 }

@@ -1,5 +1,5 @@
 import { SectionFold } from "@/components/section-fold";
-import type { PageKind } from "@/lib/section-keys";
+import type { FoldState } from "@/lib/section-keys";
 
 /**
  * The match list's heading; its count follows it, `Ottelut (24 ottelua)`.
@@ -22,8 +22,7 @@ export function TeamPageFold({
   headingId,
   count,
   className = "mt-8",
-  initiallyOpen,
-  remember,
+  fold,
   children,
 }: Readonly<{
   heading: string;
@@ -31,16 +30,14 @@ export function TeamPageFold({
   /** Shown after the heading in brackets, e.g. `24 ottelua`. */
   count?: string;
   className?: string;
-  initiallyOpen: boolean;
-  remember: { kind: PageKind; section: string } | null;
+  fold: FoldState;
   children: React.ReactNode;
 }>) {
   return (
     <SectionFold
       className={className}
+      fold={fold}
       headingId={headingId}
-      initiallyOpen={initiallyOpen}
-      remember={remember}
       summary={
         <>
           <h2 className="font-medium" id={headingId}>

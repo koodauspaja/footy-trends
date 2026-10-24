@@ -1,4 +1,4 @@
-import type { PageKind, PageSections } from "@/lib/section-keys";
+import type { PageKind, PageSectionsOf } from "@/lib/section-keys";
 
 /**
  * A stand-in for `@/lib/section-choices` in a page's tests: a signed-out
@@ -13,9 +13,7 @@ export const storedSections: { signedIn: boolean; choices: Record<string, boolea
   choices: {},
 };
 
-export async function getPageSections<K extends PageKind>(
-  kind: K
-): Promise<PageSections & { kind: K }> {
+export async function getPageSections<K extends PageKind>(kind: K): Promise<PageSectionsOf<K>> {
   return { kind, signedIn: storedSections.signedIn, choices: { ...storedSections.choices } };
 }
 

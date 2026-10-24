@@ -28,7 +28,7 @@ import type { OpponentsSeries } from "@/lib/head-to-head";
 import type { HomeAwaySeries } from "@/lib/home-away";
 import type { PositionSeries } from "@/lib/position-series";
 import type { SeasonComparisonSeries } from "@/lib/season-comparison";
-import { foldFor, type PageSections } from "@/lib/section-keys";
+import { foldFor, type PageSectionsOf } from "@/lib/section-keys";
 import type { StreakRecordsSeries } from "@/lib/streak-records";
 import type { StreaksSeries } from "@/lib/streaks";
 
@@ -58,10 +58,9 @@ export const SIGNED_OUT_MESSAGE = "Kirjaudu sisään nähdäksesi analyysit ja t
 const HEADING_ID = "analytics";
 
 /**
- * The team page's analytics: every panel under one heading, in groups of which
- * the first shown opens with it. The gate comes first, and once: a signed-out
- * request gets one sign-in prompt before any loader is called. `null` when no
- * panel applies.
+ * The team page's analytics, in groups of which the first opens with it. The
+ * gate comes first, and once: a signed-out request gets one sign-in prompt
+ * before any loader is called. `null` when no panel applies.
  *
  * decisions/031-rolling-form-trend.md
  * decisions/036-halftime-comebacks.md
@@ -232,7 +231,7 @@ export async function AnalyticsSection({
  *
  * decisions/071-section-toggles.md
  */
-type AnalyticsSections = PageSections & { kind: "team" | "national-team" };
+type AnalyticsSections = PageSectionsOf<"team" | "national-team">;
 
 /**
  * Foldable, like the match list above it, and closed until the reader opens it.
@@ -246,9 +245,9 @@ function Section({
 }: Readonly<{ sections: AnalyticsSections; children: React.ReactNode }>) {
   return (
     <TeamPageFold
+      fold={foldFor(sections, "analytics")}
       heading={ANALYTICS_HEADING}
       headingId={HEADING_ID}
-      {...foldFor(sections, "analytics")}
     >
       {children}
     </TeamPageFold>

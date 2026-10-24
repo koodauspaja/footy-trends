@@ -155,6 +155,7 @@ came for: its most basic part open, everything else closed until they open it.
 - `specs/071-section-toggles.md` (this file)
 - `src/db/schema.ts` and a named migration (`--name=create_section_choices`)
 - `skills/ui-review.md`, class 2: points at this spec's rule
+- `src/app/privacy/page.tsx`: the stored choices, and that deleting the account removes them
 - `docs/infrastructure.md`: only if the store changes anything it describes
 
 ## Open Questions

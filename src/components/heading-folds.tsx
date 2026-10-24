@@ -41,8 +41,7 @@ export function TableFold({
     <SectionFold
       className={className}
       headingId={headingId}
-      initiallyOpen={fold.initiallyOpen}
-      remember={fold.remember}
+      fold={fold}
       summary={
         <h2 className={TABLE_HEADING} id={headingId}>
           {heading}
@@ -78,8 +77,7 @@ export function GroupFold({
     <SectionFold
       className="mt-12 first-of-type:mt-4"
       headingId={headingId}
-      initiallyOpen={fold.initiallyOpen}
-      remember={fold.remember}
+      fold={fold}
       summary={
         <h3 className={GROUP_HEADING} id={headingId}>
           {heading}

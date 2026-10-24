@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { cache } from "react";
 import type { auth as authInstance } from "@/lib/auth";
 
 /**
@@ -14,15 +15,17 @@ async function getAuthInstance(): Promise<typeof authInstance> {
 
 /**
  * The signed-in user's id, or null. No action takes a user id from the client.
+ * `cache()`d, so every reader in one page render shares one session read.
  *
  * decisions/024-account-settings.md
  * decisions/026-favourites.md
+ * decisions/071-section-toggles.md
  */
-export async function currentUserId(): Promise<string | null> {
+export const currentUserId = cache(async (): Promise<string | null> => {
   const auth = await getAuthInstance();
   const session = await auth.api.getSession({ headers: await headers() });
   return session?.user.id ?? null;
-}
+});
 
 /**
  * better-auth's server API, for the session-management calls that are not a
