@@ -82,7 +82,8 @@ came for: its most basic part open, everything else closed until they open it.
   the session it already reads, and renders each `<details>` open or closed
   from them.
 - **Caching:** none. The choices are per reader and read with the page, which
-  is `force-dynamic`. No Redis key, and no copy in the browser.
+  is `force-dynamic`. No Redis key, and the app keeps no copy of the choices in
+  the browser. Back shows the router's cached page (Edge Cases).
 
 ## Edge Cases
 
@@ -98,7 +99,7 @@ came for: its most basic part open, everything else closed until they open it.
 - **Lists inside a section, such as a cup's rounds and Huuhkajat' years:** they don't fold by this rule and are not remembered. #698 decides how they start. "Juuson kierros" on one cup is not a choice about every cup (Q2).
 - **A standings page's tables** (`Mestaruussarja`, `Lohko A`, `Liigavaihe`): each headed table is a fold that starts open, and folding one is not remembered, so the tables always open as the page's most basic part (Q6). A table with no heading, a one-table league's, does not fold.
 - **A league's knockout match lists** after the `Pudotuspelit` tree: each is a fold that starts closed, and is not remembered (Q7). The first opens when neither a table nor a tree comes above it, as the page's first section (decisions/714).
-- **Another season or round of the same page:** every fold starts over from the new render, as a load does. The same page drawn again, as starring a team does, keeps the folds as the reader left them.
+- **Another season or round of the same page:** every fold starts over from the new render, as a load does, while the page itself stays, its selectors and their focus too. The same page drawn again, as starring a team does, keeps the folds as the reader left them. A toggle followed at once by another season or round can show the fold as it was before the toggle, if the page is read before the save lands; a reload shows it.
 - **Back and Forward** show a page as the router cached it, its folds as they were first drawn. A reload shows the stored choices.
 - **The browser opening a fold itself**, for find in page: saved as the reader's choice, like a press.
 - **A press before the page hydrates:** the fold opens or closes, and the choice is not saved.
