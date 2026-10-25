@@ -1,5 +1,6 @@
 import { expect, type Locator, test } from "@playwright/test";
 import postgres from "postgres";
+import { e2eAppPort } from "../../scripts/e2e-target";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 import { SESSION_COOKIE, storeSignedInReader } from "../support/e2e-session";
 import { testDatabaseUrl } from "../support/test-database";
@@ -23,9 +24,10 @@ const STANDINGS = "/kotimaa/sarjataulukko?kilpailu=VL&kausi=2017";
 const PLAYED = "/kotimaa/ottelu/9900302";
 
 // An upcoming league match, which always has an `Ennuste`, seeded in a season
-// nothing plays.
+// nothing plays. Its id carries the run's port, so live runs on other ports,
+// which share the test database, never insert or delete each other's match.
 const SEASON = 2099;
-const UPCOMING_ID = 999_735_001;
+const UPCOMING_ID = 999_735_000 + e2eAppPort(process.env);
 
 // A computed colour with no strength, which paints nothing whatever it differs from.
 const CLEAR = /^rgba\(.*,\s*0\)$/;
