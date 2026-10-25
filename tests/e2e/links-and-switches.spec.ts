@@ -10,8 +10,8 @@ import { signedInAs } from "./session";
  * A link can be told from plain text in both schemes: underlined in the colour
  * of the text around it, unless a box or its place among many alike says it is
  * a link. A switch fills its chosen view. jsdom has no CSS, so only a browser
- * shows either. Every page is one whose data stays put: the seeded 2017
- * season, a past season, or a match seeded here in 2099.
+ * shows either. Each link the rows look for is on a page whose data stays put:
+ * the seeded 2017 season, a finished season, or a match seeded here in 2099.
  *
  * decisions/701-links-and-switches.md
  * decisions/735-links-spec-seeds-its-matches.md
@@ -22,8 +22,9 @@ const STANDINGS = "/kotimaa/sarjataulukko?kilpailu=VL&kausi=2017";
 // The seeded 2017 season's second final leg, with two meetings before it.
 const PLAYED = "/kotimaa/ottelu/9900302";
 
-// An upcoming league match, the only kind with an `Ennuste`, seeded in a season
+// An upcoming league match, which always has an `Ennuste`, seeded in a season
 // nothing plays.
+const SEASON = 2099;
 const UPCOMING_ID = 999_735_001;
 
 // A computed colour with no strength, which paints nothing whatever it differs from.
@@ -66,12 +67,12 @@ test.beforeAll(async () => {
     await sql`delete from taso_matches where taso_match_id = ${UPCOMING_ID}`;
     await sql`insert into taso_matches ${sql({
       taso_match_id: UPCOMING_ID,
-      competition_id: "spljp99",
+      competition_id: `spljp${SEASON % 100}`,
       category_id: "VL",
-      season_id: 2099,
+      season_id: SEASON,
       group_id: 1,
       group_name: "Runkosarja",
-      kickoff_at: new Date("2099-05-01T15:00:00Z"),
+      kickoff_at: new Date(`${SEASON}-05-01T15:00:00Z`),
       matchday: 1,
       status: "SCHEDULED",
       home_team_provider_id: 999_735_101,
