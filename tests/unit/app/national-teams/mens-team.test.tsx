@@ -15,6 +15,7 @@ import { warmModules } from "../../../support/warm-module";
 
 const getNationalTeamYearsMock = vi.fn<() => Promise<NationalTeamResult>>();
 
+vi.mock("@/lib/section-choices", () => import("../../../support/page-sections"));
 vi.mock("@/lib/national-team-service", () => ({
   getNationalTeamYears: getNationalTeamYearsMock,
 }));
@@ -135,9 +136,8 @@ describe("Huuhkajat page", () => {
     await renderPage();
 
     for (const section of yearSections()) {
-      // `group` is what lets the marker turn when the year opens.
-      expect(section.classList.contains("group")).toBe(true);
-      expect(section.querySelector("summary > span[aria-hidden]")?.textContent).toBe("▸");
+      // The marker turns by its own details element, so it sits in its summary.
+      expect(section.querySelector(":scope > summary > span[aria-hidden]")?.textContent).toBe("▸");
     }
   });
 

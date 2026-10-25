@@ -10,6 +10,7 @@ import { type MatchListRow, MatchListTable } from "@/components/match-list-table
  * decisions/019-match-page.md
  * decisions/021-table-consistency.md
  * decisions/498-match-list-score.md
+ * decisions/715-matchup-links-to-match.md
  */
 
 const rows: MatchListRow[] = [
@@ -41,14 +42,44 @@ describe("MatchListTable match links", () => {
     );
   });
 
-  it("leaves the date as plain text without one", () => {
+  it("links each matchup to its own match page where the names are plain", () => {
+    const second: MatchListRow = {
+      providerMatchId: 4036980,
+      kickoffAt: new Date("2026-09-01T16:00:00Z"),
+      homeTeamProviderId: 60902,
+      homeTeamName: "HJK",
+      awayTeamProviderId: 60903,
+      awayTeamName: "KuPS",
+      homeGoals: 0,
+      awayGoals: 0,
+    };
+    render(
+      <MatchListTable
+        matchHref={(match) => `/kotimaa/ottelu/${match.providerMatchId}`}
+        matches={[...rows, second]}
+        teamHref={null}
+      />
+    );
+
+    expect(screen.getByRole("link", { name: "VPS – FC Lahti" })).toHaveAttribute(
+      "href",
+      "/kotimaa/ottelu/4036979"
+    );
+    expect(screen.getByRole("link", { name: "HJK – KuPS" })).toHaveAttribute(
+      "href",
+      "/kotimaa/ottelu/4036980"
+    );
+  });
+
+  it("leaves the date and the matchup as plain text without one", () => {
     render(<MatchListTable matches={rows} teamHref={null} />);
 
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
     expect(screen.getByText("31.08.2026")).toBeInTheDocument();
+    expect(screen.getByText("VPS – FC Lahti")).toBeInTheDocument();
   });
 
-  it("keeps the team links independent of the date link", () => {
+  it("keeps the team links beside the date link, the matchup adding none", () => {
     render(
       <MatchListTable
         matchHref={(match) => `/kotimaa/ottelu/${match.providerMatchId}`}
@@ -66,6 +97,8 @@ describe("MatchListTable match links", () => {
       "/kotimaa/joukkue/60969"
     );
     expect(screen.getByRole("link", { name: "31.08.2026" })).toBeInTheDocument();
+    // The two names and the date: no link for the matchup as a whole.
+    expect(screen.getAllByRole("link")).toHaveLength(3);
   });
 
   it("right-aligns a round number and nothing else", () => {

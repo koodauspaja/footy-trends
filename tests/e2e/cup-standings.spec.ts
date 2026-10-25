@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { openFolds } from "./folds";
 
 /**
  * The Champions League's standings and match list, end to end: one league-phase
@@ -16,6 +17,7 @@ test.describe("Champions League standings", () => {
     await expect(page.getByRole("heading", { name: "Liigavaihe" })).toBeVisible();
     await expect(page.getByRole("heading", { name: /^Lohko/ })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Pudotuspelit" })).toBeVisible();
+    await openFolds(page, "Pudotuspelit");
     await expect(page.getByRole("heading", { name: "Loppuottelu" })).toBeVisible();
   });
 

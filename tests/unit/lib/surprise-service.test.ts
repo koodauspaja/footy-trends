@@ -9,13 +9,14 @@ import type { StoredMatch } from "@/lib/match-service";
  *
  * decisions/057-surprise-index.md
  * decisions/066-season-summary.md
+ * decisions/702-surprises-without-backtest.md
  */
 
 const mocks = vi.hoisted(() => ({
   seasonRows: vi.fn(),
   joined: vi.fn(),
   matchRow: vi.fn(),
-  getFirstStoredSeason: vi.fn(),
+  getPlayedSeasons: vi.fn(),
   loggerError: vi.fn(),
 }));
 
@@ -38,7 +39,7 @@ vi.mock("@/lib/logger", () => ({ logger: { error: mocks.loggerError } }));
 vi.mock("@/lib/match-service", () => ({
   FOOTBALL_DATA_HOME_GOALS: "home",
   FOOTBALL_DATA_AWAY_GOALS: "away",
-  getFirstStoredSeason: mocks.getFirstStoredSeason,
+  getPlayedSeasons: mocks.getPlayedSeasons,
 }));
 
 import { matches, tasoMatches } from "@/db/schema";
@@ -80,7 +81,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.seasonRows.mockReset();
   mocks.matchRow.mockReset();
-  mocks.getFirstStoredSeason.mockReset().mockResolvedValue(2023);
+  mocks.getPlayedSeasons.mockReset().mockResolvedValue([2023, 2024, 2025, 2026]);
 });
 
 describe("getSeasonSurprises", () => {
@@ -89,7 +90,7 @@ describe("getSeasonSurprises", () => {
 
     const result = await getSeasonSurprises("football-data", "PL", 2025, 2026);
 
-    expect(mocks.getFirstStoredSeason).toHaveBeenCalledWith("football-data", "PL");
+    expect(mocks.getPlayedSeasons).toHaveBeenCalledWith("football-data", "PL");
     expect(result).toMatchObject({
       status: "ok",
       inProgress: false,
@@ -106,7 +107,7 @@ describe("getSeasonSurprises", () => {
 
     const result = await getSeasonSurprises("taso", "VL", 2025, 2026);
 
-    expect(mocks.getFirstStoredSeason).toHaveBeenCalledWith("taso", "VL");
+    expect(mocks.getPlayedSeasons).toHaveBeenCalledWith("taso", "VL");
     expect(result.status === "ok" && result.surprises.map((s) => s.providerMatchId)).toEqual([5]);
   });
 
@@ -127,12 +128,41 @@ describe("getSeasonSurprises", () => {
   });
 
   it("has nothing to list for a competition with nothing stored", async () => {
-    mocks.getFirstStoredSeason.mockResolvedValueOnce(null);
+    mocks.getPlayedSeasons.mockResolvedValueOnce([]);
     mocks.seasonRows.mockResolvedValueOnce([]);
 
     await expect(getSeasonSurprises("taso", "VL", 2026, 2026)).resolves.toEqual({
       status: "empty",
       inProgress: true,
+    });
+  });
+
+  it("says a season with played matches but no stored prediction has none predicted", async () => {
+    mocks.seasonRows.mockResolvedValueOnce([]);
+
+    await expect(getSeasonSurprises("taso", "VL", 2026, 2026)).resolves.toEqual({
+      status: "unpredicted",
+      inProgress: true,
+    });
+  });
+
+  it("says a season with no played match has none played", async () => {
+    mocks.getPlayedSeasons.mockResolvedValueOnce([2023, 2024]);
+    mocks.seasonRows.mockResolvedValueOnce([]);
+
+    await expect(getSeasonSurprises("taso", "VL", 2026, 2026)).resolves.toEqual({
+      status: "empty",
+      inProgress: true,
+    });
+  });
+
+  it("reads a past season's own played state, not the active season's", async () => {
+    mocks.getPlayedSeasons.mockResolvedValueOnce([2023, 2024, 2026]);
+    mocks.seasonRows.mockResolvedValueOnce([]);
+
+    await expect(getSeasonSurprises("taso", "VL", 2025, 2026)).resolves.toEqual({
+      status: "empty",
+      inProgress: false,
     });
   });
 
@@ -149,7 +179,7 @@ describe("getSeasonSurprises", () => {
   });
 
   it("turns a failed season read into the same case", async () => {
-    mocks.getFirstStoredSeason.mockRejectedValueOnce(new Error("connection reset"));
+    mocks.getPlayedSeasons.mockRejectedValueOnce(new Error("connection reset"));
 
     await expect(getSeasonSurprises("football-data", "PL", 2025, 2026)).resolves.toEqual({
       status: "error",
@@ -171,7 +201,7 @@ describe("getTeamUpset", () => {
       providerMatchId: 3,
       probability: 0.12,
     });
-    expect(mocks.getFirstStoredSeason).toHaveBeenCalledWith("taso", "VL");
+    expect(mocks.getPlayedSeasons).toHaveBeenCalledWith("taso", "VL");
     expect(mocks.joined).toHaveBeenCalledWith(tasoMatches);
   });
 
@@ -186,7 +216,7 @@ describe("getTeamUpset", () => {
       awayTeamProviderId: 99,
       probability: 0.21,
     });
-    expect(mocks.getFirstStoredSeason).toHaveBeenCalledWith("football-data", "PL");
+    expect(mocks.getPlayedSeasons).toHaveBeenCalledWith("football-data", "PL");
     expect(mocks.joined).toHaveBeenCalledWith(matches);
   });
 

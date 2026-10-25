@@ -52,8 +52,11 @@ const OK = {
   ties: [TIE],
 };
 
+// Opened, as a reader does, so its body can be seen.
+const OPENED = { initiallyOpen: true, remember: null };
+
 function renderSection(forecast: Exclude<CupForecastResult, { status: "unavailable" }>) {
-  return render(<CupForecastSection forecast={forecast} />);
+  return render(<CupForecastSection fold={OPENED} forecast={forecast} />);
 }
 
 describe("the strings the spec agreed", () => {
@@ -167,7 +170,7 @@ describe("CupForecastSection", () => {
     const { rerender } = renderSection({ status: "no-fixtures" });
     expect(screen.getByText(NO_FIXTURES_MESSAGE)).toBeInTheDocument();
 
-    rerender(<CupForecastSection forecast={{ status: "error" }} />);
+    rerender(<CupForecastSection fold={OPENED} forecast={{ status: "error" }} />);
     expect(screen.getByText(FORECAST_ERROR_MESSAGE)).toBeInTheDocument();
     expect(screen.queryByRole("table")).toBeNull();
   });

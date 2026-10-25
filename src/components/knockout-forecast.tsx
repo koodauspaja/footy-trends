@@ -12,7 +12,7 @@ import {
   TITLE_HEADER,
   WIDE_CHANCE_WIDTH,
 } from "@/components/season-forecast";
-import { getStageName } from "@/lib/cup-stages";
+import { getStageName, KNOCKOUT_PHASE } from "@/lib/cup-stages";
 import {
   type KnockoutRow,
   LEAGUE_PHASE_ZONES,
@@ -29,6 +29,14 @@ import type { Chance, ForecastRow } from "@/lib/season-simulation";
  * decisions/067-knockout-simulation.md
  */
 export const TIES_HEADING = "Kierroksen parit";
+/**
+ * The two tables' labels when both are shown, the names the standings page
+ * gives the same phases.
+ *
+ * decisions/696-headings-and-spacing.md
+ */
+export const LEAGUE_PHASE_LABEL = getStageName("LEAGUE_STAGE");
+export const KNOCKOUT_LABEL = KNOCKOUT_PHASE;
 export const KNOCKOUT_NOTE =
   "Loppukausi on pelattu 10 000 kertaa Poisson-mallin ennusteiden mukaan. Arpomattomat parit on arvottu sääntöjen mukaan, ja tasaiset ottelut on ratkaistu jatkoajalla ja rangaistuspotkuilla.";
 
@@ -118,7 +126,11 @@ export function KnockoutForecastBody({
   return (
     <div>
       {forecast.leaguePhase === null ? null : (
-        <ChanceTable columns={LEAGUE_PHASE_COLUMNS} rows={forecast.leaguePhase} />
+        <ChanceTable
+          columns={LEAGUE_PHASE_COLUMNS}
+          heading={LEAGUE_PHASE_LABEL}
+          rows={forecast.leaguePhase}
+        />
       )}
       {forecast.ties.length === 0 ? null : (
         <div className="mt-2">
@@ -126,12 +138,14 @@ export function KnockoutForecastBody({
           <TieLines ties={forecast.ties} />
         </div>
       )}
-      <ChanceTable columns={KNOCKOUT_COLUMNS} rows={forecast.rows} />
+      <ChanceTable
+        columns={KNOCKOUT_COLUMNS}
+        heading={forecast.leaguePhase === null ? null : KNOCKOUT_LABEL}
+        rows={forecast.rows}
+      />
       <p className="mt-2 text-muted text-sm">{KNOCKOUT_NOTE}</p>
       <p className="mt-2 text-sm">
-        <Link className="hover:underline" href={qualityHref}>
-          {QUALITY_LINK}
-        </Link>
+        <Link href={qualityHref}>{QUALITY_LINK}</Link>
       </p>
     </div>
   );

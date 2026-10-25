@@ -2,6 +2,7 @@ import Link from "next/link";
 import { formatDecimal, percentText } from "@/components/charts/line-chart";
 import { inProgressSeasonLine } from "@/components/competition-analytics";
 import { eloGaveText } from "@/components/season-surprises";
+import { matchCountLabel } from "@/lib/match-count";
 import { teamDisplayName } from "@/lib/match-detail";
 import {
   type CleanSheetFact,
@@ -85,8 +86,7 @@ function recordOver(fact: SideFact | CleanSheetFact | PositionFact, measure: str
  * decisions/066-season-summary.md
  */
 export function runSentence(fact: RunFact): string {
-  const matches = fact.length === 1 ? "ottelu" : "ottelua";
-  return `Seuran pisin ${RUN_NAMES[fact.run]} ${EVERY_SEASON}: ${fact.length} ${matches}.`;
+  return `Seuran pisin ${RUN_NAMES[fact.run]} ${EVERY_SEASON}: ${matchCountLabel(fact.length)}.`;
 }
 
 /**
@@ -154,9 +154,7 @@ function Sentence({
   return (
     <>
       {before}
-      <Link className="hover:underline" href={matchHref(fact.match.providerMatchId)}>
-        {match}
-      </Link>
+      <Link href={matchHref(fact.match.providerMatchId)}>{match}</Link>
       {after}
     </>
   );

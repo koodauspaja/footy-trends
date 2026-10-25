@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
+import { openAnalytics } from "./folds";
 
 /**
  * `Joukkueen vahvuus (Elo)` on a club's page, end to end. Signed in the way
@@ -15,6 +16,7 @@ async function openFirstClub(page: Page) {
   await page.goto("/kotimaa/sarjataulukko?kilpailu=VL");
   await page.locator("table tbody tr").first().getByRole("link").first().click();
   await expect(page).toHaveURL(/\/kotimaa\/joukkue\/\d+/);
+  await openAnalytics(page);
 }
 
 test.describe("Team Elo, signed in", () => {

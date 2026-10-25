@@ -1,14 +1,16 @@
 import { expect, type Page, test } from "@playwright/test";
+import { SESSION_COOKIE, storeSignedInReader } from "../support/e2e-session";
 import { openAccountMenu, signedInAs, waitForSession } from "./session";
 
 /**
- * The account settings page. The signed-in cases intercept `/api/auth/get-session`,
- * which reaches the header and the account menu and not the page body. The round
- * trip through Google stays a human check on staging.
+ * The account settings page. Most signed-in cases intercept `/api/auth/get-session`,
+ * which reaches the header and the account menu, not the page body; the profile
+ * picture's case stores a session instead. Google's round trip is checked on staging.
  *
  * decisions/024-account-settings.md
  * decisions/025-custom-avatar.md
  * decisions/269-colour-roles.md
+ * decisions/719-file-input-in-finnish.md
  */
 
 test.describe("Settings, signed out", () => {
@@ -33,7 +35,7 @@ test.describe("Settings, signed out", () => {
     await page.goto("/asetukset");
 
     await expect(page.getByRole("heading", { name: "Profiilikuva" })).toHaveCount(0);
-    await expect(page.getByLabel("Valitse kuva")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Valitse kuva" })).toHaveCount(0);
   });
 
   test("will not serve an avatar to nobody", async ({ request }) => {
@@ -140,6 +142,46 @@ test.describe("The account menu", () => {
     await page.getByRole("link", { name: "Asetukset" }).click();
 
     await expect(page).toHaveURL(/\/asetukset$/);
+  });
+});
+
+test.describe("The profile picture, signed in", () => {
+  let reader: Awaited<ReturnType<typeof storeSignedInReader>>;
+
+  test.beforeAll(async () => {
+    reader = await storeSignedInReader("user");
+  });
+
+  test.afterAll(async () => {
+    await reader?.remove();
+  });
+
+  test("opens the picker from its own button and names the chosen file", async ({
+    page,
+    baseURL,
+  }) => {
+    await page
+      .context()
+      .addCookies([{ name: SESSION_COOKIE, value: reader.cookie, url: baseURL as string }]);
+    await page.goto("/asetukset");
+
+    const button = page.getByRole("button", { name: "Valitse kuva" });
+    await expect(button).toBeVisible();
+    // The browser's own control, whose words are in the browser's language, is
+    // there but hidden.
+    const input = page.locator('input[type="file"]');
+    await expect(input).toHaveCount(1);
+    await expect(input).toBeHidden();
+    await expect(page.getByText("Ei valittua kuvaa.")).toBeVisible();
+    const chooser = page.waitForEvent("filechooser");
+    await button.click();
+    await (await chooser).setFiles({
+      name: "kuva.png",
+      mimeType: "image/png",
+      buffer: Buffer.from("x"),
+    });
+
+    await expect(page.getByText("kuva.png")).toBeVisible();
   });
 });
 

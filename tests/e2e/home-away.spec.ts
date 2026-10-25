@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
+import { openAnalytics } from "./folds";
 
 /**
  * The team page's `Koti- ja vierastilastot` panel, end to end. Signed in the
@@ -34,6 +35,7 @@ async function tableFigures(
 // value times its match count, summed. The printed values have two decimals, so
 // over 19 matches a side is off by under 0,1, and rounding recovers the total.
 async function panelTotals(page: Page) {
+  await openAnalytics(page);
   const panel = page.getByRole("region", { name: HEADING });
   await expect(panel.getByRole("img", { name: HEADING })).toBeVisible();
 
@@ -92,6 +94,7 @@ test.describe("Home and away panel, signed in", () => {
 
   test("fills home, outlines away, and names both", async ({ page }) => {
     await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
+    await openAnalytics(page);
     const panel = page.getByRole("region", { name: HEADING });
 
     await expect(panel.locator("[data-part=row]")).toHaveCount(4);
@@ -105,6 +108,7 @@ test.describe("Home and away panel, signed in", () => {
     // it starts the second group, after `Nollapelit`. Asserted in full in
     // form-trend.spec.ts.
     await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
+    await openAnalytics(page);
     const headings = page
       .getByRole("region", { name: "Analyysit" })
       .getByRole("heading", { level: 4 });
@@ -116,6 +120,7 @@ test.describe("Home and away panel, signed in", () => {
 test("sends no home or away value to a signed-out reader", async ({ page }) => {
   const response = await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
   const html = (await response?.text()) ?? "";
+  await openAnalytics(page);
 
   await expect(page.getByRole("heading", { name: HEADING })).toHaveCount(0);
   expect(html).not.toContain("vieraissa");

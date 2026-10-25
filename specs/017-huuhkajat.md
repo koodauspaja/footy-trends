@@ -353,9 +353,10 @@ The summary reads as the year and the match count, matching the cups' existing
 
 A year with exactly one match reads `(1 ottelu)`, singular.
 
-Open by default follows the cups' stated reasoning — *"every round starts open
-so nothing is hidden by default"*. 85 rows is roughly a quarter of the height
-that made collapsing necessary there, so there is no case for starting closed.
+Open by default, so nothing is hidden until the reader folds it. 85 rows is
+roughly a quarter of the height that made a cup's rounds collapsible, so there
+is no case for starting closed. The cups themselves now open only their latest
+round (decisions/698), for a page that ran to 23,749px on a phone.
 
 ### Match table
 

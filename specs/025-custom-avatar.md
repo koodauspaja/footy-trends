@@ -58,8 +58,8 @@ Profiilikuva
 
 [ 64×64 preview ]  Käytössä oma kuvasi.
 
-Valitse kuva
-[ file input ]
+[ Valitse kuva ]
+Ei valittua kuvaa.
 JPEG, PNG, WebP tai HEIC, enintään 8 Mt.
 
 [ Tallenna kuva ]  [ Poista oma kuva ]
@@ -72,8 +72,9 @@ JPEG, PNG, WebP tai HEIC, enintään 8 Mt.
 | State — custom avatar set | `Käytössä oma kuvasi.` |
 | State — Google's picture | `Käytössä Google-tilisi kuva.` |
 | State — neither | `Ei kuvaa käytössä. Valikossa näkyy nimesi.` |
-| File input label | `Valitse kuva` |
-| Hint under the input | `JPEG, PNG, WebP tai HEIC, enintään 8 Mt.` |
+| File picker button | `Valitse kuva`, our own button opening a hidden native input, whose own button and status are in the browser's language (decisions/719) |
+| The chosen file | `Ei valittua kuvaa.` with none chosen, the file's name otherwise (decisions/719) |
+| Hint under the chosen file | `JPEG, PNG, WebP tai HEIC, enintään 8 Mt.` |
 | Save button | `Tallenna kuva` |
 | Remove button | `Poista oma kuva` |
 
@@ -89,7 +90,7 @@ Reusing `Notice`, as every other section on the page does.
 |---|---|
 | Saved | `Profiilikuva päivitetty.` |
 | Removed | `Oma kuva poistettu.` |
-| No file chosen | `Valitse ensin kuva.` |
+| Saved with no file chosen | `Valitse ensin kuva.` |
 | Over the byte cap | `Kuva on liian suuri. Enimmäiskoko on 8 Mt.` |
 | Wrong type | `Tuetut kuvatyypit ovat JPEG, PNG, WebP ja HEIC.` |
 | Decodes to nothing usable | `Kuvaa ei voitu lukea. Kokeile toista kuvaa.` |

@@ -10,6 +10,7 @@
  * decisions/053-elo-ratings.md
  * decisions/054-prediction-quality.md
  * decisions/413-rounds-a-team-sat-out.md
+ * decisions/700-legible-charts.md
  */
 
 export type ChartPoint = {
@@ -59,23 +60,26 @@ export const CHART = { width: 640, height: 320 } as const;
  *
  * decisions/030-league-position-by-matchday.md
  * decisions/033-home-vs-away.md
+ * decisions/700-legible-charts.md
  */
-export const MARGIN = { top: 16, right: 16, bottom: 56, left: 72 } as const;
+export const MARGIN = { top: 16, right: 16, bottom: 60, left: 80 } as const;
 
 /**
  * The axis font, larger below `sm`: the text is inside the `viewBox`, so it
  * scales down with the drawing.
  *
  * decisions/033-home-vs-away.md
+ * decisions/700-legible-charts.md
  */
-const AXIS_TEXT = "text-[19px] sm:text-xs";
+const AXIS_TEXT = "text-[23px] sm:text-xs";
 
 /**
  * `AXIS_TEXT`'s size below `sm`, in units: the width a phone's labels need.
  *
  * decisions/048-league-goals-per-game-trend.md
+ * decisions/700-legible-charts.md
  */
-export const PHONE_AXIS_UNITS = 19;
+export const PHONE_AXIS_UNITS = 23;
 
 /**
  * A glyph's width as a share of the font size: near enough for the UI font.
@@ -128,6 +132,21 @@ function crowdedOnPhone(labels: readonly { x: number; width: number }[]): boolea
     previousEnd = label.x + label.width / 2;
   }
   return false;
+}
+
+/**
+ * How many ticks apart a phone's labels are: the least step, counted back from
+ * the latest, at which the labels kept no longer touch. 1 when all of them fit.
+ *
+ * decisions/048-league-goals-per-game-trend.md
+ * decisions/700-legible-charts.md
+ */
+export function phoneStride(labels: readonly { x: number; width: number }[]): number {
+  const kept = (stride: number) =>
+    labels.filter((_, index) => (labels.length - 1 - index) % stride === 0);
+  let stride = 1;
+  while (crowdedOnPhone(kept(stride))) stride += 1;
+  return stride;
 }
 
 /**
@@ -263,8 +282,69 @@ function dashArray(style: LineStyle): string | undefined {
  * second line under a tick clears the axis caption.
  *
  * decisions/048-league-goals-per-game-trend.md
+ * decisions/700-legible-charts.md
  */
-const NOTE_ROW = 22;
+const NOTE_ROW = 28;
+
+/**
+ * The gap between the y ticks' ends and the plot, in units.
+ *
+ * decisions/700-legible-charts.md
+ */
+const Y_TICK_GAP = 8;
+
+/**
+ * Where the rotated y caption's first line sits, in units from the drawing's
+ * edge: clear of it by the ascent of the phone's text.
+ *
+ * decisions/700-legible-charts.md
+ */
+const CAPTION_X = 18;
+
+/**
+ * What a wrapped caption's second line takes from the plot's width: a line of
+ * the phone's text.
+ *
+ * decisions/700-legible-charts.md
+ */
+const CAPTION_LINE = 28;
+
+/**
+ * The least space between the rotated caption and the widest y tick, in units.
+ *
+ * decisions/700-legible-charts.md
+ */
+const CAPTION_GAP = 2;
+
+/**
+ * The gap between the x ticks' row and the axis line above it, in units.
+ *
+ * decisions/700-legible-charts.md
+ */
+const TICK_ROW = 22;
+
+/**
+ * Where the plot must start for the first x label, centred on its point, to
+ * clear the ends of the y ticks, the plot ending at `plotRight`.
+ *
+ * decisions/700-legible-charts.md
+ */
+function clearingStart(
+  tick: { value: number; labelWidth: number; noteWidth: number },
+  xDomain: readonly [number, number],
+  left: number,
+  plotRight: number
+): number {
+  const reach = left - Y_TICK_GAP + Math.max(tick.labelWidth, tick.noteWidth) / 2;
+  const span = xDomain[1] - xDomain[0];
+  // A flat domain draws its one tick mid-plot, as `scale` does.
+  const share = span === 0 ? 0.5 : (tick.value - xDomain[0]) / span;
+  // A tick at the end moves with it: no start helps.
+  if (share >= 1 || left + share * (plotRight - left) >= reach) return left;
+  // The start that puts the tick's point at `reach`, the end held, and never
+  // past the plot's middle, so a label wider than the plot still leaves one.
+  return Math.min((reach - share * plotRight) / (1 - share), (left + plotRight) / 2);
+}
 
 type LineChartProps = {
   /** The chart's own name, in a `<title>`: it travels with the SVG wherever it is shown. */
@@ -321,10 +401,14 @@ export function LineChart({
     return { value, label, note, labelWidth: phoneWidth(label), noteWidth: phoneWidth(note ?? "") };
   });
   const hasNotes = ticks.some((tick) => tick.note !== undefined);
-  const left = MARGIN.left;
   const right = CHART.width - MARGIN.right;
   const top = MARGIN.top;
   const bottom = CHART.height - MARGIN.bottom - (hasNotes ? NOTE_ROW : 0);
+  const caption = captionLines(yLabel, bottom - top);
+  // The gutter holds the caption, a gap, then the widest y tick and its own gap.
+  const captionEnd = CAPTION_X + (caption.length - 1) * CAPTION_LINE + PHONE_AXIS_UNITS / 2;
+  const widestYTick = Math.max(0, ...yTicks.map((tick) => phoneWidth(formatYTick(tick))));
+  const left = Math.max(MARGIN.left, captionEnd + CAPTION_GAP + widestYTick + Y_TICK_GAP);
   const yRange: [number, number] = invertY ? [top, bottom] : [bottom, top];
   // The last tick is centred on the plot's end, so the plot ends short of the
   // axis by what a wider label or note would overhang.
@@ -332,13 +416,16 @@ export function LineChart({
     .slice(-1)
     .map((tick) => Math.max(tick.labelWidth, tick.noteWidth) / 2 - MARGIN.right);
   const plotRight = right - Math.max(0, ...overhang);
+  const plotLeft = Math.max(
+    left,
+    ...ticks.slice(0, 1).map((tick) => clearingStart(tick, xDomain, left, plotRight))
+  );
 
-  const toX = (value: number) => scale(value, xDomain, [left, plotRight]);
-  const crowded =
-    thinXTicksOnPhone &&
-    crowdedOnPhone(ticks.map((tick) => ({ x: toX(tick.value), width: tick.labelWidth })));
-  const phoneHidden = (index: number) => crowded && (ticks.length - 1 - index) % 2 === 1;
-  const caption = captionLines(yLabel, bottom - top);
+  const toX = (value: number) => scale(value, xDomain, [plotLeft, plotRight]);
+  const stride = thinXTicksOnPhone
+    ? phoneStride(ticks.map((tick) => ({ x: toX(tick.value), width: tick.labelWidth })))
+    : 1;
+  const phoneHidden = (index: number) => (ticks.length - 1 - index) % stride !== 0;
   const toY = (value: number) => scale(value, yDomain, yRange);
 
   return (
@@ -358,13 +445,19 @@ export function LineChart({
 
       <g className={`fill-muted ${AXIS_TEXT}`} data-part="y-axis">
         {yTicks.map((tick) => (
-          <text dominantBaseline="middle" key={tick} textAnchor="end" x={left - 8} y={toY(tick)}>
+          <text
+            dominantBaseline="middle"
+            key={tick}
+            textAnchor="end"
+            x={left - Y_TICK_GAP}
+            y={toY(tick)}
+          >
             {formatYTick(tick)}
           </text>
         ))}
         <text
           textAnchor="middle"
-          transform={`translate(12 ${(top + bottom) / 2}) rotate(-90)`}
+          transform={`translate(${CAPTION_X} ${(top + bottom) / 2}) rotate(-90)`}
           x={0}
           y={0}
         >
@@ -386,7 +479,7 @@ export function LineChart({
             key={tick.value}
             textAnchor="middle"
             x={toX(tick.value)}
-            y={bottom + 18}
+            y={bottom + TICK_ROW}
           >
             {tick.label}
             {tick.note === undefined ? null : (

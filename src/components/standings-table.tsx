@@ -51,6 +51,7 @@ function cell(value: number | null): string {
  * decisions/026-favourites.md
  * decisions/063-competition-zones.md
  * decisions/065-foreign-league-zones.md
+ * decisions/699-narrow-tables.md
  */
 export function StandingsTable({
   standings,
@@ -90,7 +91,9 @@ export function StandingsTable({
           row.teamName
         ) : (
           <span className="flex items-center gap-1">
-            <RowLink className="hover:underline" href={teamHref(row.teamProviderId)}>
+            {/* Free to shrink below its longest word, so a phone's narrow
+                column breaks the name rather than let it overrun. */}
+            <RowLink className="min-w-0 quiet-link" href={teamHref(row.teamProviderId)}>
               {row.teamName}
             </RowLink>
             {/* No id, no star: the same rule as the link above it, since a
@@ -114,12 +117,15 @@ export function StandingsTable({
       align: "right" as const,
       // Points carry the weight, as they always have.
       ...(short === "P" ? { cellClassName: "font-semibold" } : {}),
+      // A phone keeps the games played and the points.
+      hideOnPhone: short !== "O" && short !== "P",
       render: (row: StandingsRow) => cell(value(row)),
     })),
     {
       key: "form",
       header: "Vire",
       width: COLUMN_WIDTHS.form,
+      hideOnPhone: true,
       cellLabel: (row) => row.form.map((item) => item.label).join(", "),
       render: (row) =>
         row.form.map((item) => (

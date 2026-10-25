@@ -106,7 +106,11 @@ export function TeamSearch() {
           type="search"
           value={term}
         />
-        <button className="shrink-0 text-sm hover:underline" disabled={pending} type="submit">
+        <button
+          className="shrink-0 rounded border border-border px-3 py-1 text-sm hover:bg-surface disabled:opacity-50"
+          disabled={pending}
+          type="submit"
+        >
           {SUBMIT}
         </button>
       </form>
@@ -120,13 +124,7 @@ export function TeamSearch() {
             const secondary = secondaryLine(team);
             return (
               <li className="text-sm" key={`${team.source}:${team.teamProviderId}`}>
-                {href === null ? (
-                  <span>{team.name}</span>
-                ) : (
-                  <Link className="hover:underline" href={href}>
-                    {team.name}
-                  </Link>
-                )}
+                {href === null ? <span>{team.name}</span> : <Link href={href}>{team.name}</Link>}
                 {secondary !== null && <span className="ml-2 text-muted text-xs">{secondary}</span>}
               </li>
             );

@@ -976,7 +976,8 @@ describe("the next meeting, predicted", () => {
     );
     await renderPage();
 
-    expect(screen.getByRole("link", { name: "KuPS – HJK" })).toBeInTheDocument();
+    const group = screen.getByRole("region", { name: "Seuraava kohtaaminen" });
+    expect(within(group).getByRole("link", { name: "KuPS – HJK" })).toBeInTheDocument();
   });
 
   it("asks for the pair's next meeting in the page's own source, as of now", async () => {

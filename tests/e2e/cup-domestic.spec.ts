@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { openFolds } from "./folds";
 
 /**
  * The Finnish cups, end to end: the picker, each cup's rounds and bracket,
@@ -8,7 +9,16 @@ import { expect, type Page, test } from "@playwright/test";
  * decisions/015-finnish-cups.md
  * decisions/043-liigacup.md
  * decisions/178-cup-page-measured-after-its-rounds.md
+ * decisions/698-long-lists-start-closed.md
  */
+
+// Opens every round, so a check reads the folded rounds' lists too: a closed
+// round's list is not laid out.
+async function unfoldRounds(page: Page) {
+  await page.evaluate(() => {
+    for (const round of document.querySelectorAll("details")) round.open = true;
+  });
+}
 
 // Opens the cup season and waits for its rounds. `page.goto` resolves on
 // `load`, but the standings are streamed and arrive afterwards, so a
@@ -94,6 +104,7 @@ test.describe("Finnish cups", () => {
     // and listed otherwise. TASO's 2026 season has that shape, so it is drawn,
     // and not listed as well.
     await expect(page.getByRole("heading", { level: 2, name: "Pudotuspelit" })).toBeVisible();
+    await openFolds(page, "Pudotuspelit");
     await expect(
       page.getByRole("heading", { level: 3, name: "Välierät", exact: true })
     ).toBeVisible();
@@ -114,6 +125,7 @@ test.describe("Finnish cups", () => {
       });
       await expect(section.getByRole("table")).toBeVisible();
     }
+    await openFolds(page, "Pudotuspelit");
     await expect(
       page.getByRole("heading", { level: 3, name: "Välierät", exact: true })
     ).toBeVisible();
@@ -162,22 +174,41 @@ test.describe("Finnish cups", () => {
     expect(years).toEqual(["2026", "2025", "2024"]);
   });
 
-  test("folds a round away on a phone", async ({ page }) => {
+  test("opens only the latest round on a phone, sparing it every match", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await openCupSeason(page);
 
-    const open = await page.evaluate(() => document.documentElement.scrollHeight);
-    await page.evaluate(() => {
-      for (const round of document.querySelectorAll("details")) round.open = false;
-    });
-    const closed = await page.evaluate(() => document.documentElement.scrollHeight);
+    // The rounds' folds: `Pudotuspelit` above them is a fold of its own, open.
+    const openRounds = page
+      .locator("details[open]")
+      .filter({ hasNot: page.getByRole("heading", { name: "Pudotuspelit" }) });
+    await expect(openRounds).toHaveCount(1);
+    const folded = await page.evaluate(() => document.documentElement.scrollHeight);
+    await unfoldRounds(page);
+    const unfolded = await page.evaluate(() => document.documentElement.scrollHeight);
 
-    // Ten rounds, one of them 248 teams: folding them away has to matter.
-    expect(closed).toBeLessThan(open / 5);
+    // Ten rounds, one of them 248 teams: the folded ones have to matter.
+    expect(folded).toBeLessThan(unfolded / 5);
+  });
+
+  test("opens a closed round when its heading is pressed", async ({ page }) => {
+    await openCupSeason(page);
+    const round = page.locator("details").filter({
+      has: page.getByRole("heading", { level: 2, name: "Juuson kierros" }),
+    });
+    // A folded round's list is on the page, only hidden.
+    const table = round.locator("table");
+    await expect(table).toHaveCount(1);
+    await expect(table).toBeHidden();
+
+    await round.locator("summary").click();
+
+    await expect(table).toBeVisible();
   });
 
   test("shows no round selector and no Kierros column on a cup", async ({ page }) => {
-    await page.goto("/kotimaa/sarjataulukko?kilpailu=MSC&kausi=2025");
+    await openCupSeason(page);
+    await unfoldRounds(page);
 
     await expect(page.getByLabel("Kierros")).toHaveCount(0);
     await expect(page.getByRole("columnheader", { name: "Kierros" })).toHaveCount(0);
@@ -187,6 +218,7 @@ test.describe("Finnish cups", () => {
   test("does not scroll the page horizontally on a phone", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await openCupSeason(page);
+    await unfoldRounds(page);
 
     const overflows = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth

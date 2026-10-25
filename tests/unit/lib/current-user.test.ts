@@ -18,6 +18,7 @@ const ACTION_MODULES = {
   "favourite-actions": () => import("@/lib/favourite-actions"),
   "avatar-actions": () => import("@/lib/avatar-actions"),
   "settings-actions": () => import("@/lib/settings-actions"),
+  "section-choice-actions": () => import("@/lib/section-choice-actions"),
 };
 
 const AUTH_VARIABLES = ["BETTER_AUTH_SECRET", "BETTER_AUTH_URL"] as const;

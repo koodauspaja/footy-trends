@@ -8,9 +8,9 @@ Scope
 - User-facing UI text: Finnish (labels, messages, copy visible to end users).
 - Code, tests, specs, comments, variable and function names: English. Block 6
   checks it in every file a pull request changes, which is as far as any rule
-  reaches. Finnish UI copy — in source, or asserted in a test
-  or quoted in a spec — is data, not a language violation. `CLAUDE.md` carries
-  the same carve-out, so the two do not disagree.
+  reaches. Finnish UI copy — in source, asserted in a test, or quoted in any
+  document, a spec or a decision record among them — is data, not a language
+  violation. `CLAUDE.md` carries the same carve-out, so the two do not disagree.
 - Commit messages: English too, but unchecked — see below.
 - Configuration files and tooling settings: English unless they are end-user
   visible (Block 6 covers these too).
@@ -109,7 +109,7 @@ How this maps to Sourcery
   | 4 | `**`, not `src/**` | a secret arrives in a workflow or `.toml` more often than a `.tsx` |
   | 5 | its own block | widening Block 2 would aim its Finnish-strings rule at spec markdown |
   | 6 | `**`, not a directory list | `docs/`, `skills/`, `scripts/`, `.github/` fall through any list |
-  | 6 | carve-out for quoted copy | 67 tests and 24 specs hold Finnish UI copy on purpose |
+  | 6 | carve-out for quoted copy, in any document | 67 tests and 24 specs hold Finnish UI copy on purpose, and decision records quote it too: at least 26 on 2026-10-24 |
 
 Deliberately not Sourcery rules
 - **Spec and decision-record references in the PR description** — impossible,

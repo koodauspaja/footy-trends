@@ -8,6 +8,7 @@ import type { NationalTeamMatch, NationalTeamResult } from "@/lib/national-team-
  * `national-team-analytics.test.ts`'s, so the section stands in with a marker.
  *
  * decisions/041-national-team-analytics.md
+ * decisions/071-section-toggles.md
  */
 
 const getNationalTeamYearsMock = vi.fn<() => Promise<NationalTeamResult>>();
@@ -19,6 +20,7 @@ vi.mock("@/lib/national-team-service", () => ({
 const analyticsSectionMock = vi.fn(async (_props: Record<string, unknown>) => (
   <p>analytics section placeholder</p>
 ));
+vi.mock("@/lib/section-choices", () => import("../../support/page-sections"));
 vi.mock("@/components/analytics-section", () => ({
   AnalyticsSection: analyticsSectionMock,
 }));
@@ -89,13 +91,48 @@ describe("NationalTeamPage analytics", () => {
     expect(await props.loadPosition()).toEqual({ status: "unavailable" });
   });
 
-  it("puts the section above the year list", async () => {
+  it("puts the section below the year list", async () => {
     await renderPage();
 
     const placeholder = screen.getByText("analytics section placeholder");
-    const firstYear = screen.getByRole("heading", { level: 2, name: "2026" });
+    const lastYear = screen.getByRole("heading", { level: 2, name: "2025" });
     // The panels describe every year, so they cannot sit inside one.
-    expect(placeholder.compareDocumentPosition(firstYear)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(lastYear.compareDocumentPosition(placeholder)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it("lists a year's matches still to play first, then the played ones newest first", async () => {
+    getNationalTeamYearsMock.mockResolvedValue({
+      status: "ok",
+      incomplete: false,
+      years: [
+        {
+          year: 2026,
+          matches: [
+            { ...match(1, 2026), kickoffAt: new Date("2026-03-20T19:00:00Z") },
+            { ...match(2, 2026), kickoffAt: new Date("2026-06-05T19:00:00Z") },
+            {
+              ...match(3, 2026),
+              kickoffAt: new Date("2026-09-04T19:00:00Z"),
+              homeGoals: null,
+              awayGoals: null,
+              status: "SCHEDULED",
+            },
+          ],
+        },
+      ],
+    });
+
+    await renderPage();
+
+    const dates = screen.getAllByText(/^\d{2}\.\d{2}\.2026$/).map((cell) => cell.textContent);
+    expect(dates).toEqual(["04.09.2026", "05.06.2026", "20.03.2026"]);
+  });
+
+  it("hands Analyysit the reader's sections on national team pages, not team pages", async () => {
+    await renderPage();
+
+    const props = analyticsSectionMock.mock.calls[0]?.[0] as { sections: unknown };
+    expect(props.sections).toEqual({ kind: "national-team", signedIn: false, choices: {} });
   });
 
   it("computes nothing before the section is rendered", async () => {
@@ -105,7 +142,7 @@ describe("NationalTeamPage analytics", () => {
     // Loaders, not values: the sign-in gate inside the section decides whether
     // any analytics value is computed at all.
     for (const [name, value] of Object.entries(props)) {
-      if (name === "axis") continue;
+      if (name === "axis" || name === "sections") continue;
       expect(typeof value, name).toBe("function");
     }
   });

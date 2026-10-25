@@ -85,6 +85,12 @@ describe("the list", () => {
     expect(screen.getByText("2.1.2026")).toBeInTheDocument();
   });
 
+  it("shadows the edge its list scrolls towards", () => {
+    renderTable();
+
+    expect(screen.getByRole("table").parentElement).toHaveClass("scroll-edge", "overflow-x-auto");
+  });
+
   it("counts the users in Finnish", () => {
     renderTable();
 

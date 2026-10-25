@@ -6,15 +6,17 @@ import { FoldMarker } from "@/components/fold-marker";
  * The marker that shows a fold open or closed.
  *
  * decisions/419-shared-fold-marker.md
+ * decisions/071-section-toggles.md
  */
 
 describe("FoldMarker", () => {
-  it("points right, and turns when its details element opens", () => {
+  it("points right, and turns when its own details element opens", () => {
     const marker = render(<FoldMarker />).container.querySelector("span");
 
     expect(marker?.textContent).toBe("▸");
-    // `group-open` needs `group` on the details element; each fold sets it.
-    expect(marker?.getAttribute("class")).toContain("group-open:rotate-90");
+    // Only its own: `group-open` would also turn it inside any open ancestor.
+    expect(marker?.getAttribute("class")).toContain("[details[open]>summary>&]:rotate-90");
+    expect(marker?.getAttribute("class")).not.toContain("group-open");
   });
 
   it("is hidden from screen readers, which the details element already tells", () => {

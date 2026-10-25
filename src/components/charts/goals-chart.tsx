@@ -43,24 +43,43 @@ export function totalsSentence(point: GoalsPoint): string {
 
 /**
  * The running totals' y-axis top: the team's highest total, rounded up to a
- * whole ten, and never below ten. One fixed value cannot serve a Bundesliga
- * attack with 99 goals and a Veikkausliiga side with 30.
+ * whole `totalsStep`, and never below one step. One fixed value cannot serve a
+ * Bundesliga attack with 99 goals and a Veikkausliiga side with 30.
  *
  * decisions/032-goals-scored-vs-conceded.md
+ * decisions/700-legible-charts.md
  */
 export function totalsTop(points: readonly GoalsPoint[]): number {
   const highest = Math.max(0, ...points.flatMap((point) => [point.scored, point.conceded]));
-  return Math.max(10, Math.ceil(highest / 10) * 10);
+  const step = totalsStep(highest);
+  return Math.max(step, Math.ceil(highest / step) * step);
 }
 
 /**
- * A tick on every whole ten up to `top`, which is itself a ten. Eleven labels
- * at most fit the chart's height.
+ * The step between the totals' ticks: the smallest of 10, 20, 25, 50, 100, 200
+ * and so on that reaches `highest` in six steps, so the axis prints seven labels
+ * at most and each stays legible on a phone.
+ *
+ * decisions/700-legible-charts.md
+ */
+export function totalsStep(highest: number): number {
+  const rough = Math.max(10, highest / 6);
+  const power = 10 ** Math.floor(Math.log10(rough));
+  for (const multiple of [1, 2, 2.5, 5]) {
+    if (multiple * power >= rough) return multiple * power;
+  }
+  return 10 * power;
+}
+
+/**
+ * A tick on every step up to `top`, which `totalsTop` made a whole step.
  *
  * decisions/032-goals-scored-vs-conceded.md
+ * decisions/700-legible-charts.md
  */
 export function totalsTicks(top: number): number[] {
-  return Array.from({ length: top / 10 + 1 }, (_, index) => index * 10);
+  const step = totalsStep(top);
+  return Array.from({ length: top / step + 1 }, (_, index) => index * step);
 }
 
 /**

@@ -10,6 +10,7 @@ import {
   SURPRISES_ERROR_MESSAGE,
   SURPRISES_HEADING,
   SURPRISES_NOTE,
+  UNPREDICTED_MESSAGE,
 } from "@/components/season-surprises";
 import type { SeasonSurprises, Surprise } from "@/lib/surprise";
 
@@ -19,6 +20,7 @@ import type { SeasonSurprises, Surprise } from "@/lib/surprise";
  * list.
  *
  * decisions/057-surprise-index.md
+ * decisions/702-surprises-without-backtest.md
  */
 
 function surprise(overrides: Partial<Surprise> = {}): Surprise {
@@ -58,6 +60,7 @@ describe("the strings the spec agreed", () => {
       "Kilpailun ensimmäiseltä tallennetulta kaudelta ei näytetä yllätyksiä: kilpailusta ei ole silloin vielä aiempia otteluita, joihin ennuste nojaisi."
     );
     expect(NO_MATCHES_MESSAGE).toBe("Kaudelta ei ole vielä pelattuja otteluita.");
+    expect(UNPREDICTED_MESSAGE).toBe("Pelatuille otteluille ei ole vielä laskettu ennusteita.");
     expect(ALL_DRAWN_MESSAGE).toBe("Kauden ottelut ovat toistaiseksi päättyneet tasan.");
     expect(SURPRISES_ERROR_MESSAGE).toBe("Yllätyksiä ei voitu laskea. Yritä myöhemmin uudelleen.");
   });
@@ -129,6 +132,7 @@ describe("SeasonSurprisesBody", () => {
   it.each([
     [{ status: "first-season" }, FIRST_SEASON_MESSAGE],
     [{ status: "empty", inProgress: false }, NO_MATCHES_MESSAGE],
+    [{ status: "unpredicted", inProgress: false }, UNPREDICTED_MESSAGE],
     [{ status: "all-drawn", inProgress: false }, ALL_DRAWN_MESSAGE],
     [{ status: "error" }, SURPRISES_ERROR_MESSAGE],
   ] as const)("shows its own line and no list for %o", (surprises, message) => {
@@ -140,6 +144,7 @@ describe("SeasonSurprisesBody", () => {
 
   it.each([
     ["empty", NO_MATCHES_MESSAGE],
+    ["unpredicted", UNPREDICTED_MESSAGE],
     ["all-drawn", ALL_DRAWN_MESSAGE],
   ] as const)("names a season in progress above the %s line too", (status, message) => {
     const { container } = renderBody({ status, inProgress: true });

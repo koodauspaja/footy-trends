@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { openFolds } from "./folds";
 
 /**
  * The Maajoukkueet region, end to end: the World Cup's and the Euro's groups
@@ -24,6 +25,7 @@ test.describe("Maajoukkueet", () => {
     await expect(page.getByRole("heading", { name: "MM-kisat 2026" })).toBeVisible();
     await expect(page.getByRole("heading", { level: 2, name: /^Lohko [A-L]$/ })).toHaveCount(12);
     await expect(page.getByRole("heading", { name: "Pudotuspelit" })).toBeVisible();
+    await openFolds(page, "Pudotuspelit");
     await expect(page.getByRole("heading", { level: 3, name: "Loppuottelu" })).toBeVisible();
     // Only the World Cup has these two.
     await expect(page.getByRole("heading", { name: "Kahdeksannesvälierät" })).toBeVisible();
@@ -35,6 +37,7 @@ test.describe("Maajoukkueet", () => {
 
     await expect(page.getByRole("heading", { name: "EM-kisat 2024" })).toBeVisible();
     await expect(page.getByRole("heading", { level: 2, name: /^Lohko [A-F]$/ })).toHaveCount(6);
+    await openFolds(page, "Pudotuspelit");
     await expect(page.getByRole("heading", { name: "Kahdeksannesvälierät" })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Pronssiottelu" })).toHaveCount(0);
   });

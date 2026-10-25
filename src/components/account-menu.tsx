@@ -96,14 +96,14 @@ export function AccountMenu({ name, image, isAdmin, onSignOut }: Props) {
         >
           {/* Above `Asetukset`, so the reader's own things sit together. */}
           <Link
-            className="block px-4 py-2 text-sm hover:bg-surface"
+            className="block px-4 py-2 text-sm no-underline hover:bg-surface"
             href="/suosikit"
             onClick={() => close(false)}
           >
             Suosikit
           </Link>
           <Link
-            className="block px-4 py-2 text-sm hover:bg-surface"
+            className="block px-4 py-2 text-sm no-underline hover:bg-surface"
             href="/asetukset"
             onClick={() => close(false)}
           >
@@ -113,7 +113,7 @@ export function AccountMenu({ name, image, isAdmin, onSignOut }: Props) {
               different job than the reader's own two. */}
           {isAdmin && (
             <Link
-              className="block px-4 py-2 text-sm hover:bg-surface"
+              className="block px-4 py-2 text-sm no-underline hover:bg-surface"
               href="/yllapito"
               onClick={() => close(false)}
             >

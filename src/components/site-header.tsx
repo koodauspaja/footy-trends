@@ -38,7 +38,7 @@ export function SiteHeader() {
         {/* The auth control sits outside this nav, so the breadcrumb landmark
             keeps meaning "murupolku" rather than "murupolku and a login". */}
         <nav aria-label="Murupolku" className="flex min-w-0 items-center gap-2 text-sm">
-          <Link className="hover:underline" href={homeHref}>
+          <Link className="quiet-link" href={homeHref}>
             Etusivu
           </Link>
           {region !== null && (
@@ -46,7 +46,7 @@ export function SiteHeader() {
               <span aria-hidden="true" className="text-faint">
                 /
               </span>
-              <Link className="hover:underline" href={region.href}>
+              <Link className="quiet-link" href={region.href}>
                 {region.label}
               </Link>
             </>

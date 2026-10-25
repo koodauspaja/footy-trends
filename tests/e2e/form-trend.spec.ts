@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
+import { openAnalytics } from "./folds";
 
 /**
  * The team page's form chart, end to end, and the order of the Analyysit
@@ -33,6 +34,7 @@ async function vireOf(row: Locator): Promise<number> {
 
 // Every text row of the chart, as [match, form].
 async function plotted(page: Page): Promise<Array<[number, number]>> {
+  await openAnalytics(page);
   await expect(page.getByRole("img", { name: HEADING })).toBeVisible();
   const rows = await page.getByText(SENTENCE).allTextContents();
   return rows.map((row) => {
@@ -86,6 +88,7 @@ test.describe("Form chart, signed in", () => {
 
   test("sits under Analyysit, after the position chart", async ({ page }) => {
     await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
+    await openAnalytics(page);
     const section = page.getByRole("region", { name: "Analyysit" });
 
     // The goals charts follow it.
@@ -110,6 +113,7 @@ test.describe("Form chart, signed in", () => {
     // a knockout has not got.
     await page.goto("/ulkomaat/joukkue/57?kilpailu=CL&kausi=2024");
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await openAnalytics(page);
 
     await expect(page.getByRole("heading", { name: "Analyysit" })).toBeVisible();
     await expect(page.getByRole("heading", { name: HEADING })).toBeVisible();
@@ -122,8 +126,8 @@ test.describe("Form chart, signed out", () => {
     const response = await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
     const html = (await response?.text()) ?? "";
 
-    await expect(page.getByRole("heading", { name: "Analyysit" })).toBeVisible();
-    await expect(page.getByText("Kirjaudu sisään nähdäksesi analyysit ja trendit.")).toHaveCount(1);
+    await openAnalytics(page);
+    await expect(page.getByText("Kirjaudu sisään nähdäksesi analyysit ja trendit.")).toBeVisible();
     await expect(page.getByRole("heading", { name: HEADING })).toHaveCount(0);
     expect(html).not.toContain("ottelun jälkeen");
   });

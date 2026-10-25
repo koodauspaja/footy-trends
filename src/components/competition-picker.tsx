@@ -62,7 +62,7 @@ export function CompetitionPicker({
         {entries.map((entry) => (
           <li className="flex items-center gap-2" key={entry.key}>
             <Link
-              className="flex flex-1 items-center gap-3 rounded border border-border-subtle px-4 py-3 hover:bg-surface"
+              className="flex flex-1 items-center gap-3 rounded border border-border-subtle px-4 py-3 no-underline hover:bg-surface"
               href={entry.href}
             >
               {/* biome-ignore lint/performance/noImgElement: a tiny SVG icon, not worth next/image's overhead */}

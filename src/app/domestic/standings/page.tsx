@@ -4,18 +4,26 @@ import { CompetitionAnalyticsSection } from "@/components/competition-analytics"
 import { BracketTree } from "@/components/cup-bracket";
 import { CupForecastSection } from "@/components/cup-forecast";
 import { FoldMarker } from "@/components/fold-marker";
+import { TABLE_HEADING } from "@/components/heading-classes";
+import { KNOCKOUT_LIST_FOLD, TABLE_FOLD, TableFold } from "@/components/heading-folds";
 import { MatchListTable } from "@/components/match-list-table";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { RenamedNotice } from "@/components/renamed-notice";
+import { FoldsFor } from "@/components/section-fold";
 import { StandingsLegend, StandingsTable } from "@/components/standings-table";
 import { TasoStandingsControls } from "@/components/taso-standings-controls";
 import { canSeeAnalytics } from "@/lib/analytics-access";
 import { type GroupZones, groupZones, zoneLine } from "@/lib/competition-zones";
 import { buildCupBracket, buildPlayoffBracket, normaliseRoundName } from "@/lib/cup-rounds";
+import { KNOCKOUT_PHASE } from "@/lib/cup-stages";
 import { cupFormatFor, isDomesticCup } from "@/lib/domestic-competitions";
 import { resolveDomesticPageContext } from "@/lib/domestic-page-context";
+import { cupGroupOrder, openCupGroups } from "@/lib/group-order";
 import { getCupForecast, hasCupForecast } from "@/lib/knockout-simulation-service";
+import { matchCountLabel } from "@/lib/match-count";
+import { getPageSections } from "@/lib/section-choices";
+import { type FoldState, foldFor } from "@/lib/section-keys";
 import {
   type GroupLevel,
   type GroupStandingsResult,
@@ -65,8 +73,6 @@ function displayGroupName(groupName: string): string {
   // eras. A league group name is never one of them.
   return normaliseRoundName(groupName);
 }
-
-const KNOCKOUT_HEADING = "Pudotuspelit";
 
 /**
  * One group's body. A group with no table renders as its matches; a
@@ -148,22 +154,33 @@ function zonesOf(group: GroupStandingsResult, levels: readonly GroupLevel[]): Gr
  * under it, and the source of the labels once, under the last list.
  *
  * decisions/063-competition-zones.md
+ * decisions/071-section-toggles.md
  */
 function LeagueGroups({
   groups,
   levels,
+  fold,
+  openFirst = false,
   teamHref,
 }: Readonly<{
   groups: GroupStandingsResult[];
   levels: readonly GroupLevel[];
+  /** Tables start open, a league's knockout lists closed, neither remembered. */
+  fold: FoldState;
+  /** The first group is the page's first section, so it opens whatever `fold` says. */
+  openFirst?: boolean;
   teamHref: (teamProviderId: number) => string;
 }>) {
   const zoned = groups.map((group) => ({ group, ...zonesOf(group, levels) }));
   const lastWithList = zoned.findLast(({ zones }) => zones.length > 0)?.group.groupId;
 
-  return zoned.map(({ group, zones, ruleAfter }) => (
-    <section className="mb-10" key={group.groupId}>
-      <h2 className="mb-3 font-semibold text-xl">{displayGroupName(group.groupName)}</h2>
+  return zoned.map(({ group, zones, ruleAfter }, index) => (
+    <TableFold
+      fold={openFirst && index === 0 ? { ...fold, initiallyOpen: true } : fold}
+      heading={displayGroupName(group.groupName)}
+      headingId={`standings-group-${group.groupId}`}
+      key={group.groupId}
+    >
       <GroupBody group={group} isCup={false} ruleAfter={ruleAfter} teamHref={teamHref} />
       {zones.length > 0 && (
         <ul className="mt-3 text-sm">
@@ -175,30 +192,35 @@ function LeagueGroups({
       {group.groupId === lastWithList && (
         <p className="mt-2 text-sm text-muted">{ZONE_SOURCE_MESSAGE}</p>
       )}
-    </section>
+    </TableFold>
   ));
 }
 
 /**
- * One round, collapsible with `<details>`, and open to begin with.
+ * One round, collapsible with `<details>`, open to begin with when it starts on
+ * the latest round's day.
  *
  * decisions/015-finnish-cups.md
  * decisions/419-shared-fold-marker.md
+ * decisions/698-long-lists-start-closed.md
+ * decisions/071-section-toggles.md
  */
 function CupRoundSection({
   group,
+  open,
   teamHref,
 }: Readonly<{
   group: GroupStandingsResult;
+  open: boolean;
   teamHref: (teamProviderId: number) => string;
 }>) {
   return (
-    <details className="group mb-10 border-border-subtle border-b pb-4" open>
+    <details className="mb-10 border-border-subtle border-b pb-4" open={open}>
       <summary className="mb-3 flex cursor-pointer list-none items-baseline gap-2">
         <FoldMarker />
-        <h2 className="font-semibold text-xl">{displayGroupName(group.groupName)}</h2>
+        <h2 className={TABLE_HEADING}>{displayGroupName(group.groupName)}</h2>
         {group.kind === "match-list" && (
-          <span className="text-sm text-muted">{`(${group.matches.length} ottelua)`}</span>
+          <span className="text-sm text-muted">{`(${matchCountLabel(group.matches.length)})`}</span>
         )}
       </summary>
       <GroupBody group={group} isCup teamHref={teamHref} />
@@ -207,17 +229,47 @@ function CupRoundSection({
 }
 
 /**
+ * A knockout cup's rounds, latest first: those starting on the latest round's
+ * day open, the rest closed.
+ *
+ * decisions/015-finnish-cups.md
+ * decisions/714-page-section-order.md
+ * decisions/698-long-lists-start-closed.md
+ */
+function CupRounds({
+  groups,
+  teamHref,
+}: Readonly<{
+  groups: GroupStandingsResult[];
+  teamHref: (teamProviderId: number) => string;
+}>) {
+  const matches = groups.flatMap((group) => (group.kind === "match-list" ? group.matches : []));
+  const open = openCupGroups(groups, matches);
+  return cupGroupOrder(groups, matches).map((group) => (
+    <CupRoundSection
+      group={group}
+      key={group.groupId}
+      open={open.has(group.groupId)}
+      teamHref={teamHref}
+    />
+  ));
+}
+
+/**
  * A `groups-and-playoff` cup's season: the group tables first, then
  * `Pudotuspelit`, where any knockout group the tree does not draw is listed
  * before the tree. Suomen Cup never comes here.
  *
  * decisions/043-liigacup.md
+ * decisions/071-section-toggles.md
  */
 function GroupsAndPlayoff({
   groups,
+  knockoutFold,
   teamHref,
 }: Readonly<{
   groups: GroupStandingsResult[];
+  knockoutFold: FoldState;
   teamHref: (teamProviderId: number) => string;
 }>) {
   const tables = groups.filter((group) => group.kind !== "match-list");
@@ -228,15 +280,23 @@ function GroupsAndPlayoff({
   return (
     <>
       {tables.map((group) => (
-        <section className="mb-10" key={group.groupId}>
-          <h2 className="mb-3 font-semibold text-xl">{displayGroupName(group.groupName)}</h2>
+        <TableFold
+          fold={TABLE_FOLD}
+          heading={displayGroupName(group.groupName)}
+          headingId={`standings-group-${group.groupId}`}
+          key={group.groupId}
+        >
           <GroupBody group={group} isCup teamHref={teamHref} />
-        </section>
+        </TableFold>
       ))}
       {tables.length > 0 && <StandingsLegend />}
       {(listed.length > 0 || rounds.length > 0) && (
-        <section className="mt-10 mb-10">
-          <h2 className="mb-3 font-semibold text-xl">{KNOCKOUT_HEADING}</h2>
+        <TableFold
+          className="mt-10 mb-10"
+          fold={knockoutFold}
+          heading={KNOCKOUT_PHASE}
+          headingId="standings-knockout"
+        >
           {listed.map((group) => (
             <section className="mb-8" key={group.groupId}>
               <h3 className="mb-3 font-semibold text-lg">{displayGroupName(group.groupName)}</h3>
@@ -244,7 +304,7 @@ function GroupsAndPlayoff({
             </section>
           ))}
           {rounds.length > 0 && <BracketTree rounds={rounds} teamHref={teamHref} />}
-        </section>
+        </TableFold>
       )}
     </>
   );
@@ -268,6 +328,8 @@ export async function generateMetadata({
  * decisions/048-league-goals-per-game-trend.md
  * decisions/063-competition-zones.md
  * decisions/067-knockout-simulation.md
+ * decisions/714-page-section-order.md
+ * decisions/071-section-toggles.md
  */
 export default async function DomesticStandingsPage({
   searchParams,
@@ -297,17 +359,22 @@ export default async function DomesticStandingsPage({
   const roundParam = parseTasoRoundParam(params.kierros, availableRounds);
   const selectedRound = roundParam.kind === "valid" ? roundParam.round : undefined;
 
+  const isCup = isDomesticCup(competitionCode);
   const result = await getSeasonStandings(
     categoryId,
     competitionId,
     seasonId,
     currentSeason,
-    selectedRound
+    selectedRound,
+    isCup ? "taso" : "league"
   );
 
+  // The reader's folds on every standings page, read once.
+  const sections = await getPageSections("standings");
   // Under the tables, on the leagues `CompetitionAnalyticsSection` covers;
   // `null` elsewhere.
   const analytics = await CompetitionAnalyticsSection({
+    sections,
     kind: "taso",
     competitionCode,
     selectedSeasonId: seasonId,
@@ -321,13 +388,12 @@ export default async function DomesticStandingsPage({
       ? await getCupForecast(competitionCode, seasonId, currentSeason)
       : { status: "unavailable" as const };
 
-  const isCup = isDomesticCup(competitionCode);
   const isGroupsAndPlayoff = cupFormatFor(competitionCode) === "groups-and-playoff";
   const teamHref = (teamProviderId: number) =>
     `/kotimaa/joukkue/${teamProviderId}?kilpailu=${competitionCode}&kausi=${seasonId}`;
 
-  // Above the rounds, not below them as Champions League does. A
-  // `groups-and-playoff` cup draws its own bracket.
+  // After a league's tables and above a cup's rounds. A `groups-and-playoff`
+  // cup draws its own bracket.
   const bracket =
     result.status === "ok" && !isGroupsAndPlayoff
       ? buildCupBracket(
@@ -338,55 +404,81 @@ export default async function DomesticStandingsPage({
           )
         )
       : [];
+  // With no table above it, `Pudotuspelit` is the page's first section.
+  const noTable =
+    result.status === "ok" && result.groups.every((group) => group.kind === "match-list");
 
   return (
-    <PageShell heading={`${seasonCompetitionName} ${seasonLabel}`}>
-      <RenamedNotice renamedTo={renamedTo} />
-      <p className="mb-6">
-        <Link
-          className="text-sm hover:underline"
-          href={`/kotimaa/ottelut?kilpailu=${competitionCode}&kausi=${seasonId}`}
-        >
-          Kaikki ottelut
-        </Link>
-      </p>
-      {competitionParam.kind === "invalid" && (
-        <Notice>Kilpailua ei löytynyt. Näytetään {competitionName}.</Notice>
-      )}
-      {season.kind === "invalid" && (
-        <Notice>Kautta ei löytynyt. Näytetään kausi {seasonLabel}.</Notice>
-      )}
-      {roundParam.kind === "invalid" && <Notice>{INVALID_ROUND_MESSAGE}</Notice>}
-      <TasoStandingsControls
-        competitionCode={competitionCode}
-        seasons={selectableSeasons}
-        selectedSeasonId={seasonId}
-        availableRounds={availableRounds}
-        selectedRound={selectedRound}
-      />
-      {result.status === "empty" && <p>{EMPTY_MESSAGE}</p>}
-      {result.status === "error" && <p>{ERROR_MESSAGE}</p>}
-      {bracket.length > 0 && (
-        <section className="mb-10">
-          <h2 className="mb-3 font-semibold text-xl">{KNOCKOUT_HEADING}</h2>
-          <BracketTree rounds={bracket} teamHref={teamHref} />
-        </section>
-      )}
-      {cupForecast.status === "unavailable" ? null : <CupForecastSection forecast={cupForecast} />}
-      {result.status === "ok" && isGroupsAndPlayoff && (
-        <GroupsAndPlayoff groups={result.groups} teamHref={teamHref} />
-      )}
-      {result.status === "ok" &&
-        !isGroupsAndPlayoff &&
-        isCup &&
-        result.groups.map((group) => (
-          <CupRoundSection group={group} key={group.groupId} teamHref={teamHref} />
-        ))}
-      {result.status === "ok" && !isGroupsAndPlayoff && !isCup && (
-        <LeagueGroups groups={result.groups} levels={result.levels} teamHref={teamHref} />
-      )}
-      {!isGroupsAndPlayoff && <StandingsLegend />}
-      {analytics}
-    </PageShell>
+    <FoldsFor page={`${competitionCode}:${seasonId}:${selectedRound ?? ""}`}>
+      <PageShell heading={`${seasonCompetitionName} ${seasonLabel}`}>
+        <RenamedNotice renamedTo={renamedTo} />
+        <p className="mb-6">
+          <Link
+            className="text-sm"
+            href={`/kotimaa/ottelut?kilpailu=${competitionCode}&kausi=${seasonId}`}
+          >
+            Kaikki ottelut
+          </Link>
+        </p>
+        {competitionParam.kind === "invalid" && (
+          <Notice>Kilpailua ei löytynyt. Näytetään {competitionName}.</Notice>
+        )}
+        {season.kind === "invalid" && (
+          <Notice>Kautta ei löytynyt. Näytetään kausi {seasonLabel}.</Notice>
+        )}
+        {roundParam.kind === "invalid" && <Notice>{INVALID_ROUND_MESSAGE}</Notice>}
+        <TasoStandingsControls
+          competitionCode={competitionCode}
+          seasons={selectableSeasons}
+          selectedSeasonId={seasonId}
+          availableRounds={availableRounds}
+          selectedRound={selectedRound}
+        />
+        {result.status === "empty" && <p>{EMPTY_MESSAGE}</p>}
+        {result.status === "error" && <p>{ERROR_MESSAGE}</p>}
+        {result.status === "ok" && isGroupsAndPlayoff && (
+          <GroupsAndPlayoff
+            groups={result.groups}
+            knockoutFold={foldFor(sections, "knockout", noTable)}
+            teamHref={teamHref}
+          />
+        )}
+        {result.status === "ok" && !isGroupsAndPlayoff && !isCup && (
+          <LeagueGroups
+            fold={TABLE_FOLD}
+            groups={result.groups.filter((group) => group.kind !== "match-list")}
+            levels={result.levels}
+            teamHref={teamHref}
+          />
+        )}
+        {bracket.length > 0 && (
+          // A Suomen Cup's bracket comes before its rounds.
+          <TableFold
+            fold={foldFor(sections, "knockout", isCup || noTable)}
+            heading={KNOCKOUT_PHASE}
+            headingId="standings-knockout"
+          >
+            <BracketTree rounds={bracket} teamHref={teamHref} />
+          </TableFold>
+        )}
+        {result.status === "ok" && !isGroupsAndPlayoff && !isCup && (
+          <LeagueGroups
+            fold={KNOCKOUT_LIST_FOLD}
+            openFirst={noTable && bracket.length === 0}
+            groups={result.groups.filter((group) => group.kind === "match-list")}
+            levels={result.levels}
+            teamHref={teamHref}
+          />
+        )}
+        {result.status === "ok" && !isGroupsAndPlayoff && isCup && (
+          <CupRounds groups={result.groups} teamHref={teamHref} />
+        )}
+        {cupForecast.status === "unavailable" ? null : (
+          <CupForecastSection fold={foldFor(sections, "cup-forecast")} forecast={cupForecast} />
+        )}
+        {!isGroupsAndPlayoff && <StandingsLegend />}
+        {analytics}
+      </PageShell>
+    </FoldsFor>
   );
 }

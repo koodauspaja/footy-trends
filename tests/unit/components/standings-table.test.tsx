@@ -10,6 +10,7 @@ import { StandingsLegend, type StandingsRow, StandingsTable } from "@/components
  * decisions/021-table-consistency.md
  * decisions/026-favourites.md
  * decisions/063-competition-zones.md
+ * decisions/699-narrow-tables.md
  */
 
 // The favourite star in this tree calls `useSession`, and the real client must
@@ -162,6 +163,34 @@ describe("StandingsLegend", () => {
       ...Array(8).fill(`${COLUMN_WIDTHS.stat}px`),
       `${COLUMN_WIDTHS.form}px`,
     ]);
+  });
+});
+
+describe("StandingsTable on a phone", () => {
+  it("keeps the place, the team, the games played and the points, and leaves out the rest", () => {
+    render(<StandingsTable standings={[buildRow()]} teamHref={teamHref} />);
+
+    const kept = screen
+      .getAllByRole("columnheader")
+      .filter((header) => !header.classList.contains("max-sm:hidden"))
+      .map((header) => header.textContent);
+    expect(kept).toEqual(["Sija", "Joukkue", "O", "P"]);
+  });
+
+  it("lets a long team name break in the narrow column rather than overrun it", () => {
+    // The name sits in a flex row beside its star, which would hold it at its
+    // longest word.
+    render(<StandingsTable standings={[buildRow()]} teamHref={teamHref} />);
+
+    expect(screen.getByRole("link", { name: buildRow().teamName })).toHaveClass("min-w-0");
+  });
+
+  it("fits those four on a 375 px screen", () => {
+    // 375 less the page's 16 px gutters.
+    const { container } = render(<StandingsTable standings={[buildRow()]} teamHref={teamHref} />);
+    const floor = container.querySelector("table")?.style.getPropertyValue("--table-floor-phone");
+
+    expect(Number.parseFloat(floor ?? "")).toBeLessThanOrEqual(343);
   });
 });
 

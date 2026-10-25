@@ -1,6 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 import { dropCached } from "../support/e2e-redis";
+import { openAnalytics } from "./folds";
 
 /**
  * The Champions League's `Kauden ennuste`, end to end, on the stored season in
@@ -36,6 +37,7 @@ test.describe("Champions League forecast, signed in", () => {
 
   test("the season in progress shows its forecast first in Tämä kausi", async ({ page }) => {
     await page.goto(STANDINGS);
+    await openAnalytics(page);
     const group = page.getByRole("region", { name: "Tämä kausi" });
 
     await expect(group.getByRole("heading", { level: 4 }).first()).toHaveText(HEADING);
@@ -62,6 +64,7 @@ test.describe("Champions League forecast, signed in", () => {
 
   test("prints every open chance as a whole percent, never 0 % or 100 %", async ({ page }) => {
     await page.goto(STANDINGS);
+    await openAnalytics(page);
     const knockout = forecastPanel(page).getByRole("table").last();
     // The title column: nothing is decided while the league phase is played.
     await expect(knockout.locator("tbody tr")).not.toHaveCount(0);
@@ -76,6 +79,7 @@ test.describe("Champions League forecast, signed in", () => {
 
   test("says what the figures are and links to the model's record", async ({ page }) => {
     await page.goto(STANDINGS);
+    await openAnalytics(page);
     const panel = forecastPanel(page);
 
     await expect(panel.getByText(/^Loppukausi on pelattu 10 000 kertaa/)).toBeVisible();
@@ -86,6 +90,7 @@ test.describe("Champions League forecast, signed in", () => {
 
   test("a finished season shows no forecast", async ({ page }) => {
     await page.goto(`${STANDINGS}&kausi=2024`);
+    await openAnalytics(page);
 
     await expect(page.getByRole("region", { name: "Tämä kausi" })).toBeVisible();
     await expect(forecastPanel(page)).toHaveCount(0);

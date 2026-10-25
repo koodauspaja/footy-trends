@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { paintsWithShade } from "../shared/hardcoded-colour";
+import { openEveryFold } from "./folds";
 import { openAccountMenu, signedInAs } from "./session";
 
 /**
@@ -207,6 +208,8 @@ for (const scheme of ["light", "dark"] as const) {
         await page.goto(path);
         // Something rendered, so an empty page cannot pass vacuously.
         await expect(page.getByRole("heading").first()).toBeVisible();
+        // Every fold open, so text a reader can open is measured too.
+        await openEveryFold(page);
 
         await expectLegible(page, path, scheme);
       });

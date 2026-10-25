@@ -1,0 +1,217 @@
+import { type BrowserContext, expect, type Locator, type Page, test } from "@playwright/test";
+import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
+import { SESSION_COOKIE, storeSignedInReader } from "../support/e2e-session";
+import { fold, isOpen } from "./folds";
+import { waitForSession } from "./session";
+
+/**
+ * A page's sections fold, each starting as its kind of page has it, and a
+ * signed-in reader's choices follow them to every page of that kind and to
+ * another browser, which only a browser against the server can show.
+ *
+ * decisions/071-section-toggles.md
+ */
+
+// A split season: three headed tables, so each folds.
+const STANDINGS = "/kotimaa/sarjataulukko?kausi=2025";
+
+// Whether each group inside `Analyysit` is open, in the page's order.
+function groupsOpen(page: Page): Promise<boolean[]> {
+  return fold(page, "Analyysit").evaluate((analytics) =>
+    [...analytics.querySelectorAll("details")].map((group) => group.open)
+  );
+}
+
+// How far each group's marker inside `Analyysit` is turned, in the page's order.
+function markersTurned(page: Page): Promise<string[]> {
+  return fold(page, "Analyysit").evaluate((analytics) =>
+    [...analytics.querySelectorAll(":scope details > summary > [aria-hidden]")].map(
+      (marker) => getComputedStyle(marker).rotate
+    )
+  );
+}
+
+// Presses a fold's heading and waits for the server action saving its choice.
+// The page has hydrated by then: a press before it is toggled by the browser
+// alone, with nothing listening to save it.
+async function toggleSaved(page: Page, details: Locator): Promise<void> {
+  await waitForSession(page);
+  const saved = page.waitForResponse(
+    (response) => "next-action" in response.request().headers() && response.ok()
+  );
+  await details.locator(":scope > summary").click();
+  await saved;
+}
+
+async function signIn(context: BrowserContext, cookie: string, url: string): Promise<void> {
+  await context.addCookies([{ name: SESSION_COOKIE, value: cookie, url }]);
+}
+
+// The top two clubs of the current Veikkausliiga table, read as elo.spec.ts
+// reads one: each has `Muut kaudet`.
+async function twoClubs(page: Page): Promise<[string, string]> {
+  await page.goto("/kotimaa/sarjataulukko?kilpailu=VL");
+  const rows = page.locator("table tbody tr");
+  const club = async (row: number) =>
+    (await rows.nth(row).getByRole("link").first().getAttribute("href")) ?? "";
+  return [await club(0), await club(1)];
+}
+
+// A club's page, read off the table: on an empty database a club is known only
+// once its season has been opened.
+async function aClub(page: Page): Promise<string> {
+  const [club] = await twoClubs(page);
+  return club;
+}
+
+test.describe("For a reader with no stored choice", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
+  });
+
+  test("a standings page opens its tables and closes Analyysit, then opens only Tämä kausi", async ({
+    page,
+  }) => {
+    await page.goto(STANDINGS);
+
+    for (const table of ["Mestaruussarja", "Karsintasarja", "Runkosarja"]) {
+      expect(await isOpen(fold(page, table)), table).toBe(true);
+    }
+    const analytics = fold(page, "Analyysit");
+    expect(await isOpen(analytics)).toBe(false);
+
+    await analytics.locator(":scope > summary").click();
+    await expect(page.getByRole("heading", { name: "Tämä kausi", level: 3 })).toBeVisible();
+    expect(await isOpen(fold(page, "Tämä kausi"))).toBe(true);
+    expect(await isOpen(fold(page, "Kausi kaudelta"))).toBe(false);
+    expect(await isOpen(fold(page, "Kilpailut rinnakkain"))).toBe(false);
+  });
+
+  test("a folded table hides its rows and shows them again", async ({ page }) => {
+    await page.goto(STANDINGS);
+    const table = fold(page, "Karsintasarja");
+
+    await table.locator(":scope > summary").click();
+    await expect(table.getByRole("table")).toBeHidden();
+    await table.locator(":scope > summary").click();
+    await expect(table.getByRole("table")).toBeVisible();
+  });
+
+  test("a folded table starts over on another round, as a load does", async ({ page }) => {
+    await page.goto(STANDINGS);
+    // Hydrated, or the round selector would change without navigating.
+    await page.getByRole("button", { name: "Kirjaudu sisään" }).waitFor();
+    const table = fold(page, "Runkosarja");
+    await table.locator(":scope > summary").click();
+    await expect.poll(() => isOpen(table)).toBe(false);
+
+    await page.getByLabel("Kierros").selectOption("5");
+    await expect(page).toHaveURL(/kierros=5/);
+
+    await expect.poll(() => isOpen(fold(page, "Runkosarja"))).toBe(true);
+  });
+
+  test("a team page opens its matches and closes Analyysit, then opens only its first group", async ({
+    page,
+  }) => {
+    await page.goto(await aClub(page));
+
+    expect(await isOpen(fold(page, "Ottelut"))).toBe(true);
+    const analytics = fold(page, "Analyysit");
+    expect(await isOpen(analytics)).toBe(false);
+
+    await analytics.locator(":scope > summary").click();
+    const groups = await groupsOpen(page);
+    expect(groups.length).toBeGreaterThan(1);
+    expect(groups).toEqual([true, ...groups.slice(1).map(() => false)]);
+    // Each marker by its own group, not by the open `Analyysit` around it.
+    await expect
+      .poll(() => markersTurned(page))
+      .toEqual(groups.map((open) => (open ? "90deg" : "none")));
+  });
+
+  test("a fold opens and closes from the keyboard", async ({ page }) => {
+    await page.goto(await aClub(page));
+    const analytics = fold(page, "Analyysit");
+
+    await analytics.locator(":scope > summary").focus();
+    await page.keyboard.press("Enter");
+    await expect.poll(() => isOpen(analytics)).toBe(true);
+    await page.keyboard.press("Space");
+    await expect.poll(() => isOpen(analytics)).toBe(false);
+  });
+
+  test("a choice is not kept past a reload", async ({ page }) => {
+    await page.goto(await aClub(page));
+    const analytics = fold(page, "Analyysit");
+
+    await analytics.locator(":scope > summary").click();
+    await expect.poll(() => isOpen(analytics)).toBe(true);
+
+    await page.reload();
+    expect(await isOpen(fold(page, "Analyysit"))).toBe(false);
+  });
+});
+
+test.describe("Signed in", () => {
+  let reader: Awaited<ReturnType<typeof storeSignedInReader>>;
+
+  test.beforeEach(async () => {
+    reader = await storeSignedInReader("user");
+  });
+
+  test.afterEach(async () => {
+    await reader?.remove();
+  });
+
+  test("an opened Muut kaudet and a closed Ottelut hold on reload, on another club's page and in another browser", async ({
+    page,
+    browser,
+    baseURL,
+  }) => {
+    const url = baseURL as string;
+    await signIn(page.context(), reader.cookie, url);
+    const [club, another] = await twoClubs(page);
+    await page.goto(club);
+
+    await toggleSaved(page, fold(page, "Analyysit"));
+    const other = fold(page, "Muut kaudet");
+    expect(await isOpen(other)).toBe(false);
+    await toggleSaved(page, other);
+    await toggleSaved(page, fold(page, "Ottelut"));
+
+    const asLeft = async (on: Page) => {
+      expect(await isOpen(fold(on, "Analyysit"))).toBe(true);
+      expect(await isOpen(fold(on, "Muut kaudet"))).toBe(true);
+      expect(await isOpen(fold(on, "Ottelut"))).toBe(false);
+    };
+    await page.reload();
+    await asLeft(page);
+
+    await page.goto(another);
+    await asLeft(page);
+
+    const second = await browser.newContext({ baseURL: url });
+    try {
+      await signIn(second, reader.cookie, url);
+      const elsewhere = await second.newPage();
+      await elsewhere.goto(club);
+      await asLeft(elsewhere);
+    } finally {
+      await second.close();
+    }
+  });
+
+  test("signed out again, the page starts from its defaults", async ({ page, baseURL }) => {
+    const context = page.context();
+    await signIn(context, reader.cookie, baseURL as string);
+    await page.goto(await aClub(page));
+    await toggleSaved(page, fold(page, "Analyysit"));
+
+    await context.clearCookies();
+    await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
+    await page.reload();
+
+    expect(await isOpen(fold(page, "Analyysit"))).toBe(false);
+  });
+});

@@ -4,6 +4,7 @@
  * colour.
  *
  * decisions/033-home-vs-away.md
+ * decisions/700-legible-charts.md
  */
 
 /**
@@ -24,6 +25,13 @@ const VALUE_ROOM = 64;
  * decisions/033-home-vs-away.md
  */
 export const TRACK = WIDTH - VALUE_ROOM;
+/**
+ * The labels' and values' font, larger below `sm`: the text is inside the
+ * `viewBox`, so a phone scales it down with the drawing.
+ *
+ * decisions/700-legible-charts.md
+ */
+const BAR_TEXT = "text-[14px] sm:text-xs";
 
 const LABEL_HEIGHT = 20;
 const BAR_HEIGHT = 14;
@@ -99,7 +107,7 @@ export function BarChart({
       <title>{title}</title>
       {placed.map(({ row, top }) => (
         <g data-part="row" key={row.label}>
-          <text className="fill-muted text-xs" dominantBaseline="hanging" x={0} y={top}>
+          <text className={`fill-muted ${BAR_TEXT}`} dominantBaseline="hanging" x={0} y={top}>
             {row.label}
           </text>
           {row.bars.map((bar, barIndex) => (
@@ -145,7 +153,7 @@ function BarShape({ bar, max, y }: Readonly<{ bar: Bar; max: number; y: number }
           still show as a sliver at the axis. */}
       {length === 0 ? null : <BarFill length={length} outlined={bar.outlined === true} y={y} />}
       <text
-        className="fill-foreground text-xs"
+        className={`fill-foreground ${BAR_TEXT}`}
         data-part="value"
         dominantBaseline="middle"
         x={TRACK + 8}

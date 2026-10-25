@@ -7,6 +7,7 @@ import {
   matches,
   predictions,
   refreshRuns,
+  sectionChoice,
   session,
   tasoGroupTeams,
   tasoGroupZones,
@@ -34,6 +35,7 @@ import {
  * decisions/029-forced-season-refresh.md
  * decisions/536-database-url-required.md
  * decisions/063-competition-zones.md
+ * decisions/071-section-toggles.md
  */
 
 describe("matches table", () => {
@@ -460,5 +462,29 @@ describe("taso_group_zones table", () => {
     // A level that leads nowhere has a count and no label.
     expect(columns.find((column) => column.name === "label")?.notNull).toBe(false);
     expect(columns.find((column) => column.name === "team_count")?.notNull).toBe(true);
+  });
+});
+
+describe("section_choice table", () => {
+  it("keeps one choice per reader, kind of page and section, so a later save replaces it", () => {
+    const { indexes } = getTableConfig(sectionChoice);
+
+    expect(indexes).toHaveLength(1);
+    const identity = indexes.find(
+      (index) => index.config.name === "section_choice_identity_idx"
+    )?.config;
+    expect(identity).toMatchObject({ unique: true });
+    expect(identity?.columns.map((column) => (column as { name: string }).name)).toEqual([
+      "user_id",
+      "page_kind",
+      "section",
+    ]);
+  });
+
+  it("cascades away with its user, leaving no orphaned choices", () => {
+    const [foreignKey] = getTableConfig(sectionChoice).foreignKeys;
+
+    expect(foreignKey?.onDelete).toBe("cascade");
+    expect(foreignKey?.reference().foreignTable).toBe(user);
   });
 });
