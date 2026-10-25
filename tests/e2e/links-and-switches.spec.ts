@@ -1,6 +1,9 @@
 import { expect, type Locator, test } from "@playwright/test";
+import postgres from "postgres";
+import { e2eAppPort } from "../../scripts/e2e-target";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
 import { SESSION_COOKIE, storeSignedInReader } from "../support/e2e-session";
+import { testDatabaseUrl } from "../support/test-database";
 import { openEveryFold } from "./folds";
 import { signedInAs } from "./session";
 
@@ -8,12 +11,23 @@ import { signedInAs } from "./session";
  * A link can be told from plain text in both schemes: underlined in the colour
  * of the text around it, unless a box or its place among many alike says it is
  * a link. A switch fills its chosen view. jsdom has no CSS, so only a browser
- * shows either.
+ * shows either. Each link the rows look for is on a page whose data stays put:
+ * the seeded 2017 season, a finished season, or a match seeded here in 2099.
  *
  * decisions/701-links-and-switches.md
+ * decisions/735-links-spec-seeds-its-matches.md
  */
 
-const STANDINGS = "/kotimaa/sarjataulukko?kilpailu=VL&kausi=2026";
+const STANDINGS = "/kotimaa/sarjataulukko?kilpailu=VL&kausi=2017";
+
+// The seeded 2017 season's second final leg, with two meetings before it.
+const PLAYED = "/kotimaa/ottelu/9900302";
+
+// An upcoming league match, which always has an `Ennuste`, seeded in a season
+// nothing plays. Its id carries the run's port, so live runs on other ports,
+// which share the test database, never insert or delete each other's match.
+const SEASON = 2099;
+const UPCOMING_ID = 999_735_000 + e2eAppPort(process.env);
 
 // A computed colour with no strength, which paints nothing whatever it differs from.
 const CLEAR = /^rgba\(.*,\s*0\)$/;
@@ -22,8 +36,8 @@ const CLEAR = /^rgba\(.*,\s*0\)$/;
 const FOUND: ReadonlyArray<readonly [string, string, string | RegExp]> = [
   ["a standings page's", STANDINGS, "Kaikki ottelut"],
   ["a team page's", "/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024", "Sarjataulukkoon"],
-  ["a played match's", "/kotimaa/ottelu/4036852", /^Kaikki kohtaamiset/],
-  ["an upcoming match's", "/kotimaa/ottelu/4353547", "Kuinka hyvin ennusteet ovat osuneet?"],
+  ["a played match's", PLAYED, /^Kaikki kohtaamiset/],
+  ["an upcoming match's", `/kotimaa/ottelu/${UPCOMING_ID}`, "Kuinka hyvin ennusteet ovat osuneet?"],
   ["the missing page's", "/ei-ole-olemassa", "Etusivulle"],
 ];
 
@@ -40,6 +54,42 @@ function drawn(link: Locator) {
     };
   });
 }
+
+async function withDatabase(run: (sql: postgres.Sql) => Promise<unknown>) {
+  const sql = postgres(testDatabaseUrl());
+  try {
+    await run(sql);
+  } finally {
+    await sql.end();
+  }
+}
+
+test.beforeAll(async () => {
+  await withDatabase(async (sql) => {
+    await sql`delete from taso_matches where taso_match_id = ${UPCOMING_ID}`;
+    await sql`insert into taso_matches ${sql({
+      taso_match_id: UPCOMING_ID,
+      competition_id: `spljp${SEASON % 100}`,
+      category_id: "VL",
+      season_id: SEASON,
+      group_id: 1,
+      group_name: "Runkosarja",
+      kickoff_at: new Date(`${SEASON}-05-01T15:00:00Z`),
+      matchday: 1,
+      status: "SCHEDULED",
+      home_team_provider_id: 999_735_101,
+      home_team_name: "E2E Koti",
+      away_team_provider_id: 999_735_102,
+      away_team_name: "E2E Vieras",
+      home_goals: null,
+      away_goals: null,
+    })}`;
+  });
+});
+
+test.afterAll(async () => {
+  await withDatabase((sql) => sql`delete from taso_matches where taso_match_id = ${UPCOMING_ID}`);
+});
 
 test.beforeEach(async ({ page }) => {
   await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
