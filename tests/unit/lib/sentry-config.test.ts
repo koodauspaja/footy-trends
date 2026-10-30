@@ -69,6 +69,7 @@ describe("DATA_COLLECTION", () => {
       urlQueryParams: { deny: DENIED_NAME_PARTS },
       graphQL: { document: true, variables: true },
       genAI: { inputs: false, outputs: false },
+      mcp: { inputs: false, outputs: false },
       databaseQueryData: false,
       queues: false,
       stackFrameVariables: true,
