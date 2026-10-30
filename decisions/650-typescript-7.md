@@ -14,7 +14,7 @@ source with it. This investigation changes no dependency. Measured on
 | `next build`'s TypeScript step (Next 16.4.3) | Runs on the installed 7.x and fails on the same four files; nothing else | The same |
 | `scripts/comment-rules.ts`, `tests/unit/app/rendering-mode.test.ts`, `tests/unit/app/theme-tokens.test.ts`, `tests/unit/scripts/backfill-run.test.ts` | Broken: the package root is `lib/version.cjs`, with no `createSourceFile` or `transpileModule` | Portable: `typescript/sync` has an `API` client with `createSourceFile` and `transpileModule`, and `typescript/ast` has `getChildren` and the `is*` predicates. Not ported: the API differs from 6.x, so each file is rewritten |
 | Next's tsconfig `plugins` entry (`createTSPlugin`) | Not loaded: 7.x ships no `tsserver` and no plugin loading, only `tsc.js` | The same |
-| SonarCloud's analyser | Untested: its log reads "Creating TypeScript(6.0.3) program", but 6.0.3 has been ours since the first commit, so the log cannot tell our package from a bundled one. Only a pull request run on 7.x shows it | The same |
+| SonarCloud's analyser | Untested: its log reads "Creating TypeScript(6.0.3) program", but 6.0.3 has been ours since the first commit, so the log cannot tell our package from a bundled one. Only a CI run with 7.x in the lockfile shows it | The same |
 
 ## Timings
 
@@ -24,7 +24,7 @@ On this machine, three runs each; the first run of each is cold.
 |---|---|---|---|
 | `tsc --noEmit` | 14.8 s, 2.8 s, 2.3 s | 1.5 s, 0.4 s, 0.4 s | 1.1 s, 0.3 s, 0.3 s |
 | pre-commit hook (Biome, then `tsc`) | 10.0 s, 3.5 s, 2.9 s | 1.9 s, 0.9 s, 0.9 s | not run |
-| CI's Typecheck step, last six green runs | 10–16 s | not measured: CI runs only on a pull request, and this one changes no dependency | not measured |
+| CI's Typecheck step, last six green runs | 10–16 s | not measured: CI installs from the lockfile, which this pull request leaves on 6.0.3 | not measured |
 
 The 7.x runs reported the four files' errors and still checked the whole
 program; a ported tree was not timed. 7.1's parser through the sync API: one file 13 ms, the 31 pages
@@ -37,4 +37,4 @@ program; a ported tree was not timed. 7.1's parser through the sync API: one fil
 | Not 7.0 for `typecheck` only | The same two compilers in one tree, for a check that takes 10–16 s in CI today |
 | Losing Next's editor plugin is accepted | It gives editor hints only; the build, CI and Sonar do not use it. 7.x has no plugin loading to keep it |
 | The follow-up is chore #744, which waits for 7.1 stable | This issue changes no dependency |
-| The follow-up chore verifies on a Railway environment from its branch (`npm run railway:environment`) and on its own pull request | The environment builds and runs the site on 7; only the pull request runs CI's type check and Sonar, the two consumers not measured here |
+| The follow-up chore verifies on a Railway environment from its branch (`npm run railway:environment -- --name=<environment> --branch=<its branch>`) and on its own pull request | The environment builds and runs the site on 7; CI's type check and Sonar, the two consumers not measured here, first run on 7 in that pull request, once its lockfile has 7 |
