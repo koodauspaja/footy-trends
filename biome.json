@@ -52,6 +52,18 @@
       "playwright": "none"
     }
   },
+  "overrides": [
+    {
+      "includes": ["tests/e2e/**"],
+      "linter": {
+        "rules": {
+          "performance": {
+            "useDomNodeTextContent": "off"
+          }
+        }
+      }
+    }
+  ],
   "javascript": {
     "formatter": {
       "quoteStyle": "double",
