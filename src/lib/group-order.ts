@@ -56,7 +56,10 @@ export function cupGroupOrder<G extends Group>(
 export function openCupGroups(groups: readonly Group[], matches: readonly Dated[]): Set<number> {
   const startOf = startDays(matches);
   const lists = groups.filter((group) => group.kind === "match-list");
-  const latest = lists.map(startOf).reduce((day, next) => (next > day ? next : day), "");
+  const latest = lists
+    .map(startOf)
+    .toSorted((left, right) => left.localeCompare(right))
+    .at(-1);
   return new Set(lists.filter((group) => startOf(group) === latest).map((group) => group.groupId));
 }
 
