@@ -13,7 +13,7 @@ scaffolded.
 ./scripts/setup
 ```
 
-`INSTALL.md` has the prerequisites (Node 24, the pinned npm, Docker), what the
+`INSTALL.md` has the prerequisites (Node 26, the pinned npm, Docker), what the
 script does, the same steps by hand, and troubleshooting.
 
 Two API keys are needed for real data; the app starts without them.

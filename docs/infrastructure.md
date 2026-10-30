@@ -54,6 +54,7 @@ pins each value.
 |---|---|
 | Before traffic | `npm run db:migrate` (migrations are forward-only: redeploying an older commit does not roll the schema back) |
 | Start | `node node_modules/next/dist/bin/next start`, not `npm start`: under npm the server never received Railway's SIGTERM (#525) |
+| Node | the major in `.nvmrc`, 26. Railway's builder, Railpack, reads it: its build log lists `node │ 26.x │ idiomatic-version-file`. A push changing only `.nvmrc` deploys nothing (*Redeploys on*) |
 | Health check | `/api/health`, 60 s. It checks Postgres and Redis and reports the running commit |
 | Restart | on failure (Railway's default, deliberately not declared), at most 3 times |
 | Handover | 15 s overlap, then 10 s draining |
