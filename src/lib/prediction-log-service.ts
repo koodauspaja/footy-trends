@@ -8,6 +8,7 @@
  * decisions/055-poisson-goal-model.md
  * decisions/057-surprise-index.md
  * decisions/060-elo-variants.md
+ * decisions/072-match-guesses.md
  */
 
 import { and, eq, gt, inArray, isNotNull, lte, sql } from "drizzle-orm";
@@ -18,6 +19,7 @@ import { categoryIdsFor, competitionForSeasonPair } from "./domestic-competition
 import { isRated, type TeamRating } from "./elo";
 import { replayVariants, type VariantState } from "./elo-variants";
 import { getSeasonMatches as getFootballDataSeasonMatches } from "./football-data";
+import { settleGuesses } from "./guessing-game-store";
 import { HOME_BASELINE_MODEL, isPredictedCup, PREDICTED_COMPETITIONS } from "./home-baseline";
 import { logger } from "./logger";
 import {
@@ -245,6 +247,8 @@ export type PredictionRunReport = {
   logged: number;
   /** Backtest rows written, of matches finished since the last backtest. */
   backtested: number;
+  /** Arvauspeli guesses settled, after the refresh stored their results. */
+  settled: number;
   /** One line per competition that failed, to refresh or to predict. */
   failures: string[];
 };
@@ -359,6 +363,8 @@ export async function runPredictionLog(
 
   await writePredictions(rows);
 
+  const settled = await settle(clock(), failures);
+
   const backtested = await finished
     .then((matches) => writeMissingBacktest(matches, clock()))
     .catch((error: unknown) => {
@@ -371,10 +377,29 @@ export async function runPredictionLog(
     refreshed: targets.length - refreshFailures.length,
     logged: rows.length,
     backtested,
+    settled,
     failures,
   };
   logger.info(report, "Predictions run finished");
   return report;
+}
+
+/**
+ * Settles the Arvauspeli guesses whose matches are finished, adding a failure
+ * for each match that could not be and for a step that failed outright.
+ *
+ * decisions/072-match-guesses.md
+ */
+export async function settle(now: Date, failures: string[]): Promise<number> {
+  try {
+    const report = await settleGuesses(now);
+    failures.push(...report.failed.map((providerMatchId) => `settle match ${providerMatchId}`));
+    return report.rewarded + report.missed;
+  } catch (error) {
+    logger.error({ err: error }, "Unable to settle Arvauspeli guesses");
+    failures.push("settle");
+    return 0;
+  }
 }
 
 /**

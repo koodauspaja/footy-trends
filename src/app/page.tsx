@@ -25,6 +25,7 @@ const REGIONS = [
   { href: "/maajoukkueet", label: "Maajoukkueet", description: "Arvokisat ja maaottelut" },
   // Not a region but the models' track record.
   { href: "/ennusteet", label: "Ennusteet", description: "Ennusteiden osuvuus" },
+  { href: "/arvauspeli", label: "Arvauspeli", description: "Arvaa Veikkausliigan otteluita" },
 ] as const;
 
 export default function Home() {

@@ -576,3 +576,84 @@ export const sectionChoice = pgTable(
     uniqueIndex("section_choice_identity_idx").on(table.userId, table.pageKind, table.section),
   ]
 );
+
+/**
+ * A reader who has joined `Arvauspeli`, from then on in every season.
+ *
+ * decisions/072-match-guesses.md
+ */
+export const gamePlayer = pgTable("game_player", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  joinedAt: timestamp("joined_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * A player's one guess on one stored TASO match: a 1X2 or an exact score. A
+ * change rewrites the row; what each version cost is in the ledger.
+ *
+ * decisions/072-match-guesses.md
+ */
+export const gameGuess = pgTable(
+  "game_guess",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => gamePlayer.userId, { onDelete: "cascade" }),
+    seasonId: integer("season_id").notNull(),
+    /** TASO's own match id, as `taso_matches.taso_match_id` holds it. */
+    providerMatchId: integer("taso_match_id").notNull(),
+    /** `"outcome"` or `"score"`. */
+    kind: text("kind").notNull(),
+    /** `"1"`, `"X"` or `"2"` for an outcome guess, else null. */
+    outcome: text("outcome"),
+    /** Both set for a score guess, both null for an outcome guess. */
+    homeGoals: integer("home_goals"),
+    awayGoals: integer("away_goals"),
+    /** The floor's free guess, which cannot be changed. */
+    free: boolean("free").notNull().default(false),
+    madeAt: timestamp("made_at", { withTimezone: true }).notNull(),
+    settledAt: timestamp("settled_at", { withTimezone: true }),
+    /** `"exact"`, `"difference"`, `"outcome"` or `"miss"`, once settled. */
+    tier: text("tier"),
+  },
+  (table) => [
+    uniqueIndex("game_guess_identity_idx").on(table.userId, table.providerMatchId),
+    // The settling run reads only the guesses still open.
+    index("game_guess_open_idx").on(table.providerMatchId).where(sql`${table.settledAt} is null`),
+  ]
+);
+
+/**
+ * Every token movement, append-only: a player's balance in a season is the sum
+ * of its amounts, never a figure stored of its own.
+ *
+ * decisions/072-match-guesses.md
+ */
+export const gameLedger = pgTable(
+  "game_ledger",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => gamePlayer.userId, { onDelete: "cascade" }),
+    seasonId: integer("season_id").notNull(),
+    /** `"grant"`, `"guess"`, `"change"` or `"reward"`. */
+    kind: text("kind").notNull(),
+    /** Negative for what a guess or a change cost, positive or zero otherwise. */
+    amount: integer("amount").notNull(),
+    guessId: integer("guess_id").references(() => gameGuess.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("game_ledger_balance_idx").on(table.userId, table.seasonId),
+    // One grant per player and season, and one reward per guess: a second
+    // write of either fails, so a retry can never pay twice.
+    uniqueIndex("game_ledger_grant_idx")
+      .on(table.userId, table.seasonId)
+      .where(sql`${table.kind} = 'grant'`),
+    uniqueIndex("game_ledger_reward_idx").on(table.guessId).where(sql`${table.kind} = 'reward'`),
+  ]
+);

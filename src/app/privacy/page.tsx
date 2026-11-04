@@ -52,6 +52,7 @@ export default function Privacy() {
             Sivujen osiot, jotka olet avannut tai sulkenut, jotta ne näkyvät seuraavalla kerralla
             samoin.
           </li>
+          <li>Arvauspelin arvauksesi ja pelimerkkisi.</li>
         </ul>
       </section>
 
@@ -109,8 +110,8 @@ export default function Privacy() {
         <p>
           Sivulla <Link href="/asetukset">Asetukset</Link> on
           <strong> Poista tili</strong>. Se poistaa tilin ja kaiken siihen liittyvän heti:
-          asetukset, profiilikuvan, suosikit, osioiden valinnat ja kirjautumistiedot. Erillistä
-          pyyntöä ei tarvita.
+          asetukset, profiilikuvan, suosikit, osioiden valinnat, arvauspelin tiedot ja
+          kirjautumistiedot. Erillistä pyyntöä ei tarvita.
         </p>
       </section>
 

@@ -52,6 +52,8 @@ const ROUTES: ReadonlyArray<readonly [url: string, folder: string]> = [
   // The terms of service.
   ["/kayttoehdot", "/terms"],
   ["/ennusteet", "/predictions"],
+  // Arvauspeli, the guessing game.
+  ["/arvauspeli", "/guessing-game"],
   ["/kotimaa", "/domestic"],
   ["/kotimaa/joukkue/:id", "/domestic/team/:id"],
   ["/kotimaa/ottelu/:id", "/domestic/match/:id"],

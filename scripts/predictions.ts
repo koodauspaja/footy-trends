@@ -1,10 +1,11 @@
 /**
  * The predictions log's entry point: `npm run predictions -- log`, which the
- * Railway cron service runs hourly, and `-- backtest`, run by hand after a
- * deploy. `DATABASE_URL` must come from the environment, not `.env`.
+ * Railway cron service runs hourly, `-- backtest`, run by hand after a deploy,
+ * and `-- settle`, Arvauspeli's settling alone, for staging. `DATABASE_URL` must come from the environment, not `.env`.
  *
  * decisions/052-predictions-log.md
  * decisions/571-bounded-database-close.md
+ * decisions/072-match-guesses.md
  */
 import { existsSync } from "node:fs";
 import { describeError } from "./backfill-plan";
@@ -40,12 +41,19 @@ async function main(): Promise<void> {
 
   const { closeDatabase } = await import("../src/db");
   const { redis } = await import("../src/lib/redis");
-  const { runPredictionBacktest, runPredictionLog } = await import(
+  const { runPredictionBacktest, runPredictionLog, settle } = await import(
     "../src/lib/prediction-log-service"
   );
   try {
     if (command === "backtest") {
       out(`Backtest     ${await runPredictionBacktest()} row(s) written`);
+      return;
+    }
+    if (command === "settle") {
+      const failures: string[] = [];
+      out(`Settled      ${await settle(new Date(), failures)} guess(es)`);
+      for (const failure of failures) out(`Failed       ${failure}`);
+      process.exitCode = failures.length === 0 ? 0 : 1;
       return;
     }
     const report = await runPredictionLog();
