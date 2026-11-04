@@ -432,6 +432,19 @@ describe("settling", () => {
     expect(await openGame(USER_ID, NOW)).toMatchObject({ kind: "playing", upcoming: [] });
   });
 
+  it("does not settle a finished match whose stored kickoff is still ahead", async () => {
+    const [match] = await storeMatches([vlMatch({ kickoffAt: at(50) })]);
+    await joinGame(USER_ID, NOW);
+    await placeGuess(USER_ID, match, { kind: "outcome", outcome: "1" }, () => NOW);
+    await db
+      .update(tasoMatches)
+      .set({ status: "FINISHED", homeGoals: 1, awayGoals: 0 })
+      .where(eq(tasoMatches.providerMatchId, match));
+
+    expect(await settleGuesses(at(10))).toMatchObject({ matches: 0 });
+    expect(await settleGuesses(at(60))).toMatchObject({ matches: 1, rewarded: 1 });
+  });
+
   it("leaves a guess open while its match has no result", async () => {
     const [match] = await storeMatches([vlMatch({ kickoffAt: at(50) })]);
     await joinGame(USER_ID, NOW);

@@ -138,6 +138,9 @@ Drafts, fine-tuned in implementation (S20).
 - **Reading:** the page reads stored matches and the player's rows only. No
   provider call on a page view and no Redis cache: the data is per player and
   changes on each guess.
+- **Caching:** the hourly run refreshes TASO through its existing 15-minute
+  response cache (`MATCHES_CACHE_TTL_SECONDS`), as for its predictions; the game
+  adds no provider call and no cache of its own.
 
 ## Edge Cases
 

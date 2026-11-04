@@ -6,7 +6,7 @@
  * decisions/072-match-guesses.md
  */
 
-import { and, asc, eq, inArray, isNotNull, isNull, max, ne, sql, sum } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, lte, max, ne, sql, sum } from "drizzle-orm";
 import { db } from "@/db";
 import { gameGuess, gameLedger, gamePlayer, tasoMatches } from "@/db/schema";
 import {
@@ -96,7 +96,13 @@ export type GuessOutcome =
   | { ok: true; decision: Exclude<GuessDecision, { kind: "refused" }> }
   | {
       ok: false;
-      reason: "not-joined" | "unknown-match" | "started" | "insufficient" | "free-fixed";
+      reason:
+        | "not-joined"
+        | "unknown-match"
+        | "started"
+        | "settled"
+        | "insufficient"
+        | "free-fixed";
     };
 
 function seasonOf(seasonId: number) {
@@ -369,7 +375,7 @@ function playingView(
       homeTeamName: match.homeTeamName,
       awayTeamName: match.awayTeamName,
     };
-    if (price !== null) {
+    if (price !== null && row?.settledAt == null) {
       upcoming.push({
         ...shown,
         groupName: match.groupName,
@@ -504,6 +510,7 @@ export async function placeGuess(
       .from(gameGuess)
       .where(and(eq(gameGuess.userId, userId), eq(gameGuess.providerMatchId, providerMatchId)));
     const openGuesses = await openGuessesOf(tx, userId);
+    if (existing?.settledAt != null) return refused(userId, providerMatchId, guess, "settled");
     const decision = decideGuess({
       existing:
         existing === undefined
@@ -625,7 +632,9 @@ type SettleRow = {
 
 /**
  * Settles one match's guesses in one transaction: what each paid, or `null`
- * for a guess another run settled first.
+ * for a guess another run settled first. The players' rows are locked first,
+ * the order a guess and an account's deletion take them in, so neither waits
+ * on the other in a cycle.
  *
  * decisions/072-match-guesses.md
  */
@@ -633,8 +642,15 @@ async function settleMatch(
   guesses: readonly SettleRow[],
   now: Date
 ): Promise<Array<number | null>> {
-  return db.transaction((tx) =>
-    Promise.all(
+  const players = [...new Set(guesses.map((row) => row.userId))].sort();
+  return db.transaction(async (tx) => {
+    await tx
+      .select({ userId: gamePlayer.userId })
+      .from(gamePlayer)
+      .where(inArray(gamePlayer.userId, players))
+      .orderBy(asc(gamePlayer.userId))
+      .for("share");
+    return Promise.all(
       guesses.map(async (row) => {
         const { tier, reward } = judge(storedGuess(row), row.resultHome, row.resultAway);
         const updated = await tx
@@ -657,13 +673,13 @@ async function settleMatch(
         });
         return reward;
       })
-    )
-  );
+    );
+  });
 }
 
 /**
- * Settles every open guess whose match is finished with a score, each match in
- * its own transaction, all at once, and pays each by the reward table. A
+ * Settles every open guess whose match has kicked off and finished with a
+ * score, each match in its own transaction, all at once, by the reward table. A
  * settled guess is never settled again: the update is conditional and a second
  * reward fails.
  *
@@ -689,6 +705,7 @@ export async function settleGuesses(now: Date): Promise<SettleReport> {
     .where(
       and(
         isNull(gameGuess.settledAt),
+        lte(tasoMatches.kickoffAt, now),
         eq(tasoMatches.status, FINISHED),
         isNotNull(tasoMatches.homeGoals),
         isNotNull(tasoMatches.awayGoals)

@@ -401,6 +401,32 @@ describe("openGame", () => {
     });
   });
 
+  it("lists a settled guess as settled even if its match's kickoff has moved ahead", async () => {
+    answer(
+      [{ seasonId: 2027 }],
+      [{ joinedAt: JOINED }],
+      [match({ providerMatchId: 1, groupId: 2, kickoffAt: at(100) })],
+      [],
+      [{ balance: 1000 }],
+      [
+        guessRow({
+          id: 11,
+          providerMatchId: 1,
+          settledAt: at(-5),
+          tier: "miss",
+          resultHomeGoals: 0,
+          resultAwayGoals: 1,
+        }),
+      ],
+      [{ guessId: 11, amount: 0 }],
+      []
+    );
+
+    const view = await openGame("user-1", NOW);
+
+    expect(view).toMatchObject({ upcoming: [], settled: [{ providerMatchId: 1, tier: "miss" }] });
+  });
+
   it("opens the floor on a match with no guess when the balance is short and nothing is open", async () => {
     answer(
       [{ seasonId: 2027 }],
@@ -669,6 +695,13 @@ describe("placeGuess", () => {
     );
   });
 
+  it("refuses to change a guess already settled, and writes nothing", async () => {
+    playable(100, [guessRow({ id: 30, providerMatchId: 1, settledAt: at(-1), tier: "miss" })]);
+
+    expect(await placeGuess("user-1", 1, SCORE, clock)).toEqual({ ok: false, reason: "settled" });
+    expect(state.calls.some((call) => call.method === "update")).toBe(false);
+  });
+
   it("refuses a short balance's free guess while a guess waits in any season", async () => {
     playable(5, [], [{ id: 30 }]);
 
@@ -716,6 +749,11 @@ describe("settleGuesses", () => {
 
     expect(await settleGuesses(NOW)).toEqual({ matches: 2, rewarded: 2, missed: 1, failed: [] });
     expect(state.transactions).toBe(2);
+    // Each transaction locks its players before it updates a guess.
+    const order = state.calls
+      .filter((call) => call.method === "for" || call.method === "update")
+      .map((call) => (call.method === "for" ? call.args[0] : "update"));
+    expect(order.slice(0, 3)).toEqual(["share", "share", "update"]);
     expect(inserted()).toEqual(
       expect.arrayContaining([
         { userId: "user-1", seasonId: 2027, kind: "reward", amount: 30, guessId: 1 },
