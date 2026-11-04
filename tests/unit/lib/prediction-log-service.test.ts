@@ -803,6 +803,25 @@ describe("runPredictionLog", () => {
       for (const model of MODELS) expect(backtested(model)).toEqual([]);
     });
   });
+  it("is part of the hourly run, after the refresh has stored the results, and its count is the run's", async () => {
+    const order: string[] = [];
+    stored([], [tasoRow()]);
+    mocks.getHomeBaseline.mockResolvedValue(baseline);
+    mocks.getTasoSeasonMatches.mockResolvedValue([{ id: "taso" }]);
+    mocks.synchronizeTasoMatches.mockImplementationOnce(async () => {
+      order.push("refresh");
+    });
+    mocks.settleGuesses.mockImplementationOnce(async () => {
+      order.push("settle");
+      return { matches: 1, rewarded: 2, missed: 1, failed: [] };
+    });
+
+    const report = await runPredictionLog(() => NOW, immediate);
+
+    expect(order).toEqual(["refresh", "settle"]);
+    expect(report.settled).toBe(3);
+    expect(mocks.settleGuesses).toHaveBeenCalledWith(NOW);
+  });
 });
 
 describe("runPredictionBacktest", () => {
@@ -1027,6 +1046,8 @@ describe("readFinished", () => {
 describe("settle", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // A queued answer another test left unread would otherwise answer this one.
+    mocks.settleGuesses.mockReset();
   });
 
   it("counts every guess settled, paid or not, and adds nothing to the failures", async () => {
@@ -1061,25 +1082,5 @@ describe("settle", () => {
       expect.objectContaining({ err: expect.any(Error) }),
       "Unable to settle Arvauspeli guesses"
     );
-  });
-
-  it("is part of the hourly run, after the refresh has stored the results, and its count is the run's", async () => {
-    const order: string[] = [];
-    stored([], [tasoRow()]);
-    mocks.getHomeBaseline.mockResolvedValue(baseline);
-    mocks.getTasoSeasonMatches.mockResolvedValue([{ id: "taso" }]);
-    mocks.synchronizeTasoMatches.mockImplementationOnce(async () => {
-      order.push("refresh");
-    });
-    mocks.settleGuesses.mockImplementationOnce(async () => {
-      order.push("settle");
-      return { matches: 1, rewarded: 2, missed: 1, failed: [] };
-    });
-
-    const report = await runPredictionLog(() => NOW, immediate);
-
-    expect(order).toEqual(["refresh", "settle"]);
-    expect(report.settled).toBe(3);
-    expect(mocks.settleGuesses).toHaveBeenCalledWith(NOW);
   });
 });
