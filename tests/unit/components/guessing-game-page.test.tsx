@@ -16,6 +16,7 @@ vi.mock("@/lib/guessing-game-actions", () => ({
   placeGuessAction: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("@/lib/section-choice-actions", () => ({ saveSectionChoiceAction: vi.fn() }));
 
 const INTRO =
   "Arvaa Veikkausliigan otteluiden tuloksia pelimerkeillä. Pelimerkkejä ei voi ostaa, myydä eikä vaihtaa mihinkään.";
@@ -230,5 +231,41 @@ describe("GuessingGamePage", () => {
     ]) {
       expect(within(settled).getByText(line)).toBeInTheDocument();
     }
+  });
+
+  it("opens only the upcoming matches; the waiting and settled guesses start closed, each with its count", () => {
+    const base = {
+      kickoffAt: new Date("2027-04-01T15:00:00Z"),
+      homeTeamName: "HJK",
+      awayTeamName: "KuPS",
+      guess: { kind: "outcome", outcome: "1" } as const,
+    };
+    render(
+      <GuessingGamePage
+        view={playing({
+          upcoming: [upcoming()],
+          awaiting: [{ ...base, providerMatchId: 9 }],
+          settled: [
+            {
+              ...base,
+              providerMatchId: 1,
+              homeGoals: 1,
+              awayGoals: 0,
+              tier: "outcome",
+              reward: 30,
+            },
+            { ...base, providerMatchId: 2, homeGoals: 0, awayGoals: 1, tier: "miss", reward: 0 },
+          ],
+        })}
+      />
+    );
+
+    const fold = (name: string) => screen.getByRole("heading", { name }).closest("details");
+    expect(fold("Tulevat ottelut")).toHaveAttribute("open");
+    expect(fold("Odottavat tulosta")).not.toHaveAttribute("open");
+    expect(fold("Ratkaistut")).not.toHaveAttribute("open");
+    expect(screen.getByText("(1 ottelu)")).toBeInTheDocument();
+    expect(screen.getByText("(1 arvaus)")).toBeInTheDocument();
+    expect(screen.getByText("(2 arvausta)")).toBeInTheDocument();
   });
 });

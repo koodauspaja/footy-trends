@@ -1,8 +1,11 @@
+import type { ReactNode } from "react";
 import { GuessForm, JoinGameButton } from "@/components/guessing-game-controls";
 import { PANEL_HEADING, TABLE_HEADING } from "@/components/heading-classes";
 import { Notice } from "@/components/notice";
+import { SectionFold } from "@/components/section-fold";
 import { type Guess, STARTING_BALANCE, type Tier } from "@/lib/guessing-game";
 import type { GameView, SettledGuess, UpcomingMatch } from "@/lib/guessing-game-store";
+import { matchCountLabel } from "@/lib/match-count";
 import { formatKickoff } from "@/lib/match-detail";
 
 /**
@@ -51,6 +54,44 @@ function priceLine(match: UpcomingMatch): string {
   return match.nextRise === null
     ? now
     : `${now}, nousee ${match.nextRise.price}:een ${formatKickoff(match.nextRise.at)}`;
+}
+
+function guessCount(count: number): string {
+  return count === 1 ? "1 arvaus" : `${count} arvausta`;
+}
+
+/**
+ * One of the page's sections, folded by its heading with its count after it.
+ * Only `Tulevat ottelut`, the page's most basic part, starts open; nothing is
+ * remembered.
+ *
+ * decisions/072-match-guesses.md
+ */
+function GameFold({
+  id,
+  heading,
+  count,
+  open,
+  children,
+}: Readonly<{ id: string; heading: string; count: string; open: boolean; children: ReactNode }>) {
+  return (
+    <SectionFold
+      className="mt-8"
+      fold={{ initiallyOpen: open, remember: null }}
+      headingId={id}
+      summary={
+        <>
+          <h2 className={TABLE_HEADING} id={id}>
+            {heading}
+          </h2>
+          <span className="text-muted text-sm">({count})</span>
+        </>
+      }
+      summaryClassName="mb-2"
+    >
+      {children}
+    </SectionFold>
+  );
 }
 
 function JoinSection({ grant }: Readonly<{ grant: number }>) {
@@ -102,8 +143,7 @@ function Upcoming({
 }: Readonly<{ matches: readonly UpcomingMatch[]; groups: number }>) {
   const days = Map.groupBy(matches, (match) => dayFormatter.format(match.kickoffAt));
   return (
-    <section className="mt-8">
-      <h2 className={TABLE_HEADING}>Tulevat ottelut</h2>
+    <GameFold count={matchCountLabel(matches.length)} heading="Tulevat ottelut" id="upcoming" open>
       {matches.length === 0 && <p className="mt-2">Ei tulevia otteluita.</p>}
       {[...days].map(([day, rows]) => (
         <div className="mt-4" key={day}>
@@ -115,7 +155,7 @@ function Upcoming({
           </ul>
         </div>
       ))}
-    </section>
+    </GameFold>
   );
 }
 
@@ -148,8 +188,12 @@ export function GuessingGamePage({ view }: Readonly<{ view: GameView }>) {
       )}
       <Upcoming groups={view.groups} matches={view.upcoming} />
       {view.awaiting.length > 0 && (
-        <section className="mt-8">
-          <h2 className={TABLE_HEADING}>Odottavat tulosta</h2>
+        <GameFold
+          count={guessCount(view.awaiting.length)}
+          heading="Odottavat tulosta"
+          id="awaiting"
+          open={false}
+        >
           <ul>
             {view.awaiting.map((guess) => (
               <li className="border-border-subtle border-b py-3" key={guess.providerMatchId}>
@@ -160,11 +204,15 @@ export function GuessingGamePage({ view }: Readonly<{ view: GameView }>) {
               </li>
             ))}
           </ul>
-        </section>
+        </GameFold>
       )}
       {view.settled.length > 0 && (
-        <section className="mt-8">
-          <h2 className={TABLE_HEADING}>Ratkaistut</h2>
+        <GameFold
+          count={guessCount(view.settled.length)}
+          heading="Ratkaistut"
+          id="settled"
+          open={false}
+        >
           <ul>
             {view.settled.map((guess) => (
               <li className="border-border-subtle border-b py-3" key={guess.providerMatchId}>
@@ -176,7 +224,7 @@ export function GuessingGamePage({ view }: Readonly<{ view: GameView }>) {
               </li>
             ))}
           </ul>
-        </section>
+        </GameFold>
       )}
     </div>
   );

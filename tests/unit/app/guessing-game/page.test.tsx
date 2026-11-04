@@ -24,6 +24,7 @@ vi.mock("@/lib/guessing-game-actions", () => ({
   placeGuessAction: vi.fn(),
 }));
 vi.mock("@/lib/auth-client", () => ({ signIn: { social: vi.fn() } }));
+vi.mock("@/lib/section-choice-actions", () => ({ saveSectionChoiceAction: vi.fn() }));
 vi.mock("next/navigation", () => ({
   usePathname: () => "/arvauspeli",
   useSearchParams: () => new URLSearchParams(),
