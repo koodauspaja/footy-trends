@@ -63,8 +63,11 @@ describe("placeGuessAction", () => {
       "user-1",
       42,
       { kind: "outcome", outcome: "X" },
-      expect.any(Date)
+      expect.any(Function)
     );
+    // The store reads the clock once it holds the player's lock.
+    const clock = placeGuess.mock.calls[0]?.[3] as () => Date;
+    expect(clock()).toBeInstanceOf(Date);
   });
 
   it("refuses a match id that is not a positive whole number, before reading anything", async () => {
