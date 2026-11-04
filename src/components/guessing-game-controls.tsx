@@ -22,6 +22,7 @@ const REFUSALS: Readonly<Record<GuessRefusal, string>> = {
   started: "Ottelu on jo alkanut.",
   insufficient: "Pelimerkit eivät riitä.",
   "free-fixed": "Maksutonta arvausta ei voi muuttaa.",
+  "price-changed": "Hinta on muuttunut. Tarkista uusi hinta.",
   failed: "Arvausta ei voitu tallentaa. Yritä uudelleen.",
 };
 
@@ -91,8 +92,11 @@ export function GuessForm({
   awayTeamName,
   guess,
   floor,
+  shownPrice,
 }: Readonly<{
   providerMatchId: number;
+  /** What the row says the guess costs, `0` for the floor's: it is charged only if still true. */
+  shownPrice: number;
   homeTeamName: string;
   awayTeamName: string;
   guess: Guess | null;
@@ -120,9 +124,10 @@ export function GuessForm({
         setRefusal(null);
         startTransition(async () => {
           try {
-            const result = await placeGuessAction(providerMatchId, next);
-            if (result.ok) router.refresh();
-            else setRefusal(result.reason);
+            const result = await placeGuessAction(providerMatchId, next, shownPrice);
+            if (!result.ok) setRefusal(result.reason);
+            // After a changed price too, so the row shows the new one.
+            if (result.ok || result.reason === "price-changed") router.refresh();
           } catch (error) {
             reportClientError(error, "guessing-game.guess");
             setRefusal("failed");

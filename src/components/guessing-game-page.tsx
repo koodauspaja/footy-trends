@@ -135,6 +135,7 @@ function UpcomingRow({ match, groups }: Readonly<{ match: UpcomingMatch; groups:
             guess={match.guess}
             homeTeamName={match.homeTeamName}
             providerMatchId={match.providerMatchId}
+            shownPrice={match.floor ? 0 : match.price}
           />
         </>
       )}

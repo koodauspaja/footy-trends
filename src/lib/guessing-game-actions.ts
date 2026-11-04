@@ -7,12 +7,23 @@ import { logger } from "@/lib/logger";
 
 /**
  * Why a guess was not stored, as the row under it says it: the match has
- * started, the balance is short, the floor's guess cannot change, or anything
- * else, which reads as a failure to retry.
+ * started, the balance is short, the floor's guess cannot change, the price is
+ * not the one shown, or anything else, which reads as a failure to retry.
  *
  * decisions/072-match-guesses.md
  */
-export type GuessRefusal = "started" | "insufficient" | "free-fixed" | "failed";
+export type GuessRefusal = "started" | "insufficient" | "free-fixed" | "price-changed" | "failed";
+
+const TOLD: ReadonlySet<string> = new Set<GuessRefusal>([
+  "started",
+  "insufficient",
+  "free-fixed",
+  "price-changed",
+]);
+
+function isTold(reason: string): reason is Exclude<GuessRefusal, "failed"> {
+  return TOLD.has(reason);
+}
 
 /**
  * Makes the signed-in reader an `Arvauspeli` player. No session, or a failed
@@ -43,13 +54,16 @@ export async function joinGameAction(): Promise<{ ok: boolean }> {
  */
 export async function placeGuessAction(
   providerMatchId: unknown,
-  input: unknown
+  input: unknown,
+  shownPrice: unknown
 ): Promise<{ ok: true } | { ok: false; reason: GuessRefusal }> {
   try {
     const guess = parseGuess(input);
     if (
       !Number.isSafeInteger(providerMatchId) ||
       (providerMatchId as number) <= 0 ||
+      !Number.isSafeInteger(shownPrice) ||
+      (shownPrice as number) < 0 ||
       guess === null
     ) {
       logger.warn(
@@ -63,12 +77,16 @@ export async function placeGuessAction(
       logger.warn("Arvauspeli guess refused: no session");
       return { ok: false, reason: "failed" };
     }
-    const outcome = await placeGuess(userId, providerMatchId as number, guess, () => new Date());
+    const outcome = await placeGuess(
+      userId,
+      providerMatchId as number,
+      guess,
+      shownPrice as number,
+      () => new Date()
+    );
     if (outcome.ok) return { ok: true };
     const { reason } = outcome;
-    return reason === "started" || reason === "insufficient" || reason === "free-fixed"
-      ? { ok: false, reason }
-      : { ok: false, reason: "failed" };
+    return isTold(reason) ? { ok: false, reason } : { ok: false, reason: "failed" };
   } catch (error) {
     logger.error({ err: error }, "Placing an Arvauspeli guess failed");
     return { ok: false, reason: "failed" };

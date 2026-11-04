@@ -72,12 +72,13 @@ specs/076.
 | S12 | **The game is called `Arvauspeli`, at `/arvauspeli`.** No "veikkaus" in its name or URL, since Veikkaus is the state gambling company | Miikka, 2026-11-04 (Q12): "Arvauspeli is good" |
 | S13 | **The figures.** Starting balance **1 000**. Price, the same for both kinds, by hours before the stored kickoff: **10** at 168 h or more, **15** from 72 h, **20** from 24 h, **30** under 24 h. Rewards: a **1X2 guess**, correct: **30**. A **score guess**: exact **100**, goal difference **40**, 1X2 only **20**, otherwise **0** | Miikka, 2026-11-04 (Q13): "suggestions good". Guessing all 177 matches at the earliest price costs 1 770, so a player has to choose, or win to keep going. A score guess's 1X2 tier pays less than a 1X2 guess, so a 1X2 guess still has a point |
 | S14 | **The share:** 1 000 × the season's matches not yet kicked off ÷ all its matches, rounded down. Before the split, the split groups' matches are not stored yet, so they are counted as the previous stored season had them | Miikka, 2026-11-04 (Q14): "suggestions good". 2025 and 2026 both have 132 + 30 + 15 = 177 |
-| S15 | **The floor:** a player whose balance is below the current price of a 1X2 guess on a match, and who has no open guess, may make **one free 1X2 guess at a time.** Its reward is paid as usual. It cannot be changed, since a change would have to be paid | Miikka, 2026-11-04 (Q15): "suggestions good". Topping the balance up would put tokens into the ledger that nothing earned. 076 gives it a free change after a postponement |
+| S15 | **The floor:** a player whose balance is below the cheapest price, 10, and who has no open guess in any season, may make **one free 1X2 guess at a time.** Its reward is paid as usual. It cannot be changed, since a change would have to be paid | Miikka, 2026-11-04 (Q15): "suggestions good"; the cheapest price in place of each match's own, 2026-11-05: "your suggestions are good". By each match's price, 25 tokens opened a free guess on a match costing 30, and the page told a player who could pay two guesses that they had none. Topping the balance up would put tokens into the ledger that nothing earned. 076 gives it a free change after a postponement |
 | S19 | **A guess can change kind**, 1X2 to score and back, at the current price (S4) | Miikka, 2026-11-04 (Q19): "suggestions good" |
 | S20 | **The strings below are drafts, fine-tuned in implementation** | Miikka, 2026-11-04 (Q21): "suggestions good" |
 | S21 | **A player who joined in an earlier season gets the next season's full balance**, with no action of their own | Miikka, 2026-11-04 (Q22): "suggestions good" |
 | S22 | **No guess box on the match page in 072.** Guessing is on `/arvauspeli` only | Miikka, 2026-11-04 (Q23): "suggestions good" |
 | S23 | **Between seasons:** `/arvauspeli` shows the season in progress until its last match is settled, then the next once its first fixture is stored, and "Kauden {year} ottelut julkaistaan myöhemmin." in between. A reader can join in between, and gets the full balance when the season opens | Miikka, 2026-11-04 (Q22): "suggestions good" |
+| S26 | **A guess is charged only the price its row showed.** If the price has changed since the page was read, the guess is refused with "Hinta on muuttunut. Tarkista uusi hinta." and the page reads the new price | Miikka, 2026-11-05: "your suggestions are good". Otherwise a guess sent just after a price step, or a free guess after a payout lifted the balance, was charged without warning |
 
 ## UX / UI (Finnish strings)
 
@@ -109,7 +110,8 @@ Drafts, fine-tuned in implementation (S20).
 - **The floor (S15):** "Pelimerkkisi eivät riitä arvaukseen. Voit tehdä yhden
   maksuttoman 1X2-arvauksen kerrallaan."
 - **Refusals**, shown under the row: "Ottelu on jo alkanut.", "Pelimerkit eivät
-  riitä.", "Arvausta ei voitu tallentaa. Yritä uudelleen."
+  riitä.", "Hinta on muuttunut. Tarkista uusi hinta." (S26), "Arvausta ei voitu
+  tallentaa. Yritä uudelleen."
 - **Between seasons (S23):** "Kauden {year} ottelut julkaistaan myöhemmin."
 - **The privacy page:** "Arvauspelin arvauksesi ja pelimerkkisi." in the list of
   stored data, and "arvauspelin tiedot" in the list of what deleting the account
@@ -149,6 +151,8 @@ Drafts, fine-tuned in implementation (S20).
 | A guess at or after the stored kickoff | Refused: "Ottelu on jo alkanut." |
 | A guess the balance cannot pay | Refused: "Pelimerkit eivät riitä.", or the floor's free 1X2 (S15) |
 | A floor guess already open | A second free guess is refused until it settles |
+| A balance that pays a cheaper match but not this one | Refused: "Pelimerkit eivät riitä."; the floor is not open (S15) |
+| The price changed after the page was read | Refused with S26's line, nothing charged |
 | A match not played as listed | Its guesses stay open; 076 settles them |
 | A result corrected after settling | S9: not settled again |
 | A match whose result arrives late | Settled by the first hourly run that has it |
@@ -187,7 +191,8 @@ server's clock decides the lock, never the browser's.
 - [ ] A 1X2 guess and a score guess each cost 10, 15, 20 or 30 by the hours before kickoff, and the balance drops by that much
 - [ ] A guess at or after the stored kickoff is refused with "Ottelu on jo alkanut."
 - [ ] A change costs the current price on top, including a change of kind
-- [ ] A player below the price with no open guess can make one free 1X2 guess, and not a second while it is open
+- [ ] A player below the cheapest price, 10, with no open guess can make one free 1X2 guess, and not a second while it is open
+- [ ] A guess whose price changed after the page showed it is refused with "Hinta on muuttunut. Tarkista uusi hinta." and charges nothing
 - [ ] After the hourly run, a correct 1X2 guess pays 30, and a score guess 100, 40, 20 or 0 by its highest tier
 - [ ] A settled guess does not change when the result is later corrected
 - [ ] Runkosarja, Mestaruussarja and Karsintasarja matches can all be guessed

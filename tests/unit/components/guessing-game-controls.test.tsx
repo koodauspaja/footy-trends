@@ -64,6 +64,7 @@ function renderForm(props: Partial<Parameters<typeof GuessForm>[0]> = {}) {
       guess={null}
       homeTeamName="HJK"
       providerMatchId={7}
+      shownPrice={10}
       {...props}
     />
   );
@@ -79,7 +80,7 @@ describe("GuessForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Arvaa" }));
 
     await waitFor(() => expect(refresh).toHaveBeenCalled());
-    expect(placeGuessAction).toHaveBeenCalledWith(7, { kind: "outcome", outcome: "X" });
+    expect(placeGuessAction).toHaveBeenCalledWith(7, { kind: "outcome", outcome: "X" }, 10);
   });
 
   it("sends a score only once both sides are whole goal counts", async () => {
@@ -98,11 +99,11 @@ describe("GuessForm", () => {
     fireEvent.click(button);
 
     await waitFor(() =>
-      expect(placeGuessAction).toHaveBeenCalledWith(7, {
-        kind: "score",
-        homeGoals: 2,
-        awayGoals: 1,
-      })
+      expect(placeGuessAction).toHaveBeenCalledWith(
+        7,
+        { kind: "score", homeGoals: 2, awayGoals: 1 },
+        10
+      )
     );
   });
 
@@ -118,7 +119,7 @@ describe("GuessForm", () => {
     fireEvent.click(button);
 
     await waitFor(() =>
-      expect(placeGuessAction).toHaveBeenCalledWith(7, { kind: "outcome", outcome: "1" })
+      expect(placeGuessAction).toHaveBeenCalledWith(7, { kind: "outcome", outcome: "1" }, 10)
     );
   });
 
@@ -146,6 +147,20 @@ describe("GuessForm", () => {
       await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(message));
     }
     expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("sends the price the row showed, and after a changed price says so and reads the new one", async () => {
+    placeGuessAction.mockResolvedValue({ ok: false, reason: "price-changed" });
+    renderForm({ floor: true, shownPrice: 0 });
+
+    fireEvent.click(screen.getByRole("radio", { name: "1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Arvaa" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Hinta on muuttunut. Tarkista uusi hinta."
+    );
+    expect(placeGuessAction).toHaveBeenCalledWith(7, { kind: "outcome", outcome: "1" }, 0);
+    expect(refresh).toHaveBeenCalled();
   });
 
   it("reports a thrown call and tells the player to retry", async () => {

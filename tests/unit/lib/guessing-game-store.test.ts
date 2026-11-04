@@ -588,7 +588,7 @@ describe("placeGuess", () => {
   it("refuses a reader who has not joined, and logs the refusal", async () => {
     answer([]);
 
-    expect(await placeGuess("user-1", 1, OUTCOME, clock)).toEqual({
+    expect(await placeGuess("user-1", 1, OUTCOME, 10, clock)).toEqual({
       ok: false,
       reason: "not-joined",
     });
@@ -600,25 +600,25 @@ describe("placeGuess", () => {
 
   it("refuses a match not stored, one that is not Veikkausliiga's, and one of another season", async () => {
     answer([{ joinedAt: JOINED }], []);
-    expect(await placeGuess("user-1", 1, OUTCOME, clock)).toEqual({
+    expect(await placeGuess("user-1", 1, OUTCOME, 10, clock)).toEqual({
       ok: false,
       reason: "unknown-match",
     });
 
     answer([{ joinedAt: JOINED }], [{ ...vlMatch, categoryId: "M1L" }]);
-    expect(await placeGuess("user-1", 1, OUTCOME, clock)).toEqual({
+    expect(await placeGuess("user-1", 1, OUTCOME, 10, clock)).toEqual({
       ok: false,
       reason: "unknown-match",
     });
 
     answer([{ joinedAt: JOINED }], [{ ...vlMatch, competitionCode: "spljp26" }]);
-    expect(await placeGuess("user-1", 1, OUTCOME, clock)).toEqual({
+    expect(await placeGuess("user-1", 1, OUTCOME, 10, clock)).toEqual({
       ok: false,
       reason: "unknown-match",
     });
 
     answer([{ joinedAt: JOINED }], [vlMatch], [{ seasonId: 2028 }]);
-    expect(await placeGuess("user-1", 1, OUTCOME, clock)).toEqual({
+    expect(await placeGuess("user-1", 1, OUTCOME, 10, clock)).toEqual({
       ok: false,
       reason: "unknown-match",
     });
@@ -628,7 +628,7 @@ describe("placeGuess", () => {
     let locksBeforeClock = -1;
     answer([{ joinedAt: JOINED }], [{ ...vlMatch, kickoffAt: NOW }], [{ seasonId: 2027 }]);
 
-    const outcome = await placeGuess("user-1", 1, OUTCOME, () => {
+    const outcome = await placeGuess("user-1", 1, OUTCOME, 10, () => {
       locksBeforeClock = state.calls.filter((call) => call.method === "for").length;
       return NOW;
     });
@@ -641,7 +641,7 @@ describe("placeGuess", () => {
     playable(100);
     answer([{ id: 21 }], undefined);
 
-    expect(await placeGuess("user-1", 1, SCORE, clock)).toEqual({
+    expect(await placeGuess("user-1", 1, SCORE, 10, clock)).toEqual({
       ok: true,
       decision: { kind: "new", price: 10 },
     });
@@ -665,7 +665,7 @@ describe("placeGuess", () => {
     playable(5);
     answer([{ id: 22 }], undefined);
 
-    expect(await placeGuess("user-1", 1, OUTCOME, clock)).toEqual({
+    expect(await placeGuess("user-1", 1, OUTCOME, 0, clock)).toEqual({
       ok: true,
       decision: { kind: "free" },
     });
@@ -679,7 +679,7 @@ describe("placeGuess", () => {
     playable(100, [guessRow({ id: 30, providerMatchId: 1 })], [{ id: 30 }]);
     answer(undefined, undefined);
 
-    expect(await placeGuess("user-1", 1, SCORE, clock)).toEqual({
+    expect(await placeGuess("user-1", 1, SCORE, 10, clock)).toEqual({
       ok: true,
       decision: { kind: "change", price: 10, guessId: 30 },
     });
@@ -702,7 +702,7 @@ describe("placeGuess", () => {
   it("writes nothing for the same guess again", async () => {
     playable(100, [guessRow({ id: 30, providerMatchId: 1 })], [{ id: 30 }]);
 
-    expect(await placeGuess("user-1", 1, OUTCOME, clock)).toEqual({
+    expect(await placeGuess("user-1", 1, OUTCOME, 10, clock)).toEqual({
       ok: true,
       decision: { kind: "unchanged" },
     });
@@ -713,17 +713,54 @@ describe("placeGuess", () => {
     );
   });
 
+  it("refuses a guess whose price is no longer the one the page showed, and writes nothing", async () => {
+    playable(100);
+
+    expect(await placeGuess("user-1", 1, OUTCOME, 15, clock)).toEqual({
+      ok: false,
+      reason: "price-changed",
+    });
+    // Only the grant every guess makes sure of; no guess and no cost.
+    expect(inserted()).toEqual([expect.objectContaining({ kind: "grant" })]);
+  });
+
+  it("refuses a free guess the page showed at a price, and a paid one it showed as free", async () => {
+    playable(5);
+    expect(await placeGuess("user-1", 1, OUTCOME, 10, clock)).toEqual({
+      ok: false,
+      reason: "price-changed",
+    });
+
+    playable(100);
+    expect(await placeGuess("user-1", 1, OUTCOME, 0, clock)).toEqual({
+      ok: false,
+      reason: "price-changed",
+    });
+  });
+
+  it("changes nothing for the same guess again, whatever price the page showed", async () => {
+    playable(100, [guessRow({ id: 30, providerMatchId: 1 })], [{ id: 30 }]);
+
+    expect(await placeGuess("user-1", 1, OUTCOME, 15, clock)).toEqual({
+      ok: true,
+      decision: { kind: "unchanged" },
+    });
+  });
+
   it("refuses to change a guess already settled, and writes nothing", async () => {
     playable(100, [guessRow({ id: 30, providerMatchId: 1, settledAt: at(-1), tier: "miss" })]);
 
-    expect(await placeGuess("user-1", 1, SCORE, clock)).toEqual({ ok: false, reason: "settled" });
+    expect(await placeGuess("user-1", 1, SCORE, 10, clock)).toEqual({
+      ok: false,
+      reason: "settled",
+    });
     expect(state.calls.some((call) => call.method === "update")).toBe(false);
   });
 
   it("refuses a short balance's free guess while a guess waits in any season", async () => {
     playable(5, [], [{ id: 30 }]);
 
-    expect(await placeGuess("user-1", 1, OUTCOME, clock)).toEqual({
+    expect(await placeGuess("user-1", 1, OUTCOME, 10, clock)).toEqual({
       ok: false,
       reason: "insufficient",
     });

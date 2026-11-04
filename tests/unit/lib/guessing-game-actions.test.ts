@@ -58,21 +58,22 @@ describe("placeGuessAction", () => {
   it("places a parsed guess for the signed-in reader", async () => {
     placeGuess.mockResolvedValue({ ok: true, decision: { kind: "new", price: 10 } });
 
-    expect(await placeGuessAction(42, OUTCOME)).toEqual({ ok: true });
+    expect(await placeGuessAction(42, OUTCOME, 10)).toEqual({ ok: true });
     expect(placeGuess).toHaveBeenCalledWith(
       "user-1",
       42,
       { kind: "outcome", outcome: "X" },
+      10,
       expect.any(Function)
     );
     // The store reads the clock once it holds the player's lock.
-    const clock = placeGuess.mock.calls[0]?.[3] as () => Date;
+    const clock = placeGuess.mock.calls[0]?.[4] as () => Date;
     expect(clock()).toBeInstanceOf(Date);
   });
 
   it("refuses a match id that is not a positive whole number, before reading anything", async () => {
     for (const id of [0, -1, 1.5, "42", Number.MAX_SAFE_INTEGER + 1, null]) {
-      expect(await placeGuessAction(id, OUTCOME)).toEqual({ ok: false, reason: "failed" });
+      expect(await placeGuessAction(id, OUTCOME, 10)).toEqual({ ok: false, reason: "failed" });
     }
     expect(currentUserId).not.toHaveBeenCalled();
     expect(logger.warn).toHaveBeenCalledWith(
@@ -81,8 +82,15 @@ describe("placeGuessAction", () => {
     );
   });
 
+  it("refuses a shown price that is not a whole number of tokens, before reading anything", async () => {
+    for (const price of [-1, 1.5, "10", null]) {
+      expect(await placeGuessAction(42, OUTCOME, price)).toEqual({ ok: false, reason: "failed" });
+    }
+    expect(currentUserId).not.toHaveBeenCalled();
+  });
+
   it("refuses a guess that is not one", async () => {
-    expect(await placeGuessAction(42, { kind: "outcome", outcome: "3" })).toEqual({
+    expect(await placeGuessAction(42, { kind: "outcome", outcome: "3" }, 10)).toEqual({
       ok: false,
       reason: "failed",
     });
@@ -92,29 +100,29 @@ describe("placeGuessAction", () => {
   it("refuses a request with no session", async () => {
     currentUserId.mockResolvedValue(null);
 
-    expect(await placeGuessAction(42, OUTCOME)).toEqual({ ok: false, reason: "failed" });
+    expect(await placeGuessAction(42, OUTCOME, 10)).toEqual({ ok: false, reason: "failed" });
     expect(placeGuess).not.toHaveBeenCalled();
     expect(logger.warn).toHaveBeenCalledWith("Arvauspeli guess refused: no session");
   });
 
-  it("passes the three refusals a reader is told", async () => {
-    for (const reason of ["started", "insufficient", "free-fixed"]) {
+  it("passes the four refusals a reader is told", async () => {
+    for (const reason of ["started", "insufficient", "free-fixed", "price-changed"]) {
       placeGuess.mockResolvedValueOnce({ ok: false, reason });
-      expect(await placeGuessAction(42, OUTCOME)).toEqual({ ok: false, reason });
+      expect(await placeGuessAction(42, OUTCOME, 10)).toEqual({ ok: false, reason });
     }
   });
 
   it("answers any other refusal as a failure to retry", async () => {
-    for (const reason of ["not-joined", "unknown-match"]) {
+    for (const reason of ["not-joined", "unknown-match", "settled"]) {
       placeGuess.mockResolvedValueOnce({ ok: false, reason });
-      expect(await placeGuessAction(42, OUTCOME)).toEqual({ ok: false, reason: "failed" });
+      expect(await placeGuessAction(42, OUTCOME, 10)).toEqual({ ok: false, reason: "failed" });
     }
   });
 
   it("answers a failed write as a failure, and logs it", async () => {
     placeGuess.mockRejectedValue(new Error("database down"));
 
-    expect(await placeGuessAction(42, OUTCOME)).toEqual({ ok: false, reason: "failed" });
+    expect(await placeGuessAction(42, OUTCOME, 10)).toEqual({ ok: false, reason: "failed" });
     expect(logger.error).toHaveBeenCalledWith(
       { err: expect.any(Error) },
       "Placing an Arvauspeli guess failed"

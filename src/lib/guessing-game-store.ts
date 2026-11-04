@@ -102,7 +102,8 @@ export type GuessOutcome =
         | "started"
         | "settled"
         | "insufficient"
-        | "free-fixed";
+        | "free-fixed"
+        | "price-changed";
     };
 
 function seasonOf(seasonId: number) {
@@ -386,7 +387,7 @@ function playingView(
         nextRise: nextPriceRise(match.kickoffAt, now),
         guess,
         free: row?.free ?? false,
-        floor: guess === null && mayUseFloor(balance, price, open.hasOpenGuess),
+        floor: guess === null && mayUseFloor(balance, open.hasOpenGuess),
       });
       continue;
     }
@@ -471,7 +472,8 @@ function refused(
  * Makes or changes a player's guess on one match of the season the page shows,
  * with its ledger row, in one transaction. The player's row is locked first, so
  * two guesses sent at once are decided one after the other and never spend the
- * same tokens, and the clock is read once the lock is held.
+ * same tokens, and the clock is read once the lock is held. A guess whose price
+ * is no longer the one the page showed is refused, never charged.
  *
  * decisions/072-match-guesses.md
  */
@@ -479,6 +481,7 @@ export async function placeGuess(
   userId: string,
   providerMatchId: number,
   guess: Guess,
+  shownPrice: number,
   clock: () => Date
 ): Promise<GuessOutcome> {
   return db.transaction(async (tx) => {
@@ -526,6 +529,9 @@ export async function placeGuess(
     });
     if (decision.kind === "refused") {
       return refused(userId, providerMatchId, guess, decision.reason);
+    }
+    if (decision.kind !== "unchanged" && costOf(decision) !== shownPrice) {
+      return refused(userId, providerMatchId, guess, "price-changed");
     }
     await write(tx, { userId, seasonId, providerMatchId, guess, now, decision });
     logger.info(

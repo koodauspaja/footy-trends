@@ -150,16 +150,18 @@ describe("seasonGrant", () => {
 });
 
 describe("mayUseFloor", () => {
-  it("opens the floor below the price, with no guess waiting to be settled", () => {
-    expect(mayUseFloor(9, 10, false)).toBe(true);
+  it("opens the floor below the cheapest price, with no guess waiting to be settled", () => {
+    expect(mayUseFloor(9, false)).toBe(true);
+    expect(mayUseFloor(0, false)).toBe(true);
   });
 
-  it("stays closed at or above the price", () => {
-    expect(mayUseFloor(10, 10, false)).toBe(false);
+  it("stays closed at the cheapest price or above, even where a match costs more", () => {
+    expect(mayUseFloor(10, false)).toBe(false);
+    expect(mayUseFloor(25, false)).toBe(false);
   });
 
   it("stays closed while a guess is waiting to be settled", () => {
-    expect(mayUseFloor(0, 10, true)).toBe(false);
+    expect(mayUseFloor(0, true)).toBe(false);
   });
 });
 
@@ -216,6 +218,13 @@ describe("decideGuess", () => {
 
   it("makes a 1X2 the floor's free guess when the balance is short and nothing is open", () => {
     expect(decideGuess({ ...base, balance: 5, existing: null })).toEqual({ kind: "free" });
+  });
+
+  it("refuses a balance that pays a cheaper match but not this one, rather than giving it free", () => {
+    expect(decideGuess({ ...base, price: 30, balance: 25, existing: null })).toEqual({
+      kind: "refused",
+      reason: "insufficient",
+    });
   });
 
   it("refuses a short balance's score guess, and its 1X2 while a guess is open", () => {
