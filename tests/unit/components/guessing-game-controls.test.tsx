@@ -45,6 +45,8 @@ describe("JoinGameButton", () => {
     );
 
     joinGameAction.mockRejectedValueOnce(new Error("network"));
+    // A press while the first join is still pending finds the button disabled.
+    await waitFor(() => expect(screen.getByRole("button", { name: "Liity peliin" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Liity peliin" }));
     await waitFor(() =>
       expect(reportClientError).toHaveBeenCalledWith(expect.any(Error), "guessing-game.join")
@@ -138,8 +140,10 @@ describe("GuessForm", () => {
     fireEvent.click(screen.getByRole("radio", { name: "1" }));
     for (const [reason, message] of Object.entries(messages)) {
       placeGuessAction.mockResolvedValueOnce({ ok: false, reason });
-      fireEvent.click(screen.getByRole("button", { name: "Muuta arvausta" }));
-      expect(await screen.findByRole("alert")).toHaveTextContent(message);
+      const button = screen.getByRole("button", { name: "Muuta arvausta" });
+      await waitFor(() => expect(button).toBeEnabled());
+      fireEvent.click(button);
+      await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(message));
     }
     expect(refresh).not.toHaveBeenCalled();
   });
