@@ -1,5 +1,5 @@
 {
-  "id": "2587ebb4-841d-4a55-8854-25d90b5ff232",
+  "id": "e5b65ad4-e210-4bc7-b001-3a8a7e0a6b83",
   "prevId": "6d95757c-c91f-4751-a270-76138be67eba",
   "version": "7",
   "dialect": "postgresql",
@@ -382,6 +382,18 @@
         "tier": {
           "name": "tier",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "result_home_goals": {
+          "name": "result_home_goals",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "result_away_goals": {
+          "name": "result_away_goals",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
         }

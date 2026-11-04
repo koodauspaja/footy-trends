@@ -2,10 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { warmModules } from "../../support/warm-module";
 
 /**
- * Arvauspeli's store around its queries: which view a reader gets, when a grant
- * is written, what a guess writes, and how settling counts and survives a
- * failed match. Each awaited query answers the next queued result; the SQL
- * itself runs against Postgres in `tests/integration/guessing-game.test.ts`.
+ * Arvauspeli's store around its queries: the view a reader gets, the grant, what
+ * a guess writes, and how settling counts. Each query answers a queued result;
+ * the SQL runs against Postgres in `tests/integration/guessing-game.test.ts`.
  *
  * decisions/072-match-guesses.md
  */
@@ -18,6 +17,7 @@ const { state, logger } = vi.hoisted(() => {
     respond: null as null | ((statement: "select" | "insert" | "update") => unknown),
     // Transactions to fail as they start, before running anything.
     failingTransactions: 0,
+    transactions: 0,
   };
   return { state, logger: { info: vi.fn(), error: vi.fn() } };
 });
@@ -55,6 +55,7 @@ vi.mock("@/db", () => {
     db: {
       ...client,
       transaction: async (run: (tx: typeof client) => Promise<unknown>) => {
+        state.transactions += 1;
         if (state.failingTransactions > 0) {
           state.failingTransactions -= 1;
           throw new Error("database down");
@@ -106,6 +107,8 @@ function guessRow(overrides: Record<string, unknown> = {}) {
     madeAt: NOW,
     settledAt: null,
     tier: null,
+    resultHomeGoals: null,
+    resultAwayGoals: null,
     ...overrides,
   };
 }
@@ -124,7 +127,22 @@ beforeEach(() => {
   state.calls = [];
   state.respond = null;
   state.failingTransactions = 0;
+  state.transactions = 0;
 });
+
+function openRow(overrides: Record<string, unknown> = {}) {
+  return {
+    providerMatchId: 9,
+    kind: "outcome",
+    outcome: "X",
+    homeGoals: null,
+    awayGoals: null,
+    kickoffAt: at(-20),
+    homeTeamName: "FC Lahti",
+    awayTeamName: "AC Oulu",
+    ...overrides,
+  };
+}
 
 describe("openGame", () => {
   it("has no season when none is stored", async () => {
@@ -139,17 +157,34 @@ describe("openGame", () => {
     expect(await openGame("user-1", NOW)).toEqual({ kind: "no-season", joined: true });
   });
 
-  it("waits for the next season once every match has a result", async () => {
+  it("waits for the next season once every match has a result and the split is stored", async () => {
     answer(
       [{ seasonId: 2027 }],
       [],
-      [match({ kickoffAt: at(-5), status: "FINISHED", homeGoals: 1, awayGoals: 0 })]
+      [match({ groupId: 2, kickoffAt: at(-5), status: "FINISHED", homeGoals: 1, awayGoals: 0 })]
     );
 
     expect(await openGame("user-1", NOW)).toEqual({
       kind: "between",
       nextSeasonId: 2028,
       joined: false,
+      awaiting: [],
+    });
+  });
+
+  it("keeps the season open while the split the previous season had is not stored yet", async () => {
+    answer(
+      [{ seasonId: 2027 }],
+      [],
+      [match({ kickoffAt: at(-5), status: "FINISHED", homeGoals: 1, awayGoals: 0 })],
+      [{ count: 2 }]
+    );
+
+    // Nothing stored to come, and both split matches: 2 of 3.
+    expect(await openGame("user-1", NOW)).toEqual({
+      kind: "not-joined",
+      seasonId: 2027,
+      grant: 666,
     });
   });
 
@@ -180,6 +215,34 @@ describe("openGame", () => {
     expect(await openGame("user-1", NOW)).toMatchObject({ grant: 500 });
   });
 
+  it("shows a player's waiting guesses of any season between seasons, and writes no grant", async () => {
+    answer(
+      [{ seasonId: 2027 }],
+      [{ joinedAt: JOINED }],
+      [match({ groupId: 2, kickoffAt: at(-5), status: "FINISHED", homeGoals: 1, awayGoals: 0 })],
+      [{ balance: 990 }],
+      [],
+      [],
+      [openRow(), openRow({ providerMatchId: 10, kickoffAt: at(5) })]
+    );
+
+    expect(await openGame("user-1", NOW)).toEqual({
+      kind: "between",
+      nextSeasonId: 2028,
+      joined: true,
+      awaiting: [
+        {
+          providerMatchId: 9,
+          kickoffAt: at(-20),
+          homeTeamName: "FC Lahti",
+          awayTeamName: "AC Oulu",
+          guess: { kind: "outcome", outcome: "X" },
+        },
+      ],
+    });
+    expect(inserted()).toEqual([]);
+  });
+
   it("writes a returning player's grant, logs it, and shows each kind of row", async () => {
     answer(
       [{ seasonId: 2027 }],
@@ -199,8 +262,20 @@ describe("openGame", () => {
           homeGoals: 0,
           awayGoals: 0,
         }),
-        match({ providerMatchId: 3, kickoffAt: at(-30) }),
-        match({ providerMatchId: 4, kickoffAt: at(-20) }),
+        match({
+          providerMatchId: 3,
+          kickoffAt: at(-45),
+          status: "FINISHED",
+          homeGoals: 1,
+          awayGoals: 1,
+        }),
+        match({
+          providerMatchId: 4,
+          kickoffAt: at(-30),
+          status: "FINISHED",
+          homeGoals: 3,
+          awayGoals: 3,
+        }),
         match({ providerMatchId: 7, kickoffAt: at(-10) }),
         match({ providerMatchId: 6, groupId: 3, groupName: "Karsintasarja", kickoffAt: at(10) }),
         match({ providerMatchId: 5, groupId: 2, groupName: "Mestaruussarja", kickoffAt: at(30) }),
@@ -215,16 +290,34 @@ describe("openGame", () => {
           outcome: null,
           homeGoals: 2,
           awayGoals: 1,
-          settledAt: at(-45),
+          settledAt: at(-48),
           tier: "exact",
+          resultHomeGoals: 2,
+          resultAwayGoals: 1,
         }),
-        guessRow({ id: 12, providerMatchId: 2, settledAt: at(-35), tier: "miss" }),
-        guessRow({ id: 13, providerMatchId: 3 }),
-        guessRow({ id: 14, providerMatchId: 4, settledAt: at(-15), tier: "outcome" }),
+        guessRow({
+          id: 12,
+          providerMatchId: 2,
+          settledAt: at(-35),
+          tier: "miss",
+          resultHomeGoals: 0,
+          resultAwayGoals: 0,
+        }),
+        // Settled at the same moment as 12: the later kickoff, 12's, comes first.
+        guessRow({
+          id: 13,
+          providerMatchId: 3,
+          settledAt: at(-35),
+          tier: "miss",
+          resultHomeGoals: 1,
+          resultAwayGoals: 1,
+        }),
+        // Settled with no stored result, which no write makes: not listed.
+        guessRow({ id: 14, providerMatchId: 4, settledAt: at(-25), tier: "outcome" }),
         guessRow({ id: 15, providerMatchId: 5, free: true }),
-        guessRow({ id: 16, providerMatchId: 404 }),
       ],
-      [{ guessId: 11, amount: 100 }]
+      [{ guessId: 11, amount: 100 }],
+      [openRow({ providerMatchId: 5, kickoffAt: at(30) })]
     );
 
     const view = await openGame("user-1", NOW);
@@ -233,7 +326,13 @@ describe("openGame", () => {
       { userId: "user-1", seasonId: 2027, amount: 1000 },
       "Arvauspeli grant written"
     );
-    expect(view).toMatchObject({ kind: "playing", seasonId: 2027, balance: 940, groups: 2 });
+    expect(view).toMatchObject({
+      kind: "playing",
+      seasonId: 2027,
+      balance: 940,
+      groups: 2,
+      awaiting: [],
+    });
     if (view.kind !== "playing") return;
     expect(view.upcoming).toEqual([
       expect.objectContaining({
@@ -251,17 +350,55 @@ describe("openGame", () => {
         free: true,
       }),
     ]);
-    // A settled guess whose match has lost its result waits again.
-    expect(view.awaiting.map((row) => row.providerMatchId)).toEqual([3, 4]);
-    expect(view.settled).toEqual([
-      expect.objectContaining({ providerMatchId: 2, tier: "miss", reward: 0, homeGoals: 0 }),
-      expect.objectContaining({
-        providerMatchId: 1,
-        tier: "exact",
-        reward: 100,
-        guess: { kind: "score", homeGoals: 2, awayGoals: 1 },
-      }),
+    expect(view.settled.map((row) => [row.providerMatchId, row.tier, row.reward])).toEqual([
+      [2, "miss", 0],
+      [3, "miss", 0],
+      [1, "exact", 100],
     ]);
+    expect(view.settled[2]).toMatchObject({
+      homeGoals: 2,
+      awayGoals: 1,
+      guess: { kind: "score", homeGoals: 2, awayGoals: 1 },
+    });
+    expect(view.settled[0]).not.toHaveProperty("settledAt");
+  });
+
+  it("shows the result a guess was judged against, not the match's current one", async () => {
+    answer(
+      [{ seasonId: 2027 }],
+      [{ joinedAt: JOINED }],
+      [
+        match({
+          providerMatchId: 1,
+          groupId: 2,
+          kickoffAt: at(-50),
+          status: "FINISHED",
+          homeGoals: 0,
+          awayGoals: 3,
+        }),
+        match({ providerMatchId: 2, groupId: 2 }),
+      ],
+      [],
+      [{ balance: 1000 }],
+      [
+        guessRow({
+          id: 11,
+          providerMatchId: 1,
+          settledAt: at(-45),
+          tier: "outcome",
+          resultHomeGoals: 1,
+          resultAwayGoals: 0,
+        }),
+      ],
+      [{ guessId: 11, amount: 30 }],
+      []
+    );
+
+    const view = await openGame("user-1", NOW);
+
+    expect(view).toMatchObject({
+      settled: [{ homeGoals: 1, awayGoals: 0, tier: "outcome", reward: 30 }],
+    });
   });
 
   it("opens the floor on a match with no guess when the balance is short and nothing is open", async () => {
@@ -271,6 +408,7 @@ describe("openGame", () => {
       [match({ groupId: 2 })],
       [],
       [{ balance: null }],
+      [],
       [],
       []
     );
@@ -283,8 +421,34 @@ describe("openGame", () => {
     expect(view.upcoming).toEqual([expect.objectContaining({ floor: true, free: false })]);
   });
 
+  it("keeps the floor closed while a guess waits in any season, a future one included", async () => {
+    answer(
+      [{ seasonId: 2027 }],
+      [{ joinedAt: JOINED }],
+      [match({ groupId: 2 })],
+      [],
+      [{ balance: 0 }],
+      [],
+      [],
+      [openRow({ kickoffAt: at(500) })]
+    );
+
+    const view = await openGame("user-1", NOW);
+
+    expect(view).toMatchObject({ kind: "playing", awaiting: [], upcoming: [{ floor: false }] });
+  });
+
   it("reads a missing balance row as nothing", async () => {
-    answer([{ seasonId: 2027 }], [{ joinedAt: JOINED }], [match({ groupId: 2 })], [], [], [], []);
+    answer(
+      [{ seasonId: 2027 }],
+      [{ joinedAt: JOINED }],
+      [match({ groupId: 2 })],
+      [],
+      [],
+      [],
+      [],
+      []
+    );
 
     expect(await openGame("user-1", NOW)).toMatchObject({ balance: 0 });
   });
@@ -297,6 +461,7 @@ describe("openGame", () => {
       [],
       [{ balance: 10 }],
       [guessRow({ kind: "score", outcome: "1" })],
+      [],
       []
     );
 
@@ -339,7 +504,7 @@ describe("joinGame", () => {
     answer(
       [],
       [{ seasonId: 2027 }],
-      [match({ kickoffAt: at(-5), status: "FINISHED", homeGoals: 1, awayGoals: 1 })]
+      [match({ groupId: 2, kickoffAt: at(-5), status: "FINISHED", homeGoals: 1, awayGoals: 1 })]
     );
     await joinGame("user-1", NOW);
 
@@ -359,17 +524,27 @@ describe("placeGuess", () => {
     categoryId: "VL",
     kickoffAt: at(200),
   };
+  const clock = () => NOW;
 
-  // The reads every accepted guess makes: the player, the match, the season, the
-  // grant's insert, the balance, and the player's guesses.
-  function playable(balance: number, guesses: unknown[]) {
-    answer([{ joinedAt: JOINED }], [vlMatch], [match({ groupId: 2 })], [], [{ balance }], guesses);
+  // The reads every accepted guess makes: the player, the match, the season shown, its
+  // matches, the grant's insert, the balance, the guess on this match, and any open guess.
+  function playable(balance: number, existing: unknown[] = [], anyOpen: unknown[] = []) {
+    answer(
+      [{ joinedAt: JOINED }],
+      [vlMatch],
+      [{ seasonId: 2027 }],
+      [match({ groupId: 2 })],
+      [],
+      [{ balance }],
+      existing,
+      anyOpen
+    );
   }
 
   it("refuses a reader who has not joined, and logs the refusal", async () => {
     answer([]);
 
-    expect(await placeGuess("user-1", 1, OUTCOME, NOW)).toEqual({
+    expect(await placeGuess("user-1", 1, OUTCOME, clock)).toEqual({
       ok: false,
       reason: "not-joined",
     });
@@ -379,37 +554,50 @@ describe("placeGuess", () => {
     );
   });
 
-  it("refuses a match not stored, and one that is not Veikkausliiga's", async () => {
+  it("refuses a match not stored, one that is not Veikkausliiga's, and one of another season", async () => {
     answer([{ joinedAt: JOINED }], []);
-    expect(await placeGuess("user-1", 1, OUTCOME, NOW)).toEqual({
+    expect(await placeGuess("user-1", 1, OUTCOME, clock)).toEqual({
       ok: false,
       reason: "unknown-match",
     });
 
     answer([{ joinedAt: JOINED }], [{ ...vlMatch, categoryId: "M1L" }]);
-    expect(await placeGuess("user-1", 1, OUTCOME, NOW)).toEqual({
+    expect(await placeGuess("user-1", 1, OUTCOME, clock)).toEqual({
       ok: false,
       reason: "unknown-match",
     });
 
     answer([{ joinedAt: JOINED }], [{ ...vlMatch, competitionCode: "spljp26" }]);
-    expect(await placeGuess("user-1", 1, OUTCOME, NOW)).toEqual({
+    expect(await placeGuess("user-1", 1, OUTCOME, clock)).toEqual({
+      ok: false,
+      reason: "unknown-match",
+    });
+
+    answer([{ joinedAt: JOINED }], [vlMatch], [{ seasonId: 2028 }]);
+    expect(await placeGuess("user-1", 1, OUTCOME, clock)).toEqual({
       ok: false,
       reason: "unknown-match",
     });
   });
 
-  it("refuses a match that has kicked off", async () => {
-    answer([{ joinedAt: JOINED }], [{ ...vlMatch, kickoffAt: NOW }]);
+  it("refuses a match that has kicked off by the clock read once the player is locked", async () => {
+    let locksBeforeClock = -1;
+    answer([{ joinedAt: JOINED }], [{ ...vlMatch, kickoffAt: NOW }], [{ seasonId: 2027 }]);
 
-    expect(await placeGuess("user-1", 1, OUTCOME, NOW)).toEqual({ ok: false, reason: "started" });
+    const outcome = await placeGuess("user-1", 1, OUTCOME, () => {
+      locksBeforeClock = state.calls.filter((call) => call.method === "for").length;
+      return NOW;
+    });
+
+    expect(outcome).toEqual({ ok: false, reason: "started" });
+    expect(locksBeforeClock).toBe(1);
   });
 
   it("writes a new guess and its cost, and logs both", async () => {
-    playable(100, []);
+    playable(100);
     answer([{ id: 21 }], undefined);
 
-    expect(await placeGuess("user-1", 1, SCORE, NOW)).toEqual({
+    expect(await placeGuess("user-1", 1, SCORE, clock)).toEqual({
       ok: true,
       decision: { kind: "new", price: 10 },
     });
@@ -430,10 +618,10 @@ describe("placeGuess", () => {
   });
 
   it("writes the floor's free guess at no cost", async () => {
-    playable(5, []);
+    playable(5);
     answer([{ id: 22 }], undefined);
 
-    expect(await placeGuess("user-1", 1, OUTCOME, NOW)).toEqual({
+    expect(await placeGuess("user-1", 1, OUTCOME, clock)).toEqual({
       ok: true,
       decision: { kind: "free" },
     });
@@ -444,13 +632,10 @@ describe("placeGuess", () => {
   });
 
   it("rewrites a changed guess and charges the change", async () => {
-    playable(100, [
-      guessRow({ id: 30, providerMatchId: 1 }),
-      guessRow({ id: 31, providerMatchId: 2 }),
-    ]);
+    playable(100, [guessRow({ id: 30, providerMatchId: 1 })], [{ id: 30 }]);
     answer(undefined, undefined);
 
-    expect(await placeGuess("user-1", 1, SCORE, NOW)).toEqual({
+    expect(await placeGuess("user-1", 1, SCORE, clock)).toEqual({
       ok: true,
       decision: { kind: "change", price: 10, guessId: 30 },
     });
@@ -471,9 +656,9 @@ describe("placeGuess", () => {
   });
 
   it("writes nothing for the same guess again", async () => {
-    playable(100, [guessRow({ id: 30, providerMatchId: 1 })]);
+    playable(100, [guessRow({ id: 30, providerMatchId: 1 })], [{ id: 30 }]);
 
-    expect(await placeGuess("user-1", 1, OUTCOME, NOW)).toEqual({
+    expect(await placeGuess("user-1", 1, OUTCOME, clock)).toEqual({
       ok: true,
       decision: { kind: "unchanged" },
     });
@@ -484,10 +669,10 @@ describe("placeGuess", () => {
     );
   });
 
-  it("refuses a guess the balance cannot pay, with the reason", async () => {
-    playable(5, [guessRow({ id: 30, providerMatchId: 2 })]);
+  it("refuses a short balance's free guess while a guess waits in any season", async () => {
+    playable(5, [], [{ id: 30 }]);
 
-    expect(await placeGuess("user-1", 1, OUTCOME, NOW)).toEqual({
+    expect(await placeGuess("user-1", 1, OUTCOME, clock)).toEqual({
       ok: false,
       reason: "insufficient",
     });
@@ -530,6 +715,7 @@ describe("settleGuesses", () => {
     ]);
 
     expect(await settleGuesses(NOW)).toEqual({ matches: 2, rewarded: 2, missed: 1, failed: [] });
+    expect(state.transactions).toBe(2);
     expect(inserted()).toEqual(
       expect.arrayContaining([
         { userId: "user-1", seasonId: 2027, kind: "reward", amount: 30, guessId: 1 },

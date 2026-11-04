@@ -79,7 +79,7 @@ export type SettledGuess = AwaitingGuess & {
 
 export type GameView =
   | { kind: "no-season"; joined: boolean }
-  | { kind: "between"; nextSeasonId: number; joined: boolean }
+  | { kind: "between"; nextSeasonId: number; joined: boolean; awaiting: AwaitingGuess[] }
   | { kind: "not-joined"; seasonId: number; grant: number }
   | {
       kind: "playing";
@@ -172,29 +172,39 @@ async function previousSplitMatches(client: Client, seasonId: number): Promise<n
   return row?.count ?? 0;
 }
 
+type Season = {
+  seasonId: number;
+  matches: SeasonMatch[];
+  splitStored: boolean;
+  /** The previous season's split matches, counted while this season's are not stored. */
+  previousSplit: number;
+};
+
+async function seasonOfId(client: Client, seasonId: number): Promise<Season> {
+  const matches = await seasonMatches(client, seasonId);
+  const splitStored = matches.some((match) => match.groupId !== REGULAR_SEASON_GROUP);
+  const previousSplit = splitStored ? 0 : await previousSplitMatches(client, seasonId);
+  return { seasonId, matches, splitStored, previousSplit };
+}
+
 /**
  * A season is open while any of its matches is still to kick off or has no
- * result; then the page waits for the next one.
+ * result, or while a split the previous season had is not stored yet; then the
+ * page waits for the next one.
  *
  * decisions/072-match-guesses.md
  */
-function isOpen(matches: readonly SeasonMatch[], now: Date): boolean {
-  return matches.some((match) => match.kickoffAt > now || !hasResult(match));
+function isOpen(season: Season, now: Date): boolean {
+  if (!season.splitStored && season.previousSplit > 0) return true;
+  return season.matches.some((match) => match.kickoffAt > now || !hasResult(match));
 }
 
-async function grantOf(
-  client: Client,
-  seasonId: number,
-  matches: readonly SeasonMatch[],
-  joinedAt: Date
-): Promise<number> {
-  const splitStored = matches.some((match) => match.groupId !== REGULAR_SEASON_GROUP);
-  const previous = splitStored ? 0 : await previousSplitMatches(client, seasonId);
+function grantOf(season: Season, joinedAt: Date): number {
   return seasonGrant(
     joinedAt,
-    matches.map((match) => match.kickoffAt),
-    splitStored,
-    previous
+    season.matches.map((match) => match.kickoffAt),
+    season.splitStored,
+    season.previousSplit
   );
 }
 
@@ -207,17 +217,18 @@ async function grantOf(
 async function ensureGrant(
   client: Client,
   userId: string,
-  seasonId: number,
-  matches: readonly SeasonMatch[],
+  season: Season,
   joinedAt: Date
 ): Promise<void> {
-  const amount = await grantOf(client, seasonId, matches, joinedAt);
+  const amount = grantOf(season, joinedAt);
   const written = await client
     .insert(gameLedger)
-    .values({ userId, seasonId, kind: "grant", amount })
+    .values({ userId, seasonId: season.seasonId, kind: "grant", amount })
     .onConflictDoNothing()
     .returning({ id: gameLedger.id });
-  if (written.length > 0) logger.info({ userId, seasonId, amount }, "Arvauspeli grant written");
+  if (written.length > 0) {
+    logger.info({ userId, seasonId: season.seasonId, amount }, "Arvauspeli grant written");
+  }
 }
 
 async function balanceOf(client: Client, userId: string, seasonId: number): Promise<number> {
@@ -250,9 +261,45 @@ function storedGuess(row: {
 }
 
 /**
+ * A player's guesses still waiting to be settled, in every season, with their
+ * matches: the floor's "open guess", and the page's `Odottavat tulosta`.
+ *
+ * decisions/072-match-guesses.md
+ */
+function openGuessesOf(client: Client, userId: string) {
+  return client
+    .select({
+      providerMatchId: gameGuess.providerMatchId,
+      kind: gameGuess.kind,
+      outcome: gameGuess.outcome,
+      homeGoals: gameGuess.homeGoals,
+      awayGoals: gameGuess.awayGoals,
+      kickoffAt: tasoMatches.kickoffAt,
+      homeTeamName: tasoMatches.homeTeamName,
+      awayTeamName: tasoMatches.awayTeamName,
+    })
+    .from(gameGuess)
+    .innerJoin(tasoMatches, eq(tasoMatches.providerMatchId, gameGuess.providerMatchId))
+    .where(and(eq(gameGuess.userId, userId), isNull(gameGuess.settledAt)))
+    .orderBy(asc(tasoMatches.kickoffAt));
+}
+
+function awaitingOf(rows: Awaited<ReturnType<typeof openGuessesOf>>, now: Date): AwaitingGuess[] {
+  return rows
+    .filter((row) => row.kickoffAt <= now)
+    .map((row) => ({
+      providerMatchId: row.providerMatchId,
+      kickoffAt: row.kickoffAt,
+      homeTeamName: row.homeTeamName,
+      awayTeamName: row.awayTeamName,
+      guess: storedGuess(row),
+    }));
+}
+
+/**
  * What `/arvauspeli` shows a signed-in reader. A player's grant for the open
  * season is written here when it is not yet, so a returning player has it
- * with no action of their own.
+ * with no action of their own; then everything shown is read in one snapshot.
  *
  * decisions/072-match-guesses.md
  */
@@ -260,49 +307,59 @@ export async function openGame(userId: string, now: Date): Promise<GameView> {
   const [seasonId, joinedAt] = await Promise.all([latestSeason(db), joinedAtOf(db, userId)]);
   const joined = joinedAt !== null;
   if (seasonId === null) return { kind: "no-season", joined };
-  const matches = await seasonMatches(db, seasonId);
-  if (!isOpen(matches, now)) return { kind: "between", nextSeasonId: seasonId + 1, joined };
+  const season = await seasonOfId(db, seasonId);
+  const open = isOpen(season, now);
   if (joinedAt === null) {
-    return { kind: "not-joined", seasonId, grant: await grantOf(db, seasonId, matches, now) };
+    return open
+      ? { kind: "not-joined", seasonId, grant: grantOf(season, now) }
+      : { kind: "between", nextSeasonId: seasonId + 1, joined, awaiting: [] };
   }
 
-  await ensureGrant(db, userId, seasonId, matches, joinedAt);
-  const [balance, guesses, rewards] = await Promise.all([
-    balanceOf(db, userId, seasonId),
-    db
-      .select()
-      .from(gameGuess)
-      .where(and(eq(gameGuess.userId, userId), eq(gameGuess.seasonId, seasonId))),
-    db
-      .select({ guessId: gameLedger.guessId, amount: gameLedger.amount })
-      .from(gameLedger)
-      .where(
-        and(
-          eq(gameLedger.userId, userId),
-          eq(gameLedger.seasonId, seasonId),
-          eq(gameLedger.kind, "reward")
-        )
-      ),
-  ]);
-  return playingView(seasonId, now, matches, balance, guesses, rewards);
+  if (open) await ensureGrant(db, userId, season, joinedAt);
+  const [balance, guesses, rewards, openGuesses] = await db.transaction(
+    (tx) =>
+      Promise.all([
+        balanceOf(tx, userId, seasonId),
+        tx
+          .select()
+          .from(gameGuess)
+          .where(and(eq(gameGuess.userId, userId), eq(gameGuess.seasonId, seasonId))),
+        tx
+          .select({ guessId: gameLedger.guessId, amount: gameLedger.amount })
+          .from(gameLedger)
+          .where(
+            and(
+              eq(gameLedger.userId, userId),
+              eq(gameLedger.seasonId, seasonId),
+              eq(gameLedger.kind, "reward")
+            )
+          ),
+        openGuessesOf(tx, userId),
+      ]),
+    { isolationLevel: "repeatable read", accessMode: "read only" }
+  );
+  const awaiting = awaitingOf(openGuesses, now);
+  if (!open) return { kind: "between", nextSeasonId: seasonId + 1, joined, awaiting };
+  return playingView(season, now, balance, guesses, rewards, {
+    awaiting,
+    hasOpenGuess: openGuesses.length > 0,
+  });
 }
 
 function playingView(
-  seasonId: number,
+  season: Season,
   now: Date,
-  matches: readonly SeasonMatch[],
   balance: number,
   guesses: ReadonlyArray<typeof gameGuess.$inferSelect>,
-  rewards: ReadonlyArray<{ guessId: number | null; amount: number }>
+  rewards: ReadonlyArray<{ guessId: number | null; amount: number }>,
+  open: { awaiting: AwaitingGuess[]; hasOpenGuess: boolean }
 ): GameView {
   const byMatch = new Map(guesses.map((row) => [row.providerMatchId, row]));
   const paid = new Map(rewards.map((row) => [row.guessId, row.amount]));
-  const hasOpenGuess = guesses.some((row) => row.settledAt === null);
 
   const upcoming: UpcomingMatch[] = [];
-  const awaiting: AwaitingGuess[] = [];
-  const settled: SettledGuess[] = [];
-  for (const match of matches) {
+  const settled: Array<SettledGuess & { settledAt: Date }> = [];
+  for (const match of season.matches) {
     const row = byMatch.get(match.providerMatchId);
     const guess = row === undefined ? null : storedGuess(row);
     const price = priceAt(match.kickoffAt, now);
@@ -320,26 +377,52 @@ function playingView(
         nextRise: nextPriceRise(match.kickoffAt, now),
         guess,
         free: row?.free ?? false,
-        floor: guess === null && mayUseFloor(balance, price, hasOpenGuess),
+        floor: guess === null && mayUseFloor(balance, price, open.hasOpenGuess),
       });
-    } else if (row !== undefined && guess !== null) {
-      if (row.settledAt !== null && row.tier !== null && hasResult(match)) {
-        settled.push({
-          ...shown,
-          guess,
-          homeGoals: match.homeGoals,
-          awayGoals: match.awayGoals,
-          tier: row.tier as Tier,
-          reward: paid.get(row.id) ?? 0,
-        });
-      } else {
-        awaiting.push({ ...shown, guess });
-      }
+      continue;
+    }
+    const judged = row === undefined ? null : settledResult(row);
+    if (judged !== null && guess !== null) {
+      const { id, ...result } = judged;
+      settled.push({ ...shown, ...result, guess, reward: paid.get(id) ?? 0 });
     }
   }
-  settled.reverse();
+  // Newest settlement first; a match's kickoff decides a tie.
+  settled.sort(
+    (left, right) =>
+      right.settledAt.getTime() - left.settledAt.getTime() ||
+      right.kickoffAt.getTime() - left.kickoffAt.getTime()
+  );
   const groups = new Set(upcoming.map((match) => match.groupName)).size;
-  return { kind: "playing", seasonId, balance, upcoming, awaiting, settled, groups };
+  return {
+    kind: "playing",
+    seasonId: season.seasonId,
+    balance,
+    upcoming,
+    awaiting: open.awaiting,
+    settled: settled.map(({ settledAt: _settledAt, ...rest }) => rest),
+    groups,
+  };
+}
+
+/**
+ * A settled guess's judgement and the result it was judged against, as stored
+ * when it was settled, or `null` while it is open.
+ *
+ * decisions/072-match-guesses.md
+ */
+function settledResult(row: typeof gameGuess.$inferSelect) {
+  const { id, settledAt, tier, resultHomeGoals, resultAwayGoals } = row;
+  if (settledAt === null || tier === null || resultHomeGoals === null || resultAwayGoals === null) {
+    return null;
+  }
+  return {
+    id,
+    settledAt,
+    tier: tier as Tier,
+    homeGoals: resultHomeGoals,
+    awayGoals: resultAwayGoals,
+  };
 }
 
 /**
@@ -358,10 +441,10 @@ export async function joinGame(userId: string, now: Date): Promise<void> {
     if (inserted.length > 0) logger.info({ userId }, "Arvauspeli joined");
     const seasonId = await latestSeason(tx);
     if (seasonId === null) return;
-    const matches = await seasonMatches(tx, seasonId);
-    if (!isOpen(matches, now)) return;
+    const season = await seasonOfId(tx, seasonId);
+    if (!isOpen(season, now)) return;
     const joinedAt = (await joinedAtOf(tx, userId)) ?? now;
-    await ensureGrant(tx, userId, seasonId, matches, joinedAt);
+    await ensureGrant(tx, userId, season, joinedAt);
   });
 }
 
@@ -376,9 +459,10 @@ function refused(
 }
 
 /**
- * Makes or changes a player's guess on one match, with its ledger row, in one
- * transaction. The player's row is locked first, so two guesses sent at once
- * are decided one after the other and never spend the same tokens.
+ * Makes or changes a player's guess on one match of the season the page shows,
+ * with its ledger row, in one transaction. The player's row is locked first, so
+ * two guesses sent at once are decided one after the other and never spend the
+ * same tokens, and the clock is read once the lock is held.
  *
  * decisions/072-match-guesses.md
  */
@@ -386,7 +470,7 @@ export async function placeGuess(
   userId: string,
   providerMatchId: number,
   guess: Guess,
-  now: Date
+  clock: () => Date
 ): Promise<GuessOutcome> {
   return db.transaction(async (tx) => {
     const [player] = await tx
@@ -395,6 +479,7 @@ export async function placeGuess(
       .where(eq(gamePlayer.userId, userId))
       .for("update");
     if (player === undefined) return refused(userId, providerMatchId, guess, "not-joined");
+    const now = clock();
 
     const [match] = await tx
       .select({
@@ -405,20 +490,24 @@ export async function placeGuess(
       })
       .from(tasoMatches)
       .where(eq(tasoMatches.providerMatchId, providerMatchId));
-    if (match === undefined || !isGameMatch(match)) {
+    if (match === undefined || !isGameMatch(match) || match.seasonId !== (await latestSeason(tx))) {
       return refused(userId, providerMatchId, guess, "unknown-match");
     }
     const price = priceAt(match.kickoffAt, now);
     if (price === null) return refused(userId, providerMatchId, guess, "started");
 
     const { seasonId } = match;
-    await ensureGrant(tx, userId, seasonId, await seasonMatches(tx, seasonId), player.joinedAt);
+    await ensureGrant(tx, userId, await seasonOfId(tx, seasonId), player.joinedAt);
     const balance = await balanceOf(tx, userId, seasonId);
-    const guesses = await tx
+    const [existing] = await tx
       .select()
       .from(gameGuess)
-      .where(and(eq(gameGuess.userId, userId), eq(gameGuess.seasonId, seasonId)));
-    const existing = guesses.find((row) => row.providerMatchId === providerMatchId);
+      .where(and(eq(gameGuess.userId, userId), eq(gameGuess.providerMatchId, providerMatchId)));
+    const [anyOpen] = await tx
+      .select({ id: gameGuess.id })
+      .from(gameGuess)
+      .where(and(eq(gameGuess.userId, userId), isNull(gameGuess.settledAt)))
+      .limit(1);
     const decision = decideGuess({
       existing:
         existing === undefined
@@ -427,7 +516,7 @@ export async function placeGuess(
       guess,
       price,
       balance,
-      hasOpenGuess: guesses.some((row) => row.settledAt === null),
+      hasOpenGuess: anyOpen !== undefined,
     });
     if (decision.kind === "refused") {
       return refused(userId, providerMatchId, guess, decision.reason);
@@ -554,7 +643,12 @@ async function settleMatch(
         const { tier, reward } = judge(storedGuess(row), row.resultHome, row.resultAway);
         const updated = await tx
           .update(gameGuess)
-          .set({ settledAt: now, tier })
+          .set({
+            settledAt: now,
+            tier,
+            resultHomeGoals: row.resultHome,
+            resultAwayGoals: row.resultAway,
+          })
           .where(and(eq(gameGuess.id, row.id), isNull(gameGuess.settledAt)))
           .returning({ id: gameGuess.id });
         if (updated.length === 0) return null;

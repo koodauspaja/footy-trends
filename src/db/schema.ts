@@ -618,6 +618,9 @@ export const gameGuess = pgTable(
     settledAt: timestamp("settled_at", { withTimezone: true }),
     /** `"exact"`, `"difference"`, `"outcome"` or `"miss"`, once settled. */
     tier: text("tier"),
+    /** The result the guess was judged against, kept as it was when settled. */
+    resultHomeGoals: integer("result_home_goals"),
+    resultAwayGoals: integer("result_away_goals"),
   },
   (table) => [
     uniqueIndex("game_guess_identity_idx").on(table.userId, table.providerMatchId),

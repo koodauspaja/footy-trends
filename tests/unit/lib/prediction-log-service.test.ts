@@ -1063,12 +1063,22 @@ describe("settle", () => {
     );
   });
 
-  it("is part of the hourly run, after the refresh, and its count is the run's", async () => {
-    stored([], []);
-    mocks.settleGuesses.mockResolvedValueOnce({ matches: 1, rewarded: 2, missed: 1, failed: [] });
+  it("is part of the hourly run, after the refresh has stored the results, and its count is the run's", async () => {
+    const order: string[] = [];
+    stored([], [tasoRow()]);
+    mocks.getHomeBaseline.mockResolvedValue(baseline);
+    mocks.getTasoSeasonMatches.mockResolvedValue([{ id: "taso" }]);
+    mocks.synchronizeTasoMatches.mockImplementationOnce(async () => {
+      order.push("refresh");
+    });
+    mocks.settleGuesses.mockImplementationOnce(async () => {
+      order.push("settle");
+      return { matches: 1, rewarded: 2, missed: 1, failed: [] };
+    });
 
     const report = await runPredictionLog(() => NOW, immediate);
 
+    expect(order).toEqual(["refresh", "settle"]);
     expect(report.settled).toBe(3);
     expect(mocks.settleGuesses).toHaveBeenCalledWith(NOW);
   });

@@ -63,7 +63,7 @@ export async function placeGuessAction(
       logger.warn("Arvauspeli guess refused: no session");
       return { ok: false, reason: "failed" };
     }
-    const outcome = await placeGuess(userId, providerMatchId as number, guess, new Date());
+    const outcome = await placeGuess(userId, providerMatchId as number, guess, () => new Date());
     if (outcome.ok) return { ok: true };
     const { reason } = outcome;
     return reason === "started" || reason === "insufficient" || reason === "free-fixed"

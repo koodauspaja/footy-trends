@@ -4,8 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 /**
  * The `/arvauspeli` route itself: a signed-out reader is asked to sign in, a
  * failed read says so rather than looking signed out, and a player's view
- * reaches the page. A route file nothing imports is absent from the coverage
- * report, so it has a test of its own.
+ * reaches the page.
  *
  * decisions/072-match-guesses.md
  */

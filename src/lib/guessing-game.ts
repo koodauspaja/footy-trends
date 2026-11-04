@@ -11,12 +11,20 @@ export type Guess =
   | { kind: "outcome"; outcome: Outcome }
   | { kind: "score"; homeGoals: number; awayGoals: number };
 
-/** The highest tier a settled guess reached; `miss` reached none. */
+/**
+ * The highest tier a settled guess reached; `miss` reached none.
+ *
+ * decisions/072-match-guesses.md
+ */
 export type Tier = "exact" | "difference" | "outcome" | "miss";
 
 export const STARTING_BALANCE = 1000;
 
-/** The most goals one side can be guessed to score: two digits. */
+/**
+ * The most goals one side can be guessed to score: two digits.
+ *
+ * decisions/072-match-guesses.md
+ */
 export const MAX_GUESSED_GOALS = 99;
 
 const HOUR_MS = 60 * 60 * 1000;

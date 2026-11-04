@@ -11,7 +11,12 @@ import { PANEL_HEADING, TABLE_HEADING } from "@/components/heading-classes";
 import { Notice } from "@/components/notice";
 import { SectionFold } from "@/components/section-fold";
 import { type Guess, STARTING_BALANCE, type Tier } from "@/lib/guessing-game";
-import type { GameView, SettledGuess, UpcomingMatch } from "@/lib/guessing-game-store";
+import type {
+  AwaitingGuess,
+  GameView,
+  SettledGuess,
+  UpcomingMatch,
+} from "@/lib/guessing-game-store";
 import { matchCountLabel } from "@/lib/match-count";
 import { formatKickoff } from "@/lib/match-detail";
 
@@ -159,6 +164,29 @@ function Upcoming({
   );
 }
 
+function Awaiting({ guesses }: Readonly<{ guesses: readonly AwaitingGuess[] }>) {
+  if (guesses.length === 0) return null;
+  return (
+    <GameFold
+      count={guessCount(guesses.length)}
+      heading="Odottavat tulosta"
+      id="awaiting"
+      open={false}
+    >
+      <ul>
+        {guesses.map((guess) => (
+          <li className="border-border-subtle border-b py-3" key={guess.providerMatchId}>
+            <span className="font-medium">
+              {guess.homeTeamName} – {guess.awayTeamName}
+            </span>
+            <p className="text-sm">Arvauksesi: {formatGuess(guess.guess)}</p>
+          </li>
+        ))}
+      </ul>
+    </GameFold>
+  );
+}
+
 export function GuessingGamePage({ view }: Readonly<{ view: GameView }>) {
   if (view.kind === "no-season" || view.kind === "between") {
     return (
@@ -169,6 +197,7 @@ export function GuessingGamePage({ view }: Readonly<{ view: GameView }>) {
             : "Veikkausliigan ottelut julkaistaan myöhemmin."}
         </p>
         {!view.joined && <JoinSection grant={STARTING_BALANCE} />}
+        {view.kind === "between" && <Awaiting guesses={view.awaiting} />}
       </div>
     );
   }
@@ -187,25 +216,7 @@ export function GuessingGamePage({ view }: Readonly<{ view: GameView }>) {
         </div>
       )}
       <Upcoming groups={view.groups} matches={view.upcoming} />
-      {view.awaiting.length > 0 && (
-        <GameFold
-          count={guessCount(view.awaiting.length)}
-          heading="Odottavat tulosta"
-          id="awaiting"
-          open={false}
-        >
-          <ul>
-            {view.awaiting.map((guess) => (
-              <li className="border-border-subtle border-b py-3" key={guess.providerMatchId}>
-                <span className="font-medium">
-                  {guess.homeTeamName} – {guess.awayTeamName}
-                </span>
-                <p className="text-sm">Arvauksesi: {formatGuess(guess.guess)}</p>
-              </li>
-            ))}
-          </ul>
-        </GameFold>
-      )}
+      <Awaiting guesses={view.awaiting} />
       {view.settled.length > 0 && (
         <GameFold
           count={guessCount(view.settled.length)}

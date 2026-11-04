@@ -10,7 +10,9 @@ CREATE TABLE "game_guess" (
 	"free" boolean DEFAULT false NOT NULL,
 	"made_at" timestamp with time zone NOT NULL,
 	"settled_at" timestamp with time zone,
-	"tier" text
+	"tier" text,
+	"result_home_goals" integer,
+	"result_away_goals" integer
 );
 --> statement-breakpoint
 CREATE TABLE "game_ledger" (

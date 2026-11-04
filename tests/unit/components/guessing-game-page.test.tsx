@@ -70,7 +70,11 @@ describe("GuessingGamePage", () => {
   });
 
   it("names the next season between seasons, and still lets a reader join", () => {
-    render(<GuessingGamePage view={{ kind: "between", nextSeasonId: 2028, joined: false }} />);
+    render(
+      <GuessingGamePage
+        view={{ kind: "between", nextSeasonId: 2028, joined: false, awaiting: [] }}
+      />
+    );
 
     expect(screen.getByText("Kauden 2028 ottelut julkaistaan myöhemmin.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Liity peliin" })).toBeInTheDocument();
@@ -78,7 +82,9 @@ describe("GuessingGamePage", () => {
 
   it("offers a player nothing more to press between seasons, or before any season is stored", () => {
     const { rerender } = render(
-      <GuessingGamePage view={{ kind: "between", nextSeasonId: 2028, joined: true }} />
+      <GuessingGamePage
+        view={{ kind: "between", nextSeasonId: 2028, joined: true, awaiting: [] }}
+      />
     );
     expect(screen.queryByRole("button")).toBeNull();
 
@@ -267,5 +273,30 @@ describe("GuessingGamePage", () => {
     expect(screen.getByText("(1 ottelu)")).toBeInTheDocument();
     expect(screen.getByText("(1 arvaus)")).toBeInTheDocument();
     expect(screen.getByText("(2 arvausta)")).toBeInTheDocument();
+  });
+
+  it("still lists a player's waiting guesses between seasons", () => {
+    render(
+      <GuessingGamePage
+        view={{
+          kind: "between",
+          nextSeasonId: 2028,
+          joined: true,
+          awaiting: [
+            {
+              providerMatchId: 9,
+              kickoffAt: new Date("2027-11-01T15:00:00Z"),
+              homeTeamName: "HJK",
+              awayTeamName: "KuPS",
+              guess: { kind: "outcome", outcome: "X" },
+            },
+          ],
+        }}
+      />
+    );
+
+    expect(screen.getByText("Kauden 2028 ottelut julkaistaan myöhemmin.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Odottavat tulosta" })).toBeInTheDocument();
+    expect(screen.getByText("Arvauksesi: X")).toBeInTheDocument();
   });
 });

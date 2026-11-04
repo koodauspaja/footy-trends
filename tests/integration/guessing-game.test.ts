@@ -5,10 +5,9 @@ import { gameGuess, gameLedger, gamePlayer, tasoMatches, user } from "@/db/schem
 import { joinGame, openGame, placeGuess, settleGuesses } from "@/lib/guessing-game-store";
 
 /**
- * Arvauspeli against a real Postgres: joining and the grant, a guess and its
- * ledger row in one transaction, a change, the floor, two guesses at once,
- * settling once and only once, and the cascade with the user. A season far in
- * the future keeps every other test's TASO rows out of it.
+ * Arvauspeli against a real Postgres: joining and the grant, guesses and the
+ * floor, two guesses at once, settling once, and the cascade with the user, in
+ * a season far enough ahead to keep every other test's TASO rows out.
  *
  * decisions/072-match-guesses.md
  */
@@ -151,6 +150,7 @@ describe("joining", () => {
       kind: "between",
       nextSeasonId: SEASON + 1,
       joined: true,
+      awaiting: [],
     });
     expect(await ledger()).toEqual([]);
   });
@@ -161,7 +161,7 @@ describe("guessing", () => {
     const [match] = await storeMatches([vlMatch({ kickoffAt: at(100) })]);
     await joinGame(USER_ID, NOW);
 
-    const outcome = await placeGuess(USER_ID, match, { kind: "outcome", outcome: "1" }, NOW);
+    const outcome = await placeGuess(USER_ID, match, { kind: "outcome", outcome: "1" }, () => NOW);
 
     expect(outcome).toEqual({ ok: true, decision: { kind: "new", price: 15 } });
     expect(await balance()).toBe(985);
@@ -177,13 +177,13 @@ describe("guessing", () => {
   it("charges a change the current price on top, and rewrites the guess as a score", async () => {
     const [match] = await storeMatches([vlMatch({ kickoffAt: at(200) })]);
     await joinGame(USER_ID, NOW);
-    await placeGuess(USER_ID, match, { kind: "outcome", outcome: "1" }, NOW);
+    await placeGuess(USER_ID, match, { kind: "outcome", outcome: "1" }, () => NOW);
 
     const outcome = await placeGuess(
       USER_ID,
       match,
       { kind: "score", homeGoals: 2, awayGoals: 1 },
-      at(100)
+      () => at(100)
     );
 
     expect(outcome).toMatchObject({ ok: true, decision: { kind: "change", price: 15 } });
@@ -201,7 +201,7 @@ describe("guessing", () => {
     const [match] = await storeMatches([vlMatch({ kickoffAt: NOW })]);
     await joinGame(USER_ID, at(-1));
 
-    expect(await placeGuess(USER_ID, match, { kind: "outcome", outcome: "X" }, NOW)).toEqual({
+    expect(await placeGuess(USER_ID, match, { kind: "outcome", outcome: "X" }, () => NOW)).toEqual({
       ok: false,
       reason: "started",
     });
@@ -211,16 +211,16 @@ describe("guessing", () => {
   it("refuses a reader who has not joined, and a match that is not Veikkausliiga's", async () => {
     const [match, other] = await storeMatches([vlMatch(), vlMatch({ categoryId: "M1L" })]);
 
-    expect(await placeGuess(USER_ID, match, { kind: "outcome", outcome: "1" }, NOW)).toEqual({
+    expect(await placeGuess(USER_ID, match, { kind: "outcome", outcome: "1" }, () => NOW)).toEqual({
       ok: false,
       reason: "not-joined",
     });
     await joinGame(USER_ID, NOW);
-    expect(await placeGuess(USER_ID, other, { kind: "outcome", outcome: "1" }, NOW)).toEqual({
+    expect(await placeGuess(USER_ID, other, { kind: "outcome", outcome: "1" }, () => NOW)).toEqual({
       ok: false,
       reason: "unknown-match",
     });
-    expect(await placeGuess(USER_ID, 1, { kind: "outcome", outcome: "1" }, NOW)).toEqual({
+    expect(await placeGuess(USER_ID, 1, { kind: "outcome", outcome: "1" }, () => NOW)).toEqual({
       ok: false,
       reason: "unknown-match",
     });
@@ -233,15 +233,17 @@ describe("guessing", () => {
       .insert(gameLedger)
       .values({ userId: USER_ID, seasonId: SEASON, kind: "change", amount: -995 });
 
-    expect(await placeGuess(USER_ID, first, { kind: "outcome", outcome: "2" }, NOW)).toEqual({
+    expect(await placeGuess(USER_ID, first, { kind: "outcome", outcome: "2" }, () => NOW)).toEqual({
       ok: true,
       decision: { kind: "free" },
     });
-    expect(await placeGuess(USER_ID, second, { kind: "outcome", outcome: "2" }, NOW)).toEqual({
-      ok: false,
-      reason: "insufficient",
-    });
-    expect(await placeGuess(USER_ID, first, { kind: "outcome", outcome: "1" }, NOW)).toEqual({
+    expect(await placeGuess(USER_ID, second, { kind: "outcome", outcome: "2" }, () => NOW)).toEqual(
+      {
+        ok: false,
+        reason: "insufficient",
+      }
+    );
+    expect(await placeGuess(USER_ID, first, { kind: "outcome", outcome: "1" }, () => NOW)).toEqual({
       ok: false,
       reason: "free-fixed",
     });
@@ -263,8 +265,8 @@ describe("guessing", () => {
       .values({ userId: USER_ID, seasonId: SEASON, kind: "change", amount: -990 });
 
     const outcomes = await Promise.all([
-      placeGuess(USER_ID, first, { kind: "score", homeGoals: 1, awayGoals: 0 }, NOW),
-      placeGuess(USER_ID, second, { kind: "score", homeGoals: 1, awayGoals: 0 }, NOW),
+      placeGuess(USER_ID, first, { kind: "score", homeGoals: 1, awayGoals: 0 }, () => NOW),
+      placeGuess(USER_ID, second, { kind: "score", homeGoals: 1, awayGoals: 0 }, () => NOW),
     ]);
 
     expect(outcomes.filter((outcome) => outcome.ok)).toHaveLength(1);
@@ -284,7 +286,7 @@ describe("guessing", () => {
 
     for (const match of matches) {
       expect(
-        await placeGuess(USER_ID, match, { kind: "outcome", outcome: "1" }, NOW)
+        await placeGuess(USER_ID, match, { kind: "outcome", outcome: "1" }, () => NOW)
       ).toMatchObject({
         ok: true,
       });
@@ -292,12 +294,54 @@ describe("guessing", () => {
     expect(await balance()).toBe(970);
   });
 
+  it("refuses a guess on a match of a season the page does not show", async () => {
+    const [older] = await storeMatches([vlMatch({ seasonId: 2090 }), vlMatch()]);
+    await joinGame(USER_ID, NOW);
+
+    expect(await placeGuess(USER_ID, older, { kind: "outcome", outcome: "1" }, () => NOW)).toEqual({
+      ok: false,
+      reason: "unknown-match",
+    });
+  });
+
+  it("keeps the floor closed while a guess of an earlier season waits", async () => {
+    const [older, match] = await storeMatches([
+      vlMatch({ seasonId: 2090, kickoffAt: at(-9000), status: "Abandoned" }),
+      vlMatch(),
+    ]);
+    await db
+      .insert(gamePlayer)
+      .values({ userId: USER_ID, joinedAt: new Date("2090-01-01T00:00:00Z") });
+    await db.insert(gameGuess).values({
+      userId: USER_ID,
+      seasonId: 2090,
+      providerMatchId: older,
+      kind: "outcome",
+      outcome: "1",
+      madeAt: at(-9100),
+    });
+    await openGame(USER_ID, NOW);
+    await db
+      .insert(gameLedger)
+      .values({ userId: USER_ID, seasonId: SEASON, kind: "change", amount: -995 });
+
+    expect(await placeGuess(USER_ID, match, { kind: "outcome", outcome: "1" }, () => NOW)).toEqual({
+      ok: false,
+      reason: "insufficient",
+    });
+    expect(await openGame(USER_ID, NOW)).toMatchObject({
+      kind: "playing",
+      awaiting: [expect.objectContaining({ providerMatchId: older })],
+      upcoming: [expect.objectContaining({ floor: false })],
+    });
+  });
+
   it("keeps each player's balance and guesses apart", async () => {
     const [match] = await storeMatches([vlMatch()]);
     await joinGame(USER_ID, NOW);
     await joinGame(OTHER_ID, NOW);
 
-    await placeGuess(USER_ID, match, { kind: "outcome", outcome: "1" }, NOW);
+    await placeGuess(USER_ID, match, { kind: "outcome", outcome: "1" }, () => NOW);
 
     expect(await balance(USER_ID)).toBe(990);
     expect(await balance(OTHER_ID)).toBe(1000);
@@ -309,8 +353,8 @@ describe("settling", () => {
     const [match] = await storeMatches([vlMatch({ kickoffAt: at(50) })]);
     await joinGame(USER_ID, NOW);
     await joinGame(OTHER_ID, NOW);
-    await placeGuess(USER_ID, match, { kind: "score", homeGoals: 2, awayGoals: 1 }, NOW);
-    await placeGuess(OTHER_ID, match, { kind: "outcome", outcome: "2" }, NOW);
+    await placeGuess(USER_ID, match, { kind: "score", homeGoals: 2, awayGoals: 1 }, () => NOW);
+    await placeGuess(OTHER_ID, match, { kind: "outcome", outcome: "2" }, () => NOW);
     await db
       .update(tasoMatches)
       .set({ status: "FINISHED", homeGoals: 2, awayGoals: 1 })
@@ -333,7 +377,7 @@ describe("settling", () => {
       vlMatch({ kickoffAt: at(500) }),
     ]);
     await joinGame(USER_ID, NOW);
-    await placeGuess(USER_ID, match, { kind: "outcome", outcome: "1" }, NOW);
+    await placeGuess(USER_ID, match, { kind: "outcome", outcome: "1" }, () => NOW);
     await db
       .update(tasoMatches)
       .set({ status: "FINISHED", homeGoals: 1, awayGoals: 0 })
@@ -350,16 +394,48 @@ describe("settling", () => {
     const view = await openGame(USER_ID, at(70));
     expect(view).toMatchObject({ kind: "playing" });
     if (view.kind !== "playing") return;
+    // Shown with the result it was judged against, not the corrected one.
     expect(view.settled).toEqual([
-      expect.objectContaining({ providerMatchId: match, tier: "outcome", reward: 30 }),
+      expect.objectContaining({
+        providerMatchId: match,
+        homeGoals: 1,
+        awayGoals: 0,
+        tier: "outcome",
+        reward: 30,
+      }),
     ]);
     expect(view.upcoming.map((row) => row.providerMatchId)).toEqual([later]);
+  });
+
+  it("still shows a guess waiting to be settled once every match has a result", async () => {
+    const [match] = await storeMatches([vlMatch({ kickoffAt: at(50) })]);
+    await joinGame(USER_ID, NOW);
+    await placeGuess(USER_ID, match, { kind: "outcome", outcome: "1" }, () => NOW);
+    await db
+      .update(tasoMatches)
+      .set({ status: "FINISHED", homeGoals: 1, awayGoals: 0 })
+      .where(eq(tasoMatches.providerMatchId, match));
+
+    expect(await openGame(USER_ID, at(60))).toMatchObject({
+      kind: "between",
+      awaiting: [expect.objectContaining({ providerMatchId: match })],
+    });
+  });
+
+  it("keeps the season open while the split the previous season had is not stored", async () => {
+    await storeMatches([
+      vlMatch({ seasonId: 2090, groupId: 2, groupName: "Mestaruussarja", kickoffAt: at(-9000) }),
+      vlMatch({ kickoffAt: at(-48), status: "FINISHED", homeGoals: 1, awayGoals: 0 }),
+    ]);
+    await joinGame(USER_ID, NOW);
+
+    expect(await openGame(USER_ID, NOW)).toMatchObject({ kind: "playing", upcoming: [] });
   });
 
   it("leaves a guess open while its match has no result", async () => {
     const [match] = await storeMatches([vlMatch({ kickoffAt: at(50) })]);
     await joinGame(USER_ID, NOW);
-    await placeGuess(USER_ID, match, { kind: "outcome", outcome: "X" }, NOW);
+    await placeGuess(USER_ID, match, { kind: "outcome", outcome: "X" }, () => NOW);
     await db
       .update(tasoMatches)
       .set({ status: "Abandoned" })
@@ -378,7 +454,7 @@ describe("the user's account", () => {
   it("takes every game row with it when it is deleted", async () => {
     const [match] = await storeMatches([vlMatch()]);
     await joinGame(USER_ID, NOW);
-    await placeGuess(USER_ID, match, { kind: "outcome", outcome: "1" }, NOW);
+    await placeGuess(USER_ID, match, { kind: "outcome", outcome: "1" }, () => NOW);
 
     await db.delete(user).where(eq(user.id, USER_ID));
 

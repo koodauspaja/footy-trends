@@ -6,10 +6,8 @@ import { testDatabaseUrl } from "../support/test-database";
 
 /**
  * Arvauspeli as a player meets it: signed out, the way in; signed in, joining,
- * a 1X2 guess, and a change to a score, each paid from the balance shown. Its
- * two matches are seeded in a season after every other spec's, with ids and
- * names carrying the run's port, so it passes on an empty database and live
- * runs on other ports never touch each other's rows.
+ * a 1X2 guess and a change to a score, each paid from the balance. Its matches
+ * are seeded in a late season, ids and names carrying the run's port.
  *
  * decisions/072-match-guesses.md
  */
