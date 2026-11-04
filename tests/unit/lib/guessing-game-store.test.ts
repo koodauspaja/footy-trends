@@ -14,52 +14,50 @@ const { state, logger } = vi.hoisted(() => {
   const state = {
     answers: [] as unknown[],
     calls: [] as Array<{ method: string; args: unknown[] }>,
+    // Answers a statement by its kind instead of the queue, for statements run at once.
+    respond: null as null | ((statement: "select" | "insert" | "update") => unknown),
+    // Transactions to fail as they start, before running anything.
+    failingTransactions: 0,
   };
   return { state, logger: { info: vi.fn(), error: vi.fn() } };
 });
 
 vi.mock("@/db", () => {
-  // Every builder method returns the same chain; awaiting it takes the next answer.
-  const chain: object = new Proxy(
-    {},
-    {
-      get(_target, property) {
-        if (property === "then") {
-          return (resolve: (value: unknown) => void, reject: (error: unknown) => void) => {
-            const answer = state.answers.shift();
-            if (answer instanceof Error) reject(answer);
-            else resolve(answer);
+  // Each statement is a chain of its own; awaiting it takes its answer.
+  function statement(kind: "select" | "insert" | "update", args: unknown[]): object {
+    state.calls.push({ method: kind, args });
+    const chain: object = new Proxy(
+      {},
+      {
+        get(_target, property) {
+          if (property === "then") {
+            return (resolve: (value: unknown) => void, reject: (error: unknown) => void) => {
+              const answer = state.respond === null ? state.answers.shift() : state.respond(kind);
+              if (answer instanceof Error) reject(answer);
+              else resolve(answer);
+            };
+          }
+          return (...callArgs: unknown[]) => {
+            state.calls.push({ method: String(property), args: callArgs });
+            return chain;
           };
-        }
-        return (...args: unknown[]) => {
-          state.calls.push({ method: String(property), args });
-          return chain;
-        };
-      },
-    }
-  );
+        },
+      }
+    );
+    return chain;
+  }
   const client = {
-    select: (...args: unknown[]) => {
-      state.calls.push({ method: "select", args });
-      return chain;
-    },
-    insert: (...args: unknown[]) => {
-      state.calls.push({ method: "insert", args });
-      return chain;
-    },
-    update: (...args: unknown[]) => {
-      state.calls.push({ method: "update", args });
-      return chain;
-    },
+    select: (...args: unknown[]) => statement("select", args),
+    insert: (...args: unknown[]) => statement("insert", args),
+    update: (...args: unknown[]) => statement("update", args),
   };
   return {
     db: {
       ...client,
       transaction: async (run: (tx: typeof client) => Promise<unknown>) => {
-        const answer = state.answers[0];
-        if (answer instanceof Error) {
-          state.answers.shift();
-          throw answer;
+        if (state.failingTransactions > 0) {
+          state.failingTransactions -= 1;
+          throw new Error("database down");
         }
         return run(client);
       },
@@ -124,6 +122,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.answers = [];
   state.calls = [];
+  state.respond = null;
+  state.failingTransactions = 0;
 });
 
 describe("openGame", () => {
@@ -510,27 +510,34 @@ describe("settleGuesses", () => {
     return { ...guessRow(), resultHome: 1, resultAway: 0, ...overrides };
   }
 
-  it("pays each guess on a match in one transaction, and counts the paid and the missed", async () => {
-    answer(
-      [
-        settleable({ id: 1 }),
-        settleable({ id: 2, outcome: "2" }),
-        settleable({ id: 3, providerMatchId: 2 }),
-      ],
-      [{ id: 1 }],
-      undefined,
-      [{ id: 2 }],
-      undefined,
-      [{ id: 3 }],
-      undefined
-    );
+  // The open guesses read first, then every update answering `updated` and every insert nothing.
+  function settling(rows: unknown[], updated: unknown[] = [{ id: 1 }]) {
+    let read = false;
+    state.respond = (statement) => {
+      if (statement === "select" && !read) {
+        read = true;
+        return rows;
+      }
+      return statement === "update" ? updated : undefined;
+    };
+  }
+
+  it("pays each guess by the reward table, each match in its own transaction, and counts the paid and the missed", async () => {
+    settling([
+      settleable({ id: 1 }),
+      settleable({ id: 2, outcome: "2" }),
+      settleable({ id: 3, providerMatchId: 2 }),
+    ]);
 
     expect(await settleGuesses(NOW)).toEqual({ matches: 2, rewarded: 2, missed: 1, failed: [] });
-    expect(inserted()).toEqual([
-      { userId: "user-1", seasonId: 2027, kind: "reward", amount: 30, guessId: 1 },
-      { userId: "user-1", seasonId: 2027, kind: "reward", amount: 0, guessId: 2 },
-      { userId: "user-1", seasonId: 2027, kind: "reward", amount: 30, guessId: 3 },
-    ]);
+    expect(inserted()).toEqual(
+      expect.arrayContaining([
+        { userId: "user-1", seasonId: 2027, kind: "reward", amount: 30, guessId: 1 },
+        { userId: "user-1", seasonId: 2027, kind: "reward", amount: 0, guessId: 2 },
+        { userId: "user-1", seasonId: 2027, kind: "reward", amount: 30, guessId: 3 },
+      ])
+    );
+    expect(inserted()).toHaveLength(3);
     expect(logger.info).toHaveBeenCalledWith(
       { matches: 2, rewarded: 2, missed: 1, failed: [] },
       "Arvauspeli guesses settled"
@@ -538,24 +545,21 @@ describe("settleGuesses", () => {
   });
 
   it("pays nothing for a guess another run settled first", async () => {
-    answer([settleable()], []);
+    settling([settleable()], []);
 
     expect(await settleGuesses(NOW)).toEqual({ matches: 1, rewarded: 0, missed: 0, failed: [] });
     expect(inserted()).toEqual([]);
   });
 
   it("names a match that failed, logs it, and settles the rest", async () => {
-    answer(
-      [settleable({ id: 1 }), settleable({ id: 2, providerMatchId: 2 })],
-      new Error("database down"),
-      [{ id: 2 }],
-      undefined
-    );
+    settling([settleable({ id: 1 }), settleable({ id: 2, providerMatchId: 2 })]);
+    state.failingTransactions = 1;
 
     expect(await settleGuesses(NOW)).toEqual({ matches: 1, rewarded: 1, missed: 0, failed: [1] });
     expect(logger.error).toHaveBeenCalledWith(
       { err: expect.any(Error), providerMatchId: 1 },
       "Unable to settle Arvauspeli guesses"
     );
+    expect(inserted()).toEqual([expect.objectContaining({ guessId: 2 })]);
   });
 });

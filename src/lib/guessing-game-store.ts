@@ -526,10 +526,56 @@ export type SettleReport = {
   failed: number[];
 };
 
+type SettleRow = {
+  id: number;
+  userId: string;
+  seasonId: number;
+  kind: string;
+  outcome: string | null;
+  homeGoals: number | null;
+  awayGoals: number | null;
+  resultHome: number;
+  resultAway: number;
+};
+
 /**
- * Settles every open guess whose match is finished with a score, one match per
- * transaction, and pays each by the reward table. A settled guess is never
- * settled again: the update is conditional and a second reward fails.
+ * Settles one match's guesses in one transaction: what each paid, or `null`
+ * for a guess another run settled first.
+ *
+ * decisions/072-match-guesses.md
+ */
+async function settleMatch(
+  guesses: readonly SettleRow[],
+  now: Date
+): Promise<Array<number | null>> {
+  return db.transaction((tx) =>
+    Promise.all(
+      guesses.map(async (row) => {
+        const { tier, reward } = judge(storedGuess(row), row.resultHome, row.resultAway);
+        const updated = await tx
+          .update(gameGuess)
+          .set({ settledAt: now, tier })
+          .where(and(eq(gameGuess.id, row.id), isNull(gameGuess.settledAt)))
+          .returning({ id: gameGuess.id });
+        if (updated.length === 0) return null;
+        await tx.insert(gameLedger).values({
+          userId: row.userId,
+          seasonId: row.seasonId,
+          kind: "reward",
+          amount: reward,
+          guessId: row.id,
+        });
+        return reward;
+      })
+    )
+  );
+}
+
+/**
+ * Settles every open guess whose match is finished with a score, each match in
+ * its own transaction, all at once, and pays each by the reward table. A
+ * settled guess is never settled again: the update is conditional and a second
+ * reward fails.
  *
  * decisions/072-match-guesses.md
  */
@@ -559,39 +605,28 @@ export async function settleGuesses(now: Date): Promise<SettleReport> {
       )
     );
 
-  const byMatch = Map.groupBy(rows, (row) => row.providerMatchId);
-  const report: SettleReport = { matches: 0, rewarded: 0, missed: 0, failed: [] };
-  for (const [providerMatchId, guesses] of byMatch) {
-    try {
-      const counts = await db.transaction(async (tx) => {
-        let rewarded = 0;
-        let missed = 0;
-        for (const row of guesses) {
-          const { tier, reward } = judge(storedGuess(row), row.resultHome, row.resultAway);
-          const updated = await tx
-            .update(gameGuess)
-            .set({ settledAt: now, tier })
-            .where(and(eq(gameGuess.id, row.id), isNull(gameGuess.settledAt)))
-            .returning({ id: gameGuess.id });
-          if (updated.length === 0) continue;
-          await tx.insert(gameLedger).values({
-            userId: row.userId,
-            seasonId: row.seasonId,
-            kind: "reward",
-            amount: reward,
-            guessId: row.id,
-          });
-          if (reward > 0) rewarded += 1;
-          else missed += 1;
+  const settled = await Promise.all(
+    [...Map.groupBy(rows, (row) => row.providerMatchId)].map(([providerMatchId, guesses]) =>
+      settleMatch(guesses, now).then(
+        (rewards) => ({ providerMatchId, rewards }),
+        (error: unknown) => {
+          logger.error({ err: error, providerMatchId }, "Unable to settle Arvauspeli guesses");
+          return { providerMatchId, rewards: null };
         }
-        return { rewarded, missed };
-      });
-      report.matches += 1;
-      report.rewarded += counts.rewarded;
-      report.missed += counts.missed;
-    } catch (error) {
-      logger.error({ err: error, providerMatchId }, "Unable to settle Arvauspeli guesses");
+      )
+    )
+  );
+  const report: SettleReport = { matches: 0, rewarded: 0, missed: 0, failed: [] };
+  for (const { providerMatchId, rewards } of settled) {
+    if (rewards === null) {
       report.failed.push(providerMatchId);
+      continue;
+    }
+    report.matches += 1;
+    for (const reward of rewards) {
+      if (reward === null) continue;
+      if (reward > 0) report.rewarded += 1;
+      else report.missed += 1;
     }
   }
   logger.info(report, "Arvauspeli guesses settled");
