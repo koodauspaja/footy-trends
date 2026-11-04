@@ -1,3 +1,11 @@
+/**
+ * `Arvauspeli`'s reads and writes: the season, the player's balance and
+ * guesses, a guess in one transaction, and settling. What any of it decides
+ * is in `guessing-game.ts`.
+ *
+ * decisions/072-match-guesses.md
+ */
+
 import { and, asc, eq, inArray, isNotNull, isNull, max, ne, sql, sum } from "drizzle-orm";
 import { db } from "@/db";
 import { gameGuess, gameLedger, gamePlayer, tasoMatches } from "@/db/schema";
@@ -11,6 +19,7 @@ import {
   type Guess,
   type GuessDecision,
   judge,
+  mayUseFloor,
   nextPriceRise,
   parseGuess,
   priceAt,
@@ -18,14 +27,6 @@ import {
   type Tier,
 } from "./guessing-game";
 import { logger } from "./logger";
-
-/**
- * `Arvauspeli`'s reads and writes: the season, the player's balance and
- * guesses, a guess in one transaction, and settling. What any of it decides
- * is in `guessing-game.ts`.
- *
- * decisions/072-match-guesses.md
- */
 
 const COMPETITION = "VL";
 const FINISHED = "FINISHED";
@@ -319,7 +320,7 @@ function playingView(
         nextRise: nextPriceRise(match.kickoffAt, now),
         guess,
         free: row?.free ?? false,
-        floor: guess === null && balance < price && !hasOpenGuess,
+        floor: guess === null && mayUseFloor(balance, price, hasOpenGuess),
       });
     } else if (row !== undefined && guess !== null) {
       if (row.settledAt !== null && row.tier !== null && hasResult(match)) {

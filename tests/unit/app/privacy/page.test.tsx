@@ -10,6 +10,7 @@ import Privacy, { metadata } from "@/app/privacy/page";
  * decisions/302-privacy-policy-and-footer.md
  * decisions/024-account-settings.md
  * decisions/071-section-toggles.md
+ * decisions/072-match-guesses.md
  */
 
 describe("the privacy policy", () => {
@@ -36,6 +37,7 @@ describe("the privacy policy", () => {
     ["favorite_team", "Suosikkijoukkueesi"],
     ["favorite_competition", "-sarjasi"],
     ["section_choice", "osiot, jotka olet avannut tai sulkenut"],
+    ["game_guess, game_ledger", "Arvauspelin arvauksesi ja pelimerkkisi"],
   ])("describes what %s stores", (_column, phrase) => {
     render(<Privacy />);
 
@@ -67,6 +69,7 @@ describe("the privacy policy", () => {
     expect(screen.getAllByRole("link", { name: "Asetukset" }).length).toBeGreaterThan(0);
     expect(document.body.textContent).toContain("Poista tili");
     expect(document.body.textContent).toContain("osioiden valinnat");
+    expect(document.body.textContent).toContain("arvauspelin tiedot");
   });
 
   it("does not claim deletion reaches the log store, because it does not", () => {

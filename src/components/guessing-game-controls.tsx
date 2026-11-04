@@ -1,12 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import type { Guess, Outcome } from "@/lib/guessing-game";
-import { MAX_GUESSED_GOALS, sameGuess } from "@/lib/guessing-game";
-import { type GuessRefusal, joinGameAction, placeGuessAction } from "@/lib/guessing-game-actions";
-import { reportClientError } from "@/lib/report-client-error";
-
 /**
  * `Arvauspeli`'s two controls: joining, and one match's guess. Each calls its
  * server action and then refreshes the page, which reads the new balance on
@@ -14,6 +7,13 @@ import { reportClientError } from "@/lib/report-client-error";
  *
  * decisions/072-match-guesses.md
  */
+
+import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
+import type { Guess, Outcome } from "@/lib/guessing-game";
+import { MAX_GUESSED_GOALS, sameGuess } from "@/lib/guessing-game";
+import { type GuessRefusal, joinGameAction, placeGuessAction } from "@/lib/guessing-game-actions";
+import { reportClientError } from "@/lib/report-client-error";
 
 const BUTTON =
   "rounded border border-border px-3 py-2 text-sm hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50";

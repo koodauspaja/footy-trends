@@ -1,3 +1,10 @@
+/**
+ * What `/arvauspeli` shows a signed-in reader: the way in, or the player's
+ * balance, the matches they can guess, and what their guesses paid.
+ *
+ * decisions/072-match-guesses.md
+ */
+
 import type { ReactNode } from "react";
 import { GuessForm, JoinGameButton } from "@/components/guessing-game-controls";
 import { PANEL_HEADING, TABLE_HEADING } from "@/components/heading-classes";
@@ -7,13 +14,6 @@ import { type Guess, STARTING_BALANCE, type Tier } from "@/lib/guessing-game";
 import type { GameView, SettledGuess, UpcomingMatch } from "@/lib/guessing-game-store";
 import { matchCountLabel } from "@/lib/match-count";
 import { formatKickoff } from "@/lib/match-detail";
-
-/**
- * What `/arvauspeli` shows a signed-in reader: the way in, or the player's
- * balance, the matches they can guess, and what their guesses paid.
- *
- * decisions/072-match-guesses.md
- */
 
 const INTRO =
   "Arvaa Veikkausliigan otteluiden tuloksia pelimerkeillä. Pelimerkkejä ei voi ostaa, myydä eikä vaihtaa mihinkään.";
