@@ -503,11 +503,7 @@ export async function placeGuess(
       .select()
       .from(gameGuess)
       .where(and(eq(gameGuess.userId, userId), eq(gameGuess.providerMatchId, providerMatchId)));
-    const [anyOpen] = await tx
-      .select({ id: gameGuess.id })
-      .from(gameGuess)
-      .where(and(eq(gameGuess.userId, userId), isNull(gameGuess.settledAt)))
-      .limit(1);
+    const openGuesses = await openGuessesOf(tx, userId);
     const decision = decideGuess({
       existing:
         existing === undefined
@@ -516,7 +512,7 @@ export async function placeGuess(
       guess,
       price,
       balance,
-      hasOpenGuess: anyOpen !== undefined,
+      hasOpenGuess: openGuesses.length > 0,
     });
     if (decision.kind === "refused") {
       return refused(userId, providerMatchId, guess, decision.reason);
