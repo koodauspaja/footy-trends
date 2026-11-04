@@ -276,6 +276,7 @@ function openGuessesOf(client: Client, userId: string) {
   return client
     .select({
       providerMatchId: gameGuess.providerMatchId,
+      seasonId: gameGuess.seasonId,
       kind: gameGuess.kind,
       outcome: gameGuess.outcome,
       homeGoals: gameGuess.homeGoals,
@@ -345,7 +346,9 @@ export async function openGame(userId: string, now: Date): Promise<GameView> {
     { isolationLevel: "repeatable read", accessMode: "read only" }
   );
   const awaiting = awaitingOf(openGuesses, now);
-  if (!open) return { kind: "between", nextSeasonId: seasonId + 1, joined, awaiting };
+  // A season ends once its last match is settled, not only once it has a result.
+  const settling = openGuesses.some((row) => row.seasonId === seasonId);
+  if (!open && !settling) return { kind: "between", nextSeasonId: seasonId + 1, joined, awaiting };
   return playingView(season, now, balance, guesses, rewards, {
     awaiting,
     hasOpenGuess: openGuesses.length > 0,

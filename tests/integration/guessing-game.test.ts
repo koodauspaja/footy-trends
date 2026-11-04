@@ -132,6 +132,10 @@ describe("joining", () => {
     await db
       .insert(gamePlayer)
       .values({ userId: USER_ID, joinedAt: new Date("2090-01-01T00:00:00Z") });
+    // What the player had left of the earlier season stays there.
+    await db
+      .insert(gameLedger)
+      .values({ userId: USER_ID, seasonId: 2090, kind: "grant", amount: 420 });
     await storeMatches([vlMatch({ kickoffAt: at(-48) }), vlMatch()]);
 
     const view = await openGame(USER_ID, NOW);
@@ -153,6 +157,13 @@ describe("joining", () => {
       awaiting: [],
     });
     expect(await ledger()).toEqual([]);
+
+    await storeMatches([vlMatch({ seasonId: SEASON + 1, kickoffAt: at(5000) })]);
+    expect(await openGame(USER_ID, NOW)).toMatchObject({
+      kind: "playing",
+      seasonId: SEASON + 1,
+      balance: 1000,
+    });
   });
 });
 
@@ -407,7 +418,7 @@ describe("settling", () => {
     expect(view.upcoming.map((row) => row.providerMatchId)).toEqual([later]);
   });
 
-  it("still shows a guess waiting to be settled once every match has a result", async () => {
+  it("keeps the season open, its guess waiting, until a match with a result is settled", async () => {
     const [match] = await storeMatches([vlMatch({ kickoffAt: at(50) })]);
     await joinGame(USER_ID, NOW);
     await placeGuess(USER_ID, match, { kind: "outcome", outcome: "1" }, () => NOW);
@@ -417,9 +428,11 @@ describe("settling", () => {
       .where(eq(tasoMatches.providerMatchId, match));
 
     expect(await openGame(USER_ID, at(60))).toMatchObject({
-      kind: "between",
+      kind: "playing",
       awaiting: [expect.objectContaining({ providerMatchId: match })],
     });
+    await settleGuesses(at(61));
+    expect(await openGame(USER_ID, at(62))).toMatchObject({ kind: "between", awaiting: [] });
   });
 
   it("keeps the season open while the split the previous season had is not stored", async () => {

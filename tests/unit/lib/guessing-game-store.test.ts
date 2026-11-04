@@ -172,6 +172,24 @@ describe("openGame", () => {
     });
   });
 
+  it("keeps the season open while a guess on one of its matches waits to be settled", async () => {
+    answer(
+      [{ seasonId: 2027 }],
+      [{ joinedAt: JOINED }],
+      [match({ groupId: 2, kickoffAt: at(-5), status: "FINISHED", homeGoals: 1, awayGoals: 0 })],
+      [{ balance: 990 }],
+      [],
+      [],
+      [openRow({ seasonId: 2027, kickoffAt: at(-5) })]
+    );
+
+    expect(await openGame("user-1", NOW)).toMatchObject({
+      kind: "playing",
+      upcoming: [],
+      awaiting: [{ providerMatchId: 9 }],
+    });
+  });
+
   it("keeps the season open while the split the previous season had is not stored yet", async () => {
     answer(
       [{ seasonId: 2027 }],
@@ -749,11 +767,7 @@ describe("settleGuesses", () => {
 
     expect(await settleGuesses(NOW)).toEqual({ matches: 2, rewarded: 2, missed: 1, failed: [] });
     expect(state.transactions).toBe(2);
-    // Each transaction locks its players before it updates a guess.
-    const order = state.calls
-      .filter((call) => call.method === "for" || call.method === "update")
-      .map((call) => (call.method === "for" ? call.args[0] : "update"));
-    expect(order.slice(0, 3)).toEqual(["share", "share", "update"]);
+    expect(state.transactions).toBe(2);
     expect(inserted()).toEqual(
       expect.arrayContaining([
         { userId: "user-1", seasonId: 2027, kind: "reward", amount: 30, guessId: 1 },
@@ -766,6 +780,17 @@ describe("settleGuesses", () => {
       { matches: 2, rewarded: 2, missed: 1, failed: [] },
       "Arvauspeli guesses settled"
     );
+  });
+
+  it("locks a match's players before it updates any of its guesses", async () => {
+    settling([settleable({ id: 1 }), settleable({ id: 2, userId: "user-2" })]);
+
+    await settleGuesses(NOW);
+
+    const order = state.calls
+      .filter((call) => call.method === "for" || call.method === "update")
+      .map((call) => (call.method === "for" ? call.args[0] : "update"));
+    expect(order).toEqual(["share", "update", "update"]);
   });
 
   it("pays nothing for a guess another run settled first", async () => {

@@ -803,6 +803,14 @@ describe("runPredictionLog", () => {
       for (const model of MODELS) expect(backtested(model)).toEqual([]);
     });
   });
+  it("settles even when writing the predictions fails", async () => {
+    stored([], [tasoRow()]);
+    mocks.onConflictDoUpdate.mockRejectedValue(new Error("database down"));
+
+    await expect(runPredictionLog(() => NOW, immediate)).rejects.toThrow("database down");
+    expect(mocks.settleGuesses).toHaveBeenCalledWith(NOW);
+  });
+
   it("is part of the hourly run, after the refresh has stored the results, and its count is the run's", async () => {
     const order: string[] = [];
     stored([], [tasoRow()]);

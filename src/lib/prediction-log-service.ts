@@ -293,6 +293,9 @@ export async function runPredictionLog(
 
   // Read again: the refresh may have moved a kickoff or finished a match.
   const candidates = await readCandidates(startedAt);
+  // Straight after the refresh: settling needs no model, and a failed write of
+  // the predictions below must not hold up the payouts.
+  const settled = await settle(clock(), failures);
   const keyOf = (candidate: LogCandidate) => `${candidate.source}:${candidate.code}`;
   const competitions = new Map(
     candidates
@@ -362,8 +365,6 @@ export async function runPredictionLog(
     });
 
   await writePredictions(rows);
-
-  const settled = await settle(clock(), failures);
 
   const backtested = await finished
     .then((matches) => writeMissingBacktest(matches, clock()))
