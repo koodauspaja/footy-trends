@@ -512,7 +512,7 @@ async function write(
     userId,
     seasonId,
     kind: "guess",
-    amount: -costOf(decision),
+    amount: 0 - costOf(decision),
     guessId: inserted.id,
   });
 }

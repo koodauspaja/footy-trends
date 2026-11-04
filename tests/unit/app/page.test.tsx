@@ -10,6 +10,7 @@ import Home, { metadata } from "@/app/page";
  * decisions/009-veikkausliiga.md
  * decisions/024-account-settings.md
  * decisions/054-prediction-quality.md
+ * decisions/072-match-guesses.md
  */
 
 // The picker hosts `StartRedirect`, which reads the session and the router to
@@ -49,6 +50,15 @@ describe("Home page (region picker)", () => {
     const tile = screen.getByRole("link", { name: /Ennusteet/ });
     expect(tile).toHaveAttribute("href", "/ennusteet");
     expect(tile).toHaveTextContent("Ennusteiden osuvuus");
+    expect(screen.getAllByRole("link").at(3)).toBe(tile);
+  });
+
+  it("offers the guessing game as the last tile", () => {
+    render(<Home />);
+
+    const tile = screen.getByRole("link", { name: /Arvauspeli/ });
+    expect(tile).toHaveAttribute("href", "/arvauspeli");
+    expect(tile).toHaveTextContent("Arvaa Veikkausliigan otteluita");
     expect(screen.getAllByRole("link").at(-1)).toBe(tile);
   });
 

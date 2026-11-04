@@ -29,6 +29,7 @@ export const UX_PAGES: ReadonlyArray<readonly [string, string]> = [
   ["upcoming-match", "/kotimaa/ottelu/4353547"],
   ["rivalry", "/kotimaa/kohtaamiset/60901/60987"],
   ["predictions", "/ennusteet"],
+  ["guessing-game", "/arvauspeli"],
   ["favourites", "/suosikit"],
   ["settings", "/asetukset"],
   ["admin", "/yllapito"],
