@@ -274,6 +274,24 @@ describe("guessing", () => {
     expect(await balance()).toBe(0);
   });
 
+  it("takes guesses on every group of the season, the split's included", async () => {
+    const matches = await storeMatches([
+      vlMatch(),
+      vlMatch({ groupId: 2, groupName: "Mestaruussarja" }),
+      vlMatch({ groupId: 3, groupName: "Karsintasarja" }),
+    ]);
+    await joinGame(USER_ID, NOW);
+
+    for (const match of matches) {
+      expect(
+        await placeGuess(USER_ID, match, { kind: "outcome", outcome: "1" }, NOW)
+      ).toMatchObject({
+        ok: true,
+      });
+    }
+    expect(await balance()).toBe(970);
+  });
+
   it("keeps each player's balance and guesses apart", async () => {
     const [match] = await storeMatches([vlMatch()]);
     await joinGame(USER_ID, NOW);
