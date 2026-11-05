@@ -33,6 +33,10 @@ describe("nicknameKey", () => {
   it("ignores case, accented letters included", () => {
     expect(nicknameKey("ÄIJÄ Kukko")).toBe(nicknameKey("äijä kukko"));
   });
+
+  it("folds ß to ss, as case folding does", () => {
+    expect(nicknameKey("Straße")).toBe(nicknameKey("STRASSE"));
+  });
 });
 
 describe("checkNickname", () => {
@@ -120,6 +124,10 @@ describe("hasBlockedWord", () => {
   it("finds an English entry", () => {
     expect(ENGLISH_ENTRIES).toContain("ass");
     expect(hasBlockedWord("Big ass")).toBe(true);
+  });
+
+  it("finds an entry spelt with ß for ss", () => {
+    expect(hasBlockedWord("Big aß")).toBe(true);
   });
 
   it("finds an entry of several words only as those words in a row", () => {

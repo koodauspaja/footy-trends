@@ -9,7 +9,7 @@ import { warmModules } from "../../support/warm-module";
  * decisions/077-nickname.md
  */
 
-const { state, txLock, txDelete, txInsert, deleteWhere } = vi.hoisted(() => {
+const { state, txLock, txDelete, txInsert } = vi.hoisted(() => {
   const state = {
     selected: [] as unknown[],
     removed: [] as unknown[],
@@ -29,9 +29,8 @@ const { state, txLock, txDelete, txInsert, deleteWhere } = vi.hoisted(() => {
       }),
     }),
   }));
-  const deleteWhere = vi.fn(async () => undefined);
   const txLock = vi.fn(async (_strength: string) => []);
-  return { state, txLock, txDelete, txInsert, deleteWhere };
+  return { state, txLock, txDelete, txInsert };
 });
 
 vi.mock("@/db", () => ({
@@ -39,7 +38,6 @@ vi.mock("@/db", () => ({
     select: () => ({
       from: () => ({ where: () => ({ limit: async () => state.selected }) }),
     }),
-    delete: () => ({ where: deleteWhere }),
     transaction: async (run: (tx: unknown) => Promise<unknown>) =>
       run({
         select: () => ({ from: () => ({ where: () => ({ for: txLock }) }) }),
@@ -103,8 +101,9 @@ describe("saveNickname", () => {
 });
 
 describe("clearNickname", () => {
-  it("deletes the user's row", async () => {
+  it("deletes the user's row under the user's lock", async () => {
     await clearNickname("user-1");
-    expect(deleteWhere).toHaveBeenCalledTimes(1);
+    expect(txLock).toHaveBeenCalledWith("no key update");
+    expect(txDelete).toHaveBeenCalledTimes(1);
   });
 });

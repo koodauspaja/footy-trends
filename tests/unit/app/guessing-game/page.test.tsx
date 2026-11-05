@@ -103,18 +103,25 @@ describe("/arvauspeli", () => {
     }
   );
 
-  it("says the game could not be read when the nickname cannot be", async () => {
+  it("still shows the game when the nickname cannot be read, without the line", async () => {
     getNickname.mockRejectedValueOnce(new Error("database down"));
-    openGame.mockResolvedValue({ kind: "not-joined", seasonId: 2027, grant: 1000 });
+    openGame.mockResolvedValue({
+      kind: "playing",
+      seasonId: 2027,
+      balance: 1000,
+      upcoming: [],
+      awaiting: [],
+      settled: [],
+      groups: 1,
+    });
 
     await renderPage();
 
-    expect(
-      screen.getByText("Arvauspelin lataaminen epäonnistui. Yritä myöhemmin uudelleen.")
-    ).toBeInTheDocument();
+    expect(screen.getByText(/^Pelimerkit:/)).toBeInTheDocument();
+    expect(screen.queryByText(/jolla näyt tulostaulukossa/)).not.toBeInTheDocument();
     expect(logger.error).toHaveBeenCalledWith(
-      { err: expect.any(Error) },
-      "Reading Arvauspeli failed"
+      { err: expect.any(Error), userId: "user-1" },
+      "Reading the nickname on Arvauspeli failed"
     );
   });
 

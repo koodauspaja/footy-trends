@@ -39,6 +39,8 @@ const DEMOTE = "Poista ylläpito-oikeudet";
 const DELETE = "Poista tili";
 const CLEAR_NICKNAME = "Tyhjennä nimimerkki";
 const NICKNAME_CLEARED = "Nimimerkki tyhjennetty.";
+/** The confirmation's question, which names its dialog. */
+const CONFIRM_ID = "admin-confirm-question";
 const CANCEL = "Peruuta";
 const EMPTY = "Ei käyttäjiä.";
 const PREVIOUS = "Edellinen";
@@ -210,14 +212,20 @@ export function AdminUserTable({ users, currentAdminId, page, pages, total, page
       )}
 
       {confirming && (
-        <div className="mt-4 rounded border border-border p-4" role="alertdialog">
+        <div
+          aria-labelledby={CONFIRM_ID}
+          className="mt-4 rounded border border-border p-4"
+          role="alertdialog"
+        >
           {confirming.kind === "delete" ? (
             <>
-              <p className="font-semibold">{`Poistetaanko ${confirming.user.email} pysyvästi?`}</p>
+              <p className="font-semibold" id={CONFIRM_ID}>
+                {`Poistetaanko ${confirming.user.email} pysyvästi?`}
+              </p>
               <p className="mt-1 text-muted text-sm">{CONFIRM_BODY}</p>
             </>
           ) : (
-            <p className="font-semibold">
+            <p className="font-semibold" id={CONFIRM_ID}>
               {`Tyhjennetäänkö käyttäjän ${confirming.user.email} nimimerkki?`}
             </p>
           )}

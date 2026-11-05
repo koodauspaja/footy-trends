@@ -21,6 +21,18 @@ export type NicknameSave = "set" | "changed" | "removed" | "taken";
 /** Thrown inside the transaction to undo its delete when the key is taken. */
 class NicknameTaken extends Error {}
 
+type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Locks the user's row for the transaction. `no key update` leaves the
+ * foreign-key checks of the user's other rows unblocked.
+ *
+ * decisions/077-nickname.md
+ */
+async function lockUser(tx: Transaction, userId: string): Promise<void> {
+  await tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).for("no key update");
+}
+
 /**
  * A user's nickname, or `null` when they have none.
  *
@@ -37,9 +49,7 @@ export async function getNickname(userId: string): Promise<string | null> {
 
 /**
  * Stores a user's nickname in place of the one they had, or removes it for
- * `null`. The user is locked first, so their own saves run one after the
- * other; then their row is deleted and written again, and the insert can only
- * conflict on another user's key, whose transaction it waits for.
+ * `null`, with the user locked so their own writes run one after the other.
  *
  * decisions/077-nickname.md
  */
@@ -49,7 +59,8 @@ export async function saveNickname(
 ): Promise<NicknameSave> {
   try {
     return await db.transaction(async (tx) => {
-      await tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).for("no key update");
+      await lockUser(tx, userId);
+      // With the user's own row gone, the insert can conflict only on another user's key.
       const removed = await tx
         .delete(userNickname)
         .where(eq(userNickname.userId, userId))
@@ -70,10 +81,14 @@ export async function saveNickname(
 }
 
 /**
- * Removes a user's nickname, whether they had one or not.
+ * Removes a user's nickname, whether they had one or not, under the same lock
+ * as a save, so it cannot miss a save in flight.
  *
  * decisions/077-nickname.md
  */
 export async function clearNickname(userId: string): Promise<void> {
-  await db.delete(userNickname).where(eq(userNickname.userId, userId));
+  await db.transaction(async (tx) => {
+    await lockUser(tx, userId);
+    await tx.delete(userNickname).where(eq(userNickname.userId, userId));
+  });
 }

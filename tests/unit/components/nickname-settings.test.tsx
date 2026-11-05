@@ -160,9 +160,12 @@ describe("NicknameSettings", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Tallenna nimimerkki" })).toBeDisabled()
     );
+    // The reply rewrites the field, so nothing can be typed over while it is out.
+    expect(field()).toHaveAttribute("readonly");
     finish({ ok: true, nickname: "Kalle" });
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Tallenna nimimerkki" })).toBeEnabled()
     );
+    expect(field()).not.toHaveAttribute("readonly");
   });
 });

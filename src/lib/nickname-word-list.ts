@@ -1,9 +1,8 @@
 /**
- * The words a nickname may not contain: LDNOOBW's `fi` and `en` lists, copied
- * unchanged from commit 5faf2ba42d7b1c0977169ec3611df25a3c08eb13. Their licence
- * asks for this attribution: "List of Dirty, Naughty, Obscene, and Otherwise Bad
- * Words", https://github.com/LDNOOBW/List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words,
- * CC BY 4.0, https://creativecommons.org/licenses/by/4.0/.
+ * The words a nickname may not contain. Attribution, as CC BY 4.0 asks:
+ * "List of Dirty, Naughty, Obscene, and Otherwise Bad Words", `fi` and `en`, unmodified,
+ * https://github.com/LDNOOBW/List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words,
+ * licensed under https://creativecommons.org/licenses/by/4.0/.
  *
  * decisions/077-nickname.md
  */

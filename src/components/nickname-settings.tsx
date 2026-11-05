@@ -94,6 +94,8 @@ export function NicknameSettings({
               setValue(event.target.value);
               announce(null, null);
             }}
+            // A save's reply rewrites the field, so nothing is typed while one is out.
+            readOnly={pending}
             type="text"
             value={value}
           />

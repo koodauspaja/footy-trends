@@ -4,10 +4,9 @@ import { e2eAppPort } from "../../scripts/e2e-target";
 import { SESSION_COOKIE, storeSignedInReader } from "../support/e2e-session";
 
 /**
- * The nickname as a user meets it on `/asetukset`: set, refused, taken by
- * another, changed and removed; and the admin clearing one. Names carry the
- * run's port and a random part, so concurrent runs never collide. Messages are
- * found by their text: Next's route announcer is an empty `role="alert"` too.
+ * The nickname as a user meets it on `/asetukset`, and the admin clearing one.
+ * Names carry the run's port and a random part, so concurrent runs never collide.
+ * Messages are found by text: Next's route announcer is an empty `role="alert"`.
  *
  * decisions/077-nickname.md
  */

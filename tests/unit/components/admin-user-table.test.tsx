@@ -177,8 +177,9 @@ describe("deleting", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Poista tili" }));
 
-    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
-    expect(screen.getByText("Poistetaanko lukija@example.fi pysyvästi?")).toBeInTheDocument();
+    expect(
+      screen.getByRole("alertdialog", { name: "Poistetaanko lukija@example.fi pysyvästi?" })
+    ).toBeInTheDocument();
     expect(
       screen.getByText(
         "Tämä poistaa tilin, suosikit, asetukset, profiilikuvan, nimimerkin ja arvauspelin tiedot. Tätä ei voi perua."
@@ -233,9 +234,11 @@ describe("clearing a nickname", () => {
 
     fireEvent.click(screen.getByRole("button", { name: CLEAR }));
 
-    expect(screen.getByRole("alertdialog")).toHaveTextContent(
-      "Tyhjennetäänkö käyttäjän lukija@example.fi nimimerkki?"
-    );
+    expect(
+      screen.getByRole("alertdialog", {
+        name: "Tyhjennetäänkö käyttäjän lukija@example.fi nimimerkki?",
+      })
+    ).toBeInTheDocument();
     expect(screen.queryByText(/Tätä ei voi perua/)).toBeNull();
     expect(clearNicknameAction).not.toHaveBeenCalled();
   });

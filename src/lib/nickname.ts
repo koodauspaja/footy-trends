@@ -40,12 +40,13 @@ export function normaliseNickname(raw: string): string {
 }
 
 /**
- * What two nicknames are compared by: case is ignored.
+ * What two nicknames are compared by: case is ignored. Upper-cased first, so
+ * `ß` folds to `ss` as it would under Unicode case folding, which JavaScript lacks.
  *
  * decisions/077-nickname.md
  */
 export function nicknameKey(nickname: string): string {
-  return nickname.toLowerCase();
+  return nickname.toUpperCase().toLowerCase();
 }
 
 function wordsOf(text: string): string[] {

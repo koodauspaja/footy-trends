@@ -30,6 +30,35 @@ async function waitForABlockedQuery() {
   throw new Error("No query started waiting on a lock");
 }
 
+/**
+ * Another save of the user's, as `saveNickname` makes it, stopped after its
+ * write and before its commit until `commit` is called.
+ */
+async function saveHeldOpen(userId: string, nickname: string) {
+  let release: () => void = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let written: () => void = () => {};
+  const midSave = new Promise<void>((resolve) => {
+    written = resolve;
+  });
+  const done = db.transaction(async (tx) => {
+    await tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).for("no key update");
+    await tx.delete(userNickname).where(eq(userNickname.userId, userId));
+    await tx.insert(userNickname).values({ userId, nickname, nicknameKey: nicknameKey(nickname) });
+    written();
+    await held;
+  });
+  await midSave;
+  return {
+    commit: async () => {
+      release();
+      await done;
+    },
+  };
+}
+
 function stored(nickname: string) {
   return { nickname, key: nicknameKey(nickname) };
 }
@@ -94,31 +123,26 @@ describe("nickname storage", () => {
 
   it("makes a save wait for the same user's save in flight, then replace it", async () => {
     await saveNickname(FIRST, stored("Ennen"));
-    let release: () => void = () => {};
-    const held = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    let written: () => void = () => {};
-    const midSave = new Promise<void>((resolve) => {
-      written = resolve;
-    });
-    // Another save of the same user's, stopped after its write, before its commit.
-    const first = db.transaction(async (tx) => {
-      await tx.select({ id: user.id }).from(user).where(eq(user.id, FIRST)).for("no key update");
-      await tx.delete(userNickname).where(eq(userNickname.userId, FIRST));
-      await tx.insert(userNickname).values({ userId: FIRST, nickname: "Eka", nicknameKey: "eka" });
-      written();
-      await held;
-    });
-    await midSave;
+    const inFlight = await saveHeldOpen(FIRST, "Eka");
 
     const second = saveNickname(FIRST, stored("Toka"));
     await waitForABlockedQuery();
-    release();
-    await first;
+    await inFlight.commit();
 
     expect(await second).toBe("changed");
     expect(await getNickname(FIRST)).toBe("Toka");
+  });
+
+  it("makes a clear wait for a save in flight, then clear what it wrote", async () => {
+    await saveNickname(FIRST, stored("Ennen"));
+    const inFlight = await saveHeldOpen(FIRST, "Eka");
+
+    const cleared = clearNickname(FIRST);
+    await waitForABlockedQuery();
+    await inFlight.commit();
+    await cleared;
+
+    expect(await getNickname(FIRST)).toBeNull();
   });
 
   it("frees a name once it is cleared", async () => {
