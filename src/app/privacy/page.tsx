@@ -23,7 +23,7 @@ const LIST = "list-disc space-y-1 pl-6";
 export default function Privacy() {
   return (
     <PageShell heading={HEADING}>
-      <p className="mb-8 text-muted text-sm">Päivitetty 24.10.2026</p>
+      <p className="mb-8 text-muted text-sm">Päivitetty 5.11.2026</p>
 
       <section className={SECTION}>
         <h2 className={HEADING_2}>Lyhyesti</h2>

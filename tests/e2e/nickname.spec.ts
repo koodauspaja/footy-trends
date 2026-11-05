@@ -65,6 +65,11 @@ test.describe("the nickname on /asetukset", () => {
     await page.reload();
     await expect(page.getByLabel("Nimimerkki")).toHaveValue(name);
 
+    await saveNickname(page, `${name}B`);
+    await expect(page.getByText("Nimimerkki tallennettu.")).toBeVisible();
+    await page.reload();
+    await expect(page.getByLabel("Nimimerkki")).toHaveValue(`${name}B`);
+
     await saveNickname(page, "");
     await expect(page.getByText("Nimimerkki poistettu.")).toBeVisible();
     await page.reload();

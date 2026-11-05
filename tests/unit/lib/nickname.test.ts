@@ -100,6 +100,10 @@ describe("checkNickname", () => {
     expect(checkNickname("Iso_Paska")).toEqual({ ok: false, reason: "word-list" });
   });
 
+  it("saves a name where a listed word is only part of a longer one", () => {
+    expect(checkNickname("Paskahousu")).toMatchObject({ ok: true, nickname: "Paskahousu" });
+  });
+
   it("checks the length before the characters, and both before the list", () => {
     expect(checkNickname("@!")).toEqual({ ok: false, reason: "length" });
     expect(checkNickname("paska!")).toEqual({ ok: false, reason: "characters" });
