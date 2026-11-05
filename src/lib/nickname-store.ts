@@ -18,7 +18,11 @@ export type StoredNickname = { nickname: string; key: string };
  */
 export type NicknameSave = "set" | "changed" | "removed" | "taken";
 
-/** Thrown inside the transaction to undo its delete when the key is taken. */
+/**
+ * Thrown inside the transaction to undo its delete when the key is taken.
+ *
+ * decisions/077-nickname.md
+ */
 class NicknameTaken extends Error {}
 
 /**

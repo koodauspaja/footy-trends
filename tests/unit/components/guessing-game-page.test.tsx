@@ -430,6 +430,33 @@ describe("the line for a player without a nickname", () => {
     expect(screen.queryByText(LINE)).not.toBeInTheDocument();
   });
 
+  it.each<[string, GameView]>([
+    ["between seasons", { kind: "between", nextSeasonId: 2028, joined: true, awaiting: [] }],
+    ["before any season is stored", { kind: "no-season", joined: true }],
+  ])("tells a joined player with none %s too", (_case, view) => {
+    render(<GuessingGamePage hasNickname={false} view={view} />);
+
+    expect(screen.getByRole("link", { name: "nimimerkki" })).toHaveAttribute("href", "/asetukset");
+  });
+
+  it("is not shown between seasons to a reader who has not joined, or to one with a nickname", () => {
+    const { rerender } = render(
+      <GuessingGamePage
+        hasNickname={false}
+        view={{ kind: "between", nextSeasonId: 2028, joined: false, awaiting: [] }}
+      />
+    );
+    expect(screen.queryByText(LINE)).not.toBeInTheDocument();
+
+    rerender(
+      <GuessingGamePage
+        hasNickname
+        view={{ kind: "between", nextSeasonId: 2028, joined: true, awaiting: [] }}
+      />
+    );
+    expect(screen.queryByText(LINE)).not.toBeInTheDocument();
+  });
+
   it("is not shown to a reader who has not joined", () => {
     render(
       <GuessingGamePage

@@ -39,7 +39,11 @@ const DEMOTE = "Poista ylläpito-oikeudet";
 const DELETE = "Poista tili";
 const CLEAR_NICKNAME = "Tyhjennä nimimerkki";
 const NICKNAME_CLEARED = "Nimimerkki tyhjennetty.";
-/** The confirmation's question, which names its dialog. */
+/**
+ * The confirmation's question, which names its dialog.
+ *
+ * decisions/077-nickname.md
+ */
 const CONFIRM_ID = "admin-confirm-question";
 const CANCEL = "Peruuta";
 const EMPTY = "Ei käyttäjiä.";

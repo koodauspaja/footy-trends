@@ -24,6 +24,7 @@ const { state, logger, clearNickname } = vi.hoisted(() => ({
     offsets: [] as number[],
     orderKeys: 0,
     joined: 0,
+    projected: [] as string[],
     total: 3,
     countMissing: false,
     totalMissing: false,
@@ -77,6 +78,7 @@ vi.mock("@/db", () => {
           // `listUsers` counts first, then reads a page. Told apart by shape:
           // the count selects one aliased column and is awaited directly.
           if ("n" in shape) return Promise.resolve(state.totalMissing ? [] : [{ n: state.total }]);
+          state.projected = Object.keys(shape);
           const page = {
             orderBy: (...keys: unknown[]) => {
               state.orderKeys = keys.length;
@@ -117,6 +119,7 @@ beforeEach(() => {
   state.offsets = [];
   state.orderKeys = 0;
   state.joined = 0;
+  state.projected = [];
   state.total = 3;
   state.countMissing = false;
   state.totalMissing = false;
@@ -390,6 +393,8 @@ describe("listUsers", () => {
     const { users } = await listUsers(1);
 
     expect(state.joined).toBe(1);
+    // The rows above are the mock's; what the query asks for is the claim.
+    expect(state.projected).toContain("nickname");
     expect(users.map((u) => u.nickname)).toEqual(["Kalle", null]);
   });
 

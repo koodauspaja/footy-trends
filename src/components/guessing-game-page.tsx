@@ -214,6 +214,19 @@ function Awaiting({ guesses }: Readonly<{ guesses: readonly AwaitingGuess[] }>) 
   );
 }
 
+/**
+ * The line for a joined player without a nickname, saying where to choose one.
+ *
+ * decisions/077-nickname.md
+ */
+function NicknameHint() {
+  return (
+    <p className="mt-2 text-sm">
+      Valitse <Link href="/asetukset">nimimerkki</Link>, jolla näyt tulostaulukossa.
+    </p>
+  );
+}
+
 export function GuessingGamePage({
   view,
   hasNickname,
@@ -227,6 +240,7 @@ export function GuessingGamePage({
             : "Veikkausliigan ottelut julkaistaan myöhemmin."}
         </p>
         {!view.joined && <JoinSection grant={STARTING_BALANCE} />}
+        {view.joined && !hasNickname && <NicknameHint />}
         {view.kind === "between" && <Awaiting guesses={view.awaiting} />}
       </div>
     );
@@ -237,11 +251,7 @@ export function GuessingGamePage({
   return (
     <div>
       <p className="font-semibold text-lg">Pelimerkit: {tokens.format(view.balance)}</p>
-      {!hasNickname && (
-        <p className="mt-2 text-sm">
-          Valitse <Link href="/asetukset">nimimerkki</Link>, jolla näyt tulostaulukossa.
-        </p>
-      )}
+      {!hasNickname && <NicknameHint />}
       {floor && (
         <div className="mt-4">
           <Notice>

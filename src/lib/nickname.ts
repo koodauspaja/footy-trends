@@ -19,7 +19,11 @@ const MAX_RAW_LENGTH = 200;
  */
 const ALLOWED = /^[\p{Script=Latin}0-9 ._-]+$/u;
 
-/** Anything that is not a letter or a digit ends a word. */
+/**
+ * Anything that is not a letter or a digit ends a word.
+ *
+ * decisions/077-nickname.md
+ */
 const WORD_BREAK = /[^\p{L}\p{N}]+/u;
 
 export type NicknameRefusal = "length" | "characters" | "word-list";

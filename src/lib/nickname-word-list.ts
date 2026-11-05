@@ -7,7 +7,11 @@
  * decisions/077-nickname.md
  */
 
-/** LDNOOBW's `fi`, 130 entries. */
+/**
+ * LDNOOBW's `fi`, 130 entries.
+ *
+ * decisions/077-nickname.md
+ */
 export const FINNISH_ENTRIES: readonly string[] = [
   "alfred nussi",
   "bylsiä",
@@ -141,7 +145,11 @@ export const FINNISH_ENTRIES: readonly string[] = [
   "äpärä",
 ];
 
-/** LDNOOBW's `en`, 403 entries. */
+/**
+ * LDNOOBW's `en`, 403 entries.
+ *
+ * decisions/077-nickname.md
+ */
 export const ENGLISH_ENTRIES: readonly string[] = [
   "2g1c",
   "2 girls 1 cup",
