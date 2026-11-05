@@ -1,3 +1,5 @@
+import type { SQL } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { HomeBaseline } from "@/lib/home-baseline";
 
@@ -237,15 +239,13 @@ describe("runPredictionLog", () => {
     expect(mocks.onConflictDoUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ target: expect.any(Array) })
     );
-    // A rerun before kickoff keeps Poisson's most likely score current with its probabilities.
-    expect(mocks.onConflictDoUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        set: expect.objectContaining({
-          predictedHomeGoals: expect.anything(),
-          predictedAwayGoals: expect.anything(),
-        }),
-      })
-    );
+    // A rerun before kickoff keeps Poisson's most likely score current with its
+    // probabilities, each side from its own column.
+    const [upsert] = mocks.onConflictDoUpdate.mock.calls[0] as [{ set: Record<string, SQL> }];
+    const rendered = (value: SQL | undefined) =>
+      value === undefined ? undefined : new PgDialect().sqlToQuery(value).sql;
+    expect(rendered(upsert.set.predictedHomeGoals)).toBe("excluded.predicted_home_goals");
+    expect(rendered(upsert.set.predictedAwayGoals)).toBe("excluded.predicted_away_goals");
   });
 
   it("refreshes a competition for a missing result, and writes nothing for it", async () => {
