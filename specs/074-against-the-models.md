@@ -46,9 +46,10 @@ as suggested.
 Drafts, fine-tuned in implementation, as in specs/072. The models are named as
 `/ennusteet/laatu` names them: `Elo`, `Elo + vire`, `Elo + kotietu`, `Poisson`.
 
-- **A settled guess, `Ratkaistut`:** a line after the shares (specs/073):
-  "Mallit: Elo 1 · Elo + vire 1 · Elo + kotietu X · Poisson 2–1". After it,
-  when the guess beat the models: "Voitit mallit +{n}".
+- **A settled guess, `Ratkaistut`:** "Voitit mallit +{n}", when the guess beat
+  the models, with the other payments, after the rarity bonus (specs/073); and
+  a line after the shares: "Mallit: Elo 1 · Elo + vire 1 · Elo + kotietu X ·
+  Poisson 2–1".
 - **A guess waiting for its result, `Odottavat tulosta`:** the same models
   line, without a reward.
 - **Before kickoff (S6):** nothing new on `Tulevat ottelut`; the models'
