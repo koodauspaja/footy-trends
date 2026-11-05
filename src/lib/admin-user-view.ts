@@ -57,11 +57,14 @@ export function windowFor(page: number, total: number): PageWindow {
  * One row of the list. `createdAt` is a `Date`; the table formats it.
  *
  * decisions/028-admin-tools-and-roles.md
+ * decisions/077-nickname.md
  */
 export type AdminUser = {
   id: string;
   email: string;
   name: string;
+  /** `null` when the user has not set one. */
+  nickname: string | null;
   role: Role;
   createdAt: Date;
 };

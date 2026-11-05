@@ -1,9 +1,10 @@
 import { desc, eq, sql } from "drizzle-orm";
 import { db, type Transaction } from "@/db";
-import { user } from "@/db/schema";
+import { user, userNickname } from "@/db/schema";
 import { DEFAULT_ROLE, isRole, type Role } from "@/lib/admin-role";
 import { type AdminUser, type AdminWriteResult, pageCount, windowFor } from "@/lib/admin-user-view";
 import { logger } from "@/lib/logger";
+import { clearNickname } from "@/lib/nickname-store";
 
 /**
  * Reading and changing who uses the app. Nothing here checks authorisation:
@@ -22,10 +23,11 @@ export type { AdminUser, AdminWriteResult } from "@/lib/admin-user-view";
 export type UserPage = { users: AdminUser[]; page: number; pages: number; total: number };
 
 /**
- * One page of users, newest first. Counted before it is read, so a page past
- * the last shows the last rather than an empty table.
+ * One page of users, newest first, each with their nickname. Counted before it
+ * is read, so a page past the last shows the last rather than an empty table.
  *
  * decisions/028-admin-tools-and-roles.md
+ * decisions/077-nickname.md
  */
 export async function listUsers(requestedPage: number): Promise<UserPage> {
   const [counted] = await db.select({ n: sql<number>`count(*)::int` }).from(user);
@@ -39,10 +41,12 @@ export async function listUsers(requestedPage: number): Promise<UserPage> {
       id: user.id,
       email: user.email,
       name: user.name,
+      nickname: userNickname.nickname,
       role: user.role,
       createdAt: user.createdAt,
     })
     .from(user)
+    .leftJoin(userNickname, eq(userNickname.userId, user.id))
     // `created_at` is not unique; without the id, two accounts made in the same
     // millisecond could swap pages, one shown twice and the other never.
     .orderBy(desc(user.createdAt), desc(user.id))
@@ -190,4 +194,24 @@ export async function deleteUser(
     "An admin asked to delete a user"
   );
   return result;
+}
+
+/**
+ * Clears a user's nickname, so they choose another. Clearing one that is
+ * already empty, or a user since deleted, is not an error.
+ *
+ * decisions/077-nickname.md
+ */
+export async function clearNicknameOf(
+  actingAdminId: string,
+  targetUserId: string
+): Promise<AdminWriteResult> {
+  try {
+    await clearNickname(targetUserId);
+  } catch (error) {
+    logger.error({ err: error, actingAdminId, targetUserId }, "Clearing a nickname failed");
+    return { ok: false, reason: "failed" };
+  }
+  logger.info({ actingAdminId, targetUserId }, "Nickname cleared by admin");
+  return { ok: true };
 }

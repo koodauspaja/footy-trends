@@ -7,16 +7,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * reaches the page.
  *
  * decisions/072-match-guesses.md
+ * decisions/077-nickname.md
  */
 
-const { currentUserId, openGame, logger } = vi.hoisted(() => ({
+const { currentUserId, openGame, getNickname, logger } = vi.hoisted(() => ({
   currentUserId: vi.fn(async (): Promise<string | null> => "user-1"),
   openGame: vi.fn(),
+  getNickname: vi.fn(async (): Promise<string | null> => null),
   logger: { error: vi.fn() },
 }));
 
 vi.mock("@/lib/current-user", () => ({ currentUserId }));
 vi.mock("@/lib/guessing-game-store", () => ({ openGame }));
+vi.mock("@/lib/nickname-store", () => ({ getNickname }));
 vi.mock("@/lib/logger", () => ({ logger }));
 vi.mock("@/lib/guessing-game-actions", () => ({
   joinGameAction: vi.fn(),
@@ -38,6 +41,7 @@ async function renderPage() {
 beforeEach(() => {
   vi.clearAllMocks();
   currentUserId.mockResolvedValue("user-1");
+  getNickname.mockResolvedValue(null);
 });
 
 describe("/arvauspeli", () => {
@@ -73,6 +77,45 @@ describe("/arvauspeli", () => {
       screen.getAllByText("Arvauspelin lataaminen epäonnistui. Yritä myöhemmin uudelleen.")
     ).toHaveLength(2);
     expect(logger.error).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    [null, 1],
+    ["Kalle", 0],
+  ])(
+    "reads the player's own nickname, %s, and tells one without where to choose it",
+    async (nickname, lines) => {
+      getNickname.mockResolvedValue(nickname);
+      openGame.mockResolvedValue({
+        kind: "playing",
+        seasonId: 2027,
+        balance: 1000,
+        upcoming: [],
+        awaiting: [],
+        settled: [],
+        groups: 1,
+      });
+
+      await renderPage();
+
+      expect(getNickname).toHaveBeenCalledWith("user-1");
+      expect(screen.queryAllByText(/jolla näyt tulostaulukossa/)).toHaveLength(lines);
+    }
+  );
+
+  it("says the game could not be read when the nickname cannot be", async () => {
+    getNickname.mockRejectedValueOnce(new Error("database down"));
+    openGame.mockResolvedValue({ kind: "not-joined", seasonId: 2027, grant: 1000 });
+
+    await renderPage();
+
+    expect(
+      screen.getByText("Arvauspelin lataaminen epäonnistui. Yritä myöhemmin uudelleen.")
+    ).toBeInTheDocument();
+    expect(logger.error).toHaveBeenCalledWith(
+      { err: expect.any(Error) },
+      "Reading Arvauspeli failed"
+    );
   });
 
   it("is never prerendered", async () => {

@@ -14,6 +14,7 @@ export const metadata: Metadata = { title: HEADING };
  * decisions/302-privacy-policy-and-footer.md
  * decisions/071-section-toggles.md
  * decisions/072-match-guesses.md
+ * decisions/077-nickname.md
  */
 const SECTION = "mb-8";
 const HEADING_2 = "mb-3 font-semibold text-xl";
@@ -54,6 +55,10 @@ export default function Privacy() {
             samoin.
           </li>
           <li>Arvauspelin arvauksesi ja pelimerkkisi.</li>
+          <li>
+            Nimimerkkisi, jos olet valinnut sellaisen. Muut kirjautuneet käyttäjät näkevät sen
+            arvauspelin tulostaulukossa.
+          </li>
         </ul>
       </section>
 
@@ -111,7 +116,7 @@ export default function Privacy() {
         <p>
           Sivulla <Link href="/asetukset">Asetukset</Link> on
           <strong> Poista tili</strong>. Se poistaa tilin ja kaiken siihen liittyvän heti:
-          asetukset, profiilikuvan, suosikit, osioiden valinnat, arvauspelin tiedot ja
+          asetukset, profiilikuvan, nimimerkin, suosikit, osioiden valinnat, arvauspelin tiedot ja
           kirjautumistiedot. Erillistä pyyntöä ei tarvita.
         </p>
       </section>

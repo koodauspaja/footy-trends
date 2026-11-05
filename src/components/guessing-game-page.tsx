@@ -4,8 +4,10 @@
  *
  * decisions/072-match-guesses.md
  * decisions/076-guesses-on-irregular-matches.md
+ * decisions/077-nickname.md
  */
 
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { GuessForm, JoinGameButton } from "@/components/guessing-game-controls";
 import { PANEL_HEADING, TABLE_HEADING } from "@/components/heading-classes";
@@ -212,7 +214,10 @@ function Awaiting({ guesses }: Readonly<{ guesses: readonly AwaitingGuess[] }>) 
   );
 }
 
-export function GuessingGamePage({ view }: Readonly<{ view: GameView }>) {
+export function GuessingGamePage({
+  view,
+  hasNickname,
+}: Readonly<{ view: GameView; hasNickname: boolean }>) {
   if (view.kind === "no-season" || view.kind === "between") {
     return (
       <div className="flex flex-col items-start gap-3">
@@ -232,6 +237,11 @@ export function GuessingGamePage({ view }: Readonly<{ view: GameView }>) {
   return (
     <div>
       <p className="font-semibold text-lg">Pelimerkit: {tokens.format(view.balance)}</p>
+      {!hasNickname && (
+        <p className="mt-2 text-sm">
+          Valitse <Link href="/asetukset">nimimerkki</Link>, jolla näyt tulostaulukossa.
+        </p>
+      )}
       {floor && (
         <div className="mt-4">
           <Notice>

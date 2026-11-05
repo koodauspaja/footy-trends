@@ -430,6 +430,22 @@ export const userAvatar = pgTable("user_avatar", {
 });
 
 /**
+ * A user's own nickname, the name other players see in `Arvauspeli`. A table
+ * of its own: better-auth rewrites `user` on every sign-in.
+ *
+ * decisions/077-nickname.md
+ */
+export const userNickname = pgTable("user_nickname", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  nickname: text("nickname").notNull(),
+  /** The nickname lower-cased, which two nicknames are compared by: one user per key. */
+  nicknameKey: text("nickname_key").notNull().unique(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
  * A reader's favourite teams. The identity is `(source, team_provider_id)`, not
  * a competition: a favourite follows the club.
  *

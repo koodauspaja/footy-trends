@@ -2,7 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { SameRouteLink } from "@/components/same-route-link";
-import { deleteUserAction, demoteUserAction, promoteUserAction } from "@/lib/admin-actions";
+import {
+  clearNicknameAction,
+  deleteUserAction,
+  demoteUserAction,
+  promoteUserAction,
+} from "@/lib/admin-actions";
 import {
   type AdminRefusal,
   type AdminUser,
@@ -17,11 +22,13 @@ import { reportClientError } from "@/lib/report-client-error";
  *
  * decisions/028-admin-tools-and-roles.md
  * decisions/699-narrow-tables.md
+ * decisions/077-nickname.md
  */
 
 const SECTION = "Käyttäjät";
 const COLUMN_EMAIL = "Sähköposti";
 const COLUMN_NAME = "Nimi";
+const COLUMN_NICKNAME = "Nimimerkki";
 const COLUMN_ROLE = "Rooli";
 const COLUMN_JOINED = "Liittynyt";
 const COLUMN_ACTIONS = "Toiminnot";
@@ -30,6 +37,8 @@ const ROLE_USER = "Käyttäjä";
 const PROMOTE = "Tee ylläpitäjäksi";
 const DEMOTE = "Poista ylläpito-oikeudet";
 const DELETE = "Poista tili";
+const CLEAR_NICKNAME = "Tyhjennä nimimerkki";
+const NICKNAME_CLEARED = "Nimimerkki tyhjennetty.";
 const CANCEL = "Peruuta";
 const EMPTY = "Ei käyttäjiä.";
 const PREVIOUS = "Edellinen";
@@ -55,6 +64,14 @@ const joinedFormatter = new Intl.DateTimeFormat("fi-FI", {
   year: "numeric",
 });
 
+/**
+ * A write that asks first: deleting the account, or clearing its nickname.
+ *
+ * decisions/028-admin-tools-and-roles.md
+ * decisions/077-nickname.md
+ */
+type Confirming = { kind: "delete" | "clear-nickname"; user: AdminUser };
+
 type Props = Readonly<{
   users: AdminUser[];
   /** The signed-in admin, so their own row offers no controls. */
@@ -70,16 +87,16 @@ type Props = Readonly<{
 export function AdminUserTable({ users, currentAdminId, page, pages, total, pageParam }: Props) {
   const [pending, startTransition] = useTransition();
   const [notice, setNotice] = useState<string | null>(null);
-  const [confirming, setConfirming] = useState<AdminUser | null>(null);
+  const [confirming, setConfirming] = useState<Confirming | null>(null);
 
-  const run = (action: () => Promise<AdminWriteResult>) => {
+  const run = (action: () => Promise<AdminWriteResult>, done: string | null = null) => {
     setNotice(null);
     startTransition(async () => {
       try {
         const result = await action();
         // A refusal leaves the row as it was and says why; the page revalidates
         // itself on success, so there is no local copy of the list to keep.
-        if (!result.ok) setNotice(REFUSALS[result.reason]);
+        setNotice(result.ok ? done : REFUSALS[result.reason]);
       } catch (error) {
         reportClientError(error, "admin.user-write");
         setNotice(REFUSALS.failed);
@@ -109,6 +126,7 @@ export function AdminUserTable({ users, currentAdminId, page, pages, total, page
               <tr className="border-border border-b">
                 <th className="py-2 pr-4">{COLUMN_EMAIL}</th>
                 <th className="py-2 pr-4">{COLUMN_NAME}</th>
+                <th className="py-2 pr-4">{COLUMN_NICKNAME}</th>
                 <th className="py-2 pr-4">{COLUMN_ROLE}</th>
                 <th className="py-2 pr-4">{COLUMN_JOINED}</th>
                 <th className="py-2">{COLUMN_ACTIONS}</th>
@@ -122,6 +140,7 @@ export function AdminUserTable({ users, currentAdminId, page, pages, total, page
                   <tr className="border-border/50 border-b" key={entry.id}>
                     <td className="py-2 pr-4">{entry.email}</td>
                     <td className="py-2 pr-4">{entry.name}</td>
+                    <td className="py-2 pr-4">{entry.nickname}</td>
                     <td className="py-2 pr-4">{admin ? ROLE_ADMIN : ROLE_USER}</td>
                     <td className="py-2 pr-4">{joinedFormatter.format(entry.createdAt)}</td>
                     <td className="py-2">
@@ -144,11 +163,21 @@ export function AdminUserTable({ users, currentAdminId, page, pages, total, page
                           <button
                             className="underline disabled:opacity-50"
                             disabled={pending}
-                            onClick={() => setConfirming(entry)}
+                            onClick={() => setConfirming({ kind: "delete", user: entry })}
                             type="button"
                           >
                             {DELETE}
                           </button>
+                          {entry.nickname !== null && (
+                            <button
+                              className="underline disabled:opacity-50"
+                              disabled={pending}
+                              onClick={() => setConfirming({ kind: "clear-nickname", user: entry })}
+                              type="button"
+                            >
+                              {CLEAR_NICKNAME}
+                            </button>
+                          )}
                         </span>
                       )}
                     </td>
@@ -181,20 +210,29 @@ export function AdminUserTable({ users, currentAdminId, page, pages, total, page
 
       {confirming && (
         <div className="mt-4 rounded border border-border p-4" role="alertdialog">
-          <p className="font-semibold">{`Poistetaanko ${confirming.email} pysyvästi?`}</p>
-          <p className="mt-1 text-muted text-sm">{CONFIRM_BODY}</p>
+          {confirming.kind === "delete" ? (
+            <>
+              <p className="font-semibold">{`Poistetaanko ${confirming.user.email} pysyvästi?`}</p>
+              <p className="mt-1 text-muted text-sm">{CONFIRM_BODY}</p>
+            </>
+          ) : (
+            <p className="font-semibold">
+              {`Tyhjennetäänkö käyttäjän ${confirming.user.email} nimimerkki?`}
+            </p>
+          )}
           <span className="mt-3 flex gap-3">
             <button
               className="underline disabled:opacity-50"
               disabled={pending}
               onClick={() => {
-                const target = confirming;
+                const { kind, user } = confirming;
                 setConfirming(null);
-                run(() => deleteUserAction(target.id));
+                if (kind === "delete") run(() => deleteUserAction(user.id));
+                else run(() => clearNicknameAction(user.id), NICKNAME_CLEARED);
               }}
               type="button"
             >
-              {DELETE}
+              {confirming.kind === "delete" ? DELETE : CLEAR_NICKNAME}
             </button>
             <button className="underline" onClick={() => setConfirming(null)} type="button">
               {CANCEL}

@@ -51,7 +51,7 @@ Drafts, fine-tuned in implementation (S10).
   - "Nimimerkki näkyy muille kirjautuneille käyttäjille arvauspelin
     tulostaulukossa."
   - A field labelled `Nimimerkki`, holding the current one, and the button
-    `Tallenna`.
+    `Tallenna nimimerkki`, named apart from the page's other `Tallenna`.
   - After a save: "Nimimerkki tallennettu.", or "Nimimerkki poistettu." for an
     empty field (S9).
   - Refusals, under the field: "Nimimerkin pituus on 3–20 merkkiä.",
@@ -81,7 +81,8 @@ Drafts, fine-tuned in implementation (S10).
   the server, and apply S3 and S6 on the server whatever the browser sent. A
   name taken by another user is refused by the unique index, so two users
   saving the same name at once cannot both get it.
-- **Normalising** before every check and before storing: Unicode NFC, ends
+- **Normalising** before every check and before storing: Unicode NFKC, so a
+  full-width `Ａ` is an `A`, ends
   trimmed, repeated spaces collapsed. Case is kept as typed and ignored only
   when comparing.
 - **The word list:** LDNOOBW's `fi` (130 entries) and `en` (403), copied with

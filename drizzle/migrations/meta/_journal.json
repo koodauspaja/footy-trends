@@ -169,6 +169,13 @@
       "when": 1793838517170,
       "tag": "0023_alter_game_guess_for_settlements",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793900399964,
+      "tag": "0024_create_user_nickname",
+      "breakpoints": true
     }
   ]
 }

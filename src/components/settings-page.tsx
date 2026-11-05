@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import { NicknameSettings } from "@/components/nickname-settings";
 import { Notice } from "@/components/notice";
 import { useSession } from "@/lib/auth-client";
 import { removeAvatarAction, saveAvatarAction } from "@/lib/avatar-actions";
@@ -44,6 +45,8 @@ type Props = Readonly<{
   avatarVersion: string | null;
   /** What Google gave us, which is the fallback when there is no custom picture. */
   googleImage: string | null;
+  /** The stored nickname, or `null` when it could not be read. */
+  nickname: { nickname: string | null } | null;
 }>;
 
 const REGION_LABELS: Record<RegionSegment, string> = {
@@ -66,11 +69,12 @@ const BUTTON_CLASS =
 
 /**
  * The settings page: the start page and its competitions, the profile picture,
- * the signed-in devices and account deletion.
+ * the nickname, the signed-in devices and account deletion.
  *
  * decisions/024-account-settings.md
  * decisions/025-custom-avatar.md
  * decisions/271-saved-value-in-settings-dropdowns.md
+ * decisions/077-nickname.md
  */
 export function SettingsPage({
   preferences,
@@ -78,6 +82,7 @@ export function SettingsPage({
   regionOptions,
   avatarVersion,
   googleImage,
+  nickname,
 }: Props) {
   const [saved, setSaved] = useState<null | "ok" | "error" | "stale">(null);
   const [pending, startTransition] = useTransition();
@@ -187,6 +192,12 @@ export function SettingsPage({
       </form>
 
       <ProfilePicture googleImage={googleImage} version={avatarVersion} />
+      <NicknameSettings
+        buttonClassName={BUTTON_CLASS}
+        headingClassName={HEADING_CLASS}
+        sectionClassName={SECTION_CLASS}
+        stored={nickname}
+      />
       <DeviceList devices={devices} />
       <DeleteAccount />
     </>
