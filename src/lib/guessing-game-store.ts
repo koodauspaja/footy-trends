@@ -660,8 +660,8 @@ export type SettleReport = {
   failed: number[];
 };
 
-/** The statuses a stored TASO match has been seen with; any other is named in a `warn`. */
-const KNOWN_STATUSES: ReadonlySet<string> = new Set([FINISHED, "SCHEDULED", "Abandoned"]);
+/** The statuses a match still waiting may have; any other is named in a `warn`. An abandoned match never waits. */
+const KNOWN_STATUSES: ReadonlySet<string> = new Set([FINISHED, "SCHEDULED"]);
 
 /** How long after kickoff a match with guesses may wait for its result before a `warn` names it. */
 const RESULT_WAIT_MS = 48 * 60 * 60 * 1000;
