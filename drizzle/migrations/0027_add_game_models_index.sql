@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "game_ledger_models_idx" ON "game_ledger" USING btree ("guess_id") WHERE "game_ledger"."kind" = 'models';

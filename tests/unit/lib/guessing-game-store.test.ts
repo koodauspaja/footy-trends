@@ -966,6 +966,7 @@ describe("settleGuesses", () => {
       refunded: 0,
       voided: 0,
       bonuses: 0,
+      modelWins: 0,
       failed: [],
     });
     expect(state.transactions).toBe(2);
@@ -981,7 +982,16 @@ describe("settleGuesses", () => {
       expect.objectContaining({ tier: "outcome", resultHomeGoals: 1, resultAwayGoals: 0 })
     );
     expect(logger.info).toHaveBeenCalledWith(
-      { matches: 2, rewarded: 2, missed: 1, refunded: 0, voided: 0, bonuses: 0, failed: [] },
+      {
+        matches: 2,
+        rewarded: 2,
+        missed: 1,
+        refunded: 0,
+        voided: 0,
+        bonuses: 0,
+        modelWins: 0,
+        failed: [],
+      },
       "Arvauspeli guesses settled"
     );
   });
