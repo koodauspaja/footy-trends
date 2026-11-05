@@ -617,7 +617,7 @@ export const gameGuess = pgTable(
     /** Both set for a score guess, both null for an outcome guess. */
     homeGoals: integer("home_goals"),
     awayGoals: integer("away_goals"),
-    /** The floor's free guess, which cannot be changed. */
+    /** The floor's free 1X2: changed only after a postponement, and as a 1X2. */
     free: boolean("free").notNull().default(false),
     madeAt: timestamp("made_at", { withTimezone: true }).notNull(),
     /** The stored kickoff when the guess was last made or changed: a later one is a postponement. */
