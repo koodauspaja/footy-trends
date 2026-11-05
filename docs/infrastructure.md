@@ -170,7 +170,10 @@ with nothing done in Railway.
 `npm run predictions -- log`, hourly on the hour (UTC), production only
 (specs/052). It skips `next build`. It writes `live` rows to `predictions`,
 and then the `backtest` rows of finished matches that have none, of every
-model (specs/057); a row that exists is left as it is.
+model (specs/057); a row that exists is left as it is. Straight after its
+refresh, before any of that, it settles every open Arvauspeli guess whose match
+has finished (specs/072); a match that fails to settle is named in the run's
+failures.
 
 The whole backtest is still run by hand, per environment:
 `DATABASE_URL=<that environment> npm run predictions -- backtest`, from a
@@ -180,6 +183,9 @@ checkout of the commit that environment runs. It rewrites every row.
   hour's run does not compute their whole history: it would, in about 30 s.
 - **On staging, whenever its backtest rows should be current**: nothing
   scheduled runs there.
+
+Settling alone is `DATABASE_URL=<that environment> npm run predictions --
+settle`: on staging, which has no cron, whenever its guesses should be settled.
 
 ## Databases
 

@@ -10,12 +10,13 @@ export const metadata: Metadata = {
 };
 
 /**
- * What the front page offers: the three regions, and the predictions' track
- * record.
+ * What the front page offers: the three regions, the predictions' track
+ * record, and the guessing game.
  *
  * decisions/009-veikkausliiga.md
  * decisions/016-world-cup-and-euro.md
  * decisions/054-prediction-quality.md
+ * decisions/072-match-guesses.md
  */
 const REGIONS = [
   { href: "/kotimaa", label: "Kotimaa", description: "Suomalaiset sarjat" },
@@ -25,6 +26,7 @@ const REGIONS = [
   { href: "/maajoukkueet", label: "Maajoukkueet", description: "Arvokisat ja maaottelut" },
   // Not a region but the models' track record.
   { href: "/ennusteet", label: "Ennusteet", description: "Ennusteiden osuvuus" },
+  { href: "/arvauspeli", label: "Arvauspeli", description: "Arvaa Veikkausliigan otteluita" },
 ] as const;
 
 export default function Home() {

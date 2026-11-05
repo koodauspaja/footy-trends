@@ -12,6 +12,7 @@ import type { HomeBaseline } from "@/lib/home-baseline";
  * decisions/055-poisson-goal-model.md
  * decisions/057-surprise-index.md
  * decisions/060-elo-variants.md
+ * decisions/072-match-guesses.md
  */
 
 const mocks = vi.hoisted(() => ({
@@ -27,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   getHomeBaseline: vi.fn<(source: string, code: string) => Promise<HomeBaseline>>(),
   loggerError: vi.fn(),
   loggerInfo: vi.fn(),
+  settleGuesses: vi.fn(),
 }));
 
 vi.mock("@/db", () => ({
@@ -62,6 +64,7 @@ vi.mock("@/lib/logger", () => ({
   logger: { error: mocks.loggerError, info: mocks.loggerInfo },
 }));
 vi.mock("@/lib/cache", () => ({ invalidateCache: mocks.invalidateCache }));
+vi.mock("@/lib/guessing-game-store", () => ({ settleGuesses: mocks.settleGuesses }));
 
 // Every key a backtest's reports are cached under: each provider's own, then one per competition.
 const DROPPED_KEYS = [
@@ -87,6 +90,7 @@ import {
   readFinished,
   runPredictionBacktest,
   runPredictionLog,
+  settle,
 } from "@/lib/prediction-log-service";
 
 const NOW = new Date("2026-10-03T12:00:00Z");
@@ -174,6 +178,9 @@ describe("runPredictionLog", () => {
     mocks.getFootballDataSeasonMatches.mockReset().mockResolvedValue([{ id: "fd" }]);
     mocks.getTasoSeasonMatches.mockReset().mockResolvedValue([{ id: "taso" }]);
     mocks.onConflictDoUpdate.mockReset().mockResolvedValue(undefined);
+    mocks.settleGuesses
+      .mockReset()
+      .mockResolvedValue({ matches: 0, rewarded: 0, missed: 0, failed: [] });
   });
 
   it("refreshes each provider's competition through its paced, cached fetch and stores it", async () => {
@@ -189,7 +196,7 @@ describe("runPredictionLog", () => {
     expect(mocks.synchronizeTasoMatches).toHaveBeenCalledWith([{ id: "taso" }]);
     // Each match is logged under the baseline and the three Elo models; no
     // stored match gives Poisson a fit of these competitions.
-    expect(report).toEqual({ refreshed: 2, logged: 8, backtested: 0, failures: [] });
+    expect(report).toEqual({ refreshed: 2, logged: 8, backtested: 0, settled: 0, failures: [] });
   });
 
   it("logs every loggable match under the model, one baseline read per competition", async () => {
@@ -226,7 +233,7 @@ describe("runPredictionLog", () => {
     const report = await runPredictionLog(() => NOW, immediate);
 
     expect(mocks.getFootballDataSeasonMatches).toHaveBeenCalledTimes(1);
-    expect(report).toEqual({ refreshed: 1, logged: 0, backtested: 0, failures: [] });
+    expect(report).toEqual({ refreshed: 1, logged: 0, backtested: 0, settled: 0, failures: [] });
   });
 
   it("neither refreshes nor logs a finished match with its result stored", async () => {
@@ -238,7 +245,7 @@ describe("runPredictionLog", () => {
     const report = await runPredictionLog(() => NOW, immediate);
 
     expect(mocks.getFootballDataSeasonMatches).not.toHaveBeenCalled();
-    expect(report).toEqual({ refreshed: 0, logged: 0, backtested: 0, failures: [] });
+    expect(report).toEqual({ refreshed: 0, logged: 0, backtested: 0, settled: 0, failures: [] });
   });
 
   it("files a TASO row by its season's pair, and ignores a row no predicted competition holds", async () => {
@@ -264,6 +271,7 @@ describe("runPredictionLog", () => {
       refreshed: 1,
       logged: 8,
       backtested: 0,
+      settled: 0,
       failures: ["refresh football-data PL 2026"],
     });
     expect(mocks.loggerError).toHaveBeenCalledWith(
@@ -300,7 +308,7 @@ describe("runPredictionLog", () => {
 
     const report = await runPredictionLog(() => NOW, immediate);
 
-    expect(report).toEqual({ refreshed: 1, logged: 0, backtested: 0, failures: [] });
+    expect(report).toEqual({ refreshed: 1, logged: 0, backtested: 0, settled: 0, failures: [] });
   });
 
   it("logs from the stored rows as they are after the refresh", async () => {
@@ -316,7 +324,7 @@ describe("runPredictionLog", () => {
 
     const report = await runPredictionLog(() => NOW, immediate);
 
-    expect(report).toEqual({ refreshed: 1, logged: 0, backtested: 0, failures: [] });
+    expect(report).toEqual({ refreshed: 1, logged: 0, backtested: 0, settled: 0, failures: [] });
   });
 
   it("skips a match that kicked off while the run was refreshing, and stamps the write time", async () => {
@@ -354,7 +362,7 @@ describe("runPredictionLog", () => {
 
     const report = await runPredictionLog();
 
-    expect(report).toEqual({ refreshed: 1, logged: 4, backtested: 0, failures: [] });
+    expect(report).toEqual({ refreshed: 1, logged: 4, backtested: 0, settled: 0, failures: [] });
     expect(written()).toEqual([expect.objectContaining({ kickoffAt: soon })]);
   });
 
@@ -545,7 +553,7 @@ describe("runPredictionLog", () => {
       "Unable to fit the Poisson model for predictions"
     );
     expect(mocks.loggerInfo).toHaveBeenCalledWith(
-      { refreshed: 1, logged: 4, backtested: 0, failures: ["poisson strengths"] },
+      { refreshed: 1, logged: 4, backtested: 0, settled: 0, failures: ["poisson strengths"] },
       "Predictions run finished"
     );
   });
@@ -702,7 +710,7 @@ describe("runPredictionLog", () => {
           }),
         ]);
       }
-      expect(report).toEqual({ refreshed: 0, logged: 0, backtested: 5, failures: [] });
+      expect(report).toEqual({ refreshed: 0, logged: 0, backtested: 5, settled: 0, failures: [] });
       expect(mocks.loggerInfo).toHaveBeenCalledWith(report, "Predictions run finished");
     });
 
@@ -758,7 +766,13 @@ describe("runPredictionLog", () => {
       const report = await runPredictionLog(() => NOW, immediate);
 
       expect(written()).toHaveLength(1);
-      expect(report).toEqual({ refreshed: 1, logged: 5, backtested: 0, failures: ["backtest"] });
+      expect(report).toEqual({
+        refreshed: 1,
+        logged: 5,
+        backtested: 0,
+        settled: 0,
+        failures: ["backtest"],
+      });
       expect(mocks.loggerError).toHaveBeenCalledWith(
         { err: new Error("connection reset") },
         "Unable to write the backtest rows for predictions"
@@ -779,9 +793,42 @@ describe("runPredictionLog", () => {
 
       const report = await runPredictionLog(() => NOW, immediate);
 
-      expect(report).toEqual({ refreshed: 0, logged: 0, backtested: 0, failures: ["backtest"] });
+      expect(report).toEqual({
+        refreshed: 0,
+        logged: 0,
+        backtested: 0,
+        settled: 0,
+        failures: ["backtest"],
+      });
       for (const model of MODELS) expect(backtested(model)).toEqual([]);
     });
+  });
+  it("settles even when writing the predictions fails", async () => {
+    stored([], [tasoRow()]);
+    mocks.onConflictDoUpdate.mockRejectedValue(new Error("database down"));
+
+    await expect(runPredictionLog(() => NOW, immediate)).rejects.toThrow("database down");
+    expect(mocks.settleGuesses).toHaveBeenCalledWith(NOW);
+  });
+
+  it("is part of the hourly run, after the refresh has stored the results, and its count is the run's", async () => {
+    const order: string[] = [];
+    stored([], [tasoRow()]);
+    mocks.getHomeBaseline.mockResolvedValue(baseline);
+    mocks.getTasoSeasonMatches.mockResolvedValue([{ id: "taso" }]);
+    mocks.synchronizeTasoMatches.mockImplementationOnce(async () => {
+      order.push("refresh");
+    });
+    mocks.settleGuesses.mockImplementationOnce(async () => {
+      order.push("settle");
+      return { matches: 1, rewarded: 2, missed: 1, failed: [] };
+    });
+
+    const report = await runPredictionLog(() => NOW, immediate);
+
+    expect(order).toEqual(["refresh", "settle"]);
+    expect(report.settled).toBe(3);
+    expect(mocks.settleGuesses).toHaveBeenCalledWith(NOW);
   });
 });
 
@@ -1001,5 +1048,47 @@ describe("readFinished", () => {
 
     await expect(readFinished(new Set(["football-data"]))).resolves.toEqual([]);
     expect(mocks.select).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("settle", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // A queued answer another test left unread would otherwise answer this one.
+    mocks.settleGuesses.mockReset();
+  });
+
+  it("counts every guess settled, paid or not, and adds nothing to the failures", async () => {
+    mocks.settleGuesses.mockResolvedValueOnce({ matches: 2, rewarded: 3, missed: 4, failed: [] });
+    const failures: string[] = [];
+
+    expect(await settle(NOW, failures)).toBe(7);
+    expect(mocks.settleGuesses).toHaveBeenCalledWith(NOW);
+    expect(failures).toEqual([]);
+  });
+
+  it("names each match whose guesses could not be settled", async () => {
+    mocks.settleGuesses.mockResolvedValueOnce({
+      matches: 1,
+      rewarded: 1,
+      missed: 0,
+      failed: [41, 42],
+    });
+    const failures: string[] = [];
+
+    expect(await settle(NOW, failures)).toBe(1);
+    expect(failures).toEqual(["settle match 41", "settle match 42"]);
+  });
+
+  it("reports a step that failed outright, and logs it", async () => {
+    mocks.settleGuesses.mockRejectedValueOnce(new Error("database down"));
+    const failures: string[] = [];
+
+    expect(await settle(NOW, failures)).toBe(0);
+    expect(failures).toEqual(["settle"]);
+    expect(mocks.loggerError).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      "Unable to settle Arvauspeli guesses"
+    );
   });
 });

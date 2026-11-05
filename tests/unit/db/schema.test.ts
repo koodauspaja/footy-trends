@@ -4,6 +4,9 @@ import {
   account,
   favoriteCompetition,
   favoriteTeam,
+  gameGuess,
+  gameLedger,
+  gamePlayer,
   matches,
   predictions,
   refreshRuns,
@@ -36,6 +39,7 @@ import {
  * decisions/536-database-url-required.md
  * decisions/063-competition-zones.md
  * decisions/071-section-toggles.md
+ * decisions/072-match-guesses.md
  */
 
 describe("matches table", () => {
@@ -486,5 +490,70 @@ describe("section_choice table", () => {
 
     expect(foreignKey?.onDelete).toBe("cascade");
     expect(foreignKey?.reference().foreignTable).toBe(user);
+  });
+});
+
+describe("Arvauspeli's tables", () => {
+  function indexNamed(table: Parameters<typeof getTableConfig>[0], name: string) {
+    const config = getTableConfig(table).indexes.find(
+      (index) => index.config.name === name
+    )?.config;
+    return {
+      unique: config?.unique,
+      columns: config?.columns.map((column) => (column as { name: string }).name),
+      where: config?.where === undefined ? undefined : "partial",
+    };
+  }
+
+  it("keys a player by their user, and cascades away with it", () => {
+    const [foreignKey] = getTableConfig(gamePlayer).foreignKeys;
+
+    expect(getTableConfig(gamePlayer).columns.find((column) => column.primary)?.name).toBe(
+      "user_id"
+    );
+    expect(foreignKey?.onDelete).toBe("cascade");
+    expect(foreignKey?.reference().foreignTable).toBe(user);
+  });
+
+  it("keeps one guess per player and match, and indexes the open ones for settling", () => {
+    expect(indexNamed(gameGuess, "game_guess_identity_idx")).toEqual({
+      unique: true,
+      columns: ["user_id", "taso_match_id"],
+      where: undefined,
+    });
+    expect(indexNamed(gameGuess, "game_guess_open_idx")).toEqual({
+      unique: false,
+      columns: ["taso_match_id"],
+      where: "partial",
+    });
+    const [foreignKey] = getTableConfig(gameGuess).foreignKeys;
+    expect(foreignKey?.onDelete).toBe("cascade");
+    expect(foreignKey?.reference().foreignTable).toBe(gamePlayer);
+  });
+
+  it("allows one grant per player and season and one reward per guess, and cascades from both", () => {
+    expect(indexNamed(gameLedger, "game_ledger_balance_idx")).toEqual({
+      unique: false,
+      columns: ["user_id", "season_id"],
+      where: undefined,
+    });
+    expect(indexNamed(gameLedger, "game_ledger_grant_idx")).toEqual({
+      unique: true,
+      columns: ["user_id", "season_id"],
+      where: "partial",
+    });
+    expect(indexNamed(gameLedger, "game_ledger_reward_idx")).toEqual({
+      unique: true,
+      columns: ["guess_id"],
+      where: "partial",
+    });
+    const references = getTableConfig(gameLedger).foreignKeys.map((foreignKey) => ({
+      onDelete: foreignKey.onDelete,
+      table: foreignKey.reference().foreignTable,
+    }));
+    expect(references).toEqual([
+      { onDelete: "cascade", table: gamePlayer },
+      { onDelete: "cascade", table: gameGuess },
+    ]);
   });
 });

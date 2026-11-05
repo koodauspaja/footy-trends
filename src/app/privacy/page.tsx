@@ -13,6 +13,7 @@ export const metadata: Metadata = { title: HEADING };
  *
  * decisions/302-privacy-policy-and-footer.md
  * decisions/071-section-toggles.md
+ * decisions/072-match-guesses.md
  */
 const SECTION = "mb-8";
 const HEADING_2 = "mb-3 font-semibold text-xl";
@@ -52,15 +53,16 @@ export default function Privacy() {
             Sivujen osiot, jotka olet avannut tai sulkenut, jotta ne näkyvät seuraavalla kerralla
             samoin.
           </li>
+          <li>Arvauspelin arvauksesi ja pelimerkkisi.</li>
         </ul>
       </section>
 
       <section className={SECTION}>
         <h2 className={HEADING_2}>Miksi tietoja käsitellään</h2>
         <p>
-          Jotta kirjautuminen toimii ja jotta omat asetuksesi ja suosikkisi näkyvät sinulle.
-          Käsittelyn peruste on palvelun toteuttaminen sinulle. Tietoja ei käytetä mainontaan,
-          profilointiin eikä myydä eteenpäin.
+          Jotta kirjautuminen toimii, jotta omat asetuksesi ja suosikkisi näkyvät sinulle ja jotta
+          voit pelata arvauspeliä. Käsittelyn peruste on palvelun toteuttaminen sinulle. Tietoja ei
+          käytetä mainontaan, profilointiin eikä myydä eteenpäin.
         </p>
       </section>
 
@@ -109,8 +111,8 @@ export default function Privacy() {
         <p>
           Sivulla <Link href="/asetukset">Asetukset</Link> on
           <strong> Poista tili</strong>. Se poistaa tilin ja kaiken siihen liittyvän heti:
-          asetukset, profiilikuvan, suosikit, osioiden valinnat ja kirjautumistiedot. Erillistä
-          pyyntöä ei tarvita.
+          asetukset, profiilikuvan, suosikit, osioiden valinnat, arvauspelin tiedot ja
+          kirjautumistiedot. Erillistä pyyntöä ei tarvita.
         </p>
       </section>
 
