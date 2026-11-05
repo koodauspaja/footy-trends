@@ -221,7 +221,7 @@ export type GuessDecision =
 /**
  * What a guess on a match that has not kicked off does. The same guess again
  * changes nothing; after a postponement one change is free, the floor's guess's
- * included; otherwise a change pays the current price and the floor's guess
+ * included as a 1X2; otherwise a change pays the current price and the floor's guess
  * cannot be changed; a new one is paid, or is the floor's free 1X2.
  *
  * decisions/072-match-guesses.md
@@ -239,7 +239,10 @@ export function decideGuess(input: {
   const { existing, guess, price, balance, hasOpenGuess, postponed } = input;
   if (existing !== null) {
     if (sameGuess(existing.guess, guess)) return { kind: "unchanged" };
-    if (postponed) return { kind: "change", price: 0, guessId: existing.id };
+    // The floor's guess stays a 1X2, postponed or not.
+    if (postponed && (!existing.free || guess.kind === "outcome")) {
+      return { kind: "change", price: 0, guessId: existing.id };
+    }
     if (existing.free) return { kind: "refused", reason: "free-fixed" };
     return balance >= price
       ? { kind: "change", price, guessId: existing.id }

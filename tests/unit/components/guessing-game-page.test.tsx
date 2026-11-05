@@ -387,6 +387,7 @@ describe("GuessingGamePage", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Muutos on maksuton")).toBeInTheDocument();
     expect(screen.queryByText("Maksutonta arvausta ei voi muuttaa.")).toBeNull();
+    expect(screen.queryByRole("radio", { name: "Arvaa tulos" })).toBeNull();
     fireEvent.click(screen.getByRole("radio", { name: "1" }));
     fireEvent.click(screen.getByRole("button", { name: "Muuta arvausta" }));
 

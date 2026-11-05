@@ -155,7 +155,7 @@ function UpcomingRow({ match, groups }: Readonly<{ match: UpcomingMatch; groups:
           <p className="text-muted text-sm">{priceLine(match)}</p>
           <GuessForm
             awayTeamName={match.awayTeamName}
-            floor={match.floor}
+            floor={match.floor || match.free}
             guess={match.guess}
             homeTeamName={match.homeTeamName}
             providerMatchId={match.providerMatchId}

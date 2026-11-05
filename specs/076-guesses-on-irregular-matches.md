@@ -92,6 +92,7 @@ Drafts, fine-tuned in implementation (072's S20).
 |---|---|
 | A kickoff moved later, twice | Two free changes, one after each move (S5) |
 | A kickoff moved later after the free change was used | A new free change |
+| The floor's free guess, postponed | Its free change stays a 1X2, as the floor's guess is; a score is refused as `free-fixed` (Claude, 2026-11-05, in implementation; for Miikka to confirm) |
 | A kickoff moved earlier, the guess made before it | Stands; locks at the new kickoff |
 | A kickoff moved earlier, the guess made after it | Void and refunded (S3) |
 | Abandoned with a result stored | Refunded (S9) |

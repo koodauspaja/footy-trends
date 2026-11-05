@@ -230,6 +230,25 @@ describe("decideGuess", () => {
     ).toEqual({ kind: "change", price: 0, guessId: 7 });
   });
 
+  it("keeps a postponed floor's free guess a 1X2, and a paid one free to become a score", () => {
+    expect(
+      decideGuess({
+        ...base,
+        postponed: true,
+        guess: score(1, 0),
+        existing: { id: 7, guess: outcome("2"), free: true },
+      })
+    ).toEqual({ kind: "refused", reason: "free-fixed" });
+    expect(
+      decideGuess({
+        ...base,
+        postponed: true,
+        guess: score(1, 0),
+        existing: { id: 7, guess: outcome("2"), free: false },
+      })
+    ).toEqual({ kind: "change", price: 0, guessId: 7 });
+  });
+
   it("refuses to change the floor's free guess", () => {
     const existing = { id: 7, guess: outcome("2"), free: true };
     expect(decideGuess({ ...base, existing })).toEqual({ kind: "refused", reason: "free-fixed" });
