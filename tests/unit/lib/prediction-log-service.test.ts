@@ -13,6 +13,7 @@ import type { HomeBaseline } from "@/lib/home-baseline";
  * decisions/057-surprise-index.md
  * decisions/060-elo-variants.md
  * decisions/072-match-guesses.md
+ * decisions/074-against-the-models.md
  */
 
 const mocks = vi.hoisted(() => ({
@@ -228,6 +229,15 @@ describe("runPredictionLog", () => {
     expect(mocks.getHomeBaseline).toHaveBeenCalledTimes(2);
     expect(mocks.onConflictDoUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ target: expect.any(Array) })
+    );
+    // A rerun before kickoff keeps Poisson's most likely score current with its probabilities.
+    expect(mocks.onConflictDoUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        set: expect.objectContaining({
+          predictedHomeGoals: expect.anything(),
+          predictedAwayGoals: expect.anything(),
+        }),
+      })
     );
   });
 
