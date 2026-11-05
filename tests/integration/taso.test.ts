@@ -23,6 +23,7 @@ import {
  * decisions/644-stored-table-behind-results.md
  * decisions/666-taso-fixtures-cleared-file-wide.md
  * decisions/067-knockout-simulation.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 
 vi.mock("@/lib/taso", async (importOriginal) => {
@@ -56,6 +57,7 @@ function buildMatch(overrides: Partial<NormalizedTasoMatch> = {}): NormalizedTas
     groupId: 1,
     groupName: "Runkosarja",
     status: "FINISHED",
+    providerStatus: null,
     kickoffAt: new Date("2026-08-01T15:00:00Z"),
     matchday: 1,
     homeTeamProviderId: 9001,
@@ -184,6 +186,20 @@ describe("taso integration", () => {
 
     expect(stored).toHaveLength(1);
     expect(stored[0]).toMatchObject({ homeGoals: 1, awayGoals: 1 });
+  });
+
+  it("stores TASO's own status, and a resync replaces it", async () => {
+    const { synchronizeMatches } = await import("@/lib/taso-standings-service");
+    const providerMatch = buildMatch({ providerStatus: "Played" });
+
+    await synchronizeMatches([providerMatch]);
+    await synchronizeMatches([{ ...providerMatch, providerStatus: "Forfeited" }]);
+
+    const [stored] = await db
+      .select()
+      .from(tasoMatches)
+      .where(eq(tasoMatches.providerMatchId, providerMatch.providerMatchId));
+    expect(stored).toMatchObject({ status: "FINISHED", providerStatus: "Forfeited" });
   });
 
   it("round-trips the half-time score, a goalless first half included", async () => {

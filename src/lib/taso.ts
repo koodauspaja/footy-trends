@@ -183,6 +183,12 @@ export type NormalizedTasoMatch = {
   groupId: number;
   groupName: string;
   status: string;
+  /**
+   * TASO's own status as it sent it. `status` folds `Forfeited` into
+   * `FINISHED`, as tables count it; Arvauspeli must tell an awarded match apart.
+   * Null on a row stored before it was kept.
+   */
+  providerStatus: string | null;
   kickoffAt: Date;
   matchday: number | null;
   homeTeamProviderId: number;
@@ -342,6 +348,7 @@ export function normalizeTasoMatch(
     groupId,
     groupName: match.group_name,
     status: normalizeStatus(match.status),
+    providerStatus: match.status,
     kickoffAt,
     // Not an identity, so an unusable round costs the round rather than the
     // row — which is the same thing an absent one costs.

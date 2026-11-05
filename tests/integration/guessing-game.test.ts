@@ -69,7 +69,7 @@ async function balance(userId = USER_ID) {
   return (await ledger(userId)).reduce((total, row) => total + row.amount, 0);
 }
 
-// A guess as the page sends it: with the price its row shows, `0` where only the floor's free guess is open.
+// A guess as the page sends it: with the price its row shows, `0` for the floor's free guess and a postponement's free change.
 async function play(
   userId: string,
   providerMatchId: number,
@@ -81,7 +81,7 @@ async function play(
     view.kind === "playing"
       ? view.upcoming.find((match) => match.providerMatchId === providerMatchId)
       : undefined;
-  const shown = row === undefined || row.floor ? 0 : row.price;
+  const shown = row === undefined || row.floor || row.postponed ? 0 : row.price;
   return placeGuess(userId, providerMatchId, guess, shown, clock);
 }
 
@@ -355,6 +355,7 @@ describe("guessing", () => {
       kind: "outcome",
       outcome: "1",
       madeAt: at(-9100),
+      kickoffAt: at(-9000),
     });
     await openGame(USER_ID, NOW);
     await db
@@ -396,8 +397,22 @@ describe("settling", () => {
       .set({ status: "FINISHED", homeGoals: 2, awayGoals: 1 })
       .where(eq(tasoMatches.providerMatchId, match));
 
-    expect(await settleGuesses(at(60))).toEqual({ matches: 1, rewarded: 1, missed: 1, failed: [] });
-    expect(await settleGuesses(at(61))).toEqual({ matches: 0, rewarded: 0, missed: 0, failed: [] });
+    expect(await settleGuesses(at(60))).toEqual({
+      matches: 1,
+      rewarded: 1,
+      missed: 1,
+      refunded: 0,
+      voided: 0,
+      failed: [],
+    });
+    expect(await settleGuesses(at(61))).toEqual({
+      matches: 0,
+      rewarded: 0,
+      missed: 0,
+      refunded: 0,
+      voided: 0,
+      failed: [],
+    });
 
     expect(await balance(USER_ID)).toBe(1000 - 20 + 100);
     expect(await balance(OTHER_ID)).toBe(1000 - 20);
@@ -436,7 +451,7 @@ describe("settling", () => {
         providerMatchId: match,
         homeGoals: 1,
         awayGoals: 0,
-        tier: "outcome",
+        settlement: "outcome",
         reward: 30,
       }),
     ]);
@@ -489,7 +504,7 @@ describe("settling", () => {
     await play(USER_ID, match, { kind: "outcome", outcome: "X" }, () => NOW);
     await db
       .update(tasoMatches)
-      .set({ status: "Abandoned" })
+      .set({ status: "SCHEDULED" })
       .where(eq(tasoMatches.providerMatchId, match));
 
     expect(await settleGuesses(at(60))).toMatchObject({ matches: 0 });
@@ -498,6 +513,82 @@ describe("settling", () => {
       kind: "playing",
       awaiting: [expect.objectContaining({ providerMatchId: match })],
     });
+  });
+});
+
+describe("matches that do not go as listed", () => {
+  it("refunds everything paid on a guess, its change included, when the match is abandoned", async () => {
+    const [match] = await storeMatches([vlMatch({ kickoffAt: at(100) })]);
+    await joinGame(USER_ID, NOW);
+    await play(USER_ID, match, { kind: "outcome", outcome: "1" }, () => NOW);
+    await play(USER_ID, match, { kind: "outcome", outcome: "2" }, () => at(50));
+    await db
+      .update(tasoMatches)
+      .set({ status: "Abandoned", providerStatus: "Abandoned", homeGoals: 1, awayGoals: 0 })
+      .where(eq(tasoMatches.providerMatchId, match));
+
+    expect(await settleGuesses(at(110))).toMatchObject({ matches: 1, refunded: 1 });
+
+    expect(await balance()).toBe(1000);
+    expect(await openGame(USER_ID, at(110))).toMatchObject({
+      settled: [{ providerMatchId: match, settlement: "abandoned", reward: 35, homeGoals: null }],
+    });
+  });
+
+  it("pays every score guess on an awarded match as exact, and a 1X2 by the awarded score", async () => {
+    const [match] = await storeMatches([vlMatch({ kickoffAt: at(50) })]);
+    await joinGame(USER_ID, NOW);
+    await joinGame(OTHER_ID, NOW);
+    await play(USER_ID, match, { kind: "score", homeGoals: 1, awayGoals: 1 }, () => NOW);
+    await play(OTHER_ID, match, { kind: "outcome", outcome: "2" }, () => NOW);
+    await db
+      .update(tasoMatches)
+      .set({ status: "FINISHED", providerStatus: "Forfeited", homeGoals: 0, awayGoals: 3 })
+      .where(eq(tasoMatches.providerMatchId, match));
+
+    await settleGuesses(at(60));
+
+    expect(await balance(USER_ID)).toBe(1000 - 20 + 100);
+    expect(await balance(OTHER_ID)).toBe(1000 - 20 + 30);
+  });
+
+  it("voids and refunds a guess made after a kickoff that moved earlier, and keeps one made before it", async () => {
+    const [match] = await storeMatches([vlMatch({ kickoffAt: at(100) })]);
+    await joinGame(USER_ID, NOW);
+    await joinGame(OTHER_ID, NOW);
+    await play(USER_ID, match, { kind: "outcome", outcome: "1" }, () => NOW);
+    await play(OTHER_ID, match, { kind: "outcome", outcome: "1" }, () => at(60));
+    await db
+      .update(tasoMatches)
+      .set({ kickoffAt: at(30), status: "FINISHED", homeGoals: 1, awayGoals: 0 })
+      .where(eq(tasoMatches.providerMatchId, match));
+
+    expect(await settleGuesses(at(70))).toMatchObject({ matches: 1, rewarded: 1, voided: 1 });
+
+    expect(await balance(USER_ID)).toBe(1000 - 15 + 30);
+    expect(await balance(OTHER_ID)).toBe(1000);
+  });
+
+  it("gives a postponed guess one free change, and charges the next one", async () => {
+    const [match] = await storeMatches([vlMatch({ kickoffAt: at(100) })]);
+    await joinGame(USER_ID, NOW);
+    await play(USER_ID, match, { kind: "outcome", outcome: "1" }, () => NOW);
+    await db
+      .update(tasoMatches)
+      .set({ kickoffAt: at(400) })
+      .where(eq(tasoMatches.providerMatchId, match));
+
+    expect(await openGame(USER_ID, at(1))).toMatchObject({ upcoming: [{ postponed: true }] });
+    expect(await play(USER_ID, match, { kind: "outcome", outcome: "X" }, () => at(1))).toEqual({
+      ok: true,
+      decision: expect.objectContaining({ kind: "change", price: 0 }),
+    });
+    expect(await openGame(USER_ID, at(2))).toMatchObject({ upcoming: [{ postponed: false }] });
+    expect(await play(USER_ID, match, { kind: "outcome", outcome: "2" }, () => at(2))).toEqual({
+      ok: true,
+      decision: expect.objectContaining({ kind: "change", price: 10 }),
+    });
+    expect(await balance()).toBe(1000 - 15 - 0 - 10);
   });
 });
 

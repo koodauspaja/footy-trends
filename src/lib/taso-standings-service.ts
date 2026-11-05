@@ -701,6 +701,7 @@ export async function synchronizeMatches(
         kickoffAt: sql`excluded.kickoff_at`,
         matchday: sql`excluded.matchday`,
         status: sql`excluded.status`,
+        providerStatus: sql`excluded.provider_status`,
         winner: sql`excluded.winner`,
         homeTeamProviderId: sql`excluded.home_team_provider_id`,
         homeTeamName: sql`excluded.home_team_name`,

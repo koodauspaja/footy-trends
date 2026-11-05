@@ -32,6 +32,7 @@ function upcoming(overrides: Partial<UpcomingMatch> = {}): UpcomingMatch {
     nextRise: { price: 15, at: new Date("2027-04-03T15:00:00Z") },
     guess: null,
     free: false,
+    postponed: false,
     floor: false,
     ...overrides,
   };
@@ -194,28 +195,28 @@ describe("GuessingGamePage", () => {
               ...base,
               providerMatchId: 1,
               guess: { kind: "score", homeGoals: 2, awayGoals: 1 },
-              tier: "exact",
+              settlement: "exact",
               reward: 100,
             },
             {
               ...base,
               providerMatchId: 2,
               guess: { kind: "score", homeGoals: 3, awayGoals: 2 },
-              tier: "difference",
+              settlement: "difference",
               reward: 40,
             },
             {
               ...base,
               providerMatchId: 3,
               guess: { kind: "outcome", outcome: "1" },
-              tier: "outcome",
+              settlement: "outcome",
               reward: 30,
             },
             {
               ...base,
               providerMatchId: 4,
               guess: { kind: "outcome", outcome: "2" },
-              tier: "miss",
+              settlement: "miss",
               reward: 0,
             },
           ],
@@ -257,10 +258,17 @@ describe("GuessingGamePage", () => {
               providerMatchId: 1,
               homeGoals: 1,
               awayGoals: 0,
-              tier: "outcome",
+              settlement: "outcome",
               reward: 30,
             },
-            { ...base, providerMatchId: 2, homeGoals: 0, awayGoals: 1, tier: "miss", reward: 0 },
+            {
+              ...base,
+              providerMatchId: 2,
+              homeGoals: 0,
+              awayGoals: 1,
+              settlement: "miss",
+              reward: 0,
+            },
           ],
         })}
       />
@@ -298,5 +306,84 @@ describe("GuessingGamePage", () => {
     expect(screen.getByText("Kauden 2028 ottelut julkaistaan myöhemmin.")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Odottavat tulosta" })).toBeInTheDocument();
     expect(screen.getByText("Arvauksesi: X")).toBeInTheDocument();
+  });
+
+  it("says how each irregular match settled, with no score where none decided it", () => {
+    const base = {
+      kickoffAt: new Date("2027-04-01T15:00:00Z"),
+      homeTeamName: "HJK",
+      awayTeamName: "KuPS",
+      guess: { kind: "outcome", outcome: "1" } as const,
+    };
+    render(
+      <GuessingGamePage
+        view={playing({
+          settled: [
+            {
+              ...base,
+              providerMatchId: 1,
+              homeGoals: 3,
+              awayGoals: 0,
+              settlement: "awarded",
+              reward: 30,
+            },
+            {
+              ...base,
+              providerMatchId: 2,
+              homeGoals: null,
+              awayGoals: null,
+              settlement: "abandoned",
+              reward: 25,
+            },
+            {
+              ...base,
+              providerMatchId: 3,
+              homeGoals: null,
+              awayGoals: null,
+              settlement: "undecided",
+              reward: 10,
+            },
+            {
+              ...base,
+              providerMatchId: 4,
+              homeGoals: null,
+              awayGoals: null,
+              settlement: "void",
+              reward: 30,
+            },
+          ],
+        })}
+      />
+    );
+
+    for (const line of [
+      "Ottelu ratkaistiin päätöksellä +30",
+      "Ottelu keskeytettiin, pelimerkit palautettu +25",
+      "Ottelua ei ratkaistu, pelimerkit palautettu +10",
+      "Arvaus tehtiin ottelun alettua, pelimerkit palautettu +30",
+    ]) {
+      expect(screen.getByText(line)).toBeInTheDocument();
+    }
+    expect(screen.getByText("HJK 3–0 KuPS")).toBeInTheDocument();
+    expect(screen.getAllByText("HJK – KuPS")).toHaveLength(3);
+  });
+
+  it("offers a postponed match's one free change, the floor's free guess included", () => {
+    render(
+      <GuessingGamePage
+        view={playing({
+          upcoming: [
+            upcoming({ guess: { kind: "outcome", outcome: "X" }, free: true, postponed: true }),
+          ],
+        })}
+      />
+    );
+
+    expect(
+      screen.getByText("Ottelu siirtyi. Voit muuttaa arvaustasi kerran maksutta.")
+    ).toBeInTheDocument();
+    expect(screen.getByText("Muutos on maksuton")).toBeInTheDocument();
+    expect(screen.queryByText("Maksutonta arvausta ei voi muuttaa.")).toBeNull();
+    expect(screen.getByRole("button", { name: "Muuta arvausta" })).toBeInTheDocument();
   });
 });

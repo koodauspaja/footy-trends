@@ -6,7 +6,7 @@
  * decisions/072-match-guesses.md
  */
 
-import { and, asc, eq, inArray, isNotNull, isNull, lte, max, ne, sql, sum } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, lte, max, ne, or, sql, sum } from "drizzle-orm";
 import { db } from "@/db";
 import { gameGuess, gameLedger, gamePlayer, tasoMatches } from "@/db/schema";
 import {
@@ -18,13 +18,14 @@ import {
   decideGuess,
   type Guess,
   type GuessDecision,
-  judge,
   mayUseFloor,
   nextPriceRise,
   parseGuess,
   priceAt,
+  type Settlement,
+  type SettlingMatch,
   seasonGrant,
-  type Tier,
+  settlementOf,
 } from "./guessing-game";
 import { logger } from "./logger";
 
@@ -56,8 +57,10 @@ export type UpcomingMatch = {
   price: number;
   nextRise: { price: number; at: Date } | null;
   guess: Guess | null;
-  /** The player's guess on it is the floor's, which cannot be changed. */
+  /** The player's guess on it is the floor's, which cannot be changed but after a postponement. */
   free: boolean;
+  /** The kickoff has moved later since the player's guess: its next change is free. */
+  postponed: boolean;
   /** No paid guess is affordable, and the floor's free 1X2 is open. */
   floor: boolean;
 };
@@ -71,9 +74,11 @@ export type AwaitingGuess = {
 };
 
 export type SettledGuess = AwaitingGuess & {
-  homeGoals: number;
-  awayGoals: number;
-  tier: Tier;
+  /** The result it was judged against; null when it was refunded, or awarded with no score. */
+  homeGoals: number | null;
+  awayGoals: number | null;
+  settlement: Settlement;
+  /** What it paid back: a reward, or a refund of everything paid on it. */
   reward: number;
 };
 
@@ -269,9 +274,11 @@ function storedGuess(row: {
 
 /**
  * A player's guesses still waiting to be settled, in every season, with their
- * matches: the floor's "open guess", and the page's `Odottavat tulosta`.
+ * matches: the floor's "open guess", and the page's `Odottavat tulosta`. A
+ * guess whose match is no longer stored still counts.
  *
  * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 function openGuessesOf(client: Client, userId: string) {
   return client
@@ -287,21 +294,26 @@ function openGuessesOf(client: Client, userId: string) {
       awayTeamName: tasoMatches.awayTeamName,
     })
     .from(gameGuess)
-    .innerJoin(tasoMatches, eq(tasoMatches.providerMatchId, gameGuess.providerMatchId))
+    .leftJoin(tasoMatches, eq(tasoMatches.providerMatchId, gameGuess.providerMatchId))
     .where(and(eq(gameGuess.userId, userId), isNull(gameGuess.settledAt)))
     .orderBy(asc(tasoMatches.kickoffAt));
 }
 
 function awaitingOf(rows: Awaited<ReturnType<typeof openGuessesOf>>, now: Date): AwaitingGuess[] {
-  return rows
-    .filter((row) => row.kickoffAt <= now)
-    .map((row) => ({
-      providerMatchId: row.providerMatchId,
-      kickoffAt: row.kickoffAt,
-      homeTeamName: row.homeTeamName,
-      awayTeamName: row.awayTeamName,
-      guess: storedGuess(row),
-    }));
+  return rows.flatMap(({ kickoffAt, homeTeamName, awayTeamName, ...row }) =>
+    // A guess whose match is gone has nothing to name; it waits unlisted.
+    kickoffAt === null || homeTeamName === null || awayTeamName === null || kickoffAt > now
+      ? []
+      : [
+          {
+            providerMatchId: row.providerMatchId,
+            kickoffAt,
+            homeTeamName,
+            awayTeamName,
+            guess: storedGuess(row),
+          },
+        ]
+  );
 }
 
 /**
@@ -339,7 +351,7 @@ export async function openGame(userId: string, now: Date): Promise<GameView> {
             and(
               eq(gameLedger.userId, userId),
               eq(gameLedger.seasonId, seasonId),
-              eq(gameLedger.kind, "reward")
+              inArray(gameLedger.kind, ["reward", "refund"])
             )
           ),
         openGuessesOf(tx, userId),
@@ -387,6 +399,7 @@ function playingView(
         nextRise: nextPriceRise(match.kickoffAt, now),
         guess,
         free: row?.free ?? false,
+        postponed: row !== undefined && match.kickoffAt > row.kickoffAt,
         floor: guess === null && mayUseFloor(balance, open.hasOpenGuess),
       });
       continue;
@@ -416,22 +429,23 @@ function playingView(
 }
 
 /**
- * A settled guess's judgement and the result it was judged against, as stored
- * when it was settled, or `null` while it is open.
+ * How a guess was settled and the result it was judged against, as stored
+ * when it was settled, or `null` while it is open. A refund, and an award with
+ * no score, have no result.
  *
  * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 function settledResult(row: typeof gameGuess.$inferSelect) {
   const { id, settledAt, tier, resultHomeGoals, resultAwayGoals } = row;
-  if (settledAt === null || tier === null || resultHomeGoals === null || resultAwayGoals === null) {
-    return null;
-  }
+  if (settledAt === null || tier === null) return null;
+  const scored = resultHomeGoals !== null && resultAwayGoals !== null;
   return {
     id,
     settledAt,
-    tier: tier as Tier,
-    homeGoals: resultHomeGoals,
-    awayGoals: resultAwayGoals,
+    settlement: tier as Settlement,
+    homeGoals: scored ? resultHomeGoals : null,
+    awayGoals: scored ? resultAwayGoals : null,
   };
 }
 
@@ -526,6 +540,7 @@ export async function placeGuess(
       price,
       balance,
       hasOpenGuess: openGuesses.length > 0,
+      postponed: existing !== undefined && match.kickoffAt > existing.kickoffAt,
     });
     if (decision.kind === "refused") {
       return refused(userId, providerMatchId, guess, decision.reason);
@@ -533,7 +548,15 @@ export async function placeGuess(
     if (decision.kind !== "unchanged" && costOf(decision) !== shownPrice) {
       return refused(userId, providerMatchId, guess, "price-changed");
     }
-    await write(tx, { userId, seasonId, providerMatchId, guess, now, decision });
+    await write(tx, {
+      userId,
+      seasonId,
+      providerMatchId,
+      guess,
+      now,
+      kickoffAt: match.kickoffAt,
+      decision,
+    });
     logger.info(
       {
         userId,
@@ -578,21 +601,23 @@ async function write(
     providerMatchId: number;
     guess: Guess;
     now: Date;
+    /** The stored kickoff the guess is made against. */
+    kickoffAt: Date;
     decision: Exclude<GuessDecision, { kind: "refused" }>;
   }
 ): Promise<void> {
-  const { userId, seasonId, providerMatchId, guess, now, decision } = input;
+  const { userId, seasonId, providerMatchId, guess, now, kickoffAt, decision } = input;
   if (decision.kind === "unchanged") return;
   if (decision.kind === "change") {
     await client
       .update(gameGuess)
-      .set({ ...guessColumns(guess), madeAt: now })
+      .set({ ...guessColumns(guess), madeAt: now, kickoffAt })
       .where(eq(gameGuess.id, decision.guessId));
     await client.insert(gameLedger).values({
       userId,
       seasonId,
       kind: "change",
-      amount: -decision.price,
+      amount: 0 - decision.price,
       guessId: decision.guessId,
     });
     return;
@@ -607,6 +632,7 @@ async function write(
         ...guessColumns(guess),
         free: decision.kind === "free",
         madeAt: now,
+        kickoffAt,
       })
       .returning({ id: gameGuess.id })
   );
@@ -623,35 +649,62 @@ export type SettleReport = {
   matches: number;
   rewarded: number;
   missed: number;
+  /** Refunded for an abandoned match, or an awarded one TASO decided nothing for. */
+  refunded: number;
+  /** Refunded for having been made after a kickoff that moved earlier. */
+  voided: number;
   /** TASO match ids whose guesses could not be settled this run. */
   failed: number[];
 };
+
+/** The statuses a stored TASO match has been seen with; any other is named in a `warn`. */
+const KNOWN_STATUSES: ReadonlySet<string> = new Set([FINISHED, "SCHEDULED", "Abandoned"]);
+
+/** How long after kickoff a match with guesses may wait for its result before a `warn` names it. */
+const RESULT_WAIT_MS = 48 * 60 * 60 * 1000;
 
 type SettleRow = {
   id: number;
   userId: string;
   seasonId: number;
+  providerMatchId: number;
   kind: string;
   outcome: string | null;
   homeGoals: number | null;
   awayGoals: number | null;
-  resultHome: number;
-  resultAway: number;
+  madeAt: Date;
 };
 
+type Settling = { row: SettleRow; outcome: NonNullable<ReturnType<typeof settlementOf>> };
+
 /**
- * Settles one match's guesses in one transaction: what each paid, or `null`
- * for a guess another run settled first. The players' rows are locked first,
- * the order a guess and an account's deletion take them in, so neither waits
- * on the other in a cycle.
+ * What everything paid on a guess comes to, its guess and its changes, as a
+ * positive amount: what a refund pays back.
+ *
+ * decisions/076-guesses-on-irregular-matches.md
+ */
+async function paidOn(client: Client, guessId: number): Promise<number> {
+  const [row] = await client
+    .select({ paid: sum(gameLedger.amount).mapWith(Number) })
+    .from(gameLedger)
+    .where(and(eq(gameLedger.guessId, guessId), inArray(gameLedger.kind, ["guess", "change"])));
+  return 0 - (row?.paid ?? 0);
+}
+
+/**
+ * Settles one match's guesses in one transaction: each guess's outcome and
+ * what it paid back, or `null` for a guess another run settled first. The
+ * players' rows are locked first, the order a guess and an account's deletion
+ * take them in, so neither waits on the other in a cycle.
  *
  * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 async function settleMatch(
-  guesses: readonly SettleRow[],
+  guesses: readonly Settling[],
   now: Date
-): Promise<Array<number | null>> {
-  const players = [...new Set(guesses.map((row) => row.userId))];
+): Promise<Array<{ outcome: Settling["outcome"]; amount: number } | null>> {
+  const players = [...new Set(guesses.map(({ row }) => row.userId))];
   return db.transaction(async (tx) => {
     await tx
       .select({ userId: gamePlayer.userId })
@@ -660,39 +713,55 @@ async function settleMatch(
       .orderBy(asc(gamePlayer.userId))
       .for("share");
     return Promise.all(
-      guesses.map(async (row) => {
-        const { tier, reward } = judge(storedGuess(row), row.resultHome, row.resultAway);
+      guesses.map(async ({ row, outcome }) => {
+        const result = outcome.kind === "reward" ? outcome.result : null;
         const updated = await tx
           .update(gameGuess)
           .set({
             settledAt: now,
-            tier,
-            resultHomeGoals: row.resultHome,
-            resultAwayGoals: row.resultAway,
+            tier: outcome.settlement,
+            resultHomeGoals: result?.homeGoals ?? null,
+            resultAwayGoals: result?.awayGoals ?? null,
           })
           .where(and(eq(gameGuess.id, row.id), isNull(gameGuess.settledAt)))
           .returning({ id: gameGuess.id });
         if (updated.length === 0) return null;
+        const amount = outcome.kind === "reward" ? outcome.reward : await paidOn(tx, row.id);
         await tx.insert(gameLedger).values({
           userId: row.userId,
           seasonId: row.seasonId,
-          kind: "reward",
-          amount: reward,
+          kind: outcome.kind,
+          amount,
           guessId: row.id,
         });
-        return reward;
+        return { outcome, amount };
       })
     );
   });
 }
 
 /**
- * Settles every open guess whose match has kicked off and finished with a
- * score, each match in its own transaction, all at once, by the reward table. A
- * settled guess is never settled again: the update is conditional and a second
- * reward fails.
+ * Why a match's guesses still wait, when a `warn` should name it: gone from
+ * the store, a status not seen before, or no result 48 hours after kickoff.
+ * `null` when waiting is still ordinary.
+ *
+ * decisions/076-guesses-on-irregular-matches.md
+ */
+function waitingReason(match: SettlingMatch | null, now: Date): string | null {
+  if (match === null) return "not stored";
+  if (!KNOWN_STATUSES.has(match.status)) return "unknown status";
+  return now.getTime() - match.kickoffAt.getTime() >= RESULT_WAIT_MS ? "no result" : null;
+}
+
+/**
+ * Settles every open guess whose match has kicked off and can be settled, each
+ * match in its own transaction, all at once: a played match by the reward
+ * table, the irregular ones by `settlementOf`. A settled guess is never settled
+ * again: the update is conditional and a second settlement fails. A match whose
+ * guesses still wait for a reason worth a look is named in a `warn`.
  *
  * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 export async function settleGuesses(now: Date): Promise<SettleReport> {
   const rows = await db
@@ -705,46 +774,102 @@ export async function settleGuesses(now: Date): Promise<SettleReport> {
       outcome: gameGuess.outcome,
       homeGoals: gameGuess.homeGoals,
       awayGoals: gameGuess.awayGoals,
-      // Not null: the filter below requires both.
-      resultHome: sql<number>`${tasoMatches.homeGoals}`.mapWith(Number),
-      resultAway: sql<number>`${tasoMatches.awayGoals}`.mapWith(Number),
+      madeAt: gameGuess.madeAt,
+      stored: tasoMatches.providerMatchId,
+      status: tasoMatches.status,
+      providerStatus: tasoMatches.providerStatus,
+      kickoffAt: tasoMatches.kickoffAt,
+      resultHome: tasoMatches.homeGoals,
+      resultAway: tasoMatches.awayGoals,
+      winner: tasoMatches.winner,
     })
     .from(gameGuess)
-    .innerJoin(tasoMatches, eq(tasoMatches.providerMatchId, gameGuess.providerMatchId))
+    .leftJoin(tasoMatches, eq(tasoMatches.providerMatchId, gameGuess.providerMatchId))
     .where(
       and(
         isNull(gameGuess.settledAt),
-        lte(tasoMatches.kickoffAt, now),
-        eq(tasoMatches.status, FINISHED),
-        isNotNull(tasoMatches.homeGoals),
-        isNotNull(tasoMatches.awayGoals)
+        or(isNull(tasoMatches.providerMatchId), lte(tasoMatches.kickoffAt, now))
       )
     );
 
+  const settleable: Settling[] = [];
+  const waiting = new Map<number, string>();
+  for (const {
+    stored,
+    status,
+    providerStatus,
+    kickoffAt,
+    resultHome,
+    resultAway,
+    winner,
+    ...row
+  } of rows) {
+    const match: SettlingMatch | null =
+      stored === null || status === null || kickoffAt === null
+        ? null
+        : {
+            status,
+            providerStatus,
+            kickoffAt,
+            homeGoals: resultHome,
+            awayGoals: resultAway,
+            winner,
+          };
+    const outcome = match === null ? null : settlementOf(storedGuess(row), row.madeAt, match);
+    if (outcome !== null) {
+      settleable.push({ row, outcome });
+      continue;
+    }
+    const reason = waitingReason(match, now);
+    if (reason !== null && !waiting.has(row.providerMatchId)) {
+      waiting.set(row.providerMatchId, reason);
+      logger.warn(
+        { providerMatchId: row.providerMatchId, status, kickoffAt, reason },
+        "Arvauspeli guesses still waiting"
+      );
+    }
+  }
+
   const settled = await Promise.all(
-    [...Map.groupBy(rows, (row) => row.providerMatchId)].map(([providerMatchId, guesses]) =>
-      settleMatch(guesses, now).then(
-        (rewards) => ({ providerMatchId, rewards }),
-        (error: unknown) => {
-          logger.error({ err: error, providerMatchId }, "Unable to settle Arvauspeli guesses");
-          return { providerMatchId, rewards: null };
-        }
-      )
+    [...Map.groupBy(settleable, ({ row }) => row.providerMatchId)].map(
+      ([providerMatchId, guesses]) =>
+        settleMatch(guesses, now).then(
+          (paid) => ({ providerMatchId, paid }),
+          (error: unknown) => {
+            logger.error({ err: error, providerMatchId }, "Unable to settle Arvauspeli guesses");
+            return { providerMatchId, paid: null };
+          }
+        )
     )
   );
-  const report: SettleReport = { matches: 0, rewarded: 0, missed: 0, failed: [] };
-  for (const { providerMatchId, rewards } of settled) {
-    if (rewards === null) {
+  const report: SettleReport = {
+    matches: 0,
+    rewarded: 0,
+    missed: 0,
+    refunded: 0,
+    voided: 0,
+    failed: [],
+  };
+  for (const { providerMatchId, paid } of settled) {
+    if (paid === null) {
       report.failed.push(providerMatchId);
       continue;
     }
     report.matches += 1;
-    for (const reward of rewards) {
-      if (reward === null) continue;
-      if (reward > 0) report.rewarded += 1;
-      else report.missed += 1;
+    for (const settledGuess of paid) {
+      if (settledGuess !== null) count(report, settledGuess);
     }
   }
   logger.info(report, "Arvauspeli guesses settled");
   return report;
+}
+
+function count(
+  report: SettleReport,
+  { outcome, amount }: { outcome: Settling["outcome"]; amount: number }
+) {
+  if (outcome.settlement === "void") report.voided += 1;
+  else if (outcome.kind === "refund") report.refunded += 1;
+  else if (amount > 0) report.rewarded += 1;
+  else report.missed += 1;
 }

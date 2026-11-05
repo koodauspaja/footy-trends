@@ -40,6 +40,7 @@ function match(
     groupId: 1,
     groupName: "A-maaottelut",
     status: played ? "FINISHED" : "SCHEDULED",
+    providerStatus: null,
     matchday: null,
     homeTeamProviderId: FINLAND_TEAM_ID,
     homeTeamName: "Suomi",
