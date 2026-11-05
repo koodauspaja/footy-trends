@@ -206,6 +206,15 @@ describe("the shares", () => {
     expect((await readShares([matchId], at(211))).get(matchId)).toMatchObject({ total: 6 });
   });
 
+  it("leaves out an abandoned match's guesses before the run refunds them", async () => {
+    await db
+      .update(tasoMatches)
+      .set({ status: "Abandoned" })
+      .where(eq(tasoMatches.providerMatchId, matchId));
+
+    expect(await readShares([matchId], at(201))).toEqual(new Map());
+  });
+
   it("leaves out refunded guesses once settled", async () => {
     await db
       .update(tasoMatches)

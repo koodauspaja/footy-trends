@@ -1,4 +1,4 @@
-import { and, count, eq, inArray, isNotNull, isNull, lt, lte, or, sql, sum } from "drizzle-orm";
+import { and, count, eq, inArray, isNotNull, isNull, lt, lte, ne, or, sql, sum } from "drizzle-orm";
 import { db } from "@/db";
 import { gameGuess, gameLedger, tasoMatches, userNickname } from "@/db/schema";
 import { type Board, type Outcome, rankBoard, type Shares, sharesOf } from "./guessing-game";
@@ -68,8 +68,8 @@ const COUNTED_SETTLEMENTS = ["exact", "difference", "outcome", "miss", "awarded"
 
 /**
  * The shares of the guesses on each given match that has kicked off, for those
- * with enough guesses to show. A guess still open counts unless it was made at
- * or after the stored kickoff, which makes it void.
+ * with enough guesses to show. A guess still open counts unless it will be
+ * refunded: made at or after the stored kickoff, or on an abandoned match.
  *
  * decisions/073-leaderboard.md
  */
@@ -91,7 +91,11 @@ export async function readShares(
         inArray(gameGuess.providerMatchId, [...providerMatchIds]),
         lte(tasoMatches.kickoffAt, now),
         or(
-          and(isNull(gameGuess.settledAt), lt(gameGuess.madeAt, tasoMatches.kickoffAt)),
+          and(
+            isNull(gameGuess.settledAt),
+            lt(gameGuess.madeAt, tasoMatches.kickoffAt),
+            ne(tasoMatches.status, "Abandoned")
+          ),
           and(isNotNull(gameGuess.settledAt), inArray(gameGuess.tier, COUNTED_SETTLEMENTS))
         )
       )
