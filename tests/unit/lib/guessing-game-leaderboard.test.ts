@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   BOARD_ROWS,
   type BoardEntry,
+  byStanding,
   RARITY_BONUS,
   rankBoard,
   rarityBonuses,
@@ -145,5 +146,29 @@ describe("rankBoard", () => {
   it("has no own row for a reader who is not on the board", () => {
     expect(rankBoard([entry("a", 1000)], "someone-else").own).toBeNull();
     expect(rankBoard([], "me")).toEqual({ rows: [], own: null, players: 0 });
+  });
+});
+
+describe("byStanding", () => {
+  const order = (left: BoardEntry, right: BoardEntry) => Math.sign(byStanding(left, right));
+
+  it("puts the higher balance first, either way round", () => {
+    expect(order(entry("a", 1000), entry("b", 900))).toBe(-1);
+    expect(order(entry("a", 900), entry("b", 1000))).toBe(1);
+  });
+
+  it("in a tie puts a nickname before none, either way round", () => {
+    expect(order(entry("a", 1000, "Aino"), entry("b", 1000, null))).toBe(-1);
+    expect(order(entry("a", 1000, null), entry("b", 1000, "Aino"))).toBe(1);
+  });
+
+  it("in a tie orders two nicknames in Finnish order", () => {
+    expect(order(entry("a", 1000, "Ätti"), entry("b", 1000, "Zorro"))).toBe(1);
+  });
+
+  it("orders by user id when nothing else tells two apart, either way round", () => {
+    expect(order(entry("a", 1000, null), entry("b", 1000, null))).toBe(-1);
+    expect(order(entry("b", 1000, null), entry("a", 1000, null))).toBe(1);
+    expect(order(entry("a", 1000, "Sama"), entry("b", 1000, "Sama"))).toBe(-1);
   });
 });

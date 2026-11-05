@@ -138,20 +138,22 @@ describe("readShares", () => {
   });
 });
 
+const PLAYING_AWAITING = [
+  {
+    providerMatchId: 7,
+    kickoffAt: NOW,
+    homeTeamName: "HJK",
+    awayTeamName: "KuPS",
+    guess: { kind: "outcome", outcome: "1" } as const,
+  },
+];
+
 const PLAYING: GameView = {
   kind: "playing",
   seasonId: 2027,
   balance: 1000,
   upcoming: [],
-  awaiting: [
-    {
-      providerMatchId: 7,
-      kickoffAt: NOW,
-      homeTeamName: "HJK",
-      awayTeamName: "KuPS",
-      guess: { kind: "outcome", outcome: "1" },
-    },
-  ],
+  awaiting: PLAYING_AWAITING,
   settled: [],
   groups: 1,
 };
@@ -169,12 +171,15 @@ describe("readOthers", () => {
 
   it("reads the season just finished between seasons, and no board before any season", async () => {
     state.guessed = [{ userId: "me", settled: 1, nickname: null }];
+    state.shareRows = [{ providerMatchId: 7, outcome: "1", guesses: 3 }];
     const between = await readOthers(
-      { kind: "between", nextSeasonId: 2028, joined: true, awaiting: [] },
+      { kind: "between", nextSeasonId: 2028, joined: true, awaiting: PLAYING_AWAITING },
       "me",
       NOW
     );
     expect(between.board).toMatchObject({ players: 1 });
+    // A guess from the season before, still waiting, has its shares between seasons too.
+    expect(between.shares.get(7)).toMatchObject({ total: 3 });
 
     const none = await readOthers({ kind: "no-season", joined: true }, "me", NOW);
     expect(none.board).toBeNull();

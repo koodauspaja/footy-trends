@@ -462,9 +462,14 @@ export const BOARD_ROWS = 50;
 
 const finnish = new Intl.Collator("fi-FI");
 
-function byStanding(left: BoardEntry, right: BoardEntry): number {
+/**
+ * The leaderboard's order: balance, highest first; in a tie a nickname before
+ * none, by Finnish collation; then the user id, only to keep the order stable.
+ *
+ * decisions/073-leaderboard.md
+ */
+export function byStanding(left: BoardEntry, right: BoardEntry): number {
   if (left.balance !== right.balance) return right.balance - left.balance;
-  // A nickname before none, then by name; the id only keeps the order stable.
   if (left.nickname === null || right.nickname === null) {
     if (left.nickname !== right.nickname) return left.nickname === null ? 1 : -1;
   } else {
