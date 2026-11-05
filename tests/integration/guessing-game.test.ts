@@ -481,6 +481,7 @@ describe("settling", () => {
       missed: 1,
       refunded: 0,
       voided: 0,
+      bonuses: 0,
       failed: [],
     });
     expect(await settleGuesses(at(61))).toEqual({
@@ -489,6 +490,7 @@ describe("settling", () => {
       missed: 0,
       refunded: 0,
       voided: 0,
+      bonuses: 0,
       failed: [],
     });
 

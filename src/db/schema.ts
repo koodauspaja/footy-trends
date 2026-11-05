@@ -661,6 +661,7 @@ export const gameGuess = pgTable(
  *
  * decisions/072-match-guesses.md
  * decisions/076-guesses-on-irregular-matches.md
+ * decisions/073-leaderboard.md
  */
 export const gameLedger = pgTable(
   "game_ledger",
@@ -670,7 +671,7 @@ export const gameLedger = pgTable(
       .notNull()
       .references(() => gamePlayer.userId, { onDelete: "cascade" }),
     seasonId: integer("season_id").notNull(),
-    /** `"grant"`, `"guess"`, `"change"`, `"reward"` or `"refund"`. */
+    /** `"grant"`, `"guess"`, `"change"`, `"reward"`, `"refund"` or `"bonus"`. */
     kind: text("kind").notNull(),
     /** Negative for what a guess or a change cost, positive or zero otherwise. */
     amount: integer("amount").notNull(),
@@ -687,5 +688,9 @@ export const gameLedger = pgTable(
     uniqueIndex("game_ledger_settlement_idx")
       .on(table.guessId)
       .where(sql`${table.kind} in ('reward', 'refund')`),
+    // One rarity bonus per guess, for the same reason.
+    uniqueIndex("game_ledger_bonus_idx")
+      .on(table.guessId)
+      .where(sql`${table.kind} = 'bonus'`),
   ]
 );

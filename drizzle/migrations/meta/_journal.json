@@ -176,6 +176,13 @@
       "when": 1793900399964,
       "tag": "0024_create_user_nickname",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793906256461,
+      "tag": "0025_add_game_bonus_index",
+      "breakpoints": true
     }
   ]
 }

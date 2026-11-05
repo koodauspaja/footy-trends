@@ -25,6 +25,8 @@ import {
   mayUseFloor,
   nextPriceRise,
   parseGuess,
+  RARITY_BONUS,
+  rarityBonuses,
   type Settlement,
   type SettlingMatch,
   seasonGrant,
@@ -83,6 +85,8 @@ export type SettledGuess = AwaitingGuess & {
   settlement: Settlement;
   /** What it paid back: a reward, or a refund of everything paid on it. */
   reward: number;
+  /** The rarity bonus paid on top, or 0. */
+  bonus: number;
 };
 
 export type GameView =
@@ -349,13 +353,13 @@ export async function openGame(userId: string, now: Date): Promise<GameView> {
           .from(gameGuess)
           .where(and(eq(gameGuess.userId, userId), eq(gameGuess.seasonId, seasonId))),
         tx
-          .select({ guessId: gameLedger.guessId, amount: gameLedger.amount })
+          .select({ guessId: gameLedger.guessId, amount: gameLedger.amount, kind: gameLedger.kind })
           .from(gameLedger)
           .where(
             and(
               eq(gameLedger.userId, userId),
               eq(gameLedger.seasonId, seasonId),
-              inArray(gameLedger.kind, ["reward", "refund"])
+              inArray(gameLedger.kind, ["reward", "refund", "bonus"])
             )
           ),
         openGuessesOf(tx, userId),
@@ -377,11 +381,16 @@ function playingView(
   now: Date,
   balance: number,
   guesses: ReadonlyArray<typeof gameGuess.$inferSelect>,
-  rewards: ReadonlyArray<{ guessId: number | null; amount: number }>,
+  rewards: ReadonlyArray<{ guessId: number | null; amount: number; kind: string }>,
   open: { awaiting: AwaitingGuess[]; hasOpenGuess: boolean }
 ): GameView {
   const byMatch = new Map(guesses.map((row) => [row.providerMatchId, row]));
-  const paid = new Map(rewards.map((row) => [row.guessId, row.amount]));
+  const paid = new Map(
+    rewards.filter((row) => row.kind !== "bonus").map((row) => [row.guessId, row.amount])
+  );
+  const bonuses = new Map(
+    rewards.filter((row) => row.kind === "bonus").map((row) => [row.guessId, row.amount])
+  );
   const floor = mayUseFloor(balance, cheapestOpenPrice(season.matches, now), open.hasOpenGuess);
 
   const upcoming: UpcomingMatch[] = [];
@@ -412,7 +421,13 @@ function playingView(
     const judged = row === undefined ? null : settledResult(row);
     if (judged !== null && guess !== null) {
       const { id, ...result } = judged;
-      settled.push({ ...shown, ...result, guess, reward: paid.get(id) ?? 0 });
+      settled.push({
+        ...shown,
+        ...result,
+        guess,
+        reward: paid.get(id) ?? 0,
+        bonus: bonuses.get(id) ?? 0,
+      });
     }
   }
   // Newest settlement first; a match's kickoff decides a tie.
@@ -663,6 +678,8 @@ export type SettleReport = {
   refunded: number;
   /** Refunded for having been made after a kickoff that moved earlier. */
   voided: number;
+  /** Rarity bonuses paid on top of rewards. */
+  bonuses: number;
   /** TASO match ids whose guesses could not be settled this run. */
   failed: number[];
 };
@@ -711,18 +728,22 @@ async function paidOn(client: Client, guessId: number): Promise<number> {
   return 0 - (row?.paid ?? 0);
 }
 
+type SettledHere = { outcome: Settling["outcome"]; amount: number; bonus: number };
+
 /**
  * Settles one match's guesses in one transaction, `null` for a guess another
- * run settled first. Players are locked first, the order a guess and an
- * account's deletion take them in, so neither waits on the other.
+ * run settled first, and pays the rarity bonus on those this one settled.
+ * Players are locked first, the order a guess and an account's deletion take
+ * them in, so neither waits on the other.
  *
  * decisions/072-match-guesses.md
  * decisions/076-guesses-on-irregular-matches.md
+ * decisions/073-leaderboard.md
  */
 async function settleMatch(
   guesses: readonly Settling[],
   now: Date
-): Promise<Array<{ outcome: Settling["outcome"]; amount: number } | null>> {
+): Promise<Array<SettledHere | null>> {
   const players = [...new Set(guesses.map(({ row }) => row.userId))];
   return db.transaction(async (tx) => {
     await tx
@@ -731,7 +752,7 @@ async function settleMatch(
       .where(inArray(gamePlayer.userId, players))
       .orderBy(asc(gamePlayer.userId))
       .for("share");
-    return Promise.all(
+    const paid = await Promise.all(
       guesses.map(async ({ row, outcome }) => {
         const result = outcome.kind === "reward" ? outcome.result : null;
         const updated = await tx
@@ -756,6 +777,28 @@ async function settleMatch(
         return { outcome, amount };
       })
     );
+    const earning = new Set(
+      rarityBonuses(
+        guesses.flatMap(({ row, outcome }, index) =>
+          paid[index] === null ? [] : [{ key: row, settlement: outcome.settlement }]
+        )
+      )
+    );
+    await Promise.all(
+      [...earning].map((row) =>
+        tx.insert(gameLedger).values({
+          userId: row.userId,
+          seasonId: row.seasonId,
+          kind: "bonus",
+          amount: RARITY_BONUS,
+          guessId: row.id,
+        })
+      )
+    );
+    return guesses.map(({ row }, index) => {
+      const settled = paid[index] ?? null;
+      return settled === null ? null : { ...settled, bonus: earning.has(row) ? RARITY_BONUS : 0 };
+    });
   });
 }
 
@@ -885,7 +928,7 @@ export async function settleGuesses(now: Date): Promise<SettleReport> {
 function reportOf(
   settled: ReadonlyArray<{
     providerMatchId: number;
-    paid: Array<{ outcome: Settling["outcome"]; amount: number } | null> | null;
+    paid: Array<SettledHere | null> | null;
   }>
 ): SettleReport {
   const report: SettleReport = {
@@ -894,6 +937,7 @@ function reportOf(
     missed: 0,
     refunded: 0,
     voided: 0,
+    bonuses: 0,
     failed: [],
   };
   for (const { providerMatchId, paid } of settled) {
@@ -909,10 +953,8 @@ function reportOf(
   return report;
 }
 
-function count(
-  report: SettleReport,
-  { outcome, amount }: { outcome: Settling["outcome"]; amount: number }
-) {
+function count(report: SettleReport, { outcome, amount, bonus }: SettledHere) {
+  if (bonus > 0) report.bonuses += 1;
   if (outcome.settlement === "void") report.voided += 1;
   else if (outcome.kind === "refund") report.refunded += 1;
   else if (amount > 0) report.rewarded += 1;

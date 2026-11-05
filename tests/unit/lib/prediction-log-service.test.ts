@@ -184,6 +184,7 @@ describe("runPredictionLog", () => {
       missed: 0,
       refunded: 0,
       voided: 0,
+      bonuses: 0,
       failed: [],
     });
   });
@@ -826,7 +827,7 @@ describe("runPredictionLog", () => {
     });
     mocks.settleGuesses.mockImplementationOnce(async () => {
       order.push("settle");
-      return { matches: 1, rewarded: 2, missed: 1, refunded: 0, voided: 0, failed: [] };
+      return { matches: 1, rewarded: 2, missed: 1, refunded: 0, voided: 0, bonuses: 0, failed: [] };
     });
 
     const report = await runPredictionLog(() => NOW, immediate);
@@ -1070,6 +1071,7 @@ describe("settle", () => {
       missed: 4,
       refunded: 2,
       voided: 1,
+      bonuses: 0,
       failed: [],
     });
     const failures: string[] = [];
@@ -1086,6 +1088,7 @@ describe("settle", () => {
       missed: 0,
       refunded: 0,
       voided: 0,
+      bonuses: 0,
       failed: [41, 42],
     });
     const failures: string[] = [];

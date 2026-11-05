@@ -5,6 +5,7 @@
  * decisions/072-match-guesses.md
  * decisions/076-guesses-on-irregular-matches.md
  * decisions/077-nickname.md
+ * decisions/073-leaderboard.md
  */
 
 import Link from "next/link";
@@ -13,7 +14,14 @@ import { GuessForm, JoinGameButton } from "@/components/guessing-game-controls";
 import { PANEL_HEADING, TABLE_HEADING } from "@/components/heading-classes";
 import { Notice } from "@/components/notice";
 import { SectionFold } from "@/components/section-fold";
-import { type Guess, type Settlement, STARTING_BALANCE } from "@/lib/guessing-game";
+import {
+  type Board,
+  type BoardRow,
+  type Guess,
+  type Settlement,
+  type Shares,
+  STARTING_BALANCE,
+} from "@/lib/guessing-game";
 import type {
   AwaitingGuess,
   GameView,
@@ -191,7 +199,96 @@ function Upcoming({
   );
 }
 
-function Awaiting({ guesses }: Readonly<{ guesses: readonly AwaitingGuess[] }>) {
+/**
+ * The players' guesses on a match once it has kicked off, or nothing when it
+ * has too few to show.
+ *
+ * decisions/073-leaderboard.md
+ */
+function SharesLine({ shares }: Readonly<{ shares: Shares | undefined }>) {
+  if (shares === undefined) return null;
+  return (
+    <p className="text-muted text-sm">
+      Pelaajien arvaukset: 1 {shares["1"]} % · X {shares.X} % · 2 {shares["2"]} % (
+      {guessCount(shares.total)})
+    </p>
+  );
+}
+
+function playerCount(count: number): string {
+  return count === 1 ? "1 pelaaja" : `${count} pelaajaa`;
+}
+
+function BoardTableRow({ row }: Readonly<{ row: BoardRow }>) {
+  return (
+    <tr className={`border-border-subtle border-b ${row.self ? "font-semibold" : ""}`}>
+      <td className="py-2 pr-4 tabular-nums">{row.rank}.</td>
+      <td className="py-2 pr-4">
+        {row.nickname ?? "Nimetön pelaaja"}
+        {row.self && <span className="text-muted"> (sinä)</span>}
+      </td>
+      <td className="py-2 pr-4 text-right tabular-nums">{tokens.format(row.balance)}</td>
+      <td className="py-2 text-right tabular-nums">{row.settled}</td>
+    </tr>
+  );
+}
+
+/**
+ * A season's leaderboard: the first 50 by balance, and the reader's own row
+ * after them when it is further down. A failed read says so.
+ *
+ * decisions/073-leaderboard.md
+ */
+function Leaderboard({ board }: Readonly<{ board: Board | "error" }>) {
+  if (board === "error") {
+    return (
+      <section className="mt-8">
+        <h2 className={TABLE_HEADING}>Tulostaulukko</h2>
+        <p className="mt-2">Tulostaulukon lataaminen epäonnistui. Yritä myöhemmin uudelleen.</p>
+      </section>
+    );
+  }
+  return (
+    <GameFold count={playerCount(board.players)} heading="Tulostaulukko" id="leaderboard" open>
+      {board.players === 0 ? (
+        <p className="mt-2">Kukaan ei ole vielä arvannut tällä kaudella.</p>
+      ) : (
+        <div className="scroll-edge overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-border border-b">
+                <th className="py-2 pr-4">Sija</th>
+                <th className="py-2 pr-4">Pelaaja</th>
+                <th className="py-2 pr-4 text-right">Pelimerkit</th>
+                <th className="py-2 text-right">Ratkaistut</th>
+              </tr>
+            </thead>
+            <tbody>
+              {board.rows.map((row) => (
+                <BoardTableRow key={row.place} row={row} />
+              ))}
+              {board.own !== null && (
+                <>
+                  <tr>
+                    <td className="py-1 text-muted" colSpan={4}>
+                      …
+                    </td>
+                  </tr>
+                  <BoardTableRow row={board.own} />
+                </>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </GameFold>
+  );
+}
+
+function Awaiting({
+  guesses,
+  shares,
+}: Readonly<{ guesses: readonly AwaitingGuess[]; shares: ReadonlyMap<number, Shares> }>) {
   if (guesses.length === 0) return null;
   return (
     <GameFold
@@ -207,6 +304,7 @@ function Awaiting({ guesses }: Readonly<{ guesses: readonly AwaitingGuess[] }>) 
               {guess.homeTeamName} – {guess.awayTeamName}
             </span>
             <p className="text-sm">Arvauksesi: {formatGuess(guess.guess)}</p>
+            <SharesLine shares={shares.get(guess.providerMatchId)} />
           </li>
         ))}
       </ul>
@@ -227,10 +325,17 @@ function NicknameHint() {
   );
 }
 
-export function GuessingGamePage({
-  view,
-  hasNickname,
-}: Readonly<{ view: GameView; hasNickname: boolean }>) {
+type Props = Readonly<{
+  view: GameView;
+  hasNickname: boolean;
+  /** The season's leaderboard, `"error"` when it could not be read, `null` with no season. */
+  board: Board | "error" | null;
+  /** The players' guesses on the reader's matches that have kicked off. */
+  shares: ReadonlyMap<number, Shares>;
+}>;
+
+export function GuessingGamePage({ view, hasNickname, board, shares }: Props) {
+  const leaderboard = board === null ? null : <Leaderboard board={board} />;
   if (view.kind === "no-season" || view.kind === "between") {
     return (
       <div className="flex flex-col items-start gap-3">
@@ -241,11 +346,19 @@ export function GuessingGamePage({
         </p>
         {!view.joined && <JoinSection grant={STARTING_BALANCE} />}
         {view.joined && !hasNickname && <NicknameHint />}
-        {view.kind === "between" && <Awaiting guesses={view.awaiting} />}
+        {view.kind === "between" && <Awaiting guesses={view.awaiting} shares={shares} />}
+        {leaderboard}
       </div>
     );
   }
-  if (view.kind === "not-joined") return <JoinSection grant={view.grant} />;
+  if (view.kind === "not-joined") {
+    return (
+      <div>
+        <JoinSection grant={view.grant} />
+        {leaderboard}
+      </div>
+    );
+  }
 
   const floor = view.upcoming.some((match) => match.floor);
   return (
@@ -261,7 +374,8 @@ export function GuessingGamePage({
         </div>
       )}
       <Upcoming groups={view.groups} matches={view.upcoming} />
-      <Awaiting guesses={view.awaiting} />
+      {leaderboard}
+      <Awaiting guesses={view.awaiting} shares={shares} />
       {view.settled.length > 0 && (
         <GameFold
           count={guessCount(view.settled.length)}
@@ -275,6 +389,8 @@ export function GuessingGamePage({
                 <span className="font-medium">{settledMatch(guess)}</span>
                 <p className="text-sm">Arvauksesi: {formatGuess(guess.guess)}</p>
                 <p className="text-sm">{settledLine(guess)}</p>
+                {guess.bonus > 0 && <p className="text-sm">Harvinainen osuma +{guess.bonus}</p>}
+                <SharesLine shares={shares.get(guess.providerMatchId)} />
               </li>
             ))}
           </ul>
