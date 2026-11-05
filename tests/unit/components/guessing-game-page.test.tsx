@@ -11,6 +11,7 @@ import type { GameView, UpcomingMatch } from "@/lib/guessing-game-store";
  *
  * decisions/072-match-guesses.md
  * decisions/076-guesses-on-irregular-matches.md
+ * decisions/077-nickname.md
  */
 
 vi.mock("@/lib/guessing-game-actions", () => ({
@@ -55,7 +56,9 @@ function playing(overrides: Partial<Extract<GameView, { kind: "playing" }>> = {}
 
 describe("GuessingGamePage", () => {
   it("offers a reader who has not joined the game before its first kickoff, with no share line", () => {
-    render(<GuessingGamePage view={{ kind: "not-joined", seasonId: 2027, grant: 1000 }} />);
+    render(
+      <GuessingGamePage hasNickname view={{ kind: "not-joined", seasonId: 2027, grant: 1000 }} />
+    );
 
     expect(screen.getByText(INTRO)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Liity peliin" })).toBeInTheDocument();
@@ -63,7 +66,9 @@ describe("GuessingGamePage", () => {
   });
 
   it("says what a late joiner gets", () => {
-    render(<GuessingGamePage view={{ kind: "not-joined", seasonId: 2027, grant: 564 }} />);
+    render(
+      <GuessingGamePage hasNickname view={{ kind: "not-joined", seasonId: 2027, grant: 564 }} />
+    );
 
     expect(
       screen.getByText(
@@ -75,6 +80,7 @@ describe("GuessingGamePage", () => {
   it("names the next season between seasons, and still lets a reader join", () => {
     render(
       <GuessingGamePage
+        hasNickname
         view={{ kind: "between", nextSeasonId: 2028, joined: false, awaiting: [] }}
       />
     );
@@ -86,18 +92,19 @@ describe("GuessingGamePage", () => {
   it("offers a player nothing more to press between seasons, or before any season is stored", () => {
     const { rerender } = render(
       <GuessingGamePage
+        hasNickname
         view={{ kind: "between", nextSeasonId: 2028, joined: true, awaiting: [] }}
       />
     );
     expect(screen.queryByRole("button")).toBeNull();
 
-    rerender(<GuessingGamePage view={{ kind: "no-season", joined: true }} />);
+    rerender(<GuessingGamePage hasNickname view={{ kind: "no-season", joined: true }} />);
     expect(screen.getByText("Veikkausliigan ottelut julkaistaan myöhemmin.")).toBeInTheDocument();
     expect(screen.queryByRole("button")).toBeNull();
   });
 
   it("shows the balance with its thousands separated, and an empty list of matches", () => {
-    render(<GuessingGamePage view={playing()} />);
+    render(<GuessingGamePage hasNickname view={playing()} />);
 
     expect(screen.getByText(/^Pelimerkit:/)).toHaveTextContent(/^Pelimerkit: 1\s250$/);
     expect(screen.getByText("Ei tulevia otteluita.")).toBeInTheDocument();
@@ -108,6 +115,7 @@ describe("GuessingGamePage", () => {
   it("lists upcoming matches by Helsinki date, with the price and when it rises", () => {
     render(
       <GuessingGamePage
+        hasNickname
         view={playing({
           upcoming: [
             upcoming(),
@@ -138,6 +146,7 @@ describe("GuessingGamePage", () => {
   it("names each match's group only when the list has several", () => {
     render(
       <GuessingGamePage
+        hasNickname
         view={playing({
           groups: 2,
           upcoming: [
@@ -155,6 +164,7 @@ describe("GuessingGamePage", () => {
   it("shows a player's guess, the change's price, and the floor's free 1X2", () => {
     render(
       <GuessingGamePage
+        hasNickname
         view={playing({
           balance: 5,
           upcoming: [
@@ -190,6 +200,7 @@ describe("GuessingGamePage", () => {
     };
     render(
       <GuessingGamePage
+        hasNickname
         view={playing({
           awaiting: [{ ...base, providerMatchId: 9, guess: { kind: "outcome", outcome: "1" } }],
           settled: [
@@ -251,6 +262,7 @@ describe("GuessingGamePage", () => {
     };
     render(
       <GuessingGamePage
+        hasNickname
         view={playing({
           upcoming: [upcoming()],
           awaiting: [{ ...base, providerMatchId: 9 }],
@@ -288,6 +300,7 @@ describe("GuessingGamePage", () => {
   it("still lists a player's waiting guesses between seasons", () => {
     render(
       <GuessingGamePage
+        hasNickname
         view={{
           kind: "between",
           nextSeasonId: 2028,
@@ -319,6 +332,7 @@ describe("GuessingGamePage", () => {
     };
     render(
       <GuessingGamePage
+        hasNickname
         view={playing({
           settled: [
             {
@@ -374,6 +388,7 @@ describe("GuessingGamePage", () => {
     vi.mocked(placeGuessAction).mockResolvedValue({ ok: true });
     render(
       <GuessingGamePage
+        hasNickname
         view={playing({
           upcoming: [
             upcoming({ guess: { kind: "outcome", outcome: "X" }, free: true, postponed: true }),
@@ -394,5 +409,62 @@ describe("GuessingGamePage", () => {
     await waitFor(() =>
       expect(placeGuessAction).toHaveBeenCalledWith(1, { kind: "outcome", outcome: "1" }, 0)
     );
+  });
+});
+
+describe("the line for a player without a nickname", () => {
+  const LINE = /jolla näyt tulostaulukossa\./;
+
+  it("tells a player with none where to choose one", () => {
+    render(<GuessingGamePage hasNickname={false} view={playing()} />);
+
+    expect(screen.getByText(LINE)).toHaveTextContent(
+      "Valitse nimimerkki, jolla näyt tulostaulukossa."
+    );
+    expect(screen.getByRole("link", { name: "nimimerkki" })).toHaveAttribute("href", "/asetukset");
+  });
+
+  it("is not shown to a player who has one", () => {
+    render(<GuessingGamePage hasNickname view={playing()} />);
+
+    expect(screen.queryByText(LINE)).not.toBeInTheDocument();
+  });
+
+  it.each<[string, GameView]>([
+    ["between seasons", { kind: "between", nextSeasonId: 2028, joined: true, awaiting: [] }],
+    ["before any season is stored", { kind: "no-season", joined: true }],
+  ])("tells a joined player with none %s too", (_case, view) => {
+    render(<GuessingGamePage hasNickname={false} view={view} />);
+
+    expect(screen.getByRole("link", { name: "nimimerkki" })).toHaveAttribute("href", "/asetukset");
+  });
+
+  it("is not shown between seasons to a reader who has not joined, or to one with a nickname", () => {
+    const { rerender } = render(
+      <GuessingGamePage
+        hasNickname={false}
+        view={{ kind: "between", nextSeasonId: 2028, joined: false, awaiting: [] }}
+      />
+    );
+    expect(screen.queryByText(LINE)).not.toBeInTheDocument();
+
+    rerender(
+      <GuessingGamePage
+        hasNickname
+        view={{ kind: "between", nextSeasonId: 2028, joined: true, awaiting: [] }}
+      />
+    );
+    expect(screen.queryByText(LINE)).not.toBeInTheDocument();
+  });
+
+  it("is not shown to a reader who has not joined", () => {
+    render(
+      <GuessingGamePage
+        hasNickname={false}
+        view={{ kind: "not-joined", seasonId: 2027, grant: 1000 }}
+      />
+    );
+
+    expect(screen.queryByText(LINE)).not.toBeInTheDocument();
   });
 });

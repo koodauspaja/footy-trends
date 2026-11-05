@@ -7,27 +7,33 @@ import { warmModules } from "../../support/warm-module";
  * matter assert that a refused caller performed no write, not merely that it was told no.
  *
  * decisions/028-admin-tools-and-roles.md
+ * decisions/077-nickname.md
  */
 
-const { requireAdmin, changeRole, deleteUser, revalidatePath } = vi.hoisted(() => ({
-  requireAdmin: vi.fn(),
-  changeRole: vi.fn(),
-  deleteUser: vi.fn(),
-  revalidatePath: vi.fn(),
-}));
+const { requireAdmin, changeRole, deleteUser, clearNicknameOf, revalidatePath } = vi.hoisted(
+  () => ({
+    requireAdmin: vi.fn(),
+    changeRole: vi.fn(),
+    deleteUser: vi.fn(),
+    clearNicknameOf: vi.fn(),
+    revalidatePath: vi.fn(),
+  })
+);
 
 vi.mock("@/lib/admin-guard", () => ({ requireAdmin }));
-vi.mock("@/lib/admin-users", () => ({ changeRole, deleteUser }));
+vi.mock("@/lib/admin-users", () => ({ changeRole, deleteUser, clearNicknameOf }));
 vi.mock("next/cache", () => ({ revalidatePath }));
 
 beforeEach(() => {
   requireAdmin.mockReset();
   changeRole.mockReset();
   deleteUser.mockReset();
+  clearNicknameOf.mockReset();
   revalidatePath.mockReset();
   requireAdmin.mockResolvedValue("admin-1");
   changeRole.mockResolvedValue({ ok: true });
   deleteUser.mockResolvedValue({ ok: true });
+  clearNicknameOf.mockResolvedValue({ ok: true });
 });
 
 afterEach(() => {
@@ -41,6 +47,7 @@ describe("every admin action refuses a caller that is not an admin", () => {
     ["promoteUserAction", "promoteUserAction"],
     ["demoteUserAction", "demoteUserAction"],
     ["deleteUserAction", "deleteUserAction"],
+    ["clearNicknameAction", "clearNicknameAction"],
   ])("%s writes nothing when the gate refuses", async (_name, exported) => {
     requireAdmin.mockResolvedValue(null);
     const actions = await import("@/lib/admin-actions");
@@ -51,6 +58,26 @@ describe("every admin action refuses a caller that is not an admin", () => {
     // something happened and was reported as a failure.
     expect(changeRole).not.toHaveBeenCalled();
     expect(deleteUser).not.toHaveBeenCalled();
+    expect(clearNicknameOf).not.toHaveBeenCalled();
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("clearNicknameAction", () => {
+  it("passes the acting admin from the gate, and refreshes both spellings of the page", async () => {
+    const { clearNicknameAction } = await import("@/lib/admin-actions");
+
+    await expect(clearNicknameAction("reader-1")).resolves.toEqual({ ok: true });
+    expect(clearNicknameOf).toHaveBeenCalledWith("admin-1", "reader-1");
+    expect(revalidatePath).toHaveBeenCalledWith("/yllapito");
+    expect(revalidatePath).toHaveBeenCalledWith("/admin");
+  });
+
+  it("refreshes nothing when the clear failed", async () => {
+    clearNicknameOf.mockResolvedValue({ ok: false, reason: "failed" });
+    const { clearNicknameAction } = await import("@/lib/admin-actions");
+
+    await expect(clearNicknameAction("reader-1")).resolves.toEqual({ ok: false, reason: "failed" });
     expect(revalidatePath).not.toHaveBeenCalled();
   });
 });

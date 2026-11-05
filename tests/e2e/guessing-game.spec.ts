@@ -12,6 +12,7 @@ import { testDatabaseUrl } from "../support/test-database";
  *
  * decisions/072-match-guesses.md
  * decisions/076-guesses-on-irregular-matches.md
+ * decisions/077-nickname.md
  */
 
 const PORT = e2eAppPort(process.env);
@@ -103,6 +104,12 @@ test.describe("Arvauspeli, signed in", () => {
     await page.getByRole("button", { name: "Liity peliin" }).click();
     const balance = page.getByText(/^Pelimerkit:/);
     await expect(balance).toHaveText(/^Pelimerkit: 1\s000$/);
+    // A player without a nickname is told where to choose one.
+    await expect(page.getByText("Valitse nimimerkki, jolla näyt tulostaulukossa.")).toBeVisible();
+    await expect(page.getByRole("link", { name: "nimimerkki" })).toHaveAttribute(
+      "href",
+      "/asetukset"
+    );
 
     const row = page.getByRole("listitem").filter({ hasText: `${HOME} – ${AWAY}` });
     await expect(row.getByText(/^Hinta nyt 10, nousee 15:een /)).toBeVisible();

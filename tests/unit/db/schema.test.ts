@@ -17,6 +17,7 @@ import {
   tasoMatches,
   user,
   userAvatar,
+  userNickname,
   userPreferences,
   verification,
 } from "@/db/schema";
@@ -40,6 +41,7 @@ import {
  * decisions/063-competition-zones.md
  * decisions/071-section-toggles.md
  * decisions/072-match-guesses.md
+ * decisions/077-nickname.md
  */
 
 describe("matches table", () => {
@@ -284,6 +286,27 @@ describe("user_avatar table", () => {
     const reference = foreignKeys[0]?.reference();
     expect(reference?.foreignTable).toBe(user);
     expect(reference?.foreignColumns.map((column) => column.name)).toEqual(["id"]);
+  });
+});
+
+describe("user_nickname table", () => {
+  it("keys on the user and cascades from them, so deleting the account removes it", () => {
+    const { columns, foreignKeys } = getTableConfig(userNickname);
+
+    expect(columns.find((column) => column.name === "user_id")?.primary).toBe(true);
+    expect(foreignKeys[0]?.onDelete).toBe("cascade");
+    const reference = foreignKeys[0]?.reference();
+    expect(reference?.foreignTable).toBe(user);
+    expect(reference?.foreignColumns.map((column) => column.name)).toEqual(["id"]);
+  });
+
+  it("makes the key unique, so two users cannot hold one name in different cases", () => {
+    const key = getTableConfig(userNickname).columns.find(
+      (column) => column.name === "nickname_key"
+    );
+
+    expect(key?.isUnique).toBe(true);
+    expect(key?.notNull).toBe(true);
   });
 });
 

@@ -8,6 +8,7 @@ import { auth } from "@/lib/auth";
 import { getAvatar } from "@/lib/avatar";
 import { competitionOptionsFor, fallbackLabelFor } from "@/lib/competition-preferences";
 import { logger } from "@/lib/logger";
+import { getNickname } from "@/lib/nickname-store";
 import { NO_PREFERENCES, toPreferences } from "@/lib/regions";
 import { currentPreferencesRow } from "@/lib/settings-actions";
 import { describeDevice, describeLastUsed } from "@/lib/user-agent";
@@ -30,6 +31,7 @@ export const dynamic = "force-dynamic";
  *
  * decisions/024-account-settings.md
  * decisions/025-custom-avatar.md
+ * decisions/077-nickname.md
  */
 export default async function Settings() {
   const requestHeaders = await headers();
@@ -113,12 +115,24 @@ export default async function Settings() {
     logger.error({ err: error }, "Reading the avatar on the settings page failed");
   }
 
+  // `null` when it could not be read, which costs the section, not the page.
+  let nickname: { nickname: string | null } | null = null;
+  try {
+    nickname = { nickname: await getNickname(session.user.id) };
+  } catch (error) {
+    logger.error(
+      { err: error, userId: session.user.id },
+      "Reading the nickname on the settings page failed"
+    );
+  }
+
   return (
     <PageShell heading={HEADING}>
       <SettingsPage
         avatarVersion={avatarVersion}
         devices={devices}
         googleImage={session.user.image ?? null}
+        nickname={nickname}
         preferences={preferences}
         regionOptions={regionOptions}
       />
