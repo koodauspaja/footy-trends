@@ -439,7 +439,7 @@ async function settleOne(
         userId,
         seasonId: guess.seasonId,
         kind: "season-refund",
-        amount: -(paid?.amount ?? 0),
+        amount: 0 - (paid?.amount ?? 0),
         seasonGuessId: guess.id,
       });
       await tx

@@ -132,12 +132,8 @@
           "name": "account_user_id_user_id_fk",
           "tableFrom": "account",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -218,12 +214,8 @@
           "name": "favorite_competition_user_id_user_id_fk",
           "tableFrom": "favorite_competition",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -304,12 +296,8 @@
           "name": "favorite_team_user_id_user_id_fk",
           "tableFrom": "favorite_team",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -460,12 +448,8 @@
           "name": "game_guess_user_id_game_player_user_id_fk",
           "tableFrom": "game_guess",
           "tableTo": "game_player",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "user_id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["user_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -660,12 +644,8 @@
           "name": "game_ledger_user_id_game_player_user_id_fk",
           "tableFrom": "game_ledger",
           "tableTo": "game_player",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "user_id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["user_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -673,12 +653,8 @@
           "name": "game_ledger_guess_id_game_guess_id_fk",
           "tableFrom": "game_ledger",
           "tableTo": "game_guess",
-          "columnsFrom": [
-            "guess_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["guess_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -686,12 +662,8 @@
           "name": "game_ledger_season_guess_id_game_season_guess_id_fk",
           "tableFrom": "game_ledger",
           "tableTo": "game_season_guess",
-          "columnsFrom": [
-            "season_guess_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["season_guess_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -726,12 +698,8 @@
           "name": "game_player_user_id_user_id_fk",
           "tableFrom": "game_player",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -841,12 +809,8 @@
           "name": "game_season_guess_user_id_game_player_user_id_fk",
           "tableFrom": "game_season_guess",
           "tableTo": "game_player",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "user_id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["user_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1390,12 +1354,8 @@
           "name": "refresh_runs_run_by_user_id_fk",
           "tableFrom": "refresh_runs",
           "tableTo": "user",
-          "columnsFrom": [
-            "run_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["run_by"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1482,12 +1442,8 @@
           "name": "section_choice_user_id_user_id_fk",
           "tableFrom": "section_choice",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1575,12 +1531,8 @@
           "name": "session_user_id_user_id_fk",
           "tableFrom": "session",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1590,9 +1542,7 @@
         "session_token_unique": {
           "name": "session_token_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "token"
-          ]
+          "columns": ["token"]
         }
       },
       "policies": {},
@@ -2215,9 +2165,7 @@
         "user_email_unique": {
           "name": "user_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         }
       },
       "policies": {},
@@ -2273,12 +2221,8 @@
           "name": "user_avatar_user_id_user_id_fk",
           "tableFrom": "user_avatar",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2325,12 +2269,8 @@
           "name": "user_nickname_user_id_user_id_fk",
           "tableFrom": "user_nickname",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2340,9 +2280,7 @@
         "user_nickname_nickname_key_unique": {
           "name": "user_nickname_nickname_key_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "nickname_key"
-          ]
+          "columns": ["nickname_key"]
         }
       },
       "policies": {},
@@ -2410,12 +2348,8 @@
           "name": "user_preferences_user_id_user_id_fk",
           "tableFrom": "user_preferences",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2425,9 +2359,7 @@
         "user_preferences_user_id_unique": {
           "name": "user_preferences_user_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "user_id"
-          ]
+          "columns": ["user_id"]
         }
       },
       "policies": {},

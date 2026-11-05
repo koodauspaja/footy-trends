@@ -45,7 +45,7 @@ format changes / otherwise, good" (S12–S16).
 | S5 | **The simulation does not play as a model in 075.** Before the first kickoff it can guess only the six (specs/061 S5, specs/064 S4), not a champion, a last place or a table. A follow-up issue if wanted |
 | S6 | **Shares after the lock:** the players' `Mestari` and `Putoaja` picks as percentages, from 3 guesses, as specs/073's shares |
 | S7 | **A section `Kauden arvaukset` on `/arvauspeli`, above `Tulevat ottelut`:** before the lock a form per kind, with its price; after it the player's guesses; once settled what each paid |
-| S8 | **The floor (072 S15) stays match-only.** A player who joins after the lock has no season guesses. Season guesses count in the balance and on the leaderboard as any other ledger row |
+| S8 | **The floor (072 S15) stays match-only.** A player who joins after the lock has no season guesses. Season guesses count in the balance and on the leaderboard as any other ledger row, and a player with only season guesses is on the leaderboard, a settled season guess counted in `Ratkaistut` |
 | S9 | **The teams are those of the season's stored `Runkosarja` fixtures** when the guess is placed. A team that withdraws mid-season has no final place: a guess naming it misses on that team, and is judged on the rest |
 | S10 | **No rarity bonus on season guesses.** specs/073's rule is about a single match's 1X2 |
 | S11 | **The strings below are drafts, fine-tuned in implementation** |

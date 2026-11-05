@@ -4,6 +4,7 @@ import { GuessingGamePage } from "@/components/guessing-game-page";
 import type { Board, Shares } from "@/lib/guessing-game";
 import { placeGuessAction } from "@/lib/guessing-game-actions";
 import type { ModelGuess } from "@/lib/guessing-game-models";
+import type { SeasonSection } from "@/lib/guessing-game-season-store";
 import type { GameView, UpcomingMatch } from "@/lib/guessing-game-store";
 
 /**
@@ -16,6 +17,7 @@ import type { GameView, UpcomingMatch } from "@/lib/guessing-game-store";
  * decisions/077-nickname.md
  * decisions/073-leaderboard.md
  * decisions/074-against-the-models.md
+ * decisions/075-season-guesses.md
  */
 
 const NO_SHARES: ReadonlyMap<number, Shares> = new Map();
@@ -24,6 +26,7 @@ const NO_MODELS: ReadonlyMap<number, ModelGuess[]> = new Map();
 vi.mock("@/lib/guessing-game-actions", () => ({
   joinGameAction: vi.fn(),
   placeGuessAction: vi.fn(),
+  placeSeasonGuessAction: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("@/lib/section-choice-actions", () => ({ saveSectionChoiceAction: vi.fn() }));
@@ -1034,5 +1037,205 @@ describe("the models' guesses", () => {
     );
 
     expect(screen.queryByText(/^Mallit:/)).not.toBeInTheDocument();
+  });
+});
+
+describe("Kauden arvaukset", () => {
+  const LOCK = new Date("2027-04-05T15:00:00Z");
+  const TEAMS = [
+    { teamProviderId: 1, name: "HJK" },
+    { teamProviderId: 2, name: "KuPS" },
+    { teamProviderId: 3, name: "SJK" },
+  ];
+
+  function section(overrides: Partial<SeasonSection> = {}): SeasonSection {
+    return {
+      seasonId: 2027,
+      lockAt: LOCK,
+      locked: false,
+      teams: TEAMS,
+      guesses: {},
+      shares: null,
+      ...overrides,
+    };
+  }
+
+  function renderSection(season: SeasonSection, view: GameView = playing()) {
+    return render(
+      <GuessingGamePage
+        board={null}
+        hasNickname
+        models={NO_MODELS}
+        season={season}
+        shares={NO_SHARES}
+        view={view}
+      />
+    );
+  }
+
+  function block(name: string): HTMLElement {
+    return screen.getByRole("heading", { level: 3, name }).closest("li") as HTMLElement;
+  }
+
+  it("before the lock offers every kind with its price, its form, and the lock's time", () => {
+    renderSection(section({ guesses: { champion: { teams: [2], settled: null } } }));
+    const day = new Intl.DateTimeFormat("fi-FI", {
+      timeZone: "Europe/Helsinki",
+      weekday: "short",
+      day: "numeric",
+      month: "numeric",
+      year: "numeric",
+    }).format(LOCK);
+
+    expect(screen.getByRole("heading", { name: "Kauden arvaukset" })).toBeInTheDocument();
+    expect(screen.getByText("(1 arvaus)")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        `Arvaa kausi ennen sen ensimmäistä ottelua ${day} klo 18.00. Arvauksia voi muuttaa maksutta siihen asti.`
+      )
+    ).toBeInTheDocument();
+    expect(within(block("Mestari")).getByText("Hinta 50 · oikein 200")).toBeInTheDocument();
+    expect(within(block("Mestari")).getByText("Arvauksesi: KuPS")).toBeInTheDocument();
+    expect(within(block("Mestari")).getByRole("button", { name: "Muuta mestaria" })).toBeEnabled();
+    expect(
+      within(block("Mestaruussarjan joukkueet")).getByText("Hinta 50 · 15 jokaisesta oikeasta")
+    ).toBeInTheDocument();
+    expect(within(block("Putoaja")).getByText("Hinta 50 · oikein 200")).toBeInTheDocument();
+    expect(
+      within(block("Lopullinen sarjataulukko")).getByText(
+        "Hinta 100 · 30 oikeasta sijasta, 10 yhden sijan päästä"
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Arvaa sarjataulukko" })).toBeInTheDocument();
+  });
+
+  it("sits above the upcoming matches", () => {
+    renderSection(section(), playing({ upcoming: [upcoming()] }));
+    const season = screen.getByRole("heading", { name: "Kauden arvaukset" });
+    const matches = screen.getByRole("heading", { name: "Tulevat ottelut" });
+
+    expect(season.compareDocumentPosition(matches) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("after the lock shows only the guessed kinds, with no form, and the shares of the picks", () => {
+    renderSection(
+      section({
+        locked: true,
+        guesses: {
+          champion: { teams: [1], settled: null },
+          last: { teams: [3], settled: null },
+          table: { teams: [1, 2, 3], settled: null },
+        },
+        shares: {
+          champion: {
+            shares: [
+              { teamProviderId: 1, percent: 40 },
+              { teamProviderId: 2, percent: 30 },
+              { teamProviderId: null, percent: 30 },
+            ],
+            total: 10,
+          },
+          last: {
+            shares: [
+              { teamProviderId: 3, percent: 50 },
+              { teamProviderId: 2, percent: 50 },
+            ],
+            total: 4,
+          },
+        },
+      })
+    );
+
+    expect(screen.queryByText(/Arvaa kausi ennen/)).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Mestaruussarjan joukkueet" })).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.queryByText("Hinta 50 · oikein 200")).toBeNull();
+    expect(
+      within(block("Mestari")).getByText(
+        "Pelaajien arvaukset: HJK 40 % · KuPS 30 % · muut 30 % (10 arvausta)"
+      )
+    ).toBeInTheDocument();
+    expect(
+      within(block("Putoaja")).getByText("Pelaajien arvaukset: SJK 50 % · KuPS 50 % (4 arvausta)")
+    ).toBeInTheDocument();
+    expect(
+      within(block("Lopullinen sarjataulukko")).getByText("Arvauksesi: 1. HJK, 2. KuPS, 3. SJK")
+    ).toBeInTheDocument();
+    expect(within(block("Lopullinen sarjataulukko")).queryByText(/Pelaajien arvaukset/)).toBeNull();
+  });
+
+  it("says what each settled guess paid, missed or refunded", () => {
+    renderSection(
+      section({
+        locked: true,
+        guesses: {
+          champion: { teams: [1], settled: { kind: "paid", reward: 200, right: 1, near: 0 } },
+          last: { teams: [3], settled: { kind: "paid", reward: 0, right: 0, near: 0 } },
+          upper: {
+            teams: [1, 2, 3, 4, 5, 6],
+            settled: { kind: "paid", reward: 60, right: 4, near: 0 },
+          },
+          table: { teams: [1, 2, 3], settled: { kind: "paid", reward: 140, right: 3, near: 5 } },
+        },
+        shares: { champion: null, last: null },
+      })
+    );
+
+    expect(within(block("Mestari")).getByText("Oikein, +200")).toBeInTheDocument();
+    expect(within(block("Putoaja")).getByText("Ohi")).toBeInTheDocument();
+    expect(
+      within(block("Mestaruussarjan joukkueet")).getByText("4 oikein, +60")
+    ).toBeInTheDocument();
+    expect(
+      within(block("Lopullinen sarjataulukko")).getByText(
+        "3 täsmälleen oikein, 5 yhden sijan päästä, +140"
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByText("(4 arvausta)")).toBeInTheDocument();
+  });
+
+  it("says a voided guess was refunded, and names a team it does not know with a dash", () => {
+    renderSection(
+      section({
+        locked: true,
+        guesses: { last: { teams: [99], settled: { kind: "void" } } },
+        shares: null,
+      })
+    );
+
+    expect(
+      within(block("Putoaja")).getByText("Kausi jäi kesken, pelimerkit palautettu")
+    ).toBeInTheDocument();
+    expect(within(block("Putoaja")).getByText("Arvauksesi: –")).toBeInTheDocument();
+  });
+
+  it("between seasons shows the season just finished", () => {
+    renderSection(
+      section({
+        locked: true,
+        guesses: {
+          champion: { teams: [1], settled: { kind: "paid", reward: 200, right: 1, near: 0 } },
+        },
+      }),
+      { kind: "between", nextSeasonId: 2028, joined: true, awaiting: [] }
+    );
+
+    expect(screen.getByText("Kauden 2028 ottelut julkaistaan myöhemmin.")).toBeInTheDocument();
+    expect(screen.getByText("Oikein, +200")).toBeInTheDocument();
+  });
+
+  it("shows no section without one to show", () => {
+    render(
+      <GuessingGamePage
+        board={null}
+        hasNickname
+        models={NO_MODELS}
+        season={null}
+        shares={NO_SHARES}
+        view={playing()}
+      />
+    );
+
+    expect(screen.queryByRole("heading", { name: "Kauden arvaukset" })).toBeNull();
   });
 });

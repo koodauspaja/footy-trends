@@ -1,6 +1,13 @@
 import { and, count, eq, inArray, isNotNull, isNull, lt, lte, ne, or, sql, sum } from "drizzle-orm";
 import { db } from "@/db";
-import { gameGuess, gameLedger, predictions, tasoMatches, userNickname } from "@/db/schema";
+import {
+  gameGuess,
+  gameLedger,
+  gameSeasonGuess,
+  predictions,
+  tasoMatches,
+  userNickname,
+} from "@/db/schema";
 import { type Board, type Outcome, rankBoard, type Shares, sharesOf } from "./guessing-game";
 import { favouredOutcome, GAME_MODELS, type ModelGuess } from "./guessing-game-models";
 import type { GameView } from "./guessing-game-store";
@@ -17,13 +24,15 @@ import { POISSON_MODEL } from "./poisson";
  */
 
 /**
- * A season's leaderboard for the reader: every player with a guess in it, by
- * balance, read in one snapshot so a balance and its settled count agree.
+ * A season's leaderboard for the reader: every player with a guess in it, a
+ * match's or the season's, by balance, read in one snapshot so a balance and
+ * its settled count agree.
  *
  * decisions/073-leaderboard.md
+ * decisions/075-season-guesses.md
  */
 export async function readBoard(seasonId: number, readerId: string): Promise<Board> {
-  const [guessed, balances] = await db.transaction(
+  const [matchGuesses, seasonGuesses, balances] = await db.transaction(
     (tx) =>
       Promise.all([
         tx
@@ -37,6 +46,16 @@ export async function readBoard(seasonId: number, readerId: string): Promise<Boa
           .where(eq(gameGuess.seasonId, seasonId))
           .groupBy(gameGuess.userId, userNickname.nickname),
         tx
+          .select({
+            userId: gameSeasonGuess.userId,
+            seasonSettled: count(gameSeasonGuess.settledAt),
+            nickname: userNickname.nickname,
+          })
+          .from(gameSeasonGuess)
+          .leftJoin(userNickname, eq(userNickname.userId, gameSeasonGuess.userId))
+          .where(eq(gameSeasonGuess.seasonId, seasonId))
+          .groupBy(gameSeasonGuess.userId, userNickname.nickname),
+        tx
           .select({ userId: gameLedger.userId, balance: sum(gameLedger.amount).mapWith(Number) })
           .from(gameLedger)
           .where(eq(gameLedger.seasonId, seasonId))
@@ -45,8 +64,17 @@ export async function readBoard(seasonId: number, readerId: string): Promise<Boa
     { isolationLevel: "repeatable read", accessMode: "read only" }
   );
   const balanceOf = new Map(balances.map((row) => [row.userId, row.balance]));
+  const players = new Map<string, { userId: string; settled: number; nickname: string | null }>();
+  const seasonRows = seasonGuesses.map(({ seasonSettled, ...row }) => ({
+    ...row,
+    settled: seasonSettled,
+  }));
+  for (const row of [...matchGuesses, ...seasonRows]) {
+    const known = players.get(row.userId);
+    players.set(row.userId, { ...row, settled: (known?.settled ?? 0) + row.settled });
+  }
   return rankBoard(
-    guessed.map((row) => ({ ...row, balance: balanceOf.get(row.userId) ?? 0 })),
+    [...players.values()].map((row) => ({ ...row, balance: balanceOf.get(row.userId) ?? 0 })),
     readerId
   );
 }
