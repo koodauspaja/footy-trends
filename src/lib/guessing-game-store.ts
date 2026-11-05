@@ -696,10 +696,9 @@ async function paidOn(client: Client, guessId: number): Promise<number> {
 }
 
 /**
- * Settles one match's guesses in one transaction: each guess's outcome and
- * what it paid back, or `null` for a guess another run settled first. The
- * players' rows are locked first, the order a guess and an account's deletion
- * take them in, so neither waits on the other in a cycle.
+ * Settles one match's guesses in one transaction, `null` for a guess another
+ * run settled first. Players are locked first, the order a guess and an
+ * account's deletion take them in, so neither waits on the other.
  *
  * decisions/072-match-guesses.md
  * decisions/076-guesses-on-irregular-matches.md
@@ -758,17 +757,13 @@ function waitingReason(match: SettlingMatch | null, now: Date): string | null {
 }
 
 /**
- * Settles every open guess whose match has kicked off and can be settled, each
- * match in its own transaction, all at once: a played match by the reward
- * table, the irregular ones by `settlementOf`. A settled guess is never settled
- * again: the update is conditional and a second settlement fails. A match whose
- * guesses still wait for a reason worth a look is named in a `warn`.
+ * Every open guess whose match has kicked off, or is no longer stored, with
+ * what settling reads of the match.
  *
- * decisions/072-match-guesses.md
  * decisions/076-guesses-on-irregular-matches.md
  */
-export async function settleGuesses(now: Date): Promise<SettleReport> {
-  const rows = await db
+function openSettlingRows(now: Date) {
+  return db
     .select({
       id: gameGuess.id,
       userId: gameGuess.userId,
@@ -795,30 +790,37 @@ export async function settleGuesses(now: Date): Promise<SettleReport> {
         or(isNull(tasoMatches.providerMatchId), lte(tasoMatches.kickoffAt, now))
       )
     );
+}
 
-  const settleable: Settling[] = [];
-  const waiting = new Map<number, string>();
-  for (const {
-    stored,
+type SettlingRead = Awaited<ReturnType<typeof openSettlingRows>>[number];
+
+function settlingMatchOf(read: SettlingRead): SettlingMatch | null {
+  const { stored, status, providerStatus, kickoffAt, resultHome, resultAway, winner } = read;
+  if (stored === null || status === null || kickoffAt === null) return null;
+  return {
     status,
     providerStatus,
     kickoffAt,
-    resultHome,
-    resultAway,
+    homeGoals: resultHome,
+    awayGoals: resultAway,
     winner,
-    ...row
-  } of rows) {
-    const match: SettlingMatch | null =
-      stored === null || status === null || kickoffAt === null
-        ? null
-        : {
-            status,
-            providerStatus,
-            kickoffAt,
-            homeGoals: resultHome,
-            awayGoals: resultAway,
-            winner,
-          };
+  };
+}
+
+/**
+ * The open guesses settling read that can be settled now, each with its
+ * outcome; a match whose guesses still wait for a reason worth a look is named
+ * in a `warn`, once.
+ *
+ * decisions/076-guesses-on-irregular-matches.md
+ */
+function settleableOf(rows: ReadonlyArray<SettlingRead>, now: Date): Settling[] {
+  const settleable: Settling[] = [];
+  const waiting = new Map<number, string>();
+  for (const read of rows) {
+    const { stored, status, providerStatus, kickoffAt, resultHome, resultAway, winner, ...row } =
+      read;
+    const match = settlingMatchOf(read);
     const outcome = match === null ? null : settlementOf(storedGuess(row), row.madeAt, match);
     if (outcome !== null) {
       settleable.push({ row, outcome });
@@ -833,7 +835,20 @@ export async function settleGuesses(now: Date): Promise<SettleReport> {
       );
     }
   }
+  return settleable;
+}
 
+/**
+ * Settles every open guess `settlementOf` can decide, each match in its own
+ * transaction, all at once. A settled guess is never settled again: the update
+ * is conditional and a second settlement fails.
+ *
+ * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
+ */
+export async function settleGuesses(now: Date): Promise<SettleReport> {
+  const rows = await openSettlingRows(now);
+  const settleable = settleableOf(rows, now);
   const settled = await Promise.all(
     [...Map.groupBy(settleable, ({ row }) => row.providerMatchId)].map(
       ([providerMatchId, guesses]) =>
@@ -846,6 +861,17 @@ export async function settleGuesses(now: Date): Promise<SettleReport> {
         )
     )
   );
+  const report = reportOf(settled);
+  logger.info(report, "Arvauspeli guesses settled");
+  return report;
+}
+
+function reportOf(
+  settled: ReadonlyArray<{
+    providerMatchId: number;
+    paid: Array<{ outcome: Settling["outcome"]; amount: number } | null> | null;
+  }>
+): SettleReport {
   const report: SettleReport = {
     matches: 0,
     rewarded: 0,
@@ -864,7 +890,6 @@ export async function settleGuesses(now: Date): Promise<SettleReport> {
       if (settledGuess !== null) count(report, settledGuess);
     }
   }
-  logger.info(report, "Arvauspeli guesses settled");
   return report;
 }
 

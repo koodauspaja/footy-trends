@@ -85,6 +85,12 @@ Drafts, fine-tuned in implementation (072's S20).
 - **Settling**, in 072's step: abandoned matches are refunded,
   awarded ones paid by S2 and S4, guesses S3 catches voided. A postponement's
   free change is a change row of `0`.
+- **Caching:** as 072's. The feature adds no provider call and no cache of its
+  own; it reads the rows the hourly refresh writes through TASO's existing
+  15-minute response cache (`MATCHES_CACHE_TTL_SECONDS`).
+- **The new column on stored matches** needs `npm run backfill -- --refetch` in
+  each environment once its migration has deployed (`docs/infrastructure.md`),
+  so rows stored before it carry TASO's own status too.
 
 ## Edge Cases
 
@@ -92,6 +98,7 @@ Drafts, fine-tuned in implementation (072's S20).
 |---|---|
 | A kickoff moved later, twice | Two free changes, one after each move (S5) |
 | A kickoff moved later after the free change was used | A new free change |
+| Awarded or abandoned before its kickoff | Closed to guesses, and gone from `Tulevat ottelut`; its guesses settle at the stored kickoff (Claude, 2026-11-05, from review; for Miikka to confirm) |
 | The floor's free guess, postponed | Its free change stays a 1X2, as the floor's guess is; a score is refused as `free-fixed` (Claude, 2026-11-05, in implementation; for Miikka to confirm) |
 | A kickoff moved earlier, the guess made before it | Stands; locks at the new kickoff |
 | A kickoff moved earlier, the guess made after it | Void and refunded (S3) |

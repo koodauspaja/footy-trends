@@ -231,10 +231,9 @@ export type GuessDecision =
   | { kind: "refused"; reason: "insufficient" | "free-fixed" };
 
 /**
- * What a guess on a match that has not kicked off does. The same guess again
- * changes nothing; after a postponement one change is free, the floor's guess's
- * included as a 1X2; otherwise a change pays the current price and the floor's guess
- * cannot be changed; a new one is paid, or is the floor's free 1X2.
+ * What a guess on an open match does: the same guess changes nothing; a change
+ * is free after a postponement (the floor's stays a 1X2), else paid, the
+ * floor's refused; a new one is paid, or is the floor's free 1X2.
  *
  * decisions/072-match-guesses.md
  * decisions/076-guesses-on-irregular-matches.md
@@ -328,10 +327,9 @@ function scoreOf(match: SettlingMatch): { homeGoals: number; awayGoals: number }
 }
 
 /**
- * How a waiting guess on a match that has kicked off is settled now, or `null`
- * while it waits. A guess made at or after the stored kickoff, which a kickoff
- * moved earlier makes, is void; an abandoned match is refunded, with a result
- * or not; an awarded one pays by `awarded`; a played one by the tiers.
+ * How a guess on a match that has kicked off is settled, or `null` while it
+ * waits: void if made at or after the kickoff, refunded if abandoned, then by
+ * `awarded` or a played match's tiers.
  *
  * decisions/072-match-guesses.md
  * decisions/076-guesses-on-irregular-matches.md

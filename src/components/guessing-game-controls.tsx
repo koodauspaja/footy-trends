@@ -6,6 +6,7 @@
  * the server.
  *
  * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 
 import { useRouter } from "next/navigation";
