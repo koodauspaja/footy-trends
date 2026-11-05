@@ -27,6 +27,8 @@ export type StoredMatch = {
   kickoffAt: Date;
   matchday: number | null;
   status: string;
+  /** TASO's own status; null on a row stored before it was kept. */
+  providerStatus: string | null;
   winner: string | null;
   homeTeamProviderId: number;
   homeTeamName: string;
@@ -145,15 +147,19 @@ function text(value: number | null): string {
 }
 
 /**
- * A stored match as TASO sent it. The kickoff goes out in UTC with a `+0000`
- * offset, which `normalizeTasoMatch` reads back to the same instant.
+ * A stored match as TASO sent it: its own status where stored, a walkover's
+ * `Forfeited` included. The kickoff goes out in UTC with a `+0000` offset,
+ * which `normalizeTasoMatch` reads back to the same instant.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 export function toProviderMatch(row: StoredMatch): TasoProviderMatch {
   const iso = row.kickoffAt.toISOString();
   const winner = row.winner === null ? undefined : WINNER.get(row.winner);
   return {
     match_id: String(row.tasoMatchId),
-    status: STATUS.get(row.status) ?? row.status,
+    status: row.providerStatus ?? STATUS.get(row.status) ?? row.status,
     ...(winner === undefined ? {} : { winner }),
     ...(row.matchday === null ? {} : { round_id: String(row.matchday) }),
     group_id: String(row.groupId),

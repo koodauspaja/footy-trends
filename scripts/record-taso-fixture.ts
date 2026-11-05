@@ -79,7 +79,7 @@ async function record(source: string): Promise<void> {
       async (tx) => [
         await tx<StoredMatch[]>`
           select competition_id, category_id, season_id, taso_match_id, group_id, group_name,
-            kickoff_at, matchday, status, winner, home_team_provider_id, home_team_name,
+            kickoff_at, matchday, status, provider_status, winner, home_team_provider_id, home_team_name,
             away_team_provider_id, away_team_name, home_goals, away_goals, half_time_home,
             half_time_away
           from taso_matches`,

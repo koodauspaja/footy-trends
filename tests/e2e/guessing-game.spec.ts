@@ -6,15 +6,19 @@ import { testDatabaseUrl } from "../support/test-database";
 
 /**
  * Arvauspeli as a player meets it: signed out, the way in; signed in, joining,
- * a 1X2 guess and a change to a score, each paid from the balance. Its matches
- * are seeded in a late season, ids and names carrying the run's port.
+ * a 1X2 guess and a change to a score, each paid from the balance, and a
+ * postponed match's free change. Its matches are seeded in a late season, ids
+ * and names carrying the run's port.
  *
  * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 
 const PORT = e2eAppPort(process.env);
 const SEASON = 2199;
-const MATCH_IDS = [999_800_000 + PORT * 2, 999_800_001 + PORT * 2];
+// The second match is the one the postponement test moves.
+const POSTPONED_ID = 999_800_001 + PORT * 2;
+const MATCH_IDS = [999_800_000 + PORT * 2, POSTPONED_ID];
 const HOME = `E2E Koti ${PORT}`;
 const AWAY = `E2E Vieras ${PORT}`;
 const DAY = 24 * 60 * 60 * 1000;
@@ -50,9 +54,11 @@ test.describe("Arvauspeli, signed out", () => {
 
 test.describe("Arvauspeli, signed in", () => {
   let reader: Awaited<ReturnType<typeof storeSignedInReader>>;
+  let postponer: Awaited<ReturnType<typeof storeSignedInReader>>;
 
   test.beforeAll(async () => {
     reader = await storeSignedInReader("user");
+    postponer = await storeSignedInReader("user");
     await withDatabase(async (sql) => {
       await sql`delete from taso_matches where taso_match_id in ${sql(MATCH_IDS)}`;
       for (const [index, id] of MATCH_IDS.entries()) {
@@ -79,6 +85,7 @@ test.describe("Arvauspeli, signed in", () => {
 
   test.afterAll(async () => {
     await reader?.remove();
+    await postponer?.remove();
     await withDatabase(
       (sql) => sql`delete from taso_matches where taso_match_id in ${sql(MATCH_IDS)}`
     );
@@ -113,5 +120,38 @@ test.describe("Arvauspeli, signed in", () => {
 
     await expect(balance).toHaveText(/^Pelimerkit: 980$/);
     await expect(row.getByText("Arvauksesi: 2–1")).toBeVisible();
+  });
+
+  test("offers a postponed match's change for free, and charges nothing for it", async ({
+    page,
+    baseURL,
+  }) => {
+    await page
+      .context()
+      .addCookies([{ name: SESSION_COOKIE, value: postponer.cookie, url: baseURL as string }]);
+    await page.goto("/arvauspeli");
+    await page.getByRole("button", { name: "Liity peliin" }).click();
+    const balance = page.getByText(/^Pelimerkit:/);
+    const row = page.getByRole("listitem").filter({ hasText: `${HOME} B – ${AWAY} B` });
+    await row.getByRole("radio", { name: "1" }).check();
+    await row.getByRole("button", { name: "Arvaa" }).click();
+    await expect(balance).toHaveText(/^Pelimerkit: 990$/);
+
+    await withDatabase(
+      (sql) =>
+        sql`update taso_matches set kickoff_at = ${new Date(Date.now() + 20 * DAY)} where taso_match_id = ${POSTPONED_ID}`
+    );
+    await page.reload();
+
+    await expect(
+      row.getByText("Ottelu siirtyi. Voit muuttaa arvaustasi kerran maksutta.")
+    ).toBeVisible();
+    await expect(row.getByText("Muutos on maksuton")).toBeVisible();
+    await row.getByRole("radio", { name: "2" }).check();
+    await row.getByRole("button", { name: "Muuta arvausta" }).click();
+
+    await expect(row.getByText("Arvauksesi: 2")).toBeVisible();
+    await expect(row.getByText(/^Muutos maksaa 10/)).toBeVisible();
+    await expect(balance).toHaveText(/^Pelimerkit: 990$/);
   });
 });
