@@ -237,3 +237,13 @@ export function matchesAnyPattern(file: string, patterns: readonly string[]): bo
 export function isPrunedDirectory(directory: string, patterns: readonly string[]): boolean {
   return matchesAnyPattern(`${directory}/__any__`, patterns);
 }
+
+/**
+ * Whether a directory below the root is a checkout of its own, such as another
+ * session's git worktree: it holds a `.git` entry, and its files are its own.
+ *
+ * decisions/385-untested-source-files-fail.md
+ */
+export function isNestedCheckout(entryNames: readonly string[]): boolean {
+  return entryNames.includes(".git");
+}
