@@ -250,6 +250,27 @@ describe("readOthers", () => {
     expect(others.models.get(7)).toEqual([{ model: "elo-v1", outcome: "1", score: null }]);
   });
 
+  it("reads no models' guesses on a match the reader guessed that has not kicked off", async () => {
+    state.modelRows = [prediction()];
+    const upcoming = {
+      providerMatchId: 7,
+      kickoffAt: NOW,
+      homeTeamName: "HJK",
+      awayTeamName: "KuPS",
+      guess: { kind: "outcome", outcome: "1" },
+      groupName: "Runkosarja",
+      price: 10,
+      nextRise: null,
+      free: false,
+      postponed: false,
+      floor: false,
+    } as const;
+
+    const others = await readOthers({ ...PLAYING, awaiting: [], upcoming: [upcoming] }, "me", NOW);
+
+    expect(others.models).toEqual(new Map());
+  });
+
   it("leaves the models' guesses out, and logs it, when they fail", async () => {
     state.failModels = true;
 
