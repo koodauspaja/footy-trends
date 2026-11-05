@@ -8,8 +8,8 @@ import { warmModules } from "../../support/warm-module";
  *
  * decisions/072-match-guesses.md
  * decisions/076-guesses-on-irregular-matches.md
- * decisions/074-against-the-models.md
  * decisions/766-floor-by-open-prices.md
+ * decisions/074-against-the-models.md
  */
 
 const { state, logger } = vi.hoisted(() => {
