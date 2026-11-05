@@ -27,7 +27,7 @@ export type StoredMatch = {
   kickoffAt: Date;
   matchday: number | null;
   status: string;
-  /** TASO's own status; null on a row stored before it was kept. */
+  /** TASO's own status, or null when not stored: then only `status` is known. */
   providerStatus: string | null;
   winner: string | null;
   homeTeamProviderId: number;

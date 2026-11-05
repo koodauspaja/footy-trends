@@ -661,10 +661,20 @@ export type SettleReport = {
   failed: number[];
 };
 
-/** The statuses a match still waiting may have; any other is named in a `warn`. An abandoned match never waits. */
+/**
+ * The statuses a match still waiting may have; any other is named in a `warn`.
+ * An abandoned match never waits.
+ *
+ * decisions/076-guesses-on-irregular-matches.md
+ */
 const KNOWN_STATUSES: ReadonlySet<string> = new Set([FINISHED, "SCHEDULED"]);
 
-/** How long after kickoff a match with guesses may wait for its result before a `warn` names it. */
+/**
+ * How long after kickoff a match with guesses may wait for its result before a
+ * `warn` names it.
+ *
+ * decisions/076-guesses-on-irregular-matches.md
+ */
 const RESULT_WAIT_MS = 48 * 60 * 60 * 1000;
 
 type SettleRow = {

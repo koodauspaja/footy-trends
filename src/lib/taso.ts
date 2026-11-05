@@ -187,7 +187,7 @@ export type NormalizedTasoMatch = {
   /**
    * TASO's own status as it sent it. `status` folds `Forfeited` into
    * `FINISHED`, as tables count it; Arvauspeli must tell an awarded match apart.
-   * Null on a row stored before it was kept.
+   * Null when not stored, and `status` is then all that is known.
    */
   providerStatus: string | null;
   kickoffAt: Date;

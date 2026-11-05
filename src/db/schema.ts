@@ -140,8 +140,8 @@ export const tasoMatches = pgTable(
     // re-indexed per group. Null when TASO reports no round for the match.
     matchday: integer("matchday"),
     status: text("status").notNull(),
-    // TASO's own status, `Forfeited` kept apart from `Played`; null on a row
-    // stored before it was kept.
+    // TASO's own status, `Forfeited` kept apart from `Played`; null when not
+    // stored, and `status` is then all that is known.
     providerStatus: text("provider_status"),
     // TASO's verdict on who went through, null until played: a cup tie level after
     // normal time goes to penalties it does not itemise.
