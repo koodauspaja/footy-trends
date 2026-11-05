@@ -14,7 +14,7 @@ import type { ReactNode } from "react";
 import { GuessForm, JoinGameButton } from "@/components/guessing-game-controls";
 import { PANEL_HEADING, TABLE_HEADING } from "@/components/heading-classes";
 import { Notice } from "@/components/notice";
-import { MODEL_LABELS } from "@/components/prediction-quality-page";
+import { modelLabel } from "@/components/prediction-quality-page";
 import { SectionFold } from "@/components/section-fold";
 import {
   type Board,
@@ -230,7 +230,7 @@ function modelGuessText(guess: ModelGuess): string {
  */
 function ModelsLine({ models }: Readonly<{ models: readonly ModelGuess[] | undefined }>) {
   if (models === undefined || models.length === 0) return null;
-  const guesses = models.map((guess) => `${MODEL_LABELS[guess.model]} ${modelGuessText(guess)}`);
+  const guesses = models.map((guess) => `${modelLabel(guess.model)} ${modelGuessText(guess)}`);
   return <p className="text-muted text-sm">Mallit: {guesses.join(" · ")}</p>;
 }
 
