@@ -65,6 +65,18 @@ export function priceAt(kickoffAt: Date, now: Date): number | null {
 }
 
 /**
+ * What a guess on a match costs now, or `null` once it is closed: kicked off,
+ * or already decided by TASO, a walkover or an abandonment before its kickoff.
+ *
+ * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
+ */
+export function guessPrice(match: { kickoffAt: Date; status: string }, now: Date): number | null {
+  if (match.status === "FINISHED" || match.status === "Abandoned") return null;
+  return priceAt(match.kickoffAt, now);
+}
+
+/**
  * When the price rises next and to what, or `null` in the last 24 hours, when
  * it is already at its highest.
  *

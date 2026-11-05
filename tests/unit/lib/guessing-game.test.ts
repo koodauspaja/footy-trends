@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   decideGuess,
   type Guess,
+  guessPrice,
   judge,
   lateJoinShare,
   MAX_GUESSED_GOALS,
@@ -33,6 +34,21 @@ const score = (homeGoals: number, awayGoals: number): Guess => ({
   kind: "score",
   homeGoals,
   awayGoals,
+});
+
+describe("guessPrice", () => {
+  it("prices a match TASO has not decided by its kickoff, whatever its status says", () => {
+    for (const status of ["SCHEDULED", "Postponed"]) {
+      expect(guessPrice({ kickoffAt: KICKOFF, status }, hoursBefore(400))).toBe(10);
+    }
+    expect(guessPrice({ kickoffAt: KICKOFF, status: "SCHEDULED" }, KICKOFF)).toBeNull();
+  });
+
+  it("closes a match TASO decided before its kickoff, a walkover or an abandonment", () => {
+    for (const status of ["FINISHED", "Abandoned"]) {
+      expect(guessPrice({ kickoffAt: KICKOFF, status }, hoursBefore(400))).toBeNull();
+    }
+  });
 });
 
 describe("priceAt", () => {

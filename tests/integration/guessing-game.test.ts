@@ -539,6 +539,29 @@ describe("settling", () => {
 });
 
 describe("matches that do not go as listed", () => {
+  it("closes a match awarded before its kickoff to guesses, and lists it no longer", async () => {
+    const row = vlMatch({ kickoffAt: at(100) });
+    const [match] = await storeMatches([row]);
+    await joinGame(USER_ID, NOW);
+    await play(USER_ID, match, { kind: "outcome", outcome: "1" }, () => NOW);
+    await refresh(row, {
+      status: "FINISHED",
+      providerStatus: "Forfeited",
+      homeGoals: 3,
+      awayGoals: 0,
+    });
+
+    expect(await openGame(USER_ID, at(1))).toMatchObject({ upcoming: [] });
+    expect(
+      await placeGuess(USER_ID, match, { kind: "score", homeGoals: 3, awayGoals: 0 }, 15, () =>
+        at(1)
+      )
+    ).toEqual({
+      ok: false,
+      reason: "started",
+    });
+  });
+
   it("refunds everything paid on a guess, its change included, when the match is abandoned", async () => {
     const [match] = await storeMatches([vlMatch({ kickoffAt: at(100) })]);
     await joinGame(USER_ID, NOW);

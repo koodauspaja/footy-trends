@@ -19,10 +19,10 @@ import {
   decideGuess,
   type Guess,
   type GuessDecision,
+  guessPrice,
   mayUseFloor,
   nextPriceRise,
   parseGuess,
-  priceAt,
   type Settlement,
   type SettlingMatch,
   seasonGrant,
@@ -386,7 +386,7 @@ function playingView(
   for (const match of season.matches) {
     const row = byMatch.get(match.providerMatchId);
     const guess = row === undefined ? null : storedGuess(row);
-    const price = priceAt(match.kickoffAt, now);
+    const price = guessPrice(match, now);
     const shown = {
       providerMatchId: match.providerMatchId,
       kickoffAt: match.kickoffAt,
@@ -516,13 +516,14 @@ export async function placeGuess(
         competitionCode: tasoMatches.competitionCode,
         categoryId: tasoMatches.categoryId,
         kickoffAt: tasoMatches.kickoffAt,
+        status: tasoMatches.status,
       })
       .from(tasoMatches)
       .where(eq(tasoMatches.providerMatchId, providerMatchId));
     if (match === undefined || !isGameMatch(match) || match.seasonId !== (await latestSeason(tx))) {
       return refused(userId, providerMatchId, guess, "unknown-match");
     }
-    const price = priceAt(match.kickoffAt, now);
+    const price = guessPrice(match, now);
     if (price === null) return refused(userId, providerMatchId, guess, "started");
 
     const { seasonId } = match;
