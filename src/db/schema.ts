@@ -689,8 +689,6 @@ export const gameLedger = pgTable(
       .on(table.guessId)
       .where(sql`${table.kind} in ('reward', 'refund')`),
     // One rarity bonus per guess, for the same reason.
-    uniqueIndex("game_ledger_bonus_idx")
-      .on(table.guessId)
-      .where(sql`${table.kind} = 'bonus'`),
+    uniqueIndex("game_ledger_bonus_idx").on(table.guessId).where(sql`${table.kind} = 'bonus'`),
   ]
 );

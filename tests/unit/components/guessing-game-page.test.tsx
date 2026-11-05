@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { GuessingGamePage } from "@/components/guessing-game-page";
+import type { Board, Shares } from "@/lib/guessing-game";
 import { placeGuessAction } from "@/lib/guessing-game-actions";
 import type { GameView, UpcomingMatch } from "@/lib/guessing-game-store";
 
@@ -12,7 +13,10 @@ import type { GameView, UpcomingMatch } from "@/lib/guessing-game-store";
  * decisions/072-match-guesses.md
  * decisions/076-guesses-on-irregular-matches.md
  * decisions/077-nickname.md
+ * decisions/073-leaderboard.md
  */
+
+const NO_SHARES: ReadonlyMap<number, Shares> = new Map();
 
 vi.mock("@/lib/guessing-game-actions", () => ({
   joinGameAction: vi.fn(),
@@ -57,7 +61,12 @@ function playing(overrides: Partial<Extract<GameView, { kind: "playing" }>> = {}
 describe("GuessingGamePage", () => {
   it("offers a reader who has not joined the game before its first kickoff, with no share line", () => {
     render(
-      <GuessingGamePage hasNickname view={{ kind: "not-joined", seasonId: 2027, grant: 1000 }} />
+      <GuessingGamePage
+        board={null}
+        shares={NO_SHARES}
+        hasNickname
+        view={{ kind: "not-joined", seasonId: 2027, grant: 1000 }}
+      />
     );
 
     expect(screen.getByText(INTRO)).toBeInTheDocument();
@@ -67,7 +76,12 @@ describe("GuessingGamePage", () => {
 
   it("says what a late joiner gets", () => {
     render(
-      <GuessingGamePage hasNickname view={{ kind: "not-joined", seasonId: 2027, grant: 564 }} />
+      <GuessingGamePage
+        board={null}
+        shares={NO_SHARES}
+        hasNickname
+        view={{ kind: "not-joined", seasonId: 2027, grant: 564 }}
+      />
     );
 
     expect(
@@ -80,6 +94,8 @@ describe("GuessingGamePage", () => {
   it("names the next season between seasons, and still lets a reader join", () => {
     render(
       <GuessingGamePage
+        board={null}
+        shares={NO_SHARES}
         hasNickname
         view={{ kind: "between", nextSeasonId: 2028, joined: false, awaiting: [] }}
       />
@@ -92,19 +108,28 @@ describe("GuessingGamePage", () => {
   it("offers a player nothing more to press between seasons, or before any season is stored", () => {
     const { rerender } = render(
       <GuessingGamePage
+        board={null}
+        shares={NO_SHARES}
         hasNickname
         view={{ kind: "between", nextSeasonId: 2028, joined: true, awaiting: [] }}
       />
     );
     expect(screen.queryByRole("button")).toBeNull();
 
-    rerender(<GuessingGamePage hasNickname view={{ kind: "no-season", joined: true }} />);
+    rerender(
+      <GuessingGamePage
+        board={null}
+        shares={NO_SHARES}
+        hasNickname
+        view={{ kind: "no-season", joined: true }}
+      />
+    );
     expect(screen.getByText("Veikkausliigan ottelut julkaistaan myöhemmin.")).toBeInTheDocument();
     expect(screen.queryByRole("button")).toBeNull();
   });
 
   it("shows the balance with its thousands separated, and an empty list of matches", () => {
-    render(<GuessingGamePage hasNickname view={playing()} />);
+    render(<GuessingGamePage board={null} shares={NO_SHARES} hasNickname view={playing()} />);
 
     expect(screen.getByText(/^Pelimerkit:/)).toHaveTextContent(/^Pelimerkit: 1\s250$/);
     expect(screen.getByText("Ei tulevia otteluita.")).toBeInTheDocument();
@@ -115,6 +140,8 @@ describe("GuessingGamePage", () => {
   it("lists upcoming matches by Helsinki date, with the price and when it rises", () => {
     render(
       <GuessingGamePage
+        board={null}
+        shares={NO_SHARES}
         hasNickname
         view={playing({
           upcoming: [
@@ -146,6 +173,8 @@ describe("GuessingGamePage", () => {
   it("names each match's group only when the list has several", () => {
     render(
       <GuessingGamePage
+        board={null}
+        shares={NO_SHARES}
         hasNickname
         view={playing({
           groups: 2,
@@ -164,6 +193,8 @@ describe("GuessingGamePage", () => {
   it("shows a player's guess, the change's price, and the floor's free 1X2", () => {
     render(
       <GuessingGamePage
+        board={null}
+        shares={NO_SHARES}
         hasNickname
         view={playing({
           balance: 5,
@@ -200,6 +231,8 @@ describe("GuessingGamePage", () => {
     };
     render(
       <GuessingGamePage
+        board={null}
+        shares={NO_SHARES}
         hasNickname
         view={playing({
           awaiting: [{ ...base, providerMatchId: 9, guess: { kind: "outcome", outcome: "1" } }],
@@ -210,6 +243,7 @@ describe("GuessingGamePage", () => {
               guess: { kind: "score", homeGoals: 2, awayGoals: 1 },
               settlement: "exact",
               reward: 100,
+              bonus: 0,
             },
             {
               ...base,
@@ -217,6 +251,7 @@ describe("GuessingGamePage", () => {
               guess: { kind: "score", homeGoals: 3, awayGoals: 2 },
               settlement: "difference",
               reward: 40,
+              bonus: 0,
             },
             {
               ...base,
@@ -224,6 +259,7 @@ describe("GuessingGamePage", () => {
               guess: { kind: "outcome", outcome: "1" },
               settlement: "outcome",
               reward: 30,
+              bonus: 0,
             },
             {
               ...base,
@@ -231,6 +267,7 @@ describe("GuessingGamePage", () => {
               guess: { kind: "outcome", outcome: "2" },
               settlement: "miss",
               reward: 0,
+              bonus: 0,
             },
           ],
         })}
@@ -262,6 +299,8 @@ describe("GuessingGamePage", () => {
     };
     render(
       <GuessingGamePage
+        board={null}
+        shares={NO_SHARES}
         hasNickname
         view={playing({
           upcoming: [upcoming()],
@@ -274,6 +313,7 @@ describe("GuessingGamePage", () => {
               awayGoals: 0,
               settlement: "outcome",
               reward: 30,
+              bonus: 0,
             },
             {
               ...base,
@@ -282,6 +322,7 @@ describe("GuessingGamePage", () => {
               awayGoals: 1,
               settlement: "miss",
               reward: 0,
+              bonus: 0,
             },
           ],
         })}
@@ -300,6 +341,8 @@ describe("GuessingGamePage", () => {
   it("still lists a player's waiting guesses between seasons", () => {
     render(
       <GuessingGamePage
+        board={null}
+        shares={NO_SHARES}
         hasNickname
         view={{
           kind: "between",
@@ -332,6 +375,8 @@ describe("GuessingGamePage", () => {
     };
     render(
       <GuessingGamePage
+        board={null}
+        shares={NO_SHARES}
         hasNickname
         view={playing({
           settled: [
@@ -342,6 +387,7 @@ describe("GuessingGamePage", () => {
               awayGoals: 0,
               settlement: "awarded",
               reward: 30,
+              bonus: 0,
             },
             {
               ...base,
@@ -350,6 +396,7 @@ describe("GuessingGamePage", () => {
               awayGoals: null,
               settlement: "abandoned",
               reward: 25,
+              bonus: 0,
             },
             {
               ...base,
@@ -358,6 +405,7 @@ describe("GuessingGamePage", () => {
               awayGoals: null,
               settlement: "undecided",
               reward: 10,
+              bonus: 0,
             },
             {
               ...base,
@@ -366,6 +414,7 @@ describe("GuessingGamePage", () => {
               awayGoals: null,
               settlement: "void",
               reward: 30,
+              bonus: 0,
             },
           ],
         })}
@@ -388,6 +437,8 @@ describe("GuessingGamePage", () => {
     vi.mocked(placeGuessAction).mockResolvedValue({ ok: true });
     render(
       <GuessingGamePage
+        board={null}
+        shares={NO_SHARES}
         hasNickname
         view={playing({
           upcoming: [
@@ -416,7 +467,9 @@ describe("the line for a player without a nickname", () => {
   const LINE = /jolla näyt tulostaulukossa\./;
 
   it("tells a player with none where to choose one", () => {
-    render(<GuessingGamePage hasNickname={false} view={playing()} />);
+    render(
+      <GuessingGamePage board={null} shares={NO_SHARES} hasNickname={false} view={playing()} />
+    );
 
     expect(screen.getByText(LINE)).toHaveTextContent(
       "Valitse nimimerkki, jolla näyt tulostaulukossa."
@@ -425,7 +478,7 @@ describe("the line for a player without a nickname", () => {
   });
 
   it("is not shown to a player who has one", () => {
-    render(<GuessingGamePage hasNickname view={playing()} />);
+    render(<GuessingGamePage board={null} shares={NO_SHARES} hasNickname view={playing()} />);
 
     expect(screen.queryByText(LINE)).not.toBeInTheDocument();
   });
@@ -434,7 +487,7 @@ describe("the line for a player without a nickname", () => {
     ["between seasons", { kind: "between", nextSeasonId: 2028, joined: true, awaiting: [] }],
     ["before any season is stored", { kind: "no-season", joined: true }],
   ])("tells a joined player with none %s too", (_case, view) => {
-    render(<GuessingGamePage hasNickname={false} view={view} />);
+    render(<GuessingGamePage board={null} shares={NO_SHARES} hasNickname={false} view={view} />);
 
     expect(screen.getByRole("link", { name: "nimimerkki" })).toHaveAttribute("href", "/asetukset");
   });
@@ -442,6 +495,8 @@ describe("the line for a player without a nickname", () => {
   it("is not shown between seasons to a reader who has not joined, or to one with a nickname", () => {
     const { rerender } = render(
       <GuessingGamePage
+        board={null}
+        shares={NO_SHARES}
         hasNickname={false}
         view={{ kind: "between", nextSeasonId: 2028, joined: false, awaiting: [] }}
       />
@@ -450,6 +505,8 @@ describe("the line for a player without a nickname", () => {
 
     rerender(
       <GuessingGamePage
+        board={null}
+        shares={NO_SHARES}
         hasNickname
         view={{ kind: "between", nextSeasonId: 2028, joined: true, awaiting: [] }}
       />
@@ -460,11 +517,275 @@ describe("the line for a player without a nickname", () => {
   it("is not shown to a reader who has not joined", () => {
     render(
       <GuessingGamePage
+        board={null}
+        shares={NO_SHARES}
         hasNickname={false}
         view={{ kind: "not-joined", seasonId: 2027, grant: 1000 }}
       />
     );
 
     expect(screen.queryByText(LINE)).not.toBeInTheDocument();
+  });
+});
+
+function boardOf(rows: Board["rows"], own: Board["own"] = null, players = rows.length): Board {
+  return { rows, own, players };
+}
+
+function boardRow(overrides: Partial<Board["rows"][number]> = {}): Board["rows"][number] {
+  return {
+    nickname: "Aino",
+    balance: 1040,
+    settled: 3,
+    rank: 1,
+    place: 1,
+    self: false,
+    ...overrides,
+  };
+}
+
+describe("Tulostaulukko", () => {
+  it("ranks the players after Tulevat ottelut, open, counting them", () => {
+    render(
+      <GuessingGamePage
+        board={boardOf([
+          boardRow(),
+          boardRow({ nickname: null, balance: 1000, rank: 2, place: 2, settled: 1 }),
+        ])}
+        hasNickname
+        shares={NO_SHARES}
+        view={playing()}
+      />
+    );
+
+    const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    expect(headings.indexOf("Tulostaulukko")).toBe(headings.indexOf("Tulevat ottelut") + 1);
+    expect(screen.getByText("(2 pelaajaa)")).toBeInTheDocument();
+    // The thousands separator is a no-break space, as `Intl` writes it.
+    const rows = screen.getAllByRole("row").slice(1);
+    expect(rows.map((row) => row.textContent?.replaceAll(/\s/g, " "))).toEqual([
+      "1.Aino1 0403",
+      "2.Nimetön pelaaja1 0001",
+    ]);
+  });
+
+  it("names the columns", () => {
+    render(
+      <GuessingGamePage
+        board={boardOf([boardRow()])}
+        hasNickname
+        shares={NO_SHARES}
+        view={playing()}
+      />
+    );
+
+    expect(screen.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual([
+      "Sija",
+      "Pelaaja",
+      "Pelimerkit",
+      "Ratkaistut",
+    ]);
+  });
+
+  it("marks the reader's own row", () => {
+    render(
+      <GuessingGamePage
+        board={boardOf([boardRow({ self: true })])}
+        hasNickname
+        shares={NO_SHARES}
+        view={playing()}
+      />
+    );
+
+    const own = screen.getByText("(sinä)").closest("tr");
+    expect(own).toHaveTextContent("Aino");
+    expect(own).toHaveClass("font-semibold");
+  });
+
+  it("shows the reader's row after a gap when it is below the first rows", () => {
+    render(
+      <GuessingGamePage
+        board={boardOf(
+          [boardRow()],
+          boardRow({ nickname: "Minä", rank: 53, place: 53, self: true }),
+          53
+        )}
+        hasNickname
+        shares={NO_SHARES}
+        view={playing()}
+      />
+    );
+
+    const rows = screen.getAllByRole("row").slice(1);
+    expect(rows.map((row) => row.textContent?.slice(0, 7))).toEqual(["1.Aino1", "…", "53.Minä"]);
+    expect(screen.getByText("(53 pelaajaa)")).toBeInTheDocument();
+  });
+
+  it("counts one player in the singular", () => {
+    render(
+      <GuessingGamePage
+        board={boardOf([boardRow()])}
+        hasNickname
+        shares={NO_SHARES}
+        view={playing()}
+      />
+    );
+
+    expect(screen.getByText("(1 pelaaja)")).toBeInTheDocument();
+  });
+
+  it("says nobody has guessed yet on an empty board", () => {
+    render(
+      <GuessingGamePage board={boardOf([])} hasNickname shares={NO_SHARES} view={playing()} />
+    );
+
+    expect(screen.getByText("Kukaan ei ole vielä arvannut tällä kaudella.")).toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  it("says the board failed when it could not be read, and still shows the game", () => {
+    render(<GuessingGamePage board="error" hasNickname shares={NO_SHARES} view={playing()} />);
+
+    expect(
+      screen.getByText("Tulostaulukon lataaminen epäonnistui. Yritä myöhemmin uudelleen.")
+    ).toBeInTheDocument();
+    expect(screen.getByText(/^Pelimerkit:/)).toBeInTheDocument();
+  });
+
+  it("shows the board to a reader who has not joined, and between seasons", () => {
+    const { rerender } = render(
+      <GuessingGamePage
+        board={boardOf([boardRow()])}
+        hasNickname={false}
+        shares={NO_SHARES}
+        view={{ kind: "not-joined", seasonId: 2027, grant: 1000 }}
+      />
+    );
+    expect(screen.getByRole("button", { name: "Liity peliin" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Tulostaulukko" })).toBeInTheDocument();
+
+    rerender(
+      <GuessingGamePage
+        board={boardOf([boardRow()])}
+        hasNickname
+        shares={NO_SHARES}
+        view={{ kind: "between", nextSeasonId: 2028, joined: true, awaiting: [] }}
+      />
+    );
+    expect(screen.getByRole("heading", { name: "Tulostaulukko" })).toBeInTheDocument();
+  });
+
+  it("shows no board before any season is stored", () => {
+    render(
+      <GuessingGamePage
+        board={null}
+        hasNickname
+        shares={NO_SHARES}
+        view={{ kind: "no-season", joined: true }}
+      />
+    );
+
+    expect(screen.queryByRole("heading", { name: "Tulostaulukko" })).not.toBeInTheDocument();
+  });
+});
+
+describe("the players' guesses and the rarity bonus", () => {
+  const KICKED_OFF = new Date("2027-05-01T15:00:00Z");
+  const SHARES = new Map([[8, { "1": 60, X: 25, "2": 15, total: 20 }]]);
+
+  it("shows the shares under a guess waiting for its result", () => {
+    render(
+      <GuessingGamePage
+        board={null}
+        hasNickname
+        shares={SHARES}
+        view={playing({
+          awaiting: [
+            {
+              providerMatchId: 8,
+              kickoffAt: KICKED_OFF,
+              homeTeamName: "HJK",
+              awayTeamName: "KuPS",
+              guess: { kind: "outcome", outcome: "1" },
+            },
+            {
+              providerMatchId: 9,
+              kickoffAt: KICKED_OFF,
+              homeTeamName: "Inter",
+              awayTeamName: "Ilves",
+              guess: { kind: "outcome", outcome: "X" },
+            },
+          ],
+        })}
+      />
+    );
+
+    expect(
+      screen.getByText("Pelaajien arvaukset: 1 60 % · X 25 % · 2 15 % (20 arvausta)")
+    ).toBeInTheDocument();
+    // A match with too few guesses has no shares, and no line.
+    expect(screen.getAllByText(/^Pelaajien arvaukset/)).toHaveLength(1);
+  });
+
+  it("shows the bonus and the shares under a settled guess", () => {
+    render(
+      <GuessingGamePage
+        board={null}
+        hasNickname
+        shares={SHARES}
+        view={playing({
+          settled: [
+            {
+              providerMatchId: 8,
+              kickoffAt: KICKED_OFF,
+              homeTeamName: "HJK",
+              awayTeamName: "KuPS",
+              guess: { kind: "outcome", outcome: "2" },
+              homeGoals: 0,
+              awayGoals: 1,
+              settlement: "outcome",
+              reward: 30,
+              bonus: 20,
+            },
+          ],
+        })}
+      />
+    );
+
+    const item = screen.getByText("HJK 0–1 KuPS").closest("li") as HTMLElement;
+    expect([...item.querySelectorAll("p")].map((line) => line.textContent)).toEqual([
+      "Arvauksesi: 2",
+      "Oikea merkki +30",
+      "Harvinainen osuma +20",
+      "Pelaajien arvaukset: 1 60 % · X 25 % · 2 15 % (20 arvausta)",
+    ]);
+  });
+
+  it("shows no bonus line on a guess without one", () => {
+    render(
+      <GuessingGamePage
+        board={null}
+        hasNickname
+        shares={NO_SHARES}
+        view={playing({
+          settled: [
+            {
+              providerMatchId: 8,
+              kickoffAt: KICKED_OFF,
+              homeTeamName: "HJK",
+              awayTeamName: "KuPS",
+              guess: { kind: "outcome", outcome: "1" },
+              homeGoals: 1,
+              awayGoals: 0,
+              settlement: "outcome",
+              reward: 30,
+              bonus: 0,
+            },
+          ],
+        })}
+      />
+    );
+
+    expect(screen.queryByText(/Harvinainen osuma/)).not.toBeInTheDocument();
   });
 });

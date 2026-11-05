@@ -8,9 +8,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  *
  * decisions/072-match-guesses.md
  * decisions/077-nickname.md
+ * decisions/073-leaderboard.md
  */
 
-const { currentUserId, openGame, getNickname, logger } = vi.hoisted(() => ({
+const { currentUserId, openGame, getNickname, readOthers, logger } = vi.hoisted(() => ({
+  readOthers: vi.fn(),
   currentUserId: vi.fn(async (): Promise<string | null> => "user-1"),
   openGame: vi.fn(),
   getNickname: vi.fn(async (): Promise<string | null> => null),
@@ -20,6 +22,7 @@ const { currentUserId, openGame, getNickname, logger } = vi.hoisted(() => ({
 vi.mock("@/lib/current-user", () => ({ currentUserId }));
 vi.mock("@/lib/guessing-game-store", () => ({ openGame }));
 vi.mock("@/lib/nickname-store", () => ({ getNickname }));
+vi.mock("@/lib/guessing-game-board", () => ({ readOthers }));
 vi.mock("@/lib/logger", () => ({ logger }));
 vi.mock("@/lib/guessing-game-actions", () => ({
   joinGameAction: vi.fn(),
@@ -42,6 +45,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   currentUserId.mockResolvedValue("user-1");
   getNickname.mockResolvedValue(null);
+  readOthers.mockResolvedValue({ board: null, shares: new Map() });
 });
 
 describe("/arvauspeli", () => {
@@ -123,6 +127,34 @@ describe("/arvauspeli", () => {
       { err: expect.any(Error), userId: "user-1" },
       "Reading the nickname on Arvauspeli failed"
     );
+  });
+
+  it("reads the other players beside the reader's view, at the same moment", async () => {
+    const view = { kind: "not-joined", seasonId: 2027, grant: 1000 };
+    openGame.mockResolvedValue(view);
+    readOthers.mockResolvedValue({
+      board: {
+        rows: [{ nickname: "Aino", balance: 1040, settled: 3, rank: 1, place: 1, self: false }],
+        own: null,
+        players: 1,
+      },
+      shares: new Map(),
+    });
+
+    await renderPage();
+
+    expect(readOthers).toHaveBeenCalledWith(view, "user-1", openGame.mock.calls[0]?.[1]);
+    expect(screen.getByRole("heading", { name: "Tulostaulukko" })).toBeInTheDocument();
+    expect(screen.getByText("Aino")).toBeInTheDocument();
+  });
+
+  it("reads no other players for a signed-out reader", async () => {
+    currentUserId.mockResolvedValue(null);
+
+    await renderPage();
+
+    expect(readOthers).not.toHaveBeenCalled();
+    expect(screen.queryByRole("heading", { name: "Tulostaulukko" })).not.toBeInTheDocument();
   });
 
   it("is never prerendered", async () => {

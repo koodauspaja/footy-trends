@@ -42,6 +42,7 @@ import {
  * decisions/071-section-toggles.md
  * decisions/072-match-guesses.md
  * decisions/077-nickname.md
+ * decisions/073-leaderboard.md
  */
 
 describe("matches table", () => {
@@ -552,6 +553,14 @@ describe("Arvauspeli's tables", () => {
     const [foreignKey] = getTableConfig(gameGuess).foreignKeys;
     expect(foreignKey?.onDelete).toBe("cascade");
     expect(foreignKey?.reference().foreignTable).toBe(gamePlayer);
+  });
+
+  it("allows one rarity bonus per guess", () => {
+    expect(indexNamed(gameLedger, "game_ledger_bonus_idx")).toEqual({
+      unique: true,
+      columns: ["guess_id"],
+      where: "partial",
+    });
   });
 
   it("allows one grant per player and season and one settlement per guess, and cascades from both", () => {
