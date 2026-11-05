@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  cheapestOpenPrice,
   decideGuess,
   type Guess,
   guessPrice,
@@ -23,6 +24,7 @@ import {
  *
  * decisions/072-match-guesses.md
  * decisions/076-guesses-on-irregular-matches.md
+ * decisions/766-floor-by-open-prices.md
  */
 
 const KICKOFF = new Date("2027-04-10T15:00:00Z");
@@ -168,19 +170,46 @@ describe("seasonGrant", () => {
   });
 });
 
-describe("mayUseFloor", () => {
-  it("opens the floor below the cheapest price, with no guess waiting to be settled", () => {
-    expect(mayUseFloor(9, false)).toBe(true);
-    expect(mayUseFloor(0, false)).toBe(true);
+describe("cheapestOpenPrice", () => {
+  // Read 30 hours before KICKOFF: a match at KICKOFF costs 20, one 200 hours later 10.
+  const now = hoursBefore(30);
+  const soon = { kickoffAt: KICKOFF, status: "SCHEDULED" };
+  const later = { kickoffAt: new Date(KICKOFF.getTime() + 200 * HOUR), status: "SCHEDULED" };
+
+  it("takes the cheapest price among the matches open now, whatever their order", () => {
+    expect(cheapestOpenPrice([soon, later], now)).toBe(10);
+    expect(cheapestOpenPrice([later, soon], now)).toBe(10);
   });
 
-  it("stays closed at the cheapest price or above, even where a match costs more", () => {
-    expect(mayUseFloor(10, false)).toBe(false);
-    expect(mayUseFloor(25, false)).toBe(false);
+  it("leaves out a match that has kicked off or is decided", () => {
+    expect(cheapestOpenPrice([soon, { ...later, status: "FINISHED" }], now)).toBe(20);
+    expect(cheapestOpenPrice([soon], KICKOFF)).toBeNull();
+  });
+
+  it("is null with no match at all", () => {
+    expect(cheapestOpenPrice([], now)).toBeNull();
+  });
+});
+
+describe("mayUseFloor", () => {
+  it("opens the floor below the cheapest open price, with no guess waiting to be settled", () => {
+    expect(mayUseFloor(9, 10, false)).toBe(true);
+    expect(mayUseFloor(19, 20, false)).toBe(true);
+    expect(mayUseFloor(0, 10, false)).toBe(true);
+  });
+
+  it("stays closed at the cheapest open price or above, even where a match costs more", () => {
+    expect(mayUseFloor(10, 10, false)).toBe(false);
+    expect(mayUseFloor(20, 20, false)).toBe(false);
+    expect(mayUseFloor(25, 10, false)).toBe(false);
   });
 
   it("stays closed while a guess is waiting to be settled", () => {
-    expect(mayUseFloor(0, true)).toBe(false);
+    expect(mayUseFloor(0, 10, true)).toBe(false);
+  });
+
+  it("stays closed with no match open to guesses", () => {
+    expect(mayUseFloor(0, null, false)).toBe(false);
   });
 });
 
@@ -203,6 +232,7 @@ describe("decideGuess", () => {
   const base = {
     guess: outcome("1"),
     price: 10,
+    cheapestPrice: 10,
     balance: 100,
     hasOpenGuess: false,
     postponed: false,
@@ -280,6 +310,12 @@ describe("decideGuess", () => {
 
   it("makes a 1X2 the floor's free guess when the balance is short and nothing is open", () => {
     expect(decideGuess({ ...base, balance: 5, existing: null })).toEqual({ kind: "free" });
+  });
+
+  it("makes a 1X2 free for a balance of 10 or more that pays no open match", () => {
+    const dear = { ...base, price: 20, cheapestPrice: 20, existing: null };
+    expect(decideGuess({ ...dear, balance: 16 })).toEqual({ kind: "free" });
+    expect(decideGuess({ ...dear, balance: 20 })).toEqual({ kind: "new", price: 20 });
   });
 
   it("refuses a balance that pays a cheaper match but not this one, rather than giving it free", () => {
