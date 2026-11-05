@@ -24,8 +24,7 @@ others made. Builds on specs/072 and specs/076 (#748).
 ### Out of scope
 
 - **Setting up and editing the nickname**, its rules and keeping offensive ones
-  out: 077 (#763). **077 is released with 073 or before it**, or every player
-  is "Nimetön pelaaja".
+  out: specs/077 (#763), merged before this, and released with it.
 - **Private groups:** 078 (#764).
 - **Avatars** on the leaderboard (S3).
 - **Another player's own guesses**, one by one, and a page per player (S6).
@@ -65,8 +64,11 @@ Drafts, fine-tuned in implementation (S8).
   arvausta)".
 - **The rarity bonus** on a settled row: "Harvinainen osuma +20", after the
   tier's own line.
-- **The privacy page:** "Muut kirjautuneet käyttäjät näkevät arvauspelin
-  tulostaulukossa pelinimesi ja pelimerkkisi." under the game's data.
+- **The privacy page:** 077 already says other signed-in users see the
+  nickname on the leaderboard; the game's line adds the balance: "Arvauspelin
+  arvauksesi ja pelimerkkisi. Muut kirjautuneet käyttäjät näkevät pelimerkkisi
+  arvauspelin tulostaulukossa."
+
 
 ## API & Data
 
@@ -78,7 +80,7 @@ Drafts, fine-tuned in implementation (S8).
 - **The shares** count every guess on the match settled as played or still
   waiting after kickoff, a score guess by its 1X2. A void or refunded guess
   (076) is not counted.
-- **The nickname** is read from 077's storage.
+- **The nickname** is read from `user_nickname` (specs/077).
 - **Reading:** the page reads stored rows only. No provider call.
 - **Caching:** none. The board changes once an hour at most and is one grouped
   query, so the page reads it per request, as the rest of `/arvauspeli`.
