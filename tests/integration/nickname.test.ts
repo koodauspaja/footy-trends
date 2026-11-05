@@ -1,4 +1,4 @@
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { user, userNickname } from "@/db/schema";
@@ -16,6 +16,19 @@ import { clearNickname, getNickname, saveNickname } from "@/lib/nickname-store";
 const FIRST = "itest-nickname-first";
 const SECOND = "itest-nickname-second";
 const USERS = [FIRST, SECOND];
+
+/** Polls until a query of this database is waiting on a lock, so a race is set up, not hoped for. */
+async function waitForABlockedQuery() {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const [row] = await db.execute<{ waiting: number }>(
+      sql`select count(*)::int as waiting from pg_stat_activity
+        where datname = current_database() and wait_event_type = 'Lock'`
+    );
+    if ((row?.waiting ?? 0) > 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error("No query started waiting on a lock");
+}
 
 function stored(nickname: string) {
   return { nickname, key: nicknameKey(nickname) };
@@ -77,6 +90,35 @@ describe("nickname storage", () => {
       .from(userNickname)
       .where(eq(userNickname.nicknameKey, "sama nimi"));
     expect(rows).toHaveLength(1);
+  });
+
+  it("makes a save wait for the same user's save in flight, then replace it", async () => {
+    await saveNickname(FIRST, stored("Ennen"));
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let written: () => void = () => {};
+    const midSave = new Promise<void>((resolve) => {
+      written = resolve;
+    });
+    // Another save of the same user's, stopped after its write, before its commit.
+    const first = db.transaction(async (tx) => {
+      await tx.select({ id: user.id }).from(user).where(eq(user.id, FIRST)).for("no key update");
+      await tx.delete(userNickname).where(eq(userNickname.userId, FIRST));
+      await tx.insert(userNickname).values({ userId: FIRST, nickname: "Eka", nicknameKey: "eka" });
+      written();
+      await held;
+    });
+    await midSave;
+
+    const second = saveNickname(FIRST, stored("Toka"));
+    await waitForABlockedQuery();
+    release();
+    await first;
+
+    expect(await second).toBe("changed");
+    expect(await getNickname(FIRST)).toBe("Toka");
   });
 
   it("frees a name once it is cleared", async () => {
