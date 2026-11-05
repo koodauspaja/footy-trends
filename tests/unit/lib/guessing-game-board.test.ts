@@ -180,6 +180,21 @@ describe("readOthers", () => {
     expect(none.board).toBeNull();
   });
 
+  it("between seasons reads the board of the season just finished, not the next", async () => {
+    state.failBoard = true;
+
+    await readOthers(
+      { kind: "between", nextSeasonId: 2028, joined: true, awaiting: [] },
+      "me",
+      NOW
+    );
+
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ seasonId: 2027 }),
+      "Reading the Arvauspeli leaderboard failed"
+    );
+  });
+
   it("reads the board for a reader who has not joined, and no shares", async () => {
     const others = await readOthers({ kind: "not-joined", seasonId: 2027, grant: 1000 }, "me", NOW);
 

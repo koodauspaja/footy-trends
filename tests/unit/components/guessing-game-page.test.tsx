@@ -545,7 +545,7 @@ function boardRow(overrides: Partial<Board["rows"][number]> = {}): Board["rows"]
 }
 
 describe("Tulostaulukko", () => {
-  it("ranks the players after Tulevat ottelut, open, counting them", () => {
+  it("ranks the players after Tulevat ottelut and before the player's waiting guesses, counting them", () => {
     render(
       <GuessingGamePage
         board={boardOf([
@@ -554,12 +554,22 @@ describe("Tulostaulukko", () => {
         ])}
         hasNickname
         shares={NO_SHARES}
-        view={playing()}
+        view={playing({
+          awaiting: [
+            {
+              providerMatchId: 8,
+              kickoffAt: new Date("2027-05-01T15:00:00Z"),
+              homeTeamName: "HJK",
+              awayTeamName: "KuPS",
+              guess: { kind: "outcome", outcome: "1" },
+            },
+          ],
+        })}
       />
     );
 
     const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
-    expect(headings.indexOf("Tulostaulukko")).toBe(headings.indexOf("Tulevat ottelut") + 1);
+    expect(headings.slice(0, 3)).toEqual(["Tulevat ottelut", "Tulostaulukko", "Odottavat tulosta"]);
     expect(screen.getByText("(2 pelaajaa)")).toBeInTheDocument();
     // The thousands separator is a no-break space, as `Intl` writes it.
     const rows = screen.getAllByRole("row").slice(1);
