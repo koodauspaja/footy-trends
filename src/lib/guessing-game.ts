@@ -366,3 +366,136 @@ export function settlementOf(
   const { tier, reward } = judge(guess, result.homeGoals, result.awayGoals);
   return { kind: "reward", settlement: tier, reward, result };
 }
+
+/**
+ * The bonus on top of a reward for a correct 1X2 few of the match's guesses
+ * shared, and the counts it is judged by.
+ *
+ * decisions/073-leaderboard.md
+ */
+export const RARITY_BONUS = 20;
+const RARITY_MIN_GUESSES = 5;
+
+/**
+ * How few guesses on a match show no shares: fewer could give a player's own
+ * guess away.
+ *
+ * decisions/073-leaderboard.md
+ */
+const SHARES_MIN_GUESSES = 3;
+
+const PLAYED: ReadonlySet<Settlement> = new Set<Settlement>([
+  "exact",
+  "difference",
+  "outcome",
+  "miss",
+]);
+
+/**
+ * Which of one match's guesses, as settled in one go, earn the rarity bonus:
+ * those whose 1X2 was right, when at most a quarter of the guesses settled as
+ * played had it right and there were 5 or more. Void, refunded and awarded
+ * guesses neither count nor earn it.
+ *
+ * decisions/073-leaderboard.md
+ */
+export function rarityBonuses<T>(settled: ReadonlyArray<{ key: T; settlement: Settlement }>): T[] {
+  const played = settled.filter((guess) => PLAYED.has(guess.settlement));
+  const right = played.filter((guess) => guess.settlement !== "miss");
+  if (played.length < RARITY_MIN_GUESSES || right.length * 4 > played.length) return [];
+  return right.map((guess) => guess.key);
+}
+
+/**
+ * The players' guesses on one match, as whole per cents of `1`, `X` and `2`.
+ *
+ * decisions/073-leaderboard.md
+ */
+export type Shares = Readonly<Record<Outcome, number>> & { total: number };
+
+/**
+ * The shares of a match's guesses, or `null` with fewer than 3.
+ *
+ * decisions/073-leaderboard.md
+ */
+export function sharesOf(counts: Readonly<Partial<Record<Outcome, number>>>): Shares | null {
+  const home = counts["1"] ?? 0;
+  const draw = counts.X ?? 0;
+  const away = counts["2"] ?? 0;
+  const total = home + draw + away;
+  if (total < SHARES_MIN_GUESSES) return null;
+  const percent = (count: number) => Math.round((100 * count) / total);
+  return { "1": percent(home), X: percent(draw), "2": percent(away), total };
+}
+
+/**
+ * One player on a season's leaderboard, before ranking.
+ *
+ * decisions/073-leaderboard.md
+ */
+export type BoardEntry = {
+  userId: string;
+  /** `null` for a player with no nickname. */
+  nickname: string | null;
+  balance: number;
+  settled: number;
+};
+
+/**
+ * A row of the leaderboard as the page shows it: the rank, its place in the
+ * order (1 upward, unique), and whether it is the reader's own, in place of the
+ * user id.
+ *
+ * decisions/073-leaderboard.md
+ */
+export type BoardRow = Omit<BoardEntry, "userId"> & { rank: number; place: number; self: boolean };
+
+/**
+ * A season's leaderboard: its first rows, the reader's own row when it falls
+ * below them, and how many players it ranks.
+ *
+ * decisions/073-leaderboard.md
+ */
+export type Board = { rows: BoardRow[]; own: BoardRow | null; players: number };
+
+export const BOARD_ROWS = 50;
+
+const finnish = new Intl.Collator("fi-FI");
+
+/**
+ * The leaderboard's order: balance, highest first; in a tie a nickname before
+ * none, by Finnish collation; then the user id, only to keep the order stable.
+ *
+ * decisions/073-leaderboard.md
+ */
+export function byStanding(left: BoardEntry, right: BoardEntry): number {
+  if (left.balance !== right.balance) return right.balance - left.balance;
+  if (left.nickname === null || right.nickname === null) {
+    if (left.nickname !== right.nickname) return left.nickname === null ? 1 : -1;
+  } else {
+    const named = finnish.compare(left.nickname, right.nickname);
+    if (named !== 0) return named;
+  }
+  return left.userId < right.userId ? -1 : 1;
+}
+
+/**
+ * Ranks a season's players by balance, highest first. An equal balance shares
+ * a rank, and the next balance's rank counts every player above it.
+ *
+ * decisions/073-leaderboard.md
+ */
+export function rankBoard(entries: readonly BoardEntry[], readerId: string | null): Board {
+  const sorted = entries.toSorted(byStanding);
+  let rank = 0;
+  const ranked = sorted.map(({ userId, ...entry }, position) => {
+    if (position === 0 || sorted[position - 1]?.balance !== entry.balance) rank = position + 1;
+    return { ...entry, rank, place: position + 1, self: userId === readerId };
+  });
+  const own = ranked.find((row) => row.self && row.place > BOARD_ROWS);
+  return {
+    rows: ranked.slice(0, BOARD_ROWS),
+    own: own ?? null,
+    players: ranked.length,
+  };
+}

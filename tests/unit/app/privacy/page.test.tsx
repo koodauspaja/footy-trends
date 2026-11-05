@@ -11,6 +11,8 @@ import Privacy, { metadata } from "@/app/privacy/page";
  * decisions/024-account-settings.md
  * decisions/071-section-toggles.md
  * decisions/072-match-guesses.md
+ * decisions/077-nickname.md
+ * decisions/073-leaderboard.md
  */
 
 describe("the privacy policy", () => {
@@ -38,6 +40,8 @@ describe("the privacy policy", () => {
     ["favorite_competition", "-sarjasi"],
     ["section_choice", "osiot, jotka olet avannut tai sulkenut"],
     ["game_guess, game_ledger", "Arvauspelin arvauksesi ja pelimerkkisi"],
+    ["user_nickname", "Nimimerkkisi"],
+    ["the leaderboard, to other users", "näkevät pelimerkkisi arvauspelin tulostaulukossa"],
   ])("describes what %s stores", (_column, phrase) => {
     render(<Privacy />);
 

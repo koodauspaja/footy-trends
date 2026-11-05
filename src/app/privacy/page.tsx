@@ -15,6 +15,7 @@ export const metadata: Metadata = { title: HEADING };
  * decisions/071-section-toggles.md
  * decisions/072-match-guesses.md
  * decisions/077-nickname.md
+ * decisions/073-leaderboard.md
  */
 const SECTION = "mb-8";
 const HEADING_2 = "mb-3 font-semibold text-xl";
@@ -54,7 +55,10 @@ export default function Privacy() {
             Sivujen osiot, jotka olet avannut tai sulkenut, jotta ne näkyvät seuraavalla kerralla
             samoin.
           </li>
-          <li>Arvauspelin arvauksesi ja pelimerkkisi.</li>
+          <li>
+            Arvauspelin arvauksesi ja pelimerkkisi. Muut kirjautuneet käyttäjät näkevät pelimerkkisi
+            arvauspelin tulostaulukossa.
+          </li>
           <li>
             Nimimerkkisi, jos olet valinnut sellaisen. Muut kirjautuneet käyttäjät näkevät sen
             arvauspelin tulostaulukossa.

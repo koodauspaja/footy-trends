@@ -339,7 +339,12 @@ describe("openGame", () => {
         // A settlement time with no tier, which no write makes: not listed.
         guessRow({ id: 16, providerMatchId: 7, settledAt: at(-5) }),
       ],
-      [{ guessId: 11, amount: 100 }],
+      [
+        { guessId: 11, amount: 100, kind: "reward" },
+        // The rarity bonus on the same guess, shown apart from its reward.
+        { guessId: 11, amount: 20, kind: "bonus" },
+        { guessId: 12, amount: 0, kind: "reward" },
+      ],
       [openRow({ providerMatchId: 5, kickoffAt: at(30) })]
     );
 
@@ -373,11 +378,13 @@ describe("openGame", () => {
         free: true,
       }),
     ]);
-    expect(view.settled.map((row) => [row.providerMatchId, row.settlement, row.reward])).toEqual([
-      [4, "abandoned", 0],
-      [2, "miss", 0],
-      [3, "miss", 0],
-      [1, "exact", 100],
+    expect(
+      view.settled.map((row) => [row.providerMatchId, row.settlement, row.reward, row.bonus])
+    ).toEqual([
+      [4, "abandoned", 0, 0],
+      [2, "miss", 0, 0],
+      [3, "miss", 0, 0],
+      [1, "exact", 100, 20],
     ]);
     expect(view.settled[0]).toMatchObject({ homeGoals: null, awayGoals: null });
     expect(view.settled[3]).toMatchObject({
@@ -958,6 +965,7 @@ describe("settleGuesses", () => {
       missed: 1,
       refunded: 0,
       voided: 0,
+      bonuses: 0,
       failed: [],
     });
     expect(state.transactions).toBe(2);
@@ -973,9 +981,34 @@ describe("settleGuesses", () => {
       expect.objectContaining({ tier: "outcome", resultHomeGoals: 1, resultAwayGoals: 0 })
     );
     expect(logger.info).toHaveBeenCalledWith(
-      { matches: 2, rewarded: 2, missed: 1, refunded: 0, voided: 0, failed: [] },
+      { matches: 2, rewarded: 2, missed: 1, refunded: 0, voided: 0, bonuses: 0, failed: [] },
       "Arvauspeli guesses settled"
     );
+  });
+
+  it("pays the rarity bonus on a correct 1X2 few of the match's guesses had, and counts it", async () => {
+    // Five guesses on one match, one right: a fifth had it right, at most a quarter.
+    settling([
+      settleable({ id: 1 }),
+      ...[2, 3, 4, 5].map((id) => settleable({ id, outcome: "2" })),
+    ]);
+
+    expect(await settleGuesses(NOW)).toMatchObject({ rewarded: 1, missed: 4, bonuses: 1 });
+    const bonuses = inserted().filter((row) => (row as { kind: string }).kind === "bonus");
+    expect(bonuses).toEqual([
+      { userId: "user-1", seasonId: 2027, kind: "bonus", amount: 20, guessId: 1 },
+    ]);
+    expect(state.transactions).toBe(1);
+  });
+
+  it("pays no bonus on guesses another run settled first", async () => {
+    settling(
+      [settleable({ id: 1 }), ...[2, 3, 4, 5].map((id) => settleable({ id, outcome: "2" }))],
+      []
+    );
+
+    expect(await settleGuesses(NOW)).toMatchObject({ matches: 1, rewarded: 0, bonuses: 0 });
+    expect(inserted()).toEqual([]);
   });
 
   it("refunds everything paid on a guess, an abandoned match's and a voided one's, with no result", async () => {
