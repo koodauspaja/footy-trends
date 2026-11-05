@@ -651,7 +651,7 @@ async function settleMatch(
   guesses: readonly SettleRow[],
   now: Date
 ): Promise<Array<number | null>> {
-  const players = [...new Set(guesses.map((row) => row.userId))].sort();
+  const players = [...new Set(guesses.map((row) => row.userId))];
   return db.transaction(async (tx) => {
     await tx
       .select({ userId: gamePlayer.userId })
