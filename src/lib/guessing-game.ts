@@ -4,6 +4,7 @@
  *
  * decisions/072-match-guesses.md
  * decisions/076-guesses-on-irregular-matches.md
+ * decisions/766-floor-by-open-prices.md
  */
 
 export type Outcome = "1" | "X" | "2";
@@ -42,13 +43,6 @@ const PRICE_STEPS = [
   { fromHours: 24, price: 20 },
 ] as const;
 const LAST_DAY_PRICE = 30;
-
-/**
- * The cheapest a guess can be. The floor opens only below it.
- *
- * decisions/072-match-guesses.md
- */
-export const LOWEST_PRICE = PRICE_STEPS[0].price;
 
 const OUTCOMES: ReadonlySet<string> = new Set<Outcome>(["1", "X", "2"]);
 
@@ -151,13 +145,33 @@ export function lateJoinShare(remaining: number, total: number): number {
 }
 
 /**
- * Whether the floor's free 1X2 guess is open to a player: their balance cannot
- * pay even the cheapest guess, and no guess of theirs waits to be settled.
+ * The cheapest price among a season's matches open to guesses now, or `null`
+ * when none is open. The floor opens only below it.
  *
  * decisions/072-match-guesses.md
+ * decisions/766-floor-by-open-prices.md
  */
-export function mayUseFloor(balance: number, hasOpenGuess: boolean): boolean {
-  return balance < LOWEST_PRICE && !hasOpenGuess;
+export function cheapestOpenPrice(
+  matches: ReadonlyArray<{ kickoffAt: Date; status: string }>,
+  now: Date
+): number | null {
+  const prices = matches.flatMap((match) => guessPrice(match, now) ?? []);
+  return prices.length === 0 ? null : Math.min(...prices);
+}
+
+/**
+ * Whether the floor's free 1X2 guess is open to a player: their balance cannot
+ * pay any match open now, and no guess of theirs waits to be settled.
+ *
+ * decisions/072-match-guesses.md
+ * decisions/766-floor-by-open-prices.md
+ */
+export function mayUseFloor(
+  balance: number,
+  cheapestPrice: number | null,
+  hasOpenGuess: boolean
+): boolean {
+  return cheapestPrice !== null && balance < cheapestPrice && !hasOpenGuess;
 }
 
 /**
@@ -237,17 +251,20 @@ export type GuessDecision =
  *
  * decisions/072-match-guesses.md
  * decisions/076-guesses-on-irregular-matches.md
+ * decisions/766-floor-by-open-prices.md
  */
 export function decideGuess(input: {
   existing: { id: number; guess: Guess; free: boolean } | null;
   guess: Guess;
   price: number;
+  /** The cheapest price among the season's matches open now: `cheapestOpenPrice`. */
+  cheapestPrice: number | null;
   balance: number;
   hasOpenGuess: boolean;
   /** The match's kickoff has moved later since the guess was last made or changed. */
   postponed: boolean;
 }): GuessDecision {
-  const { existing, guess, price, balance, hasOpenGuess, postponed } = input;
+  const { existing, guess, price, cheapestPrice, balance, hasOpenGuess, postponed } = input;
   if (existing !== null) {
     if (sameGuess(existing.guess, guess)) return { kind: "unchanged" };
     // The floor's guess stays a 1X2, postponed or not.
@@ -260,7 +277,9 @@ export function decideGuess(input: {
       : { kind: "refused", reason: "insufficient" };
   }
   if (balance >= price) return { kind: "new", price };
-  if (guess.kind === "outcome" && mayUseFloor(balance, hasOpenGuess)) return { kind: "free" };
+  if (guess.kind === "outcome" && mayUseFloor(balance, cheapestPrice, hasOpenGuess)) {
+    return { kind: "free" };
+  }
   return { kind: "refused", reason: "insufficient" };
 }
 

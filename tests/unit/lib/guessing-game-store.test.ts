@@ -8,6 +8,7 @@ import { warmModules } from "../../support/warm-module";
  *
  * decisions/072-match-guesses.md
  * decisions/076-guesses-on-irregular-matches.md
+ * decisions/766-floor-by-open-prices.md
  */
 
 const { state, logger } = vi.hoisted(() => {
@@ -474,6 +475,38 @@ describe("openGame", () => {
     expect(view.upcoming).toEqual([expect.objectContaining({ floor: true, free: false })]);
   });
 
+  it("opens the floor for a balance that pays no open match, and shuts it for one that pays any", async () => {
+    const view = async (cheaperKickoff: Date) => {
+      answer(
+        [{ seasonId: 2027 }],
+        [{ joinedAt: JOINED }],
+        [
+          match({ providerMatchId: 1, groupId: 2, kickoffAt: at(30) }),
+          match({ providerMatchId: 2, groupId: 2, kickoffAt: cheaperKickoff }),
+        ],
+        [],
+        [{ balance: 16 }],
+        [],
+        [],
+        []
+      );
+      return openGame("user-1", NOW);
+    };
+
+    expect(await view(at(50))).toMatchObject({
+      upcoming: [
+        { price: 20, floor: true },
+        { price: 20, floor: true },
+      ],
+    });
+    expect(await view(at(100))).toMatchObject({
+      upcoming: [
+        { price: 20, floor: false },
+        { price: 15, floor: false },
+      ],
+    });
+  });
+
   it("keeps the floor closed while a guess waits in any season, a future one included", async () => {
     answer(
       [{ seasonId: 2027 }],
@@ -725,6 +758,33 @@ describe("placeGuess", () => {
       expect.objectContaining({ kind: "outcome", outcome: "1", homeGoals: null, free: true }),
       { userId: "user-1", seasonId: 2027, kind: "guess", amount: 0, guessId: 22 },
     ]);
+  });
+
+  it("decides the floor by the cheapest match open in the season, not the one guessed", async () => {
+    // The written guess's id and its ledger row follow the reads, for a guess accepted.
+    const guessOn = (cheaperKickoff: Date, writes: unknown[] = []) => {
+      answer(
+        [{ joinedAt: JOINED }],
+        [{ ...vlMatch, kickoffAt: at(30) }],
+        [{ seasonId: 2027 }],
+        [
+          match({ groupId: 2, kickoffAt: at(30) }),
+          match({ groupId: 2, kickoffAt: cheaperKickoff }),
+        ],
+        [],
+        [{ balance: 16 }],
+        [],
+        [],
+        ...writes
+      );
+      return placeGuess("user-1", 1, OUTCOME, 0, clock);
+    };
+
+    expect(await guessOn(at(100))).toEqual({ ok: false, reason: "insufficient" });
+    expect(await guessOn(at(50), [[{ id: 23 }], undefined])).toEqual({
+      ok: true,
+      decision: { kind: "free" },
+    });
   });
 
   it("rewrites a changed guess and charges the change", async () => {

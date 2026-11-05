@@ -14,6 +14,7 @@ import { synchronizeMatches } from "@/lib/taso-standings-service";
  *
  * decisions/072-match-guesses.md
  * decisions/076-guesses-on-irregular-matches.md
+ * decisions/766-floor-by-open-prices.md
  */
 
 const SEASON = 2091;
@@ -313,6 +314,54 @@ describe("guessing", () => {
       [true, false],
       [false, false],
     ]);
+  });
+
+  it("gives a late joiner whose share pays no open match the floor's free 1X2", async () => {
+    // 123 matches kicked off before the join and 2 still open give a share of 16; both cost 20.
+    const past = Array.from({ length: 123 }, (_, index) => vlMatch({ kickoffAt: at(-1 - index) }));
+    await storeMatches(past);
+    const [first, second] = await storeMatches([
+      vlMatch({ kickoffAt: at(30) }),
+      vlMatch({ kickoffAt: at(60) }),
+    ]);
+    await joinGame(USER_ID, NOW);
+
+    const view = await openGame(USER_ID, NOW);
+    expect(view).toMatchObject({ kind: "playing", balance: 16 });
+    if (view.kind !== "playing") return;
+    expect(view.upcoming.map((match) => [match.price, match.floor])).toEqual([
+      [20, true],
+      [20, true],
+    ]);
+    expect(await play(USER_ID, first, { kind: "outcome", outcome: "X" }, () => NOW)).toEqual({
+      ok: true,
+      decision: { kind: "free" },
+    });
+    expect(await play(USER_ID, second, { kind: "outcome", outcome: "X" }, () => NOW)).toEqual({
+      ok: false,
+      reason: "insufficient",
+    });
+    expect(await balance()).toBe(16);
+  });
+
+  it("keeps the floor shut for a balance that pays an open match, on a dearer one too", async () => {
+    const [dear, cheaper] = await storeMatches([
+      vlMatch({ kickoffAt: at(30) }),
+      vlMatch({ kickoffAt: at(100) }),
+    ]);
+    await joinGame(USER_ID, NOW);
+    await db
+      .insert(gameLedger)
+      .values({ userId: USER_ID, seasonId: SEASON, kind: "change", amount: -984 });
+
+    expect(
+      await placeGuess(USER_ID, dear, { kind: "outcome", outcome: "1" }, 0, () => NOW)
+    ).toEqual({ ok: false, reason: "insufficient" });
+    expect(await play(USER_ID, cheaper, { kind: "outcome", outcome: "1" }, () => NOW)).toEqual({
+      ok: true,
+      decision: { kind: "new", price: 15 },
+    });
+    expect(await balance()).toBe(1);
   });
 
   it("decides two guesses sent at once one after the other, so they never spend the same tokens", async () => {

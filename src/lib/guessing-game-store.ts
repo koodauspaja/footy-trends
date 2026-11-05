@@ -5,6 +5,7 @@
  *
  * decisions/072-match-guesses.md
  * decisions/076-guesses-on-irregular-matches.md
+ * decisions/766-floor-by-open-prices.md
  */
 
 import { and, asc, eq, inArray, isNull, lte, max, ne, or, sql, sum } from "drizzle-orm";
@@ -16,6 +17,7 @@ import {
   competitionIdForSeason,
 } from "./domestic-competitions";
 import {
+  cheapestOpenPrice,
   decideGuess,
   type Guess,
   type GuessDecision,
@@ -380,6 +382,7 @@ function playingView(
 ): GameView {
   const byMatch = new Map(guesses.map((row) => [row.providerMatchId, row]));
   const paid = new Map(rewards.map((row) => [row.guessId, row.amount]));
+  const floor = mayUseFloor(balance, cheapestOpenPrice(season.matches, now), open.hasOpenGuess);
 
   const upcoming: UpcomingMatch[] = [];
   const settled: Array<SettledGuess & { settledAt: Date }> = [];
@@ -402,7 +405,7 @@ function playingView(
         guess,
         free: row?.free ?? false,
         postponed: row !== undefined && match.kickoffAt > row.kickoffAt,
-        floor: guess === null && mayUseFloor(balance, open.hasOpenGuess),
+        floor: guess === null && floor,
       });
       continue;
     }
@@ -493,6 +496,7 @@ function refused(
  *
  * decisions/072-match-guesses.md
  * decisions/076-guesses-on-irregular-matches.md
+ * decisions/766-floor-by-open-prices.md
  */
 export async function placeGuess(
   userId: string,
@@ -527,7 +531,8 @@ export async function placeGuess(
     if (price === null) return refused(userId, providerMatchId, guess, "started");
 
     const { seasonId } = match;
-    await ensureGrant(tx, userId, await seasonOfId(tx, seasonId), player.joinedAt);
+    const season = await seasonOfId(tx, seasonId);
+    await ensureGrant(tx, userId, season, player.joinedAt);
     const balance = await balanceOf(tx, userId, seasonId);
     const [existing] = await tx
       .select()
@@ -542,6 +547,7 @@ export async function placeGuess(
           : { id: existing.id, guess: storedGuess(existing), free: existing.free },
       guess,
       price,
+      cheapestPrice: cheapestOpenPrice(season.matches, now),
       balance,
       hasOpenGuess: openGuesses.length > 0,
       postponed: existing !== undefined && match.kickoffAt > existing.kickoffAt,
