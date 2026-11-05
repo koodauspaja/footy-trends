@@ -13,6 +13,7 @@ import type { HomeBaseline } from "@/lib/home-baseline";
  * decisions/057-surprise-index.md
  * decisions/060-elo-variants.md
  * decisions/072-match-guesses.md
+ * decisions/074-against-the-models.md
  */
 
 const mocks = vi.hoisted(() => ({
@@ -185,6 +186,7 @@ describe("runPredictionLog", () => {
       refunded: 0,
       voided: 0,
       bonuses: 0,
+      modelWins: 0,
       failed: [],
     });
   });
@@ -227,6 +229,15 @@ describe("runPredictionLog", () => {
     expect(mocks.getHomeBaseline).toHaveBeenCalledTimes(2);
     expect(mocks.onConflictDoUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ target: expect.any(Array) })
+    );
+    // A rerun before kickoff keeps Poisson's most likely score current with its probabilities.
+    expect(mocks.onConflictDoUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        set: expect.objectContaining({
+          predictedHomeGoals: expect.anything(),
+          predictedAwayGoals: expect.anything(),
+        }),
+      })
     );
   });
 
@@ -473,7 +484,8 @@ describe("runPredictionLog", () => {
     await runPredictionLog(() => NOW, immediate);
 
     const fit = fitPoisson([{ source: "football-data", ...earlier }], utcDay(NOW));
-    const expected = predictPoisson(fit, "PL", 57, 61)?.prediction;
+    const predicted = predictPoisson(fit, "PL", 57, 61);
+    const expected = predicted?.prediction;
     expect(expected?.home).toBeGreaterThan(expected?.away as number);
     expect(written("poisson-v1")).toEqual([
       {
@@ -487,6 +499,8 @@ describe("runPredictionLog", () => {
         awayProbability: expected?.away,
         predictedAt: NOW,
         kickoffAt: at(5),
+        predictedHomeGoals: predicted?.score.home,
+        predictedAwayGoals: predicted?.score.away,
       },
     ]);
   });
@@ -827,7 +841,16 @@ describe("runPredictionLog", () => {
     });
     mocks.settleGuesses.mockImplementationOnce(async () => {
       order.push("settle");
-      return { matches: 1, rewarded: 2, missed: 1, refunded: 0, voided: 0, bonuses: 0, failed: [] };
+      return {
+        matches: 1,
+        rewarded: 2,
+        missed: 1,
+        refunded: 0,
+        voided: 0,
+        bonuses: 0,
+        modelWins: 0,
+        failed: [],
+      };
     });
 
     const report = await runPredictionLog(() => NOW, immediate);
@@ -1072,6 +1095,7 @@ describe("settle", () => {
       refunded: 2,
       voided: 1,
       bonuses: 0,
+      modelWins: 0,
       failed: [],
     });
     const failures: string[] = [];
@@ -1089,6 +1113,7 @@ describe("settle", () => {
       refunded: 0,
       voided: 0,
       bonuses: 0,
+      modelWins: 0,
       failed: [41, 42],
     });
     const failures: string[] = [];

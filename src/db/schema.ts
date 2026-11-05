@@ -540,6 +540,7 @@ export const refreshRuns = pgTable("refresh_runs", {
  * the match tables. One `live` and one `backtest` row per match per model.
  *
  * decisions/052-predictions-log.md
+ * decisions/074-against-the-models.md
  */
 export const predictions = pgTable(
   "predictions",
@@ -561,6 +562,9 @@ export const predictions = pgTable(
     predictedAt: timestamp("predicted_at", { withTimezone: true }).notNull(),
     /** The kickoff the prediction was made against; it follows a rescheduled match. */
     kickoffAt: timestamp("kickoff_at", { withTimezone: true }).notNull(),
+    /** A `poisson-v1` live row's most likely score, its guess in `Arvauspeli`; null otherwise. */
+    predictedHomeGoals: integer("predicted_home_goals"),
+    predictedAwayGoals: integer("predicted_away_goals"),
   },
   (table) => [
     uniqueIndex("predictions_identity_idx").on(
@@ -662,6 +666,7 @@ export const gameGuess = pgTable(
  * decisions/072-match-guesses.md
  * decisions/076-guesses-on-irregular-matches.md
  * decisions/073-leaderboard.md
+ * decisions/074-against-the-models.md
  */
 export const gameLedger = pgTable(
   "game_ledger",
@@ -671,7 +676,7 @@ export const gameLedger = pgTable(
       .notNull()
       .references(() => gamePlayer.userId, { onDelete: "cascade" }),
     seasonId: integer("season_id").notNull(),
-    /** `"grant"`, `"guess"`, `"change"`, `"reward"`, `"refund"` or `"bonus"`. */
+    /** `"grant"`, `"guess"`, `"change"`, `"reward"`, `"refund"`, `"bonus"` or `"models"`. */
     kind: text("kind").notNull(),
     /** Negative for what a guess or a change cost, positive or zero otherwise. */
     amount: integer("amount").notNull(),
@@ -688,7 +693,8 @@ export const gameLedger = pgTable(
     uniqueIndex("game_ledger_settlement_idx")
       .on(table.guessId)
       .where(sql`${table.kind} in ('reward', 'refund')`),
-    // One rarity bonus per guess, for the same reason.
+    // One rarity bonus per guess, and one reward for beating the models, for the same reason.
     uniqueIndex("game_ledger_bonus_idx").on(table.guessId).where(sql`${table.kind} = 'bonus'`),
+    uniqueIndex("game_ledger_models_idx").on(table.guessId).where(sql`${table.kind} = 'models'`),
   ]
 );

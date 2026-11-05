@@ -198,6 +198,7 @@ function batches<T>(rows: readonly T[], size: number): T[][] {
  *
  * decisions/052-predictions-log.md
  * decisions/571-bounded-database-close.md
+ * decisions/074-against-the-models.md
  */
 async function writePredictions(rows: readonly PredictionRow[]): Promise<void> {
   const failures: unknown[] = [];
@@ -220,6 +221,8 @@ async function writePredictions(rows: readonly PredictionRow[]): Promise<void> {
             awayProbability: sql`excluded.away_probability`,
             predictedAt: sql`excluded.predicted_at`,
             kickoffAt: sql`excluded.kickoff_at`,
+            predictedHomeGoals: sql`excluded.predicted_home_goals`,
+            predictedAwayGoals: sql`excluded.predicted_away_goals`,
           },
         })
         .catch((reason: unknown) => {

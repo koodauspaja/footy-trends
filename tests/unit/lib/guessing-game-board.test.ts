@@ -8,6 +8,7 @@ import { warmModules } from "../../support/warm-module";
  * SQL runs against Postgres in `tests/integration/guessing-game.test.ts`.
  *
  * decisions/073-leaderboard.md
+ * decisions/074-against-the-models.md
  */
 
 const { state, logger } = vi.hoisted(() => ({
@@ -15,8 +16,10 @@ const { state, logger } = vi.hoisted(() => ({
     guessed: [] as unknown[],
     balances: [] as unknown[],
     shareRows: [] as unknown[],
+    modelRows: [] as unknown[],
     failBoard: false,
     failShares: false,
+    failModels: false,
     selects: 0,
     transactionOptions: [] as unknown[],
   },
@@ -27,6 +30,7 @@ vi.mock("@/db", () => {
   function rowsFor(shape: Record<string, unknown>): unknown[] {
     if ("settled" in shape) return state.guessed;
     if ("balance" in shape) return state.balances;
+    if ("model" in shape) return state.modelRows;
     return state.shareRows;
   }
   // Each statement is a chain whose every call returns itself; awaiting it
@@ -39,7 +43,9 @@ vi.mock("@/db", () => {
         get(_target, property) {
           if (property === "then") {
             return (resolve: (rows: unknown) => void, reject: (error: unknown) => void) => {
-              const failing = "guesses" in shape ? state.failShares : state.failBoard;
+              let failing = state.failBoard;
+              if ("guesses" in shape) failing = state.failShares;
+              if ("model" in shape) failing = state.failModels;
               if (failing) reject(new Error("database down"));
               else resolve(rowsFor(shape));
             };
@@ -65,7 +71,10 @@ vi.mock("@/db", () => {
 });
 vi.mock("@/lib/logger", () => ({ logger }));
 
-const { readBoard, readOthers, readShares } = await import("@/lib/guessing-game-board");
+const { db } = await import("@/db");
+const { readBoard, readModelGuesses, readOthers, readShares } = await import(
+  "@/lib/guessing-game-board"
+);
 
 warmModules(() => import("@/lib/guessing-game-board"));
 
@@ -76,8 +85,10 @@ beforeEach(() => {
   state.guessed = [];
   state.balances = [];
   state.shareRows = [];
+  state.modelRows = [];
   state.failBoard = false;
   state.failShares = false;
+  state.failModels = false;
   state.selects = 0;
   state.transactionOptions = [];
 });
@@ -138,6 +149,75 @@ describe("readShares", () => {
   });
 });
 
+function prediction(overrides: Record<string, unknown> = {}) {
+  return {
+    providerMatchId: 7,
+    model: "elo-v1",
+    home: 0.5,
+    draw: 0.3,
+    away: 0.2,
+    homeGoals: null,
+    awayGoals: null,
+    ...overrides,
+  };
+}
+
+describe("readModelGuesses", () => {
+  it("reads nothing for no matches", async () => {
+    expect(await readModelGuesses(db, [])).toEqual(new Map());
+    expect(state.selects).toBe(0);
+  });
+
+  it("gives each match its models' guesses in the shown order, Poisson with its score", async () => {
+    state.modelRows = [
+      prediction({
+        model: "poisson-v1",
+        home: 0.2,
+        draw: 0.3,
+        away: 0.5,
+        homeGoals: 0,
+        awayGoals: 1,
+      }),
+      prediction({ model: "elo-home-v1", home: 0.3, draw: 0.4, away: 0.3 }),
+      prediction(),
+      prediction({ providerMatchId: 8, model: "elo-form-v1" }),
+    ];
+
+    expect(await readModelGuesses(db, [7, 8])).toEqual(
+      new Map([
+        [
+          7,
+          [
+            { model: "elo-v1", outcome: "1", score: null },
+            { model: "elo-home-v1", outcome: "X", score: null },
+            { model: "poisson-v1", outcome: "2", score: { homeGoals: 0, awayGoals: 1 } },
+          ],
+        ],
+        [8, [{ model: "elo-form-v1", outcome: "1", score: null }]],
+      ])
+    );
+  });
+
+  it("leaves out a model that is not in the game", async () => {
+    state.modelRows = [prediction({ model: "home-baseline-v1" })];
+
+    expect(await readModelGuesses(db, [7])).toEqual(new Map());
+  });
+
+  it("leaves Poisson out when its score is not stored, on either side or both", async () => {
+    state.modelRows = [
+      prediction(),
+      prediction({ model: "poisson-v1", homeGoals: 1, awayGoals: null }),
+      prediction({ providerMatchId: 8, model: "poisson-v1", homeGoals: null, awayGoals: 1 }),
+      prediction({ providerMatchId: 9, model: "poisson-v1" }),
+    ];
+
+    expect(await readModelGuesses(db, [7, 8, 9])).toEqual(
+      new Map([[7, [{ model: "elo-v1", outcome: "1", score: null }]]])
+    );
+  });
+});
+
 const PLAYING_AWAITING = [
   {
     providerMatchId: 7,
@@ -167,6 +247,47 @@ describe("readOthers", () => {
 
     expect(others.board).toMatchObject({ players: 1 });
     expect(others.shares.get(7)).toEqual({ "1": 0, X: 100, "2": 0, total: 3 });
+  });
+
+  it("reads the models' guesses on the reader's kicked-off matches", async () => {
+    state.modelRows = [prediction()];
+
+    const others = await readOthers(PLAYING, "me", NOW);
+
+    expect(others.models.get(7)).toEqual([{ model: "elo-v1", outcome: "1", score: null }]);
+  });
+
+  it("reads no models' guesses on a match the reader guessed that has not kicked off", async () => {
+    state.modelRows = [prediction()];
+    const upcoming = {
+      providerMatchId: 7,
+      kickoffAt: NOW,
+      homeTeamName: "HJK",
+      awayTeamName: "KuPS",
+      guess: { kind: "outcome", outcome: "1" },
+      groupName: "Runkosarja",
+      price: 10,
+      nextRise: null,
+      free: false,
+      postponed: false,
+      floor: false,
+    } as const;
+
+    const others = await readOthers({ ...PLAYING, awaiting: [], upcoming: [upcoming] }, "me", NOW);
+
+    expect(others.models).toEqual(new Map());
+  });
+
+  it("leaves the models' guesses out, and logs it, when they fail", async () => {
+    state.failModels = true;
+
+    const others = await readOthers(PLAYING, "me", NOW);
+
+    expect(others.models).toEqual(new Map());
+    expect(logger.error).toHaveBeenCalledWith(
+      { err: expect.any(Error), userId: "me" },
+      "Reading the models' Arvauspeli guesses failed"
+    );
   });
 
   it("reads the season just finished between seasons, and no board before any season", async () => {

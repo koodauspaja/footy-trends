@@ -6,6 +6,7 @@
  * decisions/076-guesses-on-irregular-matches.md
  * decisions/077-nickname.md
  * decisions/073-leaderboard.md
+ * decisions/074-against-the-models.md
  */
 
 import Link from "next/link";
@@ -13,6 +14,7 @@ import type { ReactNode } from "react";
 import { GuessForm, JoinGameButton } from "@/components/guessing-game-controls";
 import { PANEL_HEADING, TABLE_HEADING } from "@/components/heading-classes";
 import { Notice } from "@/components/notice";
+import { modelLabel } from "@/components/prediction-quality-page";
 import { SectionFold } from "@/components/section-fold";
 import {
   type Board,
@@ -22,6 +24,7 @@ import {
   type Shares,
   STARTING_BALANCE,
 } from "@/lib/guessing-game";
+import type { ModelGuess } from "@/lib/guessing-game-models";
 import type {
   AwaitingGuess,
   GameView,
@@ -215,6 +218,22 @@ function SharesLine({ shares }: Readonly<{ shares: Shares | undefined }>) {
   );
 }
 
+function modelGuessText(guess: ModelGuess): string {
+  return guess.score === null ? guess.outcome : `${guess.score.homeGoals}–${guess.score.awayGoals}`;
+}
+
+/**
+ * The models' guesses on a match once it has kicked off, by the names the
+ * prediction pages give them, or nothing when no model guessed it.
+ *
+ * decisions/074-against-the-models.md
+ */
+function ModelsLine({ models }: Readonly<{ models: readonly ModelGuess[] | undefined }>) {
+  if (models === undefined || models.length === 0) return null;
+  const guesses = models.map((guess) => `${modelLabel(guess.model)} ${modelGuessText(guess)}`);
+  return <p className="text-muted text-sm">Mallit: {guesses.join(" · ")}</p>;
+}
+
 function playerCount(count: number): string {
   return count === 1 ? "1 pelaaja" : `${count} pelaajaa`;
 }
@@ -288,7 +307,12 @@ function Leaderboard({ board }: Readonly<{ board: Board | "error" }>) {
 function Awaiting({
   guesses,
   shares,
-}: Readonly<{ guesses: readonly AwaitingGuess[]; shares: ReadonlyMap<number, Shares> }>) {
+  models,
+}: Readonly<{
+  guesses: readonly AwaitingGuess[];
+  shares: ReadonlyMap<number, Shares>;
+  models: ReadonlyMap<number, ModelGuess[]>;
+}>) {
   if (guesses.length === 0) return null;
   return (
     <GameFold
@@ -305,6 +329,7 @@ function Awaiting({
             </span>
             <p className="text-sm">Arvauksesi: {formatGuess(guess.guess)}</p>
             <SharesLine shares={shares.get(guess.providerMatchId)} />
+            <ModelsLine models={models.get(guess.providerMatchId)} />
           </li>
         ))}
       </ul>
@@ -332,9 +357,11 @@ type Props = Readonly<{
   board: Board | "error" | null;
   /** The players' guesses on the reader's matches that have kicked off. */
   shares: ReadonlyMap<number, Shares>;
+  /** The models' guesses on the reader's matches that have kicked off. */
+  models: ReadonlyMap<number, ModelGuess[]>;
 }>;
 
-export function GuessingGamePage({ view, hasNickname, board, shares }: Props) {
+export function GuessingGamePage({ view, hasNickname, board, shares, models }: Props) {
   const leaderboard = board === null ? null : <Leaderboard board={board} />;
   if (view.kind === "no-season" || view.kind === "between") {
     return (
@@ -346,7 +373,9 @@ export function GuessingGamePage({ view, hasNickname, board, shares }: Props) {
         </p>
         {!view.joined && <JoinSection grant={STARTING_BALANCE} />}
         {view.joined && !hasNickname && <NicknameHint />}
-        {view.kind === "between" && <Awaiting guesses={view.awaiting} shares={shares} />}
+        {view.kind === "between" && (
+          <Awaiting guesses={view.awaiting} models={models} shares={shares} />
+        )}
         {leaderboard}
       </div>
     );
@@ -375,7 +404,7 @@ export function GuessingGamePage({ view, hasNickname, board, shares }: Props) {
       )}
       <Upcoming groups={view.groups} matches={view.upcoming} />
       {leaderboard}
-      <Awaiting guesses={view.awaiting} shares={shares} />
+      <Awaiting guesses={view.awaiting} models={models} shares={shares} />
       {view.settled.length > 0 && (
         <GameFold
           count={guessCount(view.settled.length)}
@@ -390,7 +419,11 @@ export function GuessingGamePage({ view, hasNickname, board, shares }: Props) {
                 <p className="text-sm">Arvauksesi: {formatGuess(guess.guess)}</p>
                 <p className="text-sm">{settledLine(guess)}</p>
                 {guess.bonus > 0 && <p className="text-sm">Harvinainen osuma +{guess.bonus}</p>}
+                {guess.modelsReward > 0 && (
+                  <p className="text-sm">Voitit mallit +{guess.modelsReward}</p>
+                )}
                 <SharesLine shares={shares.get(guess.providerMatchId)} />
+                <ModelsLine models={models.get(guess.providerMatchId)} />
               </li>
             ))}
           </ul>

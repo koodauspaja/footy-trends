@@ -6,6 +6,7 @@ import { SignInPrompt } from "@/components/sign-in-prompt";
 import { currentUserId } from "@/lib/current-user";
 import type { Board, Shares } from "@/lib/guessing-game";
 import { readOthers } from "@/lib/guessing-game-board";
+import type { ModelGuess } from "@/lib/guessing-game-models";
 import { type GameView, openGame } from "@/lib/guessing-game-store";
 import { logger } from "@/lib/logger";
 import { getNickname } from "@/lib/nickname-store";
@@ -48,7 +49,11 @@ async function nicknameOrUnknown(userId: string): Promise<string | null | undefi
 export default async function GuessingGame() {
   let view: GameView;
   let nickname: string | null | undefined;
-  let others: { board: Board | "error" | null; shares: Map<number, Shares> };
+  let others: {
+    board: Board | "error" | null;
+    shares: Map<number, Shares>;
+    models: Map<number, ModelGuess[]>;
+  };
   try {
     const userId = await currentUserId();
     if (userId === null) {
@@ -74,6 +79,7 @@ export default async function GuessingGame() {
       <GuessingGamePage
         board={others.board}
         hasNickname={nickname !== null}
+        models={others.models}
         shares={others.shares}
         view={view}
       />

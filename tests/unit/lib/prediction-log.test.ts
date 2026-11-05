@@ -246,7 +246,8 @@ describe("poissonLiveRow", () => {
   it("predicts from the fit, in the match's own competition and its sides in their places", () => {
     const row = poissonLiveRow(match, fit, NOW);
 
-    const expected = (predictPoisson(fit, "PL", 11, 22) as PoissonPrediction).prediction;
+    const predicted = predictPoisson(fit, "PL", 11, 22) as PoissonPrediction;
+    const expected = predicted.prediction;
     expect(row).toEqual({
       source: "football-data",
       providerMatchId: 1,
@@ -258,6 +259,9 @@ describe("poissonLiveRow", () => {
       awayProbability: expected.away,
       predictedAt: NOW,
       kickoffAt: at(10),
+      // Its most likely score, the match page's `Ennuste`: Arvauspeli's guess for the model.
+      predictedHomeGoals: predicted.score.home,
+      predictedAwayGoals: predicted.score.away,
     });
     // The strong attack at home against the weak defence: a clear favourite.
     expect(expected.home).toBeGreaterThan(0.6);

@@ -32,6 +32,8 @@ import {
   seasonGrant,
   settlementOf,
 } from "./guessing-game";
+import { readModelGuesses } from "./guessing-game-board";
+import { MODEL_REWARD, modelsBeaten } from "./guessing-game-models";
 import { logger } from "./logger";
 
 const COMPETITION = "VL";
@@ -87,6 +89,8 @@ export type SettledGuess = AwaitingGuess & {
   reward: number;
   /** The rarity bonus paid on top, or 0. */
   bonus: number;
+  /** What beating the models paid, or 0. */
+  modelsReward: number;
 };
 
 export type GameView =
@@ -359,7 +363,7 @@ export async function openGame(userId: string, now: Date): Promise<GameView> {
             and(
               eq(gameLedger.userId, userId),
               eq(gameLedger.seasonId, seasonId),
-              inArray(gameLedger.kind, ["reward", "refund", "bonus"])
+              inArray(gameLedger.kind, ["reward", "refund", "bonus", "models"])
             )
           ),
         openGuessesOf(tx, userId),
@@ -385,12 +389,13 @@ function playingView(
   open: { awaiting: AwaitingGuess[]; hasOpenGuess: boolean }
 ): GameView {
   const byMatch = new Map(guesses.map((row) => [row.providerMatchId, row]));
-  const paid = new Map(
-    rewards.filter((row) => row.kind !== "bonus").map((row) => [row.guessId, row.amount])
-  );
-  const bonuses = new Map(
-    rewards.filter((row) => row.kind === "bonus").map((row) => [row.guessId, row.amount])
-  );
+  // A reward or a refund is what is not paid on top of one.
+  const onTop = new Set(["bonus", "models"]);
+  const byKind = (keep: (kind: string) => boolean) =>
+    new Map(rewards.filter((row) => keep(row.kind)).map((row) => [row.guessId, row.amount]));
+  const paid = byKind((kind) => !onTop.has(kind));
+  const bonuses = byKind((kind) => kind === "bonus");
+  const modelRewardsPaid = byKind((kind) => kind === "models");
   const floor = mayUseFloor(balance, cheapestOpenPrice(season.matches, now), open.hasOpenGuess);
 
   const upcoming: UpcomingMatch[] = [];
@@ -427,6 +432,7 @@ function playingView(
         guess,
         reward: paid.get(id) ?? 0,
         bonus: bonuses.get(id) ?? 0,
+        modelsReward: modelRewardsPaid.get(id) ?? 0,
       });
     }
   }
@@ -680,6 +686,8 @@ export type SettleReport = {
   voided: number;
   /** Rarity bonuses paid on top of rewards. */
   bonuses: number;
+  /** Guesses paid for beating one or more models. */
+  modelWins: number;
   /** TASO match ids whose guesses could not be settled this run. */
   failed: number[];
 };
@@ -728,17 +736,52 @@ async function paidOn(client: Client, guessId: number): Promise<number> {
   return 0 - (row?.paid ?? 0);
 }
 
-type SettledHere = { outcome: Settling["outcome"]; amount: number; bonus: number };
+type SettledHere = {
+  outcome: Settling["outcome"];
+  amount: number;
+  bonus: number;
+  /** What beating the models paid, or 0. */
+  models: number;
+};
+
+/**
+ * What each guess a match's transaction settled as played earned against the
+ * models, read from the match's live predictions; nothing when none was played.
+ *
+ * decisions/074-against-the-models.md
+ */
+async function modelRewards(
+  tx: Client,
+  settled: ReadonlyArray<{ row: SettleRow; outcome: Settling["outcome"] }>
+): Promise<Map<SettleRow, number>> {
+  const played = settled.flatMap(({ row, outcome }) =>
+    outcome.kind === "reward" && outcome.settlement !== "awarded" && outcome.result !== null
+      ? [{ row, result: outcome.result }]
+      : []
+  );
+  const first = played[0];
+  if (first === undefined) return new Map();
+  const models =
+    (await readModelGuesses(tx, [first.row.providerMatchId])).get(first.row.providerMatchId) ?? [];
+  return new Map(
+    played.map(({ row, result }) => [
+      row,
+      MODEL_REWARD * modelsBeaten(storedGuess(row), result, models),
+    ])
+  );
+}
 
 /**
  * Settles one match's guesses in one transaction, `null` for a guess another
- * run settled first, and pays the rarity bonus on those this one settled.
+ * run settled first, and pays the rarity bonus and the models' reward on those
+ * this one settled.
  * Players are locked first, the order a guess and an account's deletion take
  * them in, so neither waits on the other.
  *
  * decisions/072-match-guesses.md
  * decisions/076-guesses-on-irregular-matches.md
  * decisions/073-leaderboard.md
+ * decisions/074-against-the-models.md
  */
 async function settleMatch(
   guesses: readonly Settling[],
@@ -777,13 +820,13 @@ async function settleMatch(
         return { outcome, amount };
       })
     );
+    const settledHere = guesses.filter((_guess, index) => paid[index] !== null);
     const earning = new Set(
       rarityBonuses(
-        guesses.flatMap(({ row, outcome }, index) =>
-          paid[index] === null ? [] : [{ key: row, settlement: outcome.settlement }]
-        )
+        settledHere.map(({ row, outcome }) => ({ key: row, settlement: outcome.settlement }))
       )
     );
+    const beaten = await modelRewards(tx, settledHere);
     await Promise.all(
       [...earning].map((row) =>
         tx.insert(gameLedger).values({
@@ -795,9 +838,26 @@ async function settleMatch(
         })
       )
     );
+    const rewarded = [...beaten].filter(([, amount]) => amount > 0);
+    await Promise.all(
+      rewarded.map(([row, amount]) =>
+        tx.insert(gameLedger).values({
+          userId: row.userId,
+          seasonId: row.seasonId,
+          kind: "models",
+          amount,
+          guessId: row.id,
+        })
+      )
+    );
     return guesses.map(({ row }, index) => {
       const settled = paid[index] ?? null;
-      return settled === null ? null : { ...settled, bonus: earning.has(row) ? RARITY_BONUS : 0 };
+      if (settled === null) return null;
+      return {
+        ...settled,
+        bonus: earning.has(row) ? RARITY_BONUS : 0,
+        models: beaten.get(row) ?? 0,
+      };
     });
   });
 }
@@ -938,6 +998,7 @@ function reportOf(
     refunded: 0,
     voided: 0,
     bonuses: 0,
+    modelWins: 0,
     failed: [],
   };
   for (const { providerMatchId, paid } of settled) {
@@ -953,8 +1014,9 @@ function reportOf(
   return report;
 }
 
-function count(report: SettleReport, { outcome, amount, bonus }: SettledHere) {
+function count(report: SettleReport, { outcome, amount, bonus, models }: SettledHere) {
   if (bonus > 0) report.bonuses += 1;
+  if (models > 0) report.modelWins += 1;
   if (outcome.settlement === "void") report.voided += 1;
   else if (outcome.kind === "refund") report.refunded += 1;
   else if (amount > 0) report.rewarded += 1;

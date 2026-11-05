@@ -1,15 +1,19 @@
 import { and, count, eq, inArray, isNotNull, isNull, lt, lte, ne, or, sql, sum } from "drizzle-orm";
 import { db } from "@/db";
-import { gameGuess, gameLedger, tasoMatches, userNickname } from "@/db/schema";
+import { gameGuess, gameLedger, predictions, tasoMatches, userNickname } from "@/db/schema";
 import { type Board, type Outcome, rankBoard, type Shares, sharesOf } from "./guessing-game";
+import { favouredOutcome, GAME_MODELS, type ModelGuess } from "./guessing-game-models";
 import type { GameView } from "./guessing-game-store";
 import { logger } from "./logger";
+import { POISSON_MODEL } from "./poisson";
 
 /**
- * `Arvauspeli`'s reads of other players: a season's leaderboard and the shares
- * of a match's guesses. What either decides is in `guessing-game.ts`.
+ * `Arvauspeli`'s reads of other players: a season's leaderboard, the shares of
+ * a match's guesses, and the models' guesses. What they decide is in
+ * `guessing-game.ts` and `guessing-game-models.ts`.
  *
  * decisions/073-leaderboard.md
+ * decisions/074-against-the-models.md
  */
 
 /**
@@ -115,6 +119,63 @@ export async function readShares(
   return shares;
 }
 
+/** Each game model's place in the order they are shown. */
+const MODEL_ORDER: ReadonlyMap<string, number> = new Map(
+  GAME_MODELS.map((model, place) => [model, place])
+);
+
+/**
+ * The models' guesses on each given TASO match, from their live predictions,
+ * which stop changing at kickoff. A model with no live row has no guess, and
+ * neither has Poisson without its stored score.
+ *
+ * decisions/074-against-the-models.md
+ */
+export async function readModelGuesses(
+  client: Pick<typeof db, "select">,
+  providerMatchIds: readonly number[]
+): Promise<Map<number, ModelGuess[]>> {
+  if (providerMatchIds.length === 0) return new Map();
+  const rows = await client
+    .select({
+      providerMatchId: predictions.providerMatchId,
+      model: predictions.model,
+      home: predictions.homeProbability,
+      draw: predictions.drawProbability,
+      away: predictions.awayProbability,
+      homeGoals: predictions.predictedHomeGoals,
+      awayGoals: predictions.predictedAwayGoals,
+    })
+    .from(predictions)
+    .where(
+      and(
+        eq(predictions.source, "taso"),
+        eq(predictions.kind, "live"),
+        inArray(predictions.providerMatchId, [...providerMatchIds]),
+        inArray(predictions.model, [...GAME_MODELS])
+      )
+    );
+  const guesses = new Map<number, Array<ModelGuess & { place: number }>>();
+  for (const row of rows) {
+    const place = MODEL_ORDER.get(row.model);
+    if (place === undefined) continue;
+    const { homeGoals, awayGoals } = row;
+    const score = homeGoals === null || awayGoals === null ? null : { homeGoals, awayGoals };
+    if (row.model === POISSON_MODEL && score === null) continue;
+    const match = guesses.get(row.providerMatchId) ?? [];
+    match.push({ model: row.model, outcome: favouredOutcome(row), score, place });
+    guesses.set(row.providerMatchId, match);
+  }
+  return new Map(
+    [...guesses].map(([providerMatchId, match]) => [
+      providerMatchId,
+      match
+        .toSorted((left, right) => left.place - right.place)
+        .map(({ place: _place, ...guess }) => guess),
+    ])
+  );
+}
+
 /**
  * The season whose leaderboard a view shows: the one in play, or between
  * seasons the one just finished; none before any season is stored.
@@ -133,19 +194,25 @@ function kickedOffMatches(view: GameView): number[] {
 }
 
 /**
- * What `/arvauspeli` shows of other players beside a reader's view. Each read
- * fails on its own, so neither takes the game with it: a failed board says so,
- * and failed shares are left out.
+ * What `/arvauspeli` shows of other players and the models beside a reader's
+ * view. Each read fails on its own, so none takes the game with it: a failed
+ * board says so, and failed shares or models are left out.
  *
  * decisions/073-leaderboard.md
+ * decisions/074-against-the-models.md
  */
 export async function readOthers(
   view: GameView,
   readerId: string,
   now: Date
-): Promise<{ board: Board | "error" | null; shares: Map<number, Shares> }> {
+): Promise<{
+  board: Board | "error" | null;
+  shares: Map<number, Shares>;
+  models: Map<number, ModelGuess[]>;
+}> {
   const seasonId = boardSeason(view);
-  const [board, shares] = await Promise.all([
+  const matches = kickedOffMatches(view);
+  const [board, shares, models] = await Promise.all([
     seasonId === null
       ? null
       : readBoard(seasonId, readerId).catch((error: unknown) => {
@@ -155,10 +222,17 @@ export async function readOthers(
           );
           return "error" as const;
         }),
-    readShares(kickedOffMatches(view), now).catch((error: unknown) => {
+    readShares(matches, now).catch((error: unknown) => {
       logger.error({ err: error, userId: readerId }, "Reading Arvauspeli guess shares failed");
       return new Map<number, Shares>();
     }),
+    readModelGuesses(db, matches).catch((error: unknown) => {
+      logger.error(
+        { err: error, userId: readerId },
+        "Reading the models' Arvauspeli guesses failed"
+      );
+      return new Map<number, ModelGuess[]>();
+    }),
   ]);
-  return { board, shares };
+  return { board, shares, models };
 }

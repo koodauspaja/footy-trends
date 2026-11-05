@@ -45,7 +45,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   currentUserId.mockResolvedValue("user-1");
   getNickname.mockResolvedValue(null);
-  readOthers.mockResolvedValue({ board: null, shares: new Map() });
+  readOthers.mockResolvedValue({ board: null, shares: new Map(), models: new Map() });
 });
 
 describe("/arvauspeli", () => {
@@ -139,6 +139,7 @@ describe("/arvauspeli", () => {
         players: 1,
       },
       shares: new Map(),
+      models: new Map(),
     });
 
     await renderPage();

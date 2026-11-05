@@ -9,6 +9,7 @@ import { warmModules } from "../../support/warm-module";
  * decisions/072-match-guesses.md
  * decisions/076-guesses-on-irregular-matches.md
  * decisions/766-floor-by-open-prices.md
+ * decisions/074-against-the-models.md
  */
 
 const { state, logger } = vi.hoisted(() => {
@@ -68,6 +69,10 @@ vi.mock("@/db", () => {
   };
 });
 vi.mock("@/lib/logger", () => ({ logger }));
+const { readModelGuesses } = vi.hoisted(() => ({
+  readModelGuesses: vi.fn(async (_client: unknown, _ids: readonly number[]) => new Map()),
+}));
+vi.mock("@/lib/guessing-game-board", () => ({ readModelGuesses }));
 
 const { joinGame, openGame, placeGuess, settleGuesses, single } = await import(
   "@/lib/guessing-game-store"
@@ -344,6 +349,8 @@ describe("openGame", () => {
         // The rarity bonus on the same guess, shown apart from its reward.
         { guessId: 11, amount: 20, kind: "bonus" },
         { guessId: 12, amount: 0, kind: "reward" },
+        // What beating the models paid, shown apart too.
+        { guessId: 11, amount: 10, kind: "models" },
       ],
       [openRow({ providerMatchId: 5, kickoffAt: at(30) })]
     );
@@ -379,12 +386,18 @@ describe("openGame", () => {
       }),
     ]);
     expect(
-      view.settled.map((row) => [row.providerMatchId, row.settlement, row.reward, row.bonus])
+      view.settled.map((row) => [
+        row.providerMatchId,
+        row.settlement,
+        row.reward,
+        row.bonus,
+        row.modelsReward,
+      ])
     ).toEqual([
-      [4, "abandoned", 0, 0],
-      [2, "miss", 0, 0],
-      [3, "miss", 0, 0],
-      [1, "exact", 100, 20],
+      [4, "abandoned", 0, 0, 0],
+      [2, "miss", 0, 0, 0],
+      [3, "miss", 0, 0, 0],
+      [1, "exact", 100, 20, 10],
     ]);
     expect(view.settled[0]).toMatchObject({ homeGoals: null, awayGoals: null });
     expect(view.settled[3]).toMatchObject({
@@ -966,6 +979,7 @@ describe("settleGuesses", () => {
       refunded: 0,
       voided: 0,
       bonuses: 0,
+      modelWins: 0,
       failed: [],
     });
     expect(state.transactions).toBe(2);
@@ -981,7 +995,16 @@ describe("settleGuesses", () => {
       expect.objectContaining({ tier: "outcome", resultHomeGoals: 1, resultAwayGoals: 0 })
     );
     expect(logger.info).toHaveBeenCalledWith(
-      { matches: 2, rewarded: 2, missed: 1, refunded: 0, voided: 0, bonuses: 0, failed: [] },
+      {
+        matches: 2,
+        rewarded: 2,
+        missed: 1,
+        refunded: 0,
+        voided: 0,
+        bonuses: 0,
+        modelWins: 0,
+        failed: [],
+      },
       "Arvauspeli guesses settled"
     );
   });
@@ -999,6 +1022,50 @@ describe("settleGuesses", () => {
       { userId: "user-1", seasonId: 2027, kind: "bonus", amount: 20, guessId: 1 },
     ]);
     expect(state.transactions).toBe(1);
+  });
+
+  it("pays 10 for each model a correct 1X2 guess beat, once per guess, and counts it", async () => {
+    settling([settleable({ id: 1 }), settleable({ id: 2, outcome: "2" })]);
+    readModelGuesses.mockResolvedValueOnce(
+      new Map([
+        [
+          1,
+          [
+            { model: "elo-v1", outcome: "X", score: null },
+            { model: "elo-form-v1", outcome: "2", score: null },
+            { model: "poisson-v1", outcome: "1", score: { homeGoals: 2, awayGoals: 0 } },
+          ],
+        ],
+      ])
+    );
+
+    expect(await settleGuesses(NOW)).toMatchObject({ rewarded: 1, missed: 1, modelWins: 1 });
+    expect(readModelGuesses).toHaveBeenCalledWith(expect.anything(), [1]);
+    expect(inserted().filter((row) => (row as { kind: string }).kind === "models")).toEqual([
+      { userId: "user-1", seasonId: 2027, kind: "models", amount: 20, guessId: 1 },
+    ]);
+  });
+
+  it("pays a score guess 10 for a higher tier than Poisson's score", async () => {
+    settling([settleable({ id: 1, kind: "score", outcome: null, homeGoals: 1, awayGoals: 0 })]);
+    readModelGuesses.mockResolvedValueOnce(
+      new Map([[1, [{ model: "poisson-v1", outcome: "1", score: { homeGoals: 2, awayGoals: 0 } }]]])
+    );
+
+    expect(await settleGuesses(NOW)).toMatchObject({ modelWins: 1 });
+    expect(inserted()).toContainEqual(
+      expect.objectContaining({ kind: "models", amount: 10, guessId: 1 })
+    );
+  });
+
+  it("reads no models, and pays nothing against them, for guesses not settled as played", async () => {
+    settling([
+      settleable({ id: 1, status: "Abandoned" }),
+      settleable({ id: 2, providerMatchId: 2, providerStatus: "Forfeited" }),
+    ]);
+
+    expect(await settleGuesses(NOW)).toMatchObject({ modelWins: 0 });
+    expect(readModelGuesses).not.toHaveBeenCalled();
   });
 
   it("pays no bonus on guesses another run settled first", async () => {

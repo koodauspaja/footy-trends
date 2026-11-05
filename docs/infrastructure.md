@@ -173,7 +173,8 @@ and then the `backtest` rows of finished matches that have none, of every
 model (specs/057); a row that exists is left as it is. Straight after its
 refresh, before any of that, it settles every open Arvauspeli guess whose match
 has finished, been abandoned or awarded, or moved earlier than the guess
-(specs/072, specs/076), and pays a played match's rarity bonuses (specs/073);
+(specs/072, specs/076), and pays a played match's rarity bonuses (specs/073)
+and the rewards for beating the prediction models (specs/074);
 a match that fails to settle is named in the run's
 failures. A match whose guesses still wait for a reason worth a look (gone
 from the store, a status not seen before, no result 48 hours after kickoff)
