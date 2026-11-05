@@ -1,6 +1,7 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { GuessingGamePage } from "@/components/guessing-game-page";
+import { placeGuessAction } from "@/lib/guessing-game-actions";
 import type { GameView, UpcomingMatch } from "@/lib/guessing-game-store";
 
 /**
@@ -369,7 +370,8 @@ describe("GuessingGamePage", () => {
     expect(screen.getAllByText("HJK – KuPS")).toHaveLength(3);
   });
 
-  it("offers a postponed match's one free change, the floor's free guess included", () => {
+  it("offers a postponed match's one free change, the floor's free guess included, and sends it as free", async () => {
+    vi.mocked(placeGuessAction).mockResolvedValue({ ok: true });
     render(
       <GuessingGamePage
         view={playing({
@@ -385,6 +387,11 @@ describe("GuessingGamePage", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Muutos on maksuton")).toBeInTheDocument();
     expect(screen.queryByText("Maksutonta arvausta ei voi muuttaa.")).toBeNull();
-    expect(screen.getByRole("button", { name: "Muuta arvausta" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: "1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Muuta arvausta" }));
+
+    await waitFor(() =>
+      expect(placeGuessAction).toHaveBeenCalledWith(1, { kind: "outcome", outcome: "1" }, 0)
+    );
   });
 });
