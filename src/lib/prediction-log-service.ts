@@ -390,12 +390,13 @@ export async function runPredictionLog(
  * for each match that could not be and for a step that failed outright.
  *
  * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 export async function settle(now: Date, failures: string[]): Promise<number> {
   try {
     const report = await settleGuesses(now);
     failures.push(...report.failed.map((providerMatchId) => `settle match ${providerMatchId}`));
-    return report.rewarded + report.missed;
+    return report.rewarded + report.missed + report.refunded + report.voided;
   } catch (error) {
     logger.error({ err: error }, "Unable to settle Arvauspeli guesses");
     failures.push("settle");

@@ -6,6 +6,7 @@
  * the server.
  *
  * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 
 import { useRouter } from "next/navigation";
@@ -100,7 +101,7 @@ export function GuessForm({
   homeTeamName: string;
   awayTeamName: string;
   guess: Guess | null;
-  /** Only the floor's free 1X2 is open, so a score cannot be guessed. */
+  /** Only a free 1X2 is open, the floor's or its postponed change, so a score cannot be guessed. */
   floor: boolean;
 }>) {
   const router = useRouter();

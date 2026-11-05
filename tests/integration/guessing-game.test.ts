@@ -1,8 +1,11 @@
 import { eq, gte, inArray } from "drizzle-orm";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db";
 import { gameGuess, gameLedger, gamePlayer, tasoMatches, user } from "@/db/schema";
 import { joinGame, openGame, placeGuess, settleGuesses } from "@/lib/guessing-game-store";
+import { logger } from "@/lib/logger";
+import type { NormalizedTasoMatch } from "@/lib/taso";
+import { synchronizeMatches } from "@/lib/taso-standings-service";
 
 /**
  * Arvauspeli against a real Postgres: joining and the grant, guesses and the
@@ -10,6 +13,7 @@ import { joinGame, openGame, placeGuess, settleGuesses } from "@/lib/guessing-ga
  * a season far enough ahead to keep every other test's TASO rows out.
  *
  * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 
 const SEASON = 2091;
@@ -51,6 +55,23 @@ async function storeMatches<const T extends ReadonlyArray<ReturnType<typeof vlMa
   return rows.map((row) => row.providerMatchId) as { -readonly [K in keyof T]: number };
 }
 
+// A TASO refresh rewriting a stored match, as the hourly run writes it.
+async function refresh(row: ReturnType<typeof vlMatch>, changes: Partial<NormalizedTasoMatch>) {
+  await synchronizeMatches([
+    {
+      ...row,
+      homeGoals: row.homeGoals ?? null,
+      awayGoals: row.awayGoals ?? null,
+      matchday: row.matchday ?? null,
+      winner: row.winner ?? null,
+      halfTimeHome: row.halfTimeHome ?? null,
+      halfTimeAway: row.halfTimeAway ?? null,
+      providerStatus: row.providerStatus ?? null,
+      ...changes,
+    },
+  ]);
+}
+
 async function insertUser(id: string) {
   await db
     .insert(user)
@@ -69,7 +90,7 @@ async function balance(userId = USER_ID) {
   return (await ledger(userId)).reduce((total, row) => total + row.amount, 0);
 }
 
-// A guess as the page sends it: with the price its row shows, `0` where only the floor's free guess is open.
+// A guess as the page sends it: with the price its row shows, `0` for the floor's free guess and a postponement's free change.
 async function play(
   userId: string,
   providerMatchId: number,
@@ -81,7 +102,7 @@ async function play(
     view.kind === "playing"
       ? view.upcoming.find((match) => match.providerMatchId === providerMatchId)
       : undefined;
-  const shown = row === undefined || row.floor ? 0 : row.price;
+  const shown = row === undefined || row.floor || row.postponed ? 0 : row.price;
   return placeGuess(userId, providerMatchId, guess, shown, clock);
 }
 
@@ -91,6 +112,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   await db.delete(user).where(inArray(user.id, [USER_ID, OTHER_ID]));
   await db.delete(tasoMatches).where(gte(tasoMatches.providerMatchId, FIRST_MATCH_ID));
 });
@@ -355,6 +377,7 @@ describe("guessing", () => {
       kind: "outcome",
       outcome: "1",
       madeAt: at(-9100),
+      kickoffAt: at(-9000),
     });
     await openGame(USER_ID, NOW);
     await db
@@ -396,8 +419,22 @@ describe("settling", () => {
       .set({ status: "FINISHED", homeGoals: 2, awayGoals: 1 })
       .where(eq(tasoMatches.providerMatchId, match));
 
-    expect(await settleGuesses(at(60))).toEqual({ matches: 1, rewarded: 1, missed: 1, failed: [] });
-    expect(await settleGuesses(at(61))).toEqual({ matches: 0, rewarded: 0, missed: 0, failed: [] });
+    expect(await settleGuesses(at(60))).toEqual({
+      matches: 1,
+      rewarded: 1,
+      missed: 1,
+      refunded: 0,
+      voided: 0,
+      failed: [],
+    });
+    expect(await settleGuesses(at(61))).toEqual({
+      matches: 0,
+      rewarded: 0,
+      missed: 0,
+      refunded: 0,
+      voided: 0,
+      failed: [],
+    });
 
     expect(await balance(USER_ID)).toBe(1000 - 20 + 100);
     expect(await balance(OTHER_ID)).toBe(1000 - 20);
@@ -436,7 +473,7 @@ describe("settling", () => {
         providerMatchId: match,
         homeGoals: 1,
         awayGoals: 0,
-        tier: "outcome",
+        settlement: "outcome",
         reward: 30,
       }),
     ]);
@@ -489,7 +526,7 @@ describe("settling", () => {
     await play(USER_ID, match, { kind: "outcome", outcome: "X" }, () => NOW);
     await db
       .update(tasoMatches)
-      .set({ status: "Abandoned" })
+      .set({ status: "SCHEDULED" })
       .where(eq(tasoMatches.providerMatchId, match));
 
     expect(await settleGuesses(at(60))).toMatchObject({ matches: 0 });
@@ -498,6 +535,228 @@ describe("settling", () => {
       kind: "playing",
       awaiting: [expect.objectContaining({ providerMatchId: match })],
     });
+  });
+});
+
+describe("matches that do not go as listed", () => {
+  it("closes a match awarded before its kickoff to guesses, and lists it no longer", async () => {
+    const row = vlMatch({ kickoffAt: at(100) });
+    const [match] = await storeMatches([row]);
+    await joinGame(USER_ID, NOW);
+    await play(USER_ID, match, { kind: "outcome", outcome: "1" }, () => NOW);
+    await refresh(row, {
+      status: "FINISHED",
+      providerStatus: "Forfeited",
+      homeGoals: 3,
+      awayGoals: 0,
+    });
+
+    expect(await openGame(USER_ID, at(1))).toMatchObject({ upcoming: [] });
+    expect(
+      await placeGuess(USER_ID, match, { kind: "score", homeGoals: 3, awayGoals: 0 }, 15, () =>
+        at(1)
+      )
+    ).toEqual({
+      ok: false,
+      reason: "started",
+    });
+  });
+
+  it("refunds everything paid on a guess, its change included, when the match is abandoned", async () => {
+    const [match] = await storeMatches([vlMatch({ kickoffAt: at(100) })]);
+    await joinGame(USER_ID, NOW);
+    await play(USER_ID, match, { kind: "outcome", outcome: "1" }, () => NOW);
+    await play(USER_ID, match, { kind: "outcome", outcome: "2" }, () => at(50));
+    await db
+      .update(tasoMatches)
+      .set({ status: "Abandoned", providerStatus: "Abandoned", homeGoals: 1, awayGoals: 0 })
+      .where(eq(tasoMatches.providerMatchId, match));
+
+    expect(await settleGuesses(at(110))).toMatchObject({ matches: 1, refunded: 1 });
+
+    expect(await balance()).toBe(1000);
+    expect(await openGame(USER_ID, at(110))).toMatchObject({
+      settled: [{ providerMatchId: match, settlement: "abandoned", reward: 35, homeGoals: null }],
+    });
+  });
+
+  it("pays every score guess on an awarded match as exact, and a 1X2 by the awarded score", async () => {
+    const [match] = await storeMatches([vlMatch({ kickoffAt: at(50) })]);
+    await joinGame(USER_ID, NOW);
+    await joinGame(OTHER_ID, NOW);
+    await play(USER_ID, match, { kind: "score", homeGoals: 1, awayGoals: 1 }, () => NOW);
+    await play(OTHER_ID, match, { kind: "outcome", outcome: "2" }, () => NOW);
+    await db
+      .update(tasoMatches)
+      .set({ status: "FINISHED", providerStatus: "Forfeited", homeGoals: 0, awayGoals: 3 })
+      .where(eq(tasoMatches.providerMatchId, match));
+
+    await settleGuesses(at(60));
+
+    expect(await balance(USER_ID)).toBe(1000 - 20 + 100);
+    expect(await balance(OTHER_ID)).toBe(1000 - 20 + 30);
+  });
+
+  it("settles an awarded match with no score by TASO's winner, and refunds it when there is none", async () => {
+    const [byWinner, undecided] = await storeMatches([
+      vlMatch({ kickoffAt: at(50) }),
+      vlMatch({ kickoffAt: at(50) }),
+    ]);
+    await joinGame(USER_ID, NOW);
+    await play(USER_ID, byWinner, { kind: "outcome", outcome: "2" }, () => NOW);
+    await play(USER_ID, undecided, { kind: "score", homeGoals: 2, awayGoals: 0 }, () => NOW);
+    await db
+      .update(tasoMatches)
+      .set({ status: "FINISHED", providerStatus: "Forfeited", winner: "away" })
+      .where(eq(tasoMatches.providerMatchId, byWinner));
+    await db
+      .update(tasoMatches)
+      .set({ status: "FINISHED", providerStatus: "Forfeited" })
+      .where(eq(tasoMatches.providerMatchId, undecided));
+
+    expect(await settleGuesses(at(60))).toMatchObject({ matches: 2, rewarded: 1, refunded: 1 });
+
+    expect(await balance()).toBe(1000 - 20 - 20 + 30 + 20);
+    const view = await openGame(USER_ID, at(60));
+    expect(view).toMatchObject({ kind: "playing" });
+    if (view.kind !== "playing") return;
+    expect(
+      view.settled.map((guess) => [guess.providerMatchId, guess.settlement, guess.reward])
+    ).toEqual(
+      expect.arrayContaining([
+        [byWinner, "awarded", 30],
+        [undecided, "undecided", 20],
+      ])
+    );
+  });
+
+  it("voids and refunds a guess made after a kickoff that moved earlier, and keeps one made before it", async () => {
+    const row = vlMatch({ kickoffAt: at(100) });
+    const [match] = await storeMatches([row]);
+    await joinGame(USER_ID, NOW);
+    await joinGame(OTHER_ID, NOW);
+    await play(USER_ID, match, { kind: "outcome", outcome: "1" }, () => NOW);
+    await play(OTHER_ID, match, { kind: "outcome", outcome: "1" }, () => at(60));
+    await refresh(row, {
+      kickoffAt: at(30),
+      status: "FINISHED",
+      providerStatus: "Played",
+      homeGoals: 1,
+      awayGoals: 0,
+    });
+
+    expect(await settleGuesses(at(70))).toMatchObject({ matches: 1, rewarded: 1, voided: 1 });
+
+    expect(await balance(USER_ID)).toBe(1000 - 15 + 30);
+    expect(await balance(OTHER_ID)).toBe(1000);
+  });
+
+  it("gives a postponed guess one free change, and charges the next one", async () => {
+    const row = vlMatch({ kickoffAt: at(100) });
+    const [match] = await storeMatches([row]);
+    await joinGame(USER_ID, NOW);
+    await joinGame(OTHER_ID, NOW);
+    await play(USER_ID, match, { kind: "outcome", outcome: "1" }, () => NOW);
+    await refresh(row, { kickoffAt: at(400) });
+
+    // A new guess is priced by the new kickoff: 10 at 399 h, where the old one priced 15.
+    expect(await play(OTHER_ID, match, { kind: "outcome", outcome: "1" }, () => at(1))).toEqual({
+      ok: true,
+      decision: { kind: "new", price: 10 },
+    });
+
+    expect(await openGame(USER_ID, at(1))).toMatchObject({ upcoming: [{ postponed: true }] });
+    expect(await play(USER_ID, match, { kind: "outcome", outcome: "X" }, () => at(1))).toEqual({
+      ok: true,
+      decision: expect.objectContaining({ kind: "change", price: 0 }),
+    });
+    expect(await openGame(USER_ID, at(2))).toMatchObject({ upcoming: [{ postponed: false }] });
+    expect(await play(USER_ID, match, { kind: "outcome", outcome: "2" }, () => at(2))).toEqual({
+      ok: true,
+      decision: expect.objectContaining({ kind: "change", price: 10 }),
+    });
+    expect(await balance()).toBe(1000 - 15 - 0 - 10);
+  });
+
+  it("gives a second postponement one more free change", async () => {
+    const row = vlMatch({ kickoffAt: at(100) });
+    const [match] = await storeMatches([row]);
+    await joinGame(USER_ID, NOW);
+    await play(USER_ID, match, { kind: "outcome", outcome: "1" }, () => NOW);
+    await refresh(row, { kickoffAt: at(400) });
+    await play(USER_ID, match, { kind: "outcome", outcome: "X" }, () => at(1));
+    await refresh(row, { kickoffAt: at(800) });
+
+    expect(await play(USER_ID, match, { kind: "outcome", outcome: "2" }, () => at(2))).toEqual({
+      ok: true,
+      decision: expect.objectContaining({ kind: "change", price: 0 }),
+    });
+    expect(await balance()).toBe(1000 - 15);
+  });
+
+  it("keeps a guess whose match is no longer stored open and unlisted, and the floor closed by it", async () => {
+    const [gone, next] = await storeMatches([
+      vlMatch({ kickoffAt: at(50) }),
+      vlMatch({ kickoffAt: at(100) }),
+    ]);
+    await joinGame(USER_ID, NOW);
+    await db
+      .insert(gameLedger)
+      .values({ userId: USER_ID, seasonId: SEASON, kind: "change", amount: -995 });
+    await play(USER_ID, gone, { kind: "outcome", outcome: "1" }, () => NOW);
+    await db.delete(tasoMatches).where(eq(tasoMatches.providerMatchId, gone));
+
+    expect(await settleGuesses(at(60))).toMatchObject({ matches: 0 });
+    const view = await openGame(USER_ID, at(60));
+    expect(view).toMatchObject({ kind: "playing", awaiting: [] });
+    if (view.kind !== "playing") return;
+    expect(view.upcoming).toMatchObject([{ providerMatchId: next, floor: false }]);
+    const [guess] = await db
+      .select({ settledAt: gameGuess.settledAt })
+      .from(gameGuess)
+      .where(eq(gameGuess.providerMatchId, gone));
+    expect(guess).toEqual({ settledAt: null });
+  });
+
+  it("warns once per match and run about guesses still waiting, and why", async () => {
+    const [unknown, late, gone] = await storeMatches([
+      vlMatch({ kickoffAt: at(10) }),
+      vlMatch({ kickoffAt: at(10) }),
+      vlMatch({ kickoffAt: at(10) }),
+    ]);
+    await joinGame(USER_ID, NOW);
+    await joinGame(OTHER_ID, NOW);
+    for (const userId of [USER_ID, OTHER_ID]) {
+      for (const match of [unknown, late, gone]) {
+        await play(userId, match, { kind: "outcome", outcome: "1" }, () => NOW);
+      }
+    }
+    await db
+      .update(tasoMatches)
+      .set({ status: "Break", providerStatus: "Break" })
+      .where(eq(tasoMatches.providerMatchId, unknown));
+    await db.delete(tasoMatches).where(eq(tasoMatches.providerMatchId, gone));
+    const warn = vi.spyOn(logger, "warn");
+
+    for (const run of [1, 2]) {
+      warn.mockClear();
+      await settleGuesses(at(10 + 48));
+
+      const waiting = warn.mock.calls
+        .filter(([, message]) => message === "Arvauspeli guesses still waiting")
+        .map(([fields]) => [
+          (fields as { providerMatchId: number }).providerMatchId,
+          (fields as { reason: string }).reason,
+        ]);
+      expect(waiting, `run ${run}`).toEqual(
+        expect.arrayContaining([
+          [unknown, "unknown status"],
+          [late, "no result"],
+          [gone, "not stored"],
+        ])
+      );
+      expect(waiting, `run ${run}`).toHaveLength(3);
+    }
   });
 });
 

@@ -119,6 +119,7 @@ export const matches = pgTable(
  * decisions/019-match-page.md
  * decisions/020-context-free-team-page.md
  * decisions/027-team-search.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 export const tasoMatches = pgTable(
   "taso_matches",
@@ -139,6 +140,9 @@ export const tasoMatches = pgTable(
     // re-indexed per group. Null when TASO reports no round for the match.
     matchday: integer("matchday"),
     status: text("status").notNull(),
+    // TASO's own status, `Forfeited` kept apart from `Played`; null when not
+    // stored, and `status` is then all that is known.
+    providerStatus: text("provider_status"),
     // TASO's verdict on who went through, null until played: a cup tie level after
     // normal time goes to penalties it does not itemise.
     winner: text("winner").$type<TasoWinner>(),
@@ -594,6 +598,7 @@ export const gamePlayer = pgTable("game_player", {
  * change rewrites the row; what each version cost is in the ledger.
  *
  * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 export const gameGuess = pgTable(
   "game_guess",
@@ -612,11 +617,16 @@ export const gameGuess = pgTable(
     /** Both set for a score guess, both null for an outcome guess. */
     homeGoals: integer("home_goals"),
     awayGoals: integer("away_goals"),
-    /** The floor's free guess, which cannot be changed. */
+    /** The floor's free 1X2: changed only after a postponement, and as a 1X2. */
     free: boolean("free").notNull().default(false),
     madeAt: timestamp("made_at", { withTimezone: true }).notNull(),
+    /** The stored kickoff when the guess was last made or changed: a later one is a postponement. */
+    kickoffAt: timestamp("kickoff_at", { withTimezone: true }).notNull(),
     settledAt: timestamp("settled_at", { withTimezone: true }),
-    /** `"exact"`, `"difference"`, `"outcome"` or `"miss"`, once settled. */
+    /**
+     * How it was settled: a played match's `"exact"`, `"difference"`, `"outcome"`
+     * or `"miss"`, else `"awarded"`, `"abandoned"`, `"undecided"` or `"void"`.
+     */
     tier: text("tier"),
     /** The result the guess was judged against, kept as it was when settled. */
     resultHomeGoals: integer("result_home_goals"),
@@ -634,6 +644,7 @@ export const gameGuess = pgTable(
  * of its amounts, never a figure stored of its own.
  *
  * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 export const gameLedger = pgTable(
   "game_ledger",
@@ -643,7 +654,7 @@ export const gameLedger = pgTable(
       .notNull()
       .references(() => gamePlayer.userId, { onDelete: "cascade" }),
     seasonId: integer("season_id").notNull(),
-    /** `"grant"`, `"guess"`, `"change"` or `"reward"`. */
+    /** `"grant"`, `"guess"`, `"change"`, `"reward"` or `"refund"`. */
     kind: text("kind").notNull(),
     /** Negative for what a guess or a change cost, positive or zero otherwise. */
     amount: integer("amount").notNull(),
@@ -652,11 +663,13 @@ export const gameLedger = pgTable(
   },
   (table) => [
     index("game_ledger_balance_idx").on(table.userId, table.seasonId),
-    // One grant per player and season, and one reward per guess: a second
-    // write of either fails, so a retry can never pay twice.
+    // One grant per player and season, and one settlement per guess, a reward
+    // or a refund: a second write fails, so a retry can never pay twice.
     uniqueIndex("game_ledger_grant_idx")
       .on(table.userId, table.seasonId)
       .where(sql`${table.kind} = 'grant'`),
-    uniqueIndex("game_ledger_reward_idx").on(table.guessId).where(sql`${table.kind} = 'reward'`),
+    uniqueIndex("game_ledger_settlement_idx")
+      .on(table.guessId)
+      .where(sql`${table.kind} in ('reward', 'refund')`),
   ]
 );

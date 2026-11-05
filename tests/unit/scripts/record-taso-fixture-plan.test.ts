@@ -43,6 +43,7 @@ const match: StoredMatch = {
   kickoffAt: new Date("2022-04-02T12:00:00.000Z"),
   matchday: 1,
   status: "FINISHED",
+  providerStatus: null,
   winner: "home",
   homeTeamProviderId: 60987,
   homeTeamName: "FC Inter",
@@ -160,6 +161,7 @@ describe("a stored match as TASO sent it", () => {
       groupId: 7,
       groupName: "Runkosarja",
       status: "FINISHED",
+      providerStatus: "Played",
       kickoffAt: match.kickoffAt,
       matchday: 1,
       homeTeamProviderId: 60987,
@@ -171,6 +173,15 @@ describe("a stored match as TASO sent it", () => {
       halfTimeHome: 1,
       halfTimeAway: 0,
       winner: "home",
+    });
+  });
+
+  it("sends TASO's own status where it was stored, so a walkover reads back as one", () => {
+    const walkover = toProviderMatch({ ...match, providerStatus: "Forfeited" });
+    expect(walkover.status).toBe("Forfeited");
+    expect(normalizeTasoMatch(walkover, "spljp22", "VL", 2022)).toMatchObject({
+      status: "FINISHED",
+      providerStatus: "Forfeited",
     });
   });
 

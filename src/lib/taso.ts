@@ -169,6 +169,7 @@ type MatchesResponse = { matches?: TasoProviderMatch[] };
  * decisions/013-more-finnish-competitions.md
  * decisions/015-finnish-cups.md
  * decisions/036-halftime-comebacks.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 export type NormalizedTasoMatch = {
   providerMatchId: number;
@@ -183,6 +184,12 @@ export type NormalizedTasoMatch = {
   groupId: number;
   groupName: string;
   status: string;
+  /**
+   * TASO's own status as it sent it. `status` folds `Forfeited` into
+   * `FINISHED`, as tables count it; Arvauspeli must tell an awarded match apart.
+   * Null when not stored, and `status` is then all that is known.
+   */
+  providerStatus: string | null;
   kickoffAt: Date;
   matchday: number | null;
   homeTeamProviderId: number;
@@ -277,6 +284,7 @@ function normalizeStatus(status: string): string {
  * decisions/009-veikkausliiga.md
  * decisions/010-playoff-group-match-list.md
  * decisions/284-provider-id-validation.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 export function normalizeTasoMatch(
   match: TasoProviderMatch,
@@ -342,6 +350,7 @@ export function normalizeTasoMatch(
     groupId,
     groupName: match.group_name,
     status: normalizeStatus(match.status),
+    providerStatus: match.status,
     kickoffAt,
     // Not an identity, so an unusable round costs the round rather than the
     // row — which is the same thing an absent one costs.

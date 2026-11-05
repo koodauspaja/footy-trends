@@ -178,9 +178,14 @@ describe("runPredictionLog", () => {
     mocks.getFootballDataSeasonMatches.mockReset().mockResolvedValue([{ id: "fd" }]);
     mocks.getTasoSeasonMatches.mockReset().mockResolvedValue([{ id: "taso" }]);
     mocks.onConflictDoUpdate.mockReset().mockResolvedValue(undefined);
-    mocks.settleGuesses
-      .mockReset()
-      .mockResolvedValue({ matches: 0, rewarded: 0, missed: 0, failed: [] });
+    mocks.settleGuesses.mockReset().mockResolvedValue({
+      matches: 0,
+      rewarded: 0,
+      missed: 0,
+      refunded: 0,
+      voided: 0,
+      failed: [],
+    });
   });
 
   it("refreshes each provider's competition through its paced, cached fetch and stores it", async () => {
@@ -821,7 +826,7 @@ describe("runPredictionLog", () => {
     });
     mocks.settleGuesses.mockImplementationOnce(async () => {
       order.push("settle");
-      return { matches: 1, rewarded: 2, missed: 1, failed: [] };
+      return { matches: 1, rewarded: 2, missed: 1, refunded: 0, voided: 0, failed: [] };
     });
 
     const report = await runPredictionLog(() => NOW, immediate);
@@ -1058,11 +1063,18 @@ describe("settle", () => {
     mocks.settleGuesses.mockReset();
   });
 
-  it("counts every guess settled, paid or not, and adds nothing to the failures", async () => {
-    mocks.settleGuesses.mockResolvedValueOnce({ matches: 2, rewarded: 3, missed: 4, failed: [] });
+  it("counts every guess settled, paid, missed, refunded or void, and adds nothing to the failures", async () => {
+    mocks.settleGuesses.mockResolvedValueOnce({
+      matches: 2,
+      rewarded: 3,
+      missed: 4,
+      refunded: 2,
+      voided: 1,
+      failed: [],
+    });
     const failures: string[] = [];
 
-    expect(await settle(NOW, failures)).toBe(7);
+    expect(await settle(NOW, failures)).toBe(10);
     expect(mocks.settleGuesses).toHaveBeenCalledWith(NOW);
     expect(failures).toEqual([]);
   });
@@ -1072,6 +1084,8 @@ describe("settle", () => {
       matches: 1,
       rewarded: 1,
       missed: 0,
+      refunded: 0,
+      voided: 0,
       failed: [41, 42],
     });
     const failures: string[] = [];

@@ -3,6 +3,7 @@
  * balance, the matches they can guess, and what their guesses paid.
  *
  * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 
 import type { ReactNode } from "react";
@@ -10,7 +11,7 @@ import { GuessForm, JoinGameButton } from "@/components/guessing-game-controls";
 import { PANEL_HEADING, TABLE_HEADING } from "@/components/heading-classes";
 import { Notice } from "@/components/notice";
 import { SectionFold } from "@/components/section-fold";
-import { type Guess, STARTING_BALANCE, type Tier } from "@/lib/guessing-game";
+import { type Guess, type Settlement, STARTING_BALANCE } from "@/lib/guessing-game";
 import type {
   AwaitingGuess,
   GameView,
@@ -43,17 +44,37 @@ function formatGuess(guess: Guess): string {
   return guess.kind === "outcome" ? guess.outcome : `${guess.homeGoals}–${guess.awayGoals}`;
 }
 
-const TIER_LABELS: Readonly<Record<Exclude<Tier, "miss">, string>> = {
+/**
+ * What each way of settling says before what it paid back. A miss says only
+ * that it missed.
+ *
+ * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
+ */
+const SETTLEMENT_LABELS: Readonly<Record<Exclude<Settlement, "miss">, string>> = {
   exact: "Oikea tulos",
   difference: "Oikea maaliero",
   outcome: "Oikea merkki",
+  awarded: "Ottelu ratkaistiin päätöksellä",
+  abandoned: "Ottelu keskeytettiin, pelimerkit palautettu",
+  undecided: "Ottelua ei ratkaistu, pelimerkit palautettu",
+  void: "Arvaus tehtiin ottelun alettua, pelimerkit palautettu",
 };
 
 function settledLine(guess: SettledGuess): string {
-  return guess.tier === "miss" ? "Ei osunut" : `${TIER_LABELS[guess.tier]} +${guess.reward}`;
+  return guess.settlement === "miss"
+    ? "Ei osunut"
+    : `${SETTLEMENT_LABELS[guess.settlement]} +${guess.reward}`;
+}
+
+function settledMatch(guess: SettledGuess): string {
+  return guess.homeGoals === null || guess.awayGoals === null
+    ? `${guess.homeTeamName} – ${guess.awayTeamName}`
+    : `${guess.homeTeamName} ${guess.homeGoals}–${guess.awayGoals} ${guess.awayTeamName}`;
 }
 
 function priceLine(match: UpcomingMatch): string {
+  if (match.postponed) return "Muutos on maksuton";
   if (match.floor) return "Maksuton 1X2-arvaus";
   const now = match.guess === null ? `Hinta nyt ${match.price}` : `Muutos maksaa ${match.price}`;
   return match.nextRise === null
@@ -124,18 +145,21 @@ function UpcomingRow({ match, groups }: Readonly<{ match: UpcomingMatch; groups:
         </span>
       </div>
       {match.guess !== null && <p className="text-sm">Arvauksesi: {formatGuess(match.guess)}</p>}
-      {match.free ? (
+      {match.free && !match.postponed ? (
         <p className="text-muted text-sm">Maksutonta arvausta ei voi muuttaa.</p>
       ) : (
         <>
+          {match.postponed && (
+            <p className="text-sm">Ottelu siirtyi. Voit muuttaa arvaustasi kerran maksutta.</p>
+          )}
           <p className="text-muted text-sm">{priceLine(match)}</p>
           <GuessForm
             awayTeamName={match.awayTeamName}
-            floor={match.floor}
+            floor={match.floor || match.free}
             guess={match.guess}
             homeTeamName={match.homeTeamName}
             providerMatchId={match.providerMatchId}
-            shownPrice={match.floor ? 0 : match.price}
+            shownPrice={match.floor || match.postponed ? 0 : match.price}
           />
         </>
       )}
@@ -228,9 +252,7 @@ export function GuessingGamePage({ view }: Readonly<{ view: GameView }>) {
           <ul>
             {view.settled.map((guess) => (
               <li className="border-border-subtle border-b py-3" key={guess.providerMatchId}>
-                <span className="font-medium">
-                  {guess.homeTeamName} {guess.homeGoals}–{guess.awayGoals} {guess.awayTeamName}
-                </span>
+                <span className="font-medium">{settledMatch(guess)}</span>
                 <p className="text-sm">Arvauksesi: {formatGuess(guess.guess)}</p>
                 <p className="text-sm">{settledLine(guess)}</p>
               </li>

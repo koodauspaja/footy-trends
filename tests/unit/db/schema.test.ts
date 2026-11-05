@@ -531,7 +531,7 @@ describe("Arvauspeli's tables", () => {
     expect(foreignKey?.reference().foreignTable).toBe(gamePlayer);
   });
 
-  it("allows one grant per player and season and one reward per guess, and cascades from both", () => {
+  it("allows one grant per player and season and one settlement per guess, and cascades from both", () => {
     expect(indexNamed(gameLedger, "game_ledger_balance_idx")).toEqual({
       unique: false,
       columns: ["user_id", "season_id"],
@@ -542,7 +542,7 @@ describe("Arvauspeli's tables", () => {
       columns: ["user_id", "season_id"],
       where: "partial",
     });
-    expect(indexNamed(gameLedger, "game_ledger_reward_idx")).toEqual({
+    expect(indexNamed(gameLedger, "game_ledger_settlement_idx")).toEqual({
       unique: true,
       columns: ["guess_id"],
       where: "partial",

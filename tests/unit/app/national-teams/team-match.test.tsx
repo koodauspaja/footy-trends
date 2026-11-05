@@ -44,6 +44,7 @@ function row(overrides: Partial<TasoMatchRow> = {}): TasoMatchRow {
     kickoffAt: new Date("2026-11-15T17:30:00Z"),
     matchday: 6,
     status: "FINISHED",
+    providerStatus: null,
     winner: null,
     homeTeamProviderId: 144368,
     homeTeamName: "Suomi",

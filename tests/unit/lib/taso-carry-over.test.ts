@@ -83,6 +83,7 @@ function expandMatches(
     groupId,
     groupName: `Group ${groupId}`,
     status: homeGoals === null ? "SCHEDULED" : "FINISHED",
+    providerStatus: null,
     winner: null,
     kickoffAt: new Date(Date.UTC(season.seasonId, 3, 1) + index * 3_600_000),
     matchday: null,

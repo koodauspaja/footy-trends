@@ -26,6 +26,7 @@ import {
  * decisions/063-competition-zones.md
  * decisions/672-e2e-without-the-provider.md
  * decisions/681-taso-request-signing.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 
 const { loggerInfoMock, loggerErrorMock, loggerWarnMock, getCachedMock } = vi.hoisted(() => ({
@@ -105,6 +106,34 @@ describe("taso mapping", () => {
       homeGoals: 2,
       awayGoals: 1,
     });
+  });
+
+  it("keeps TASO's own status beside the one tables read, so an awarded match is told from a played one", () => {
+    const match = (status: string) =>
+      normalizeTasoMatch(
+        {
+          match_id: "123",
+          status,
+          group_id: "1",
+          group_name: "Runkosarja",
+          date: "2026-05-01",
+          time: "18:00:00",
+          time_zone_offset: "+0300",
+          team_A_id: "10",
+          team_A_name: "HJK",
+          team_B_id: "20",
+          team_B_name: "KuPS",
+          fs_A: "3",
+          fs_B: "0",
+        },
+        "spljp26",
+        "VL",
+        2026
+      );
+
+    expect(match("Played")).toMatchObject({ status: "FINISHED", providerStatus: "Played" });
+    expect(match("Forfeited")).toMatchObject({ status: "FINISHED", providerStatus: "Forfeited" });
+    expect(match("Abandoned")).toMatchObject({ status: "Abandoned", providerStatus: "Abandoned" });
   });
 
   it("tells no half-time score from a goalless first half", () => {

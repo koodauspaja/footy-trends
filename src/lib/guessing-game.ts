@@ -3,6 +3,7 @@
  * what a late joiner gets, and what a guess from the browser may be.
  *
  * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 
 export type Outcome = "1" | "X" | "2";
@@ -61,6 +62,18 @@ export function priceAt(kickoffAt: Date, now: Date): number | null {
   const left = kickoffAt.getTime() - now.getTime();
   if (left <= 0) return null;
   return PRICE_STEPS.find((step) => left >= step.fromHours * HOUR_MS)?.price ?? LAST_DAY_PRICE;
+}
+
+/**
+ * What a guess on a match costs now, or `null` once it is closed: kicked off,
+ * or already decided by TASO, a walkover or an abandonment before its kickoff.
+ *
+ * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
+ */
+export function guessPrice(match: { kickoffAt: Date; status: string }, now: Date): number | null {
+  if (match.status === "FINISHED" || match.status === "Abandoned") return null;
+  return priceAt(match.kickoffAt, now);
 }
 
 /**
@@ -218,11 +231,12 @@ export type GuessDecision =
   | { kind: "refused"; reason: "insufficient" | "free-fixed" };
 
 /**
- * What a guess on a match that has not kicked off does. The same guess again
- * changes nothing; a change pays the current price and the floor's guess
- * cannot be changed; a new one is paid, or is the floor's free 1X2.
+ * What a guess on an open match does: the same guess changes nothing; a change
+ * is free after a postponement (the floor's stays a 1X2), else paid, the
+ * floor's refused; a new one is paid, or is the floor's free 1X2.
  *
  * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 export function decideGuess(input: {
   existing: { id: number; guess: Guess; free: boolean } | null;
@@ -230,10 +244,16 @@ export function decideGuess(input: {
   price: number;
   balance: number;
   hasOpenGuess: boolean;
+  /** The match's kickoff has moved later since the guess was last made or changed. */
+  postponed: boolean;
 }): GuessDecision {
-  const { existing, guess, price, balance, hasOpenGuess } = input;
+  const { existing, guess, price, balance, hasOpenGuess, postponed } = input;
   if (existing !== null) {
     if (sameGuess(existing.guess, guess)) return { kind: "unchanged" };
+    // The floor's guess stays a 1X2, postponed or not.
+    if (postponed && (!existing.free || guess.kind === "outcome")) {
+      return { kind: "change", price: 0, guessId: existing.id };
+    }
     if (existing.free) return { kind: "refused", reason: "free-fixed" };
     return balance >= price
       ? { kind: "change", price, guessId: existing.id }
@@ -242,4 +262,88 @@ export function decideGuess(input: {
   if (balance >= price) return { kind: "new", price };
   if (guess.kind === "outcome" && mayUseFloor(balance, hasOpenGuess)) return { kind: "free" };
   return { kind: "refused", reason: "insufficient" };
+}
+
+/**
+ * How a settled guess was settled: a played match's tier, or one of 076's
+ * irregular cases.
+ *
+ * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
+ */
+export type Settlement = Tier | "awarded" | "abandoned" | "undecided" | "void";
+
+/**
+ * What settling reads of a match: its stored status, TASO's own, the kickoff,
+ * the score, and TASO's `winner`.
+ *
+ * decisions/076-guesses-on-irregular-matches.md
+ */
+export type SettlingMatch = {
+  status: string;
+  providerStatus: string | null;
+  kickoffAt: Date;
+  homeGoals: number | null;
+  awayGoals: number | null;
+  winner: "home" | "away" | "tie" | null;
+};
+
+export type SettlementOutcome =
+  | {
+      kind: "reward";
+      settlement: Settlement;
+      reward: number;
+      result: { homeGoals: number; awayGoals: number } | null;
+    }
+  | { kind: "refund"; settlement: "abandoned" | "undecided" | "void" };
+
+const WINNER_OUTCOMES: Readonly<Record<"home" | "away" | "tie", Outcome>> = {
+  home: "1",
+  away: "2",
+  tie: "X",
+};
+
+/**
+ * An awarded match: every score guess pays as exact, a 1X2 guess as usual
+ * against the awarded score, or TASO's `winner` when it recorded none, and
+ * with neither every guess is refunded.
+ *
+ * decisions/076-guesses-on-irregular-matches.md
+ */
+function awarded(guess: Guess, match: SettlingMatch): SettlementOutcome {
+  const result = scoreOf(match);
+  let decided: Outcome | null = null;
+  if (result !== null) decided = outcomeOf(result.homeGoals, result.awayGoals);
+  else if (match.winner !== null) decided = WINNER_OUTCOMES[match.winner];
+  if (decided === null) return { kind: "refund", settlement: "undecided" };
+  let reward = REWARDS.score.exact;
+  if (guess.kind === "outcome") reward = guess.outcome === decided ? REWARDS.outcome.outcome : 0;
+  return { kind: "reward", settlement: "awarded", reward, result };
+}
+
+function scoreOf(match: SettlingMatch): { homeGoals: number; awayGoals: number } | null {
+  const { homeGoals, awayGoals } = match;
+  return homeGoals === null || awayGoals === null ? null : { homeGoals, awayGoals };
+}
+
+/**
+ * How a guess on a match that has kicked off is settled, or `null` while it
+ * waits: void if made at or after the kickoff, refunded if abandoned, then by
+ * `awarded` or a played match's tiers.
+ *
+ * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
+ */
+export function settlementOf(
+  guess: Guess,
+  madeAt: Date,
+  match: SettlingMatch
+): SettlementOutcome | null {
+  if (madeAt >= match.kickoffAt) return { kind: "refund", settlement: "void" };
+  if (match.status === "Abandoned") return { kind: "refund", settlement: "abandoned" };
+  if (match.providerStatus === "Forfeited") return awarded(guess, match);
+  const result = scoreOf(match);
+  if (match.status !== "FINISHED" || result === null) return null;
+  const { tier, reward } = judge(guess, result.homeGoals, result.awayGoals);
+  return { kind: "reward", settlement: tier, reward, result };
 }

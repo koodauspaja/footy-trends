@@ -208,6 +208,7 @@ describe("a standings read", () => {
         groupId: 1,
         groupName: "Runkosarja",
         status: "FINISHED",
+        providerStatus: null,
         kickoffAt: new Date("2093-05-01T15:00:00Z"),
         matchday: 1,
         homeTeamProviderId: 9301,

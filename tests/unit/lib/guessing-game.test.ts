@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   decideGuess,
   type Guess,
+  guessPrice,
   judge,
   lateJoinShare,
   MAX_GUESSED_GOALS,
@@ -10,8 +11,10 @@ import {
   outcomeOf,
   parseGuess,
   priceAt,
+  type SettlingMatch,
   sameGuess,
   seasonGrant,
+  settlementOf,
 } from "@/lib/guessing-game";
 
 /**
@@ -19,6 +22,7 @@ import {
  * late joiner's share, the floor, and what a guess from the browser may be.
  *
  * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 
 const KICKOFF = new Date("2027-04-10T15:00:00Z");
@@ -30,6 +34,21 @@ const score = (homeGoals: number, awayGoals: number): Guess => ({
   kind: "score",
   homeGoals,
   awayGoals,
+});
+
+describe("guessPrice", () => {
+  it("prices a match TASO has not decided by its kickoff, whatever its status says", () => {
+    for (const status of ["SCHEDULED", "Postponed"]) {
+      expect(guessPrice({ kickoffAt: KICKOFF, status }, hoursBefore(400))).toBe(10);
+    }
+    expect(guessPrice({ kickoffAt: KICKOFF, status: "SCHEDULED" }, KICKOFF)).toBeNull();
+  });
+
+  it("closes a match TASO decided before its kickoff, a walkover or an abandonment", () => {
+    for (const status of ["FINISHED", "Abandoned"]) {
+      expect(guessPrice({ kickoffAt: KICKOFF, status }, hoursBefore(400))).toBeNull();
+    }
+  });
 });
 
 describe("priceAt", () => {
@@ -181,7 +200,13 @@ describe("sameGuess", () => {
 });
 
 describe("decideGuess", () => {
-  const base = { guess: outcome("1"), price: 10, balance: 100, hasOpenGuess: false };
+  const base = {
+    guess: outcome("1"),
+    price: 10,
+    balance: 100,
+    hasOpenGuess: false,
+    postponed: false,
+  };
 
   it("pays a new guess the current price", () => {
     expect(decideGuess({ ...base, existing: null })).toEqual({ kind: "new", price: 10 });
@@ -201,6 +226,43 @@ describe("decideGuess", () => {
     expect(decideGuess({ ...base, existing: { id: 7, guess: outcome("1"), free: true } })).toEqual({
       kind: "unchanged",
     });
+  });
+
+  it("gives a postponed guess one change for nothing, the floor's free guess included", () => {
+    expect(
+      decideGuess({
+        ...base,
+        postponed: true,
+        existing: { id: 7, guess: outcome("2"), free: false },
+      })
+    ).toEqual({ kind: "change", price: 0, guessId: 7 });
+    expect(
+      decideGuess({
+        ...base,
+        postponed: true,
+        balance: 0,
+        existing: { id: 7, guess: outcome("2"), free: true },
+      })
+    ).toEqual({ kind: "change", price: 0, guessId: 7 });
+  });
+
+  it("keeps a postponed floor's free guess a 1X2, and a paid one free to become a score", () => {
+    expect(
+      decideGuess({
+        ...base,
+        postponed: true,
+        guess: score(1, 0),
+        existing: { id: 7, guess: outcome("2"), free: true },
+      })
+    ).toEqual({ kind: "refused", reason: "free-fixed" });
+    expect(
+      decideGuess({
+        ...base,
+        postponed: true,
+        guess: score(1, 0),
+        existing: { id: 7, guess: outcome("2"), free: false },
+      })
+    ).toEqual({ kind: "change", price: 0, guessId: 7 });
   });
 
   it("refuses to change the floor's free guess", () => {
@@ -272,5 +334,102 @@ describe("parseGuess", () => {
     expect(parseGuess(null)).toBeNull();
     expect(parseGuess("1")).toBeNull();
     expect(parseGuess({ kind: "winner", outcome: "1" })).toBeNull();
+  });
+});
+
+describe("settlementOf", () => {
+  const MADE = new Date("2027-04-10T12:00:00Z");
+  function settling(overrides: Partial<SettlingMatch> = {}): SettlingMatch {
+    return {
+      status: "FINISHED",
+      providerStatus: "Played",
+      kickoffAt: KICKOFF,
+      homeGoals: 2,
+      awayGoals: 1,
+      winner: "home",
+      ...overrides,
+    };
+  }
+
+  it("settles a played match by the tiers, with the result it was judged against", () => {
+    expect(settlementOf(score(2, 1), MADE, settling())).toEqual({
+      kind: "reward",
+      settlement: "exact",
+      reward: 100,
+      result: { homeGoals: 2, awayGoals: 1 },
+    });
+    expect(settlementOf(outcome("2"), MADE, settling())).toMatchObject({
+      settlement: "miss",
+      reward: 0,
+    });
+  });
+
+  it("waits while the match has no result, whatever its status", () => {
+    expect(settlementOf(outcome("1"), MADE, settling({ homeGoals: null }))).toBeNull();
+    expect(
+      settlementOf(
+        outcome("1"),
+        MADE,
+        settling({ status: "SCHEDULED", homeGoals: null, awayGoals: null })
+      )
+    ).toBeNull();
+    expect(settlementOf(outcome("1"), MADE, settling({ status: "Break" }))).toBeNull();
+  });
+
+  it("voids a guess made at or after the stored kickoff, a kickoff moved earlier's", () => {
+    expect(settlementOf(outcome("1"), KICKOFF, settling())).toEqual({
+      kind: "refund",
+      settlement: "void",
+    });
+    expect(settlementOf(outcome("1"), new Date(KICKOFF.getTime() - 1), settling())).toMatchObject({
+      kind: "reward",
+    });
+  });
+
+  it("refunds an abandoned match, with a result stored or not", () => {
+    for (const goals of [{}, { homeGoals: null, awayGoals: null }]) {
+      expect(settlementOf(score(2, 1), MADE, settling({ status: "Abandoned", ...goals }))).toEqual({
+        kind: "refund",
+        settlement: "abandoned",
+      });
+    }
+  });
+
+  it("pays every score guess on an awarded match as exact, and a 1X2 by the awarded score", () => {
+    const forfeited = settling({ providerStatus: "Forfeited", homeGoals: 3, awayGoals: 0 });
+    expect(settlementOf(score(0, 2), MADE, forfeited)).toEqual({
+      kind: "reward",
+      settlement: "awarded",
+      reward: 100,
+      result: { homeGoals: 3, awayGoals: 0 },
+    });
+    expect(settlementOf(outcome("1"), MADE, forfeited)).toMatchObject({
+      settlement: "awarded",
+      reward: 30,
+    });
+    expect(settlementOf(outcome("X"), MADE, forfeited)).toMatchObject({
+      settlement: "awarded",
+      reward: 0,
+    });
+  });
+
+  it("settles an awarded match with no score by TASO's winner, and refunds one with neither", () => {
+    const noScore = { providerStatus: "Forfeited", homeGoals: null, awayGoals: null } as const;
+    expect(settlementOf(outcome("2"), MADE, settling({ ...noScore, winner: "away" }))).toEqual({
+      kind: "reward",
+      settlement: "awarded",
+      reward: 30,
+      result: null,
+    });
+    expect(settlementOf(outcome("X"), MADE, settling({ ...noScore, winner: "tie" }))).toMatchObject(
+      { reward: 30 }
+    );
+    expect(settlementOf(score(1, 1), MADE, settling({ ...noScore, winner: "home" }))).toMatchObject(
+      { reward: 100 }
+    );
+    expect(settlementOf(score(1, 1), MADE, settling({ ...noScore, winner: null }))).toEqual({
+      kind: "refund",
+      settlement: "undecided",
+    });
   });
 });
