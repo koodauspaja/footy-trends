@@ -140,10 +140,10 @@ are a convenience.
   "… changed", with the user id, season, kind and price.
 - **Refused:** `info`, "Arvauspeli season guess refused", with the user id,
   season, kind and the reason (`locked`, `balance`, `teams`).
-- **Settling:** counted in specs/072's `Arvauspeli guesses settled` line as
-  `seasonGuesses`, the guesses settled, and `seasonRewards`, those that paid.
-  A season guess that fails to settle is logged at `error` with its id and
-  named in the run's failures.
+- **Settling:** `info`, "Arvauspeli season guesses settled", with `settled`,
+  `rewarded` (those that paid), `voided` and `failed`, beside specs/072's line
+  for the match guesses. A season guess that fails to settle is logged at
+  `error` with its id and named in the run's failures.
 - Ids only; no team names are needed, no nickname or email.
 
 ## Acceptance Criteria

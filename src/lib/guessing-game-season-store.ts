@@ -20,6 +20,7 @@ import {
   COMPETITION,
   ensureGrant,
   FINISHED,
+  type GameView,
   latestSeason,
   REGULAR_SEASON_GROUP,
   type SeasonMatch,
@@ -309,6 +310,30 @@ export async function readSeasonSection(
     },
     { isolationLevel: "repeatable read", accessMode: "read only" }
   );
+}
+
+/**
+ * The section for the season a view is about: the one in play, or between
+ * seasons the one just finished, which shows only its guesses' results. A
+ * failed read logs and leaves the section out, not the game.
+ *
+ * decisions/075-season-guesses.md
+ */
+export async function readSeasonSectionOf(
+  view: GameView,
+  userId: string,
+  now: Date
+): Promise<SeasonSection | null> {
+  let seasonId: number | null = null;
+  if (view.kind === "playing") seasonId = view.seasonId;
+  else if (view.kind === "between" && view.joined) seasonId = view.nextSeasonId - 1;
+  if (seasonId === null) return null;
+  try {
+    return await readSeasonSection(userId, seasonId, now);
+  } catch (error) {
+    logger.error({ err: error, userId }, "Reading Arvauspeli season guesses failed");
+    return null;
+  }
 }
 
 /**

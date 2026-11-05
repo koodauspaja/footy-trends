@@ -66,6 +66,7 @@ describe("GuessingGamePage", () => {
     render(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={null}
         shares={NO_SHARES}
         hasNickname
@@ -82,6 +83,7 @@ describe("GuessingGamePage", () => {
     render(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={null}
         shares={NO_SHARES}
         hasNickname
@@ -100,6 +102,7 @@ describe("GuessingGamePage", () => {
     render(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={null}
         shares={NO_SHARES}
         hasNickname
@@ -115,6 +118,7 @@ describe("GuessingGamePage", () => {
     const { rerender } = render(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={null}
         shares={NO_SHARES}
         hasNickname
@@ -126,6 +130,7 @@ describe("GuessingGamePage", () => {
     rerender(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={null}
         shares={NO_SHARES}
         hasNickname
@@ -140,6 +145,7 @@ describe("GuessingGamePage", () => {
     render(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={null}
         shares={NO_SHARES}
         hasNickname
@@ -157,6 +163,7 @@ describe("GuessingGamePage", () => {
     render(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={null}
         shares={NO_SHARES}
         hasNickname
@@ -191,6 +198,7 @@ describe("GuessingGamePage", () => {
     render(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={null}
         shares={NO_SHARES}
         hasNickname
@@ -212,6 +220,7 @@ describe("GuessingGamePage", () => {
     render(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={null}
         shares={NO_SHARES}
         hasNickname
@@ -251,6 +260,7 @@ describe("GuessingGamePage", () => {
     render(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={null}
         shares={NO_SHARES}
         hasNickname
@@ -324,6 +334,7 @@ describe("GuessingGamePage", () => {
     render(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={null}
         shares={NO_SHARES}
         hasNickname
@@ -369,6 +380,7 @@ describe("GuessingGamePage", () => {
     render(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={null}
         shares={NO_SHARES}
         hasNickname
@@ -404,6 +416,7 @@ describe("GuessingGamePage", () => {
     render(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={null}
         shares={NO_SHARES}
         hasNickname
@@ -471,6 +484,7 @@ describe("GuessingGamePage", () => {
     render(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={null}
         shares={NO_SHARES}
         hasNickname
@@ -504,6 +518,7 @@ describe("the line for a player without a nickname", () => {
     render(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={null}
         shares={NO_SHARES}
         hasNickname={false}
@@ -521,6 +536,7 @@ describe("the line for a player without a nickname", () => {
     render(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={null}
         shares={NO_SHARES}
         hasNickname
@@ -538,6 +554,7 @@ describe("the line for a player without a nickname", () => {
     render(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={null}
         shares={NO_SHARES}
         hasNickname={false}
@@ -552,6 +569,7 @@ describe("the line for a player without a nickname", () => {
     const { rerender } = render(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={null}
         shares={NO_SHARES}
         hasNickname={false}
@@ -563,6 +581,7 @@ describe("the line for a player without a nickname", () => {
     rerender(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={null}
         shares={NO_SHARES}
         hasNickname
@@ -576,6 +595,7 @@ describe("the line for a player without a nickname", () => {
     render(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={null}
         shares={NO_SHARES}
         hasNickname={false}
@@ -608,6 +628,7 @@ describe("Tulostaulukko", () => {
     render(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={boardOf([
           boardRow(),
           boardRow({ nickname: null, balance: 1000, rank: 2, place: 2, settled: 1 }),
@@ -643,6 +664,7 @@ describe("Tulostaulukko", () => {
     render(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={boardOf([boardRow()])}
         hasNickname
         shares={NO_SHARES}
@@ -662,6 +684,7 @@ describe("Tulostaulukko", () => {
     render(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={boardOf([boardRow({ self: true })])}
         hasNickname
         shares={NO_SHARES}
@@ -678,6 +701,7 @@ describe("Tulostaulukko", () => {
     render(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={boardOf(
           [boardRow()],
           boardRow({ nickname: "Minä", rank: 53, place: 53, self: true }),
@@ -698,6 +722,7 @@ describe("Tulostaulukko", () => {
     render(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={boardOf([boardRow()])}
         hasNickname
         shares={NO_SHARES}
@@ -712,6 +737,7 @@ describe("Tulostaulukko", () => {
     render(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={boardOf([])}
         hasNickname
         shares={NO_SHARES}
@@ -727,6 +753,7 @@ describe("Tulostaulukko", () => {
     render(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board="error"
         hasNickname
         shares={NO_SHARES}
@@ -744,6 +771,7 @@ describe("Tulostaulukko", () => {
     const { rerender } = render(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={boardOf([boardRow()])}
         hasNickname={false}
         shares={NO_SHARES}
@@ -756,6 +784,7 @@ describe("Tulostaulukko", () => {
     rerender(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={boardOf([boardRow()])}
         hasNickname
         shares={NO_SHARES}
@@ -769,6 +798,7 @@ describe("Tulostaulukko", () => {
     render(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={null}
         hasNickname
         shares={NO_SHARES}
@@ -788,6 +818,7 @@ describe("the players' guesses and the rarity bonus", () => {
     render(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={null}
         hasNickname
         shares={SHARES}
@@ -823,6 +854,7 @@ describe("the players' guesses and the rarity bonus", () => {
     render(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={null}
         hasNickname
         shares={SHARES}
@@ -859,6 +891,7 @@ describe("the players' guesses and the rarity bonus", () => {
     render(
       <GuessingGamePage
         models={NO_MODELS}
+        season={null}
         board={null}
         hasNickname
         shares={NO_SHARES}
@@ -917,6 +950,7 @@ describe("the models' guesses", () => {
         board={null}
         hasNickname
         models={MODELS}
+        season={null}
         shares={NO_SHARES}
         view={playing({ awaiting: [awaiting(8), awaiting(9)] })}
       />
@@ -933,6 +967,7 @@ describe("the models' guesses", () => {
         board={null}
         hasNickname
         models={MODELS}
+        season={null}
         shares={NO_SHARES}
         view={playing({
           settled: [
@@ -965,6 +1000,7 @@ describe("the models' guesses", () => {
         board={null}
         hasNickname
         models={MODELS}
+        season={null}
         shares={NO_SHARES}
         view={playing({
           settled: [
@@ -991,6 +1027,7 @@ describe("the models' guesses", () => {
         board={null}
         hasNickname
         models={MODELS}
+        season={null}
         shares={NO_SHARES}
         view={playing({ upcoming: [upcoming({ providerMatchId: 8 })] })}
       />

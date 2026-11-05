@@ -1,0 +1,25 @@
+# 075 — Arvauspeli: season guesses: decisions
+
+Feature #759, `specs/075-season-guesses.md`. Before a Veikkausliiga season's
+first kickoff, a player guesses the champion, the six teams of
+`Mestaruussarja`, the team in 12th place and the whole final table. Each is
+paid for once, changed for free until the lock, and settled by the hourly run
+when the season has answered it.
+
+| Decision | Why |
+|---|---|
+| The rules are a module of their own, `guessing-game-season.ts`: the four kinds (`champion`, `upper`, `last`, `table`), their prices and rewards, the shape a guess must have, and the judging | S1, S2. Pure, so every figure is tested without a database |
+| A season guess is a row of `game_season_guess`, migration `0028_create_game_season_guess`: the kind, and the TASO team ids in the guess's order, the table's first its 1st place. One per player, season and kind by `game_season_guess_identity_idx`. A change rewrites the teams and writes nothing to the ledger | S1, S3 |
+| The ledger gains `season_guess_id` and three kinds: `season-guess` for the price, `season-reward` and `season-refund` for the settlement, one price and one settlement per season guess by two partial unique indexes. The balance and the leaderboard sum every kind, so a season guess counts in both with no change of theirs | S5 of specs/072's ledger, S8 |
+| A guess is checked in the store, in one transaction with the player locked, as a match guess is: joined, a season stored, before the lock, its teams those of the season's stored `Runkosarja` fixtures, distinct and as many as the kind names, and for a first placement a balance that pays the price | S3, S9, the spec's Edge Cases |
+| The lock is the season's first stored kickoff, read at the time of the request. Once passed it stays passed: a postponed first match does not reopen it | S3, S15 |
+| The six are the regular season's top six by its table; a final place is a team's place in `Mestaruussarja` (group 2), or 6 + its place in `Karsintasarja` (group 3). The tables are read with `getSeasonStandings`, the standings page's own path, so a group shown from TASO's own numbers is judged by them | S4, S12 |
+| A group's answer is due once every stored match of it is `FINISHED`, which includes a forfeited match. A group with a match abandoned and never replayed waits, and S16 voids its guesses with the next season | S4, S16. Deciding whether an abandoned match will be replayed is a guess; waiting is not |
+| Settling runs in the hourly run right after the match guesses, each guess in its own transaction, the row locked and still open, so a racing run settles nothing twice. A season whose tables cannot be read names its open guesses in the run's failures and tries again next hour | S4, the spec's Logging |
+| A guess still open once a later season's first fixture is stored is voided and its price refunded, `Kausi jäi kesken, pelimerkit palautettu` | S16 |
+| The run logs its own line, `Arvauspeli season guesses settled`, with `settled`, `rewarded`, `voided` and `failed`, beside specs/072's line for the match guesses. The spec had the counts in that line; settling a season is a step of its own, and one line each keeps the store's two halves apart | Changed in implementation; the spec now says so |
+| `Kauden arvaukset` sits above `Tulevat ottelut`, open. Before the lock a form per kind, each with its own button text, `Arvaa mestari` and so on, `Muuta mestaria` once placed. After the lock only the kinds the player guessed, with the shares of the champion and last-place picks: the three most picked teams, then `muut`, from 3 guesses | S6, S7 |
+| Between seasons, the season just finished shows its section too, read-only, when the player has a guess in it | The view turns to `between` in the same run that settles the season's last match and its guesses, so without it a settled season guess would never be seen |
+| A failed read of the section logs `Reading Arvauspeli season guesses failed` and leaves it out, not the game | As specs/073's shares |
+| No rarity bonus on a season guess, and no model plays against one | S5, S10 |
+| Tests: unit for the rules, the store, the action, the form, the page and the run; integration against Postgres for placing, the lock and settling once; end to end in `guessing-game-season.spec.ts` | Spec, Tests Required |
