@@ -58,7 +58,7 @@ export type UpcomingMatch = {
   price: number;
   nextRise: { price: number; at: Date } | null;
   guess: Guess | null;
-  /** The player's guess on it is the floor's, which cannot be changed but after a postponement. */
+  /** The player's guess on it is the floor's free 1X2: changed only after a postponement, and as a 1X2. */
   free: boolean;
   /** The kickoff has moved later since the player's guess: its next change is free. */
   postponed: boolean;

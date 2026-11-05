@@ -172,8 +172,11 @@ with nothing done in Railway.
 and then the `backtest` rows of finished matches that have none, of every
 model (specs/057); a row that exists is left as it is. Straight after its
 refresh, before any of that, it settles every open Arvauspeli guess whose match
-has finished (specs/072); a match that fails to settle is named in the run's
-failures.
+has finished, been abandoned or awarded, or moved earlier than the guess
+(specs/072, specs/076); a match that fails to settle is named in the run's
+failures. A match whose guesses still wait for a reason worth a look (gone
+from the store, a status not seen before, no result 48 hours after kickoff)
+gets a `warn`, `Arvauspeli guesses still waiting`, once per run.
 
 The whole backtest is still run by hand, per environment:
 `DATABASE_URL=<that environment> npm run predictions -- backtest`, from a
