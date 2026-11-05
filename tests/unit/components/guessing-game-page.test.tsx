@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { GuessingGamePage } from "@/components/guessing-game-page";
 import type { Board, Shares } from "@/lib/guessing-game";
 import { placeGuessAction } from "@/lib/guessing-game-actions";
+import type { ModelGuess } from "@/lib/guessing-game-models";
 import type { GameView, UpcomingMatch } from "@/lib/guessing-game-store";
 
 /**
@@ -14,9 +15,11 @@ import type { GameView, UpcomingMatch } from "@/lib/guessing-game-store";
  * decisions/076-guesses-on-irregular-matches.md
  * decisions/077-nickname.md
  * decisions/073-leaderboard.md
+ * decisions/074-against-the-models.md
  */
 
 const NO_SHARES: ReadonlyMap<number, Shares> = new Map();
+const NO_MODELS: ReadonlyMap<number, ModelGuess[]> = new Map();
 
 vi.mock("@/lib/guessing-game-actions", () => ({
   joinGameAction: vi.fn(),
@@ -62,6 +65,7 @@ describe("GuessingGamePage", () => {
   it("offers a reader who has not joined the game before its first kickoff, with no share line", () => {
     render(
       <GuessingGamePage
+        models={NO_MODELS}
         board={null}
         shares={NO_SHARES}
         hasNickname
@@ -77,6 +81,7 @@ describe("GuessingGamePage", () => {
   it("says what a late joiner gets", () => {
     render(
       <GuessingGamePage
+        models={NO_MODELS}
         board={null}
         shares={NO_SHARES}
         hasNickname
@@ -94,6 +99,7 @@ describe("GuessingGamePage", () => {
   it("names the next season between seasons, and still lets a reader join", () => {
     render(
       <GuessingGamePage
+        models={NO_MODELS}
         board={null}
         shares={NO_SHARES}
         hasNickname
@@ -108,6 +114,7 @@ describe("GuessingGamePage", () => {
   it("offers a player nothing more to press between seasons, or before any season is stored", () => {
     const { rerender } = render(
       <GuessingGamePage
+        models={NO_MODELS}
         board={null}
         shares={NO_SHARES}
         hasNickname
@@ -118,6 +125,7 @@ describe("GuessingGamePage", () => {
 
     rerender(
       <GuessingGamePage
+        models={NO_MODELS}
         board={null}
         shares={NO_SHARES}
         hasNickname
@@ -129,7 +137,15 @@ describe("GuessingGamePage", () => {
   });
 
   it("shows the balance with its thousands separated, and an empty list of matches", () => {
-    render(<GuessingGamePage board={null} shares={NO_SHARES} hasNickname view={playing()} />);
+    render(
+      <GuessingGamePage
+        models={NO_MODELS}
+        board={null}
+        shares={NO_SHARES}
+        hasNickname
+        view={playing()}
+      />
+    );
 
     expect(screen.getByText(/^Pelimerkit:/)).toHaveTextContent(/^Pelimerkit: 1\s250$/);
     expect(screen.getByText("Ei tulevia otteluita.")).toBeInTheDocument();
@@ -140,6 +156,7 @@ describe("GuessingGamePage", () => {
   it("lists upcoming matches by Helsinki date, with the price and when it rises", () => {
     render(
       <GuessingGamePage
+        models={NO_MODELS}
         board={null}
         shares={NO_SHARES}
         hasNickname
@@ -173,6 +190,7 @@ describe("GuessingGamePage", () => {
   it("names each match's group only when the list has several", () => {
     render(
       <GuessingGamePage
+        models={NO_MODELS}
         board={null}
         shares={NO_SHARES}
         hasNickname
@@ -193,6 +211,7 @@ describe("GuessingGamePage", () => {
   it("shows a player's guess, the change's price, and the floor's free 1X2", () => {
     render(
       <GuessingGamePage
+        models={NO_MODELS}
         board={null}
         shares={NO_SHARES}
         hasNickname
@@ -231,6 +250,7 @@ describe("GuessingGamePage", () => {
     };
     render(
       <GuessingGamePage
+        models={NO_MODELS}
         board={null}
         shares={NO_SHARES}
         hasNickname
@@ -244,6 +264,7 @@ describe("GuessingGamePage", () => {
               settlement: "exact",
               reward: 100,
               bonus: 0,
+              modelsReward: 0,
             },
             {
               ...base,
@@ -252,6 +273,7 @@ describe("GuessingGamePage", () => {
               settlement: "difference",
               reward: 40,
               bonus: 0,
+              modelsReward: 0,
             },
             {
               ...base,
@@ -260,6 +282,7 @@ describe("GuessingGamePage", () => {
               settlement: "outcome",
               reward: 30,
               bonus: 0,
+              modelsReward: 0,
             },
             {
               ...base,
@@ -268,6 +291,7 @@ describe("GuessingGamePage", () => {
               settlement: "miss",
               reward: 0,
               bonus: 0,
+              modelsReward: 0,
             },
           ],
         })}
@@ -299,6 +323,7 @@ describe("GuessingGamePage", () => {
     };
     render(
       <GuessingGamePage
+        models={NO_MODELS}
         board={null}
         shares={NO_SHARES}
         hasNickname
@@ -314,6 +339,7 @@ describe("GuessingGamePage", () => {
               settlement: "outcome",
               reward: 30,
               bonus: 0,
+              modelsReward: 0,
             },
             {
               ...base,
@@ -323,6 +349,7 @@ describe("GuessingGamePage", () => {
               settlement: "miss",
               reward: 0,
               bonus: 0,
+              modelsReward: 0,
             },
           ],
         })}
@@ -341,6 +368,7 @@ describe("GuessingGamePage", () => {
   it("still lists a player's waiting guesses between seasons", () => {
     render(
       <GuessingGamePage
+        models={NO_MODELS}
         board={null}
         shares={NO_SHARES}
         hasNickname
@@ -375,6 +403,7 @@ describe("GuessingGamePage", () => {
     };
     render(
       <GuessingGamePage
+        models={NO_MODELS}
         board={null}
         shares={NO_SHARES}
         hasNickname
@@ -388,6 +417,7 @@ describe("GuessingGamePage", () => {
               settlement: "awarded",
               reward: 30,
               bonus: 0,
+              modelsReward: 0,
             },
             {
               ...base,
@@ -397,6 +427,7 @@ describe("GuessingGamePage", () => {
               settlement: "abandoned",
               reward: 25,
               bonus: 0,
+              modelsReward: 0,
             },
             {
               ...base,
@@ -406,6 +437,7 @@ describe("GuessingGamePage", () => {
               settlement: "undecided",
               reward: 10,
               bonus: 0,
+              modelsReward: 0,
             },
             {
               ...base,
@@ -415,6 +447,7 @@ describe("GuessingGamePage", () => {
               settlement: "void",
               reward: 30,
               bonus: 0,
+              modelsReward: 0,
             },
           ],
         })}
@@ -437,6 +470,7 @@ describe("GuessingGamePage", () => {
     vi.mocked(placeGuessAction).mockResolvedValue({ ok: true });
     render(
       <GuessingGamePage
+        models={NO_MODELS}
         board={null}
         shares={NO_SHARES}
         hasNickname
@@ -468,7 +502,13 @@ describe("the line for a player without a nickname", () => {
 
   it("tells a player with none where to choose one", () => {
     render(
-      <GuessingGamePage board={null} shares={NO_SHARES} hasNickname={false} view={playing()} />
+      <GuessingGamePage
+        models={NO_MODELS}
+        board={null}
+        shares={NO_SHARES}
+        hasNickname={false}
+        view={playing()}
+      />
     );
 
     expect(screen.getByText(LINE)).toHaveTextContent(
@@ -478,7 +518,15 @@ describe("the line for a player without a nickname", () => {
   });
 
   it("is not shown to a player who has one", () => {
-    render(<GuessingGamePage board={null} shares={NO_SHARES} hasNickname view={playing()} />);
+    render(
+      <GuessingGamePage
+        models={NO_MODELS}
+        board={null}
+        shares={NO_SHARES}
+        hasNickname
+        view={playing()}
+      />
+    );
 
     expect(screen.queryByText(LINE)).not.toBeInTheDocument();
   });
@@ -487,7 +535,15 @@ describe("the line for a player without a nickname", () => {
     ["between seasons", { kind: "between", nextSeasonId: 2028, joined: true, awaiting: [] }],
     ["before any season is stored", { kind: "no-season", joined: true }],
   ])("tells a joined player with none %s too", (_case, view) => {
-    render(<GuessingGamePage board={null} shares={NO_SHARES} hasNickname={false} view={view} />);
+    render(
+      <GuessingGamePage
+        models={NO_MODELS}
+        board={null}
+        shares={NO_SHARES}
+        hasNickname={false}
+        view={view}
+      />
+    );
 
     expect(screen.getByRole("link", { name: "nimimerkki" })).toHaveAttribute("href", "/asetukset");
   });
@@ -495,6 +551,7 @@ describe("the line for a player without a nickname", () => {
   it("is not shown between seasons to a reader who has not joined, or to one with a nickname", () => {
     const { rerender } = render(
       <GuessingGamePage
+        models={NO_MODELS}
         board={null}
         shares={NO_SHARES}
         hasNickname={false}
@@ -505,6 +562,7 @@ describe("the line for a player without a nickname", () => {
 
     rerender(
       <GuessingGamePage
+        models={NO_MODELS}
         board={null}
         shares={NO_SHARES}
         hasNickname
@@ -517,6 +575,7 @@ describe("the line for a player without a nickname", () => {
   it("is not shown to a reader who has not joined", () => {
     render(
       <GuessingGamePage
+        models={NO_MODELS}
         board={null}
         shares={NO_SHARES}
         hasNickname={false}
@@ -548,6 +607,7 @@ describe("Tulostaulukko", () => {
   it("ranks the players after Tulevat ottelut and before the player's waiting guesses, counting them", () => {
     render(
       <GuessingGamePage
+        models={NO_MODELS}
         board={boardOf([
           boardRow(),
           boardRow({ nickname: null, balance: 1000, rank: 2, place: 2, settled: 1 }),
@@ -582,6 +642,7 @@ describe("Tulostaulukko", () => {
   it("names the columns", () => {
     render(
       <GuessingGamePage
+        models={NO_MODELS}
         board={boardOf([boardRow()])}
         hasNickname
         shares={NO_SHARES}
@@ -600,6 +661,7 @@ describe("Tulostaulukko", () => {
   it("marks the reader's own row", () => {
     render(
       <GuessingGamePage
+        models={NO_MODELS}
         board={boardOf([boardRow({ self: true })])}
         hasNickname
         shares={NO_SHARES}
@@ -615,6 +677,7 @@ describe("Tulostaulukko", () => {
   it("shows the reader's row after a gap when it is below the first rows", () => {
     render(
       <GuessingGamePage
+        models={NO_MODELS}
         board={boardOf(
           [boardRow()],
           boardRow({ nickname: "Minä", rank: 53, place: 53, self: true }),
@@ -634,6 +697,7 @@ describe("Tulostaulukko", () => {
   it("counts one player in the singular", () => {
     render(
       <GuessingGamePage
+        models={NO_MODELS}
         board={boardOf([boardRow()])}
         hasNickname
         shares={NO_SHARES}
@@ -646,7 +710,13 @@ describe("Tulostaulukko", () => {
 
   it("says nobody has guessed yet on an empty board", () => {
     render(
-      <GuessingGamePage board={boardOf([])} hasNickname shares={NO_SHARES} view={playing()} />
+      <GuessingGamePage
+        models={NO_MODELS}
+        board={boardOf([])}
+        hasNickname
+        shares={NO_SHARES}
+        view={playing()}
+      />
     );
 
     expect(screen.getByText("Kukaan ei ole vielä arvannut tällä kaudella.")).toBeInTheDocument();
@@ -654,7 +724,15 @@ describe("Tulostaulukko", () => {
   });
 
   it("says the board failed when it could not be read, and still shows the game", () => {
-    render(<GuessingGamePage board="error" hasNickname shares={NO_SHARES} view={playing()} />);
+    render(
+      <GuessingGamePage
+        models={NO_MODELS}
+        board="error"
+        hasNickname
+        shares={NO_SHARES}
+        view={playing()}
+      />
+    );
 
     expect(
       screen.getByText("Tulostaulukon lataaminen epäonnistui. Yritä myöhemmin uudelleen.")
@@ -665,6 +743,7 @@ describe("Tulostaulukko", () => {
   it("shows the board to a reader who has not joined, and between seasons", () => {
     const { rerender } = render(
       <GuessingGamePage
+        models={NO_MODELS}
         board={boardOf([boardRow()])}
         hasNickname={false}
         shares={NO_SHARES}
@@ -676,6 +755,7 @@ describe("Tulostaulukko", () => {
 
     rerender(
       <GuessingGamePage
+        models={NO_MODELS}
         board={boardOf([boardRow()])}
         hasNickname
         shares={NO_SHARES}
@@ -688,6 +768,7 @@ describe("Tulostaulukko", () => {
   it("shows no board before any season is stored", () => {
     render(
       <GuessingGamePage
+        models={NO_MODELS}
         board={null}
         hasNickname
         shares={NO_SHARES}
@@ -706,6 +787,7 @@ describe("the players' guesses and the rarity bonus", () => {
   it("shows the shares under a guess waiting for its result", () => {
     render(
       <GuessingGamePage
+        models={NO_MODELS}
         board={null}
         hasNickname
         shares={SHARES}
@@ -740,6 +822,7 @@ describe("the players' guesses and the rarity bonus", () => {
   it("shows the bonus and the shares under a settled guess", () => {
     render(
       <GuessingGamePage
+        models={NO_MODELS}
         board={null}
         hasNickname
         shares={SHARES}
@@ -756,6 +839,7 @@ describe("the players' guesses and the rarity bonus", () => {
               settlement: "outcome",
               reward: 30,
               bonus: 20,
+              modelsReward: 0,
             },
           ],
         })}
@@ -774,6 +858,7 @@ describe("the players' guesses and the rarity bonus", () => {
   it("shows no bonus line on a guess without one", () => {
     render(
       <GuessingGamePage
+        models={NO_MODELS}
         board={null}
         hasNickname
         shares={NO_SHARES}
@@ -790,6 +875,7 @@ describe("the players' guesses and the rarity bonus", () => {
               settlement: "outcome",
               reward: 30,
               bonus: 0,
+              modelsReward: 0,
             },
           ],
         })}
@@ -797,5 +883,119 @@ describe("the players' guesses and the rarity bonus", () => {
     );
 
     expect(screen.queryByText(/Harvinainen osuma/)).not.toBeInTheDocument();
+  });
+});
+
+describe("the models' guesses", () => {
+  const KICKED_OFF = new Date("2027-05-01T15:00:00Z");
+  const MODELS = new Map<number, ModelGuess[]>([
+    [
+      8,
+      [
+        { model: "elo-v1", outcome: "1", score: null },
+        { model: "elo-form-v1", outcome: "1", score: null },
+        { model: "elo-home-v1", outcome: "X", score: null },
+        { model: "poisson-v1", outcome: "1", score: { homeGoals: 2, awayGoals: 1 } },
+      ],
+    ],
+  ]);
+  const LINE = "Mallit: Elo 1 · Elo + vire 1 · Elo + kotietu X · Poisson 2–1";
+
+  function awaiting(providerMatchId: number) {
+    return {
+      providerMatchId,
+      kickoffAt: KICKED_OFF,
+      homeTeamName: "HJK",
+      awayTeamName: "KuPS",
+      guess: { kind: "outcome", outcome: "2" } as const,
+    };
+  }
+
+  it("shows them under a guess waiting for its result, by the prediction pages' names", () => {
+    render(
+      <GuessingGamePage
+        board={null}
+        hasNickname
+        models={MODELS}
+        shares={NO_SHARES}
+        view={playing({ awaiting: [awaiting(8), awaiting(9)] })}
+      />
+    );
+
+    expect(screen.getByText(LINE)).toBeInTheDocument();
+    // A match no model guessed has no line.
+    expect(screen.getAllByText(/^Mallit:/)).toHaveLength(1);
+  });
+
+  it("shows them under a settled guess, with what beating them paid", () => {
+    render(
+      <GuessingGamePage
+        board={null}
+        hasNickname
+        models={MODELS}
+        shares={NO_SHARES}
+        view={playing({
+          settled: [
+            {
+              ...awaiting(8),
+              homeGoals: 0,
+              awayGoals: 1,
+              settlement: "outcome",
+              reward: 30,
+              bonus: 0,
+              modelsReward: 40,
+            },
+          ],
+        })}
+      />
+    );
+
+    const item = screen.getByText("HJK 0–1 KuPS").closest("li") as HTMLElement;
+    expect([...item.querySelectorAll("p")].map((line) => line.textContent)).toEqual([
+      "Arvauksesi: 2",
+      "Oikea merkki +30",
+      "Voitit mallit +40",
+      LINE,
+    ]);
+  });
+
+  it("shows no reward line on a guess that beat no model", () => {
+    render(
+      <GuessingGamePage
+        board={null}
+        hasNickname
+        models={MODELS}
+        shares={NO_SHARES}
+        view={playing({
+          settled: [
+            {
+              ...awaiting(8),
+              homeGoals: 1,
+              awayGoals: 0,
+              settlement: "miss",
+              reward: 0,
+              bonus: 0,
+              modelsReward: 0,
+            },
+          ],
+        })}
+      />
+    );
+
+    expect(screen.queryByText(/Voitit mallit/)).not.toBeInTheDocument();
+  });
+
+  it("shows nothing of the models on a match still to be played", () => {
+    render(
+      <GuessingGamePage
+        board={null}
+        hasNickname
+        models={MODELS}
+        shares={NO_SHARES}
+        view={playing({ upcoming: [upcoming({ providerMatchId: 8 })] })}
+      />
+    );
+
+    expect(screen.queryByText(/^Mallit:/)).not.toBeInTheDocument();
   });
 });

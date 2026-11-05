@@ -43,6 +43,7 @@ import {
  * decisions/072-match-guesses.md
  * decisions/077-nickname.md
  * decisions/073-leaderboard.md
+ * decisions/074-against-the-models.md
  */
 
 describe("matches table", () => {
@@ -555,6 +556,14 @@ describe("Arvauspeli's tables", () => {
     expect(foreignKey?.reference().foreignTable).toBe(gamePlayer);
   });
 
+  it("allows one reward for beating the models per guess", () => {
+    expect(indexNamed(gameLedger, "game_ledger_models_idx")).toEqual({
+      unique: true,
+      columns: ["guess_id"],
+      where: "partial",
+    });
+  });
+
   it("allows one rarity bonus per guess", () => {
     expect(indexNamed(gameLedger, "game_ledger_bonus_idx")).toEqual({
       unique: true,
@@ -586,6 +595,18 @@ describe("Arvauspeli's tables", () => {
     expect(references).toEqual([
       { onDelete: "cascade", table: gamePlayer },
       { onDelete: "cascade", table: gameGuess },
+    ]);
+  });
+});
+
+describe("predictions, Poisson's score", () => {
+  it("keeps a live row's most likely score in two nullable whole-number columns", () => {
+    const { columns } = getTableConfig(predictions);
+    const goals = columns.filter((column) => column.name.endsWith("_goals"));
+
+    expect(goals.map((column) => [column.name, column.getSQLType(), column.notNull])).toEqual([
+      ["predicted_home_goals", "integer", false],
+      ["predicted_away_goals", "integer", false],
     ]);
   });
 });
