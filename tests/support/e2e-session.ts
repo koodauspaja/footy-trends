@@ -26,16 +26,17 @@ export function signedSessionCookie(token: string, secret: string): string {
 }
 
 /**
- * A stored reader with the given role, signed in for an hour: the name the
- * header shows, the cookie's value, and how to remove the reader again,
- * sessions with it. Each call is a reader of its own, so concurrent runs never
- * share one.
+ * A stored reader with the given role, signed in for an hour: the user id, the
+ * name the header shows, the cookie's value, and how to remove the reader
+ * again, sessions with it. Each call is a reader of its own, so concurrent runs
+ * never share one.
  *
  * decisions/695-ux-sweep.md
+ * decisions/074-against-the-models.md
  */
 export async function storeSignedInReader(
   role: "user" | "admin"
-): Promise<{ name: string; cookie: string; remove: () => Promise<void> }> {
+): Promise<{ id: string; name: string; cookie: string; remove: () => Promise<void> }> {
   const secret = process.env.BETTER_AUTH_SECRET;
   if (secret === undefined || secret === "") {
     throw new Error("BETTER_AUTH_SECRET signs the session cookie, and it is not set.");
@@ -54,6 +55,7 @@ export async function storeSignedInReader(
     })
   );
   return {
+    id,
     name,
     cookie: signedSessionCookie(token, secret),
     remove: () => withDatabase((sql) => sql`delete from "user" where id = ${id}`),
