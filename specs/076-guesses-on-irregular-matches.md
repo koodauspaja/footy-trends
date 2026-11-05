@@ -96,10 +96,10 @@ Drafts, fine-tuned in implementation (072's S20).
 
 | Case | Behaviour |
 |---|---|
-| A kickoff moved later, twice | Two free changes, one after each move (S5) |
+| A kickoff moved later, twice | Two free changes, one after each move (S5); both moves before one change give one (Miikka, 2026-11-05: "agreed on those choices") |
 | A kickoff moved later after the free change was used | A new free change |
-| Awarded or abandoned before its kickoff | Closed to guesses, and gone from `Tulevat ottelut`; its guesses settle at the stored kickoff (Claude, 2026-11-05, from review; for Miikka to confirm) |
-| The floor's free guess, postponed | Its free change stays a 1X2, as the floor's guess is; a score is refused as `free-fixed` (Claude, 2026-11-05, in implementation; for Miikka to confirm) |
+| Awarded or abandoned before its kickoff | Closed to guesses, and gone from `Tulevat ottelut`; its guesses settle at the stored kickoff (Miikka, 2026-11-05: "agreed on those choices") |
+| The floor's free guess, postponed | Its free change stays a 1X2, as the floor's guess is; a score is refused as `free-fixed` (Miikka, 2026-11-05: "agreed on those choices") |
 | A kickoff moved earlier, the guess made before it | Stands; locks at the new kickoff |
 | A kickoff moved earlier, the guess made after it | Void and refunded (S3) |
 | Abandoned with a result stored | Refunded (S9) |
