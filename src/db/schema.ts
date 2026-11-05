@@ -440,7 +440,7 @@ export const userNickname = pgTable("user_nickname", {
     .primaryKey()
     .references(() => user.id, { onDelete: "cascade" }),
   nickname: text("nickname").notNull(),
-  /** The nickname lower-cased, which two nicknames are compared by: one user per key. */
+  /** The nickname with its case folded, which two nicknames are compared by: one user per key. */
   nicknameKey: text("nickname_key").notNull().unique(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

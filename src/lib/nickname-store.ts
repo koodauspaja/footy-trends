@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { db } from "@/db";
+import { db, type Transaction } from "@/db";
 import { user, userNickname } from "@/db/schema";
 
 /**
@@ -20,8 +20,6 @@ export type NicknameSave = "set" | "changed" | "removed" | "taken";
 
 /** Thrown inside the transaction to undo its delete when the key is taken. */
 class NicknameTaken extends Error {}
-
-type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
  * Locks the user's row for the transaction. `no key update` leaves the
