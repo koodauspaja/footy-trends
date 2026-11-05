@@ -632,8 +632,15 @@ describe("matches that do not go as listed", () => {
     const row = vlMatch({ kickoffAt: at(100) });
     const [match] = await storeMatches([row]);
     await joinGame(USER_ID, NOW);
+    await joinGame(OTHER_ID, NOW);
     await play(USER_ID, match, { kind: "outcome", outcome: "1" }, () => NOW);
     await refresh(row, { kickoffAt: at(400) });
+
+    // A new guess is priced by the new kickoff: 10 at 399 h, where the old one priced 15.
+    expect(await play(OTHER_ID, match, { kind: "outcome", outcome: "1" }, () => at(1))).toEqual({
+      ok: true,
+      decision: { kind: "new", price: 10 },
+    });
 
     expect(await openGame(USER_ID, at(1))).toMatchObject({ upcoming: [{ postponed: true }] });
     expect(await play(USER_ID, match, { kind: "outcome", outcome: "X" }, () => at(1))).toEqual({
