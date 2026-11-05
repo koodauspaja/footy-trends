@@ -196,6 +196,16 @@ describe("the shares", () => {
     );
   });
 
+  it("counts the guesses on an awarded match, which are settled, not refunded", async () => {
+    await db
+      .update(tasoMatches)
+      .set({ status: "FINISHED", providerStatus: "Forfeited", homeGoals: 3, awayGoals: 0 })
+      .where(eq(tasoMatches.providerMatchId, matchId));
+    await settleGuesses(at(210));
+
+    expect((await readShares([matchId], at(211))).get(matchId)).toMatchObject({ total: 6 });
+  });
+
   it("leaves out refunded guesses once settled", async () => {
     await db
       .update(tasoMatches)
