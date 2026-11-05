@@ -204,10 +204,17 @@ describe("readModelGuesses", () => {
     expect(await readModelGuesses(db, [7])).toEqual(new Map());
   });
 
-  it("gives Poisson no score when only one side is stored", async () => {
-    state.modelRows = [prediction({ model: "poisson-v1", homeGoals: 1, awayGoals: null })];
+  it("leaves Poisson out when its score is not stored, on either side or both", async () => {
+    state.modelRows = [
+      prediction(),
+      prediction({ model: "poisson-v1", homeGoals: 1, awayGoals: null }),
+      prediction({ providerMatchId: 8, model: "poisson-v1", homeGoals: null, awayGoals: 1 }),
+      prediction({ providerMatchId: 9, model: "poisson-v1" }),
+    ];
 
-    expect((await readModelGuesses(db, [7])).get(7)?.[0]?.score).toBeNull();
+    expect(await readModelGuesses(db, [7, 8, 9])).toEqual(
+      new Map([[7, [{ model: "elo-v1", outcome: "1", score: null }]]])
+    );
   });
 });
 

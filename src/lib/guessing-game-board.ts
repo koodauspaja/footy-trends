@@ -5,6 +5,7 @@ import { type Board, type Outcome, rankBoard, type Shares, sharesOf } from "./gu
 import { favouredOutcome, GAME_MODELS, type ModelGuess } from "./guessing-game-models";
 import type { GameView } from "./guessing-game-store";
 import { logger } from "./logger";
+import { POISSON_MODEL } from "./poisson";
 
 /**
  * `Arvauspeli`'s reads of other players: a season's leaderboard, the shares of
@@ -125,7 +126,8 @@ const MODEL_ORDER: ReadonlyMap<string, number> = new Map(
 
 /**
  * The models' guesses on each given TASO match, from their live predictions,
- * which stop changing at kickoff. A model with no live row has no guess.
+ * which stop changing at kickoff. A model with no live row has no guess, and
+ * neither has Poisson without its stored score.
  *
  * decisions/074-against-the-models.md
  */
@@ -158,13 +160,10 @@ export async function readModelGuesses(
     const place = MODEL_ORDER.get(row.model);
     if (place === undefined) continue;
     const { homeGoals, awayGoals } = row;
+    const score = homeGoals === null || awayGoals === null ? null : { homeGoals, awayGoals };
+    if (row.model === POISSON_MODEL && score === null) continue;
     const match = guesses.get(row.providerMatchId) ?? [];
-    match.push({
-      model: row.model,
-      outcome: favouredOutcome(row),
-      score: homeGoals === null || awayGoals === null ? null : { homeGoals, awayGoals },
-      place,
-    });
+    match.push({ model: row.model, outcome: favouredOutcome(row), score, place });
     guesses.set(row.providerMatchId, match);
   }
   return new Map(
