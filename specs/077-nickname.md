@@ -60,7 +60,8 @@ Drafts, fine-tuned in implementation (S10).
     "Nimimerkin tallentaminen epäonnistui. Yritä uudelleen."
   - A failed read costs the section, not the page: "Nimimerkkiä ei voitu
     ladata."
-- **`/arvauspeli`**, a joined player without a nickname, under the balance:
+- **`/arvauspeli`**, a joined player without a nickname, under the balance, or
+  between seasons under the line saying when the next season's matches come:
   "Valitse [nimimerkki](/asetukset), jolla näyt tulostaulukossa."
 - **Admin user table:** a column `Nimimerkki` (empty when none), and the action
   `Tyhjennä nimimerkki` on a row that has one, confirmed with "Tyhjennetäänkö
