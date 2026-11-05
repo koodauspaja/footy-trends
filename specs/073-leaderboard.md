@@ -52,9 +52,12 @@ Drafts, fine-tuned in implementation (S8).
 
 - **`Tulostaulukko`**, a section of `/arvauspeli` after `Tulevat ottelut`,
   folding by its `h2` like 072's, starting open: "Tulostaulukko ({n}
-  pelaajaa)". Each row: the rank, the nickname, the balance, and the number of
-  settled guesses ("{n} ratkaistua"). The player's own row is highlighted, and
-  shown below the list when it is not in the top 50.
+  pelaajaa)". A table, `Sija`, `Pelaaja`, `Pelimerkit`, `Ratkaistut`: the rank,
+  the nickname, the balance, and the number of settled guesses. The player's
+  own row is bold with "(sinä)" after the name, and shown below the list, after
+  a "…" row, when it is not in the top 50.
+- **A failed read of the board:** "Tulostaulukon lataaminen epäonnistui. Yritä
+  myöhemmin uudelleen." in its section; the rest of the page is shown.
 - **A player without a nickname:** ranked, and listed as "Nimetön pelaaja".
 - **Empty:** "Kukaan ei ole vielä arvannut tällä kaudella."
 - **Signed in, not joined:** 072's join text, and the leaderboard under it.
@@ -121,7 +124,8 @@ reading the board. Nicknames are rendered as text, never as HTML.
 
 - **Bonus:** counted in 072's `Arvauspeli guesses settled` line, as `bonuses`.
   A failure is 072's per-match `error`, since it is the same transaction.
-- **Reading the board:** a failure logs `error` as 072's page read does.
+- **Reading the board or the shares:** a failure logs `error` with the user
+  id, and costs only that part of the page.
 - Ids only: no email address, account name or nickname.
 
 ## Acceptance Criteria
