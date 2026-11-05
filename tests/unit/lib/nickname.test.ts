@@ -139,6 +139,11 @@ describe("hasBlockedWord", () => {
     expect(hasBlockedWord("Kalle Kukko")).toBe(false);
   });
 
+  it("compares a name and an entry in one normal form, a letter typed with a combining mark too", () => {
+    expect(FINNISH_ENTRIES).toContain("bylsiä");
+    expect(hasBlockedWord("Iso bylsia\u0308")).toBe(true);
+  });
+
   it("splits an entry at its symbols as it splits a name", () => {
     expect(ENGLISH_ENTRIES).toContain("s&m");
     expect(hasBlockedWord("Kalle S M")).toBe(true);

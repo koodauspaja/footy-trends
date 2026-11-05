@@ -43,7 +43,8 @@ const CANCEL = "Peruuta";
 const EMPTY = "Ei käyttäjiä.";
 const PREVIOUS = "Edellinen";
 const NEXT = "Seuraava";
-const CONFIRM_BODY = "Tämä poistaa tilin, suosikit, asetukset ja profiilikuvan. Tätä ei voi perua.";
+const CONFIRM_BODY =
+  "Tämä poistaa tilin, suosikit, asetukset, profiilikuvan, nimimerkin ja arvauspelin tiedot. Tätä ei voi perua.";
 
 /**
  * Every refusal the actions can report, in Finnish.

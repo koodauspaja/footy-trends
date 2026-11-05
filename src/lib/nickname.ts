@@ -49,7 +49,8 @@ export function nicknameKey(nickname: string): string {
 }
 
 function wordsOf(text: string): string[] {
-  return nicknameKey(text)
+  // Normalised as a nickname is, so a listed entry and a name compare alike.
+  return nicknameKey(text.normalize("NFKC"))
     .split(WORD_BREAK)
     .filter((word) => word !== "");
 }

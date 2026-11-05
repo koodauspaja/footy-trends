@@ -181,7 +181,7 @@ describe("deleting", () => {
     expect(screen.getByText("Poistetaanko lukija@example.fi pysyvästi?")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Tämä poistaa tilin, suosikit, asetukset ja profiilikuvan. Tätä ei voi perua."
+        "Tämä poistaa tilin, suosikit, asetukset, profiilikuvan, nimimerkin ja arvauspelin tiedot. Tätä ei voi perua."
       )
     ).toBeInTheDocument();
     // Nothing has happened yet — the question is the point.
