@@ -354,6 +354,13 @@ describe("guessing", () => {
       .insert(gameLedger)
       .values({ userId: USER_ID, seasonId: SEASON, kind: "change", amount: -984 });
 
+    const view = await openGame(USER_ID, NOW);
+    expect(view).toMatchObject({ kind: "playing", balance: 16 });
+    if (view.kind !== "playing") return;
+    expect(view.upcoming.map((match) => [match.price, match.floor])).toEqual([
+      [20, false],
+      [15, false],
+    ]);
     expect(
       await placeGuess(USER_ID, dear, { kind: "outcome", outcome: "1" }, 0, () => NOW)
     ).toEqual({ ok: false, reason: "insufficient" });
