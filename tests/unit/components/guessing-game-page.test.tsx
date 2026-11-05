@@ -9,6 +9,7 @@ import type { GameView, UpcomingMatch } from "@/lib/guessing-game-store";
  * waiting for a result and what the settled ones paid.
  *
  * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 
 vi.mock("@/lib/guessing-game-actions", () => ({

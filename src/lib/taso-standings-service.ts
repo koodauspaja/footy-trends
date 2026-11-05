@@ -679,6 +679,7 @@ const getSyncedSeasonMatches = cache(async function getSyncedSeasonMatches(
  * decisions/009-veikkausliiga.md
  * decisions/029-forced-season-refresh.md
  * decisions/678-stale-snapshot-written-last.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 export async function synchronizeMatches(
   providerMatches: NormalizedTasoMatch[],

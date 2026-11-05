@@ -10,6 +10,7 @@ import { joinGame, openGame, placeGuess, settleGuesses } from "@/lib/guessing-ga
  * a season far enough ahead to keep every other test's TASO rows out.
  *
  * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 
 const SEASON = 2091;

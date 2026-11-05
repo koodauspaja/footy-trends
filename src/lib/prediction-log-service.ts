@@ -390,6 +390,7 @@ export async function runPredictionLog(
  * for each match that could not be and for a step that failed outright.
  *
  * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 export async function settle(now: Date, failures: string[]): Promise<number> {
   try {

@@ -119,6 +119,7 @@ export const matches = pgTable(
  * decisions/019-match-page.md
  * decisions/020-context-free-team-page.md
  * decisions/027-team-search.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 export const tasoMatches = pgTable(
   "taso_matches",
@@ -597,6 +598,7 @@ export const gamePlayer = pgTable("game_player", {
  * change rewrites the row; what each version cost is in the ledger.
  *
  * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 export const gameGuess = pgTable(
   "game_guess",
@@ -642,6 +644,7 @@ export const gameGuess = pgTable(
  * of its amounts, never a figure stored of its own.
  *
  * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 export const gameLedger = pgTable(
   "game_ledger",

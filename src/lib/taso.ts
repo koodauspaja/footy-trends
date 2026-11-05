@@ -169,6 +169,7 @@ type MatchesResponse = { matches?: TasoProviderMatch[] };
  * decisions/013-more-finnish-competitions.md
  * decisions/015-finnish-cups.md
  * decisions/036-halftime-comebacks.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 export type NormalizedTasoMatch = {
   providerMatchId: number;
@@ -283,6 +284,7 @@ function normalizeStatus(status: string): string {
  * decisions/009-veikkausliiga.md
  * decisions/010-playoff-group-match-list.md
  * decisions/284-provider-id-validation.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 export function normalizeTasoMatch(
   match: TasoProviderMatch,

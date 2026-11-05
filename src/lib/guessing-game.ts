@@ -3,6 +3,7 @@
  * what a late joiner gets, and what a guess from the browser may be.
  *
  * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 
 export type Outcome = "1" | "X" | "2";

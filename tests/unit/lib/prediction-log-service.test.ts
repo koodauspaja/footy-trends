@@ -178,16 +178,14 @@ describe("runPredictionLog", () => {
     mocks.getFootballDataSeasonMatches.mockReset().mockResolvedValue([{ id: "fd" }]);
     mocks.getTasoSeasonMatches.mockReset().mockResolvedValue([{ id: "taso" }]);
     mocks.onConflictDoUpdate.mockReset().mockResolvedValue(undefined);
-    mocks.settleGuesses
-      .mockReset()
-      .mockResolvedValue({
-        matches: 0,
-        rewarded: 0,
-        missed: 0,
-        refunded: 0,
-        voided: 0,
-        failed: [],
-      });
+    mocks.settleGuesses.mockReset().mockResolvedValue({
+      matches: 0,
+      rewarded: 0,
+      missed: 0,
+      refunded: 0,
+      voided: 0,
+      failed: [],
+    });
   });
 
   it("refreshes each provider's competition through its paced, cached fetch and stores it", async () => {

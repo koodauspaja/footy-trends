@@ -3,6 +3,7 @@
  * balance, the matches they can guess, and what their guesses paid.
  *
  * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 
 import type { ReactNode } from "react";

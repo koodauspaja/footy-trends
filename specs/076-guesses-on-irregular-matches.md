@@ -145,7 +145,7 @@ No new variables or secrets.
 ## Files To Update
 
 - `specs/076-guesses-on-irregular-matches.md`
-- `src/lib/taso.ts`, `src/db/schema.ts` and a migration named `add_taso_raw_status` (TASO's own status)
+- `src/lib/taso.ts`, `src/db/schema.ts` and the migrations `add_taso_provider_status` (TASO's own status) and `alter_game_guess_for_settlements` (each guess's kickoff, and one settlement per guess)
 - `docs/infrastructure.md` if the settling line changes
 
 ## Open Questions

@@ -21,6 +21,7 @@ import {
  * late joiner's share, the floor, and what a guess from the browser may be.
  *
  * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 
 const KICKOFF = new Date("2027-04-10T15:00:00Z");

@@ -4,6 +4,7 @@
  * is in `guessing-game.ts`.
  *
  * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 
 import { and, asc, eq, inArray, isNull, lte, max, ne, or, sql, sum } from "drizzle-orm";
@@ -322,6 +323,7 @@ function awaitingOf(rows: Awaited<ReturnType<typeof openGuessesOf>>, now: Date):
  * with no action of their own; then everything shown is read in one snapshot.
  *
  * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 export async function openGame(userId: string, now: Date): Promise<GameView> {
   const [seasonId, joinedAt] = await Promise.all([latestSeason(db), joinedAtOf(db, userId)]);
@@ -490,6 +492,7 @@ function refused(
  * is no longer the one the page showed is refused, never charged.
  *
  * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 export async function placeGuess(
   userId: string,

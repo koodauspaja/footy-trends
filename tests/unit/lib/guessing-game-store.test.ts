@@ -7,6 +7,7 @@ import { warmModules } from "../../support/warm-module";
  * the SQL runs against Postgres in `tests/integration/guessing-game.test.ts`.
  *
  * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 
 const { state, logger } = vi.hoisted(() => {
