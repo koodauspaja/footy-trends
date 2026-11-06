@@ -339,6 +339,15 @@ describe("placeSeasonGuess", () => {
     expect(inserted()[0]).toMatchObject({ lockAt: at(200) });
   });
 
+  it("is locked at the very moment of a stored lock earlier than the first kickoff", async () => {
+    answer([{ joinedAt: JOINED }], [{ lockAt: NOW }]);
+
+    expect(await placeSeasonGuess("user-1", CHAMPION, () => NOW)).toEqual({
+      ok: false,
+      reason: "locked",
+    });
+  });
+
   it("follows the first kickoff when a stored lock still ahead is earlier, the opener moved later", async () => {
     answer([{ joinedAt: JOINED }], [{ lockAt: at(100) }], teamRows(), [], [{ id: 44 }], undefined);
 
