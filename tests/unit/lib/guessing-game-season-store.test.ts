@@ -472,10 +472,30 @@ describe("readSeasonSection", () => {
     });
   });
 
-  it("after the lock is nothing for a player with no season guess", async () => {
-    answer([{ kickoffAt: at(-1) }], NO_LOCK, []);
+  it("after the lock is nothing for a player with no season guess while no picks are shared", async () => {
+    answer([{ kickoffAt: at(-1) }], NO_LOCK, [], teamRows(), [], []);
 
     expect(await readSeasonSection("user-1", 2034, NOW)).toBeNull();
+  });
+
+  it("after the lock gives a player with no season guess the shares of the picks", async () => {
+    answer([{ kickoffAt: at(-1) }], NO_LOCK, [], teamRows(), [{ team: 100, count: 3 }], []);
+
+    expect(await readSeasonSection("user-1", 2034, NOW)).toMatchObject({
+      locked: true,
+      guesses: {},
+      shares: {
+        champion: { shares: [{ teamProviderId: 100, percent: 100 }], total: 3 },
+        last: null,
+      },
+    });
+  });
+
+  it("after the lock is nothing for a player with no guess when shares alone are not asked for", async () => {
+    answer([{ kickoffAt: at(-1) }], NO_LOCK, []);
+
+    expect(await readSeasonSection("user-1", 2034, NOW, false)).toBeNull();
+    expect(state.calls.filter((call) => call.method === "select")).toHaveLength(3);
   });
 
   it("after the lock reads the shares, and what each settled guess paid or that it was refunded", async () => {
@@ -547,8 +567,40 @@ describe("readSeasonSectionOf", () => {
   it("reads the season in play", async () => {
     answer([]);
 
-    expect(await readSeasonSectionOf(PLAYING, "user-1", NOW)).toBeNull();
+    expect(await readSeasonSectionOf(PLAYING, "user-1", NOW)).toEqual({
+      current: null,
+      previous: null,
+    });
     expect(state.calls.filter((call) => call.method === "select")).toHaveLength(1);
+  });
+
+  it("before the lock also reads the season just finished, for a player who guessed in it", async () => {
+    answer(
+      [{ kickoffAt: at(10) }],
+      NO_LOCK,
+      [],
+      teamRows(),
+      [{ kickoffAt: at(-1000) }],
+      NO_LOCK,
+      [guessRow({ seasonId: 2035 })],
+      teamRows(),
+      [],
+      []
+    );
+
+    expect(await readSeasonSectionOf(PLAYING, "user-1", NOW)).toMatchObject({
+      current: { seasonId: 2036, locked: false },
+      previous: { seasonId: 2035, locked: true },
+    });
+  });
+
+  it("after the lock reads no season just finished", async () => {
+    answer([{ kickoffAt: at(-1) }], NO_LOCK, [guessRow({ seasonId: 2036 })], teamRows(), [], []);
+
+    expect(await readSeasonSectionOf(PLAYING, "user-1", NOW)).toMatchObject({
+      current: { seasonId: 2036, locked: true },
+      previous: null,
+    });
   });
 
   it("between seasons reads the season just finished for a player", async () => {
@@ -560,7 +612,7 @@ describe("readSeasonSectionOf", () => {
         "user-1",
         NOW
       )
-    ).toMatchObject({ seasonId: 2036, locked: true });
+    ).toMatchObject({ current: { seasonId: 2036, locked: true }, previous: null });
   });
 
   it("reads nothing between seasons for a reader who has not joined, nor without a season or a player", async () => {
@@ -569,7 +621,10 @@ describe("readSeasonSectionOf", () => {
       { kind: "no-season", joined: true },
       { kind: "not-joined", seasonId: 2036, grant: 1000 },
     ] as GameView[]) {
-      expect(await readSeasonSectionOf(view, "user-1", NOW)).toBeNull();
+      expect(await readSeasonSectionOf(view, "user-1", NOW)).toEqual({
+        current: null,
+        previous: null,
+      });
     }
     expect(state.calls).toEqual([]);
   });
@@ -577,7 +632,10 @@ describe("readSeasonSectionOf", () => {
   it("leaves the section out, and logs it, when the read fails", async () => {
     answer(new Error("database down"));
 
-    expect(await readSeasonSectionOf(PLAYING, "user-1", NOW)).toBeNull();
+    expect(await readSeasonSectionOf(PLAYING, "user-1", NOW)).toEqual({
+      current: null,
+      previous: null,
+    });
     expect(logger.error).toHaveBeenCalledWith(
       { err: expect.any(Error), userId: "user-1" },
       "Reading Arvauspeli season guesses failed"

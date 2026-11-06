@@ -1109,6 +1109,31 @@ describe("Kauden arvaukset", () => {
     expect(screen.getByRole("button", { name: "Arvaa sarjataulukko" })).toBeInTheDocument();
   });
 
+  it("shows the season just finished beside the one in play, under its own year", () => {
+    render(
+      <GuessingGamePage
+        board={null}
+        hasNickname
+        models={NO_MODELS}
+        previousSeason={section({
+          seasonId: 2026,
+          locked: true,
+          guesses: {
+            champion: { teams: [1], settled: { kind: "paid", reward: 200, right: 1, near: 0 } },
+          },
+        })}
+        season={section()}
+        shares={NO_SHARES}
+        view={playing()}
+      />
+    );
+    const finished = screen.getByRole("region", { name: "Kauden 2026 arvaukset" });
+
+    expect(screen.getByRole("heading", { name: "Kauden arvaukset" })).toBeInTheDocument();
+    expect(within(finished).getByText("Oikein, +200")).toBeInTheDocument();
+    expect(within(finished).queryByRole("button")).toBeNull();
+  });
+
   it("sits above the upcoming matches", () => {
     renderSection(section(), playing({ upcoming: [upcoming()] }));
     const season = screen.getByRole("heading", { name: "Kauden arvaukset" });

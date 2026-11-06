@@ -302,7 +302,9 @@ async function pickShares(
 export async function readSeasonSection(
   userId: string,
   seasonId: number,
-  now: Date
+  now: Date,
+  /** After the lock, whether a player with no guess still gets the shares. */
+  sharesAlone = true
 ): Promise<SeasonSection | null> {
   return db.transaction(
     async (tx) => {
@@ -320,12 +322,13 @@ export async function readSeasonSection(
         .select()
         .from(gameSeasonGuess)
         .where(and(eq(gameSeasonGuess.userId, userId), eq(gameSeasonGuess.seasonId, seasonId)));
-      if (locked && rows.length === 0) return null;
+      if (locked && rows.length === 0 && !sharesAlone) return null;
       const [teams, champion, last] = await Promise.all([
         seasonTeams(tx, seasonId),
         locked ? pickShares(tx, seasonId, "champion") : null,
         locked ? pickShares(tx, seasonId, "last") : null,
       ]);
+      if (locked && rows.length === 0 && champion === null && last === null) return null;
       return {
         seasonId,
         lockAt,
@@ -342,9 +345,10 @@ export async function readSeasonSection(
 }
 
 /**
- * The section for the season a view is about: the one in play, or between
- * seasons the one just finished, which shows only its guesses' results. A
- * failed read logs and leaves the section out, not the game.
+ * The sections for the season a view is about: the one in play, and while it
+ * is before its lock the one just finished, with its results; between seasons
+ * the one just finished. A finished season shows only a player who guessed in
+ * it. A failed read logs and leaves the sections out, not the game.
  *
  * decisions/075-season-guesses.md
  */
@@ -352,18 +356,35 @@ export async function readSeasonSectionOf(
   view: GameView,
   userId: string,
   now: Date
-): Promise<SeasonSection | null> {
-  let seasonId: number | null = null;
-  if (view.kind === "playing") seasonId = view.seasonId;
-  else if (view.kind === "between" && view.joined) seasonId = view.nextSeasonId - 1;
-  if (seasonId === null) return null;
+): Promise<SeasonSections> {
   try {
-    return await readSeasonSection(userId, seasonId, now);
+    if (view.kind === "between" && view.joined) {
+      return {
+        current: await readSeasonSection(userId, view.nextSeasonId - 1, now, false),
+        previous: null,
+      };
+    }
+    if (view.kind !== "playing") return NO_SECTIONS;
+    const current = await readSeasonSection(userId, view.seasonId, now);
+    const previous =
+      current === null || current.locked
+        ? null
+        : await readSeasonSection(userId, view.seasonId - 1, now, false);
+    return { current, previous };
   } catch (error) {
     logger.error({ err: error, userId }, "Reading Arvauspeli season guesses failed");
-    return null;
+    return NO_SECTIONS;
   }
 }
+
+/**
+ * The page's season sections: the season the view is about, and the one just
+ * finished while the next is before its lock.
+ *
+ * decisions/075-season-guesses.md
+ */
+export type SeasonSections = { current: SeasonSection | null; previous: SeasonSection | null };
+const NO_SECTIONS: SeasonSections = { current: null, previous: null };
 
 /**
  * The season's answers so far: the six once the regular season is played, the

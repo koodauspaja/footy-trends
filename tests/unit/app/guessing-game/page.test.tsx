@@ -51,7 +51,7 @@ beforeEach(() => {
   currentUserId.mockResolvedValue("user-1");
   getNickname.mockResolvedValue(null);
   readOthers.mockResolvedValue({ board: null, shares: new Map(), models: new Map() });
-  readSeasonSectionOf.mockResolvedValue(null);
+  readSeasonSectionOf.mockResolvedValue({ current: null, previous: null });
 });
 
 describe("/arvauspeli", () => {
@@ -166,13 +166,22 @@ describe("/arvauspeli", () => {
       groups: 1,
     };
     openGame.mockResolvedValue(view);
-    readSeasonSectionOf.mockResolvedValue({
+    const section = {
       seasonId: 2027,
       lockAt: new Date("2027-04-05T15:00:00Z"),
       locked: true,
       teams: [{ teamProviderId: 1, name: "HJK" }],
       guesses: { champion: { teams: [1], settled: null } },
       shares: { champion: null, last: null },
+    };
+    readSeasonSectionOf.mockResolvedValue({
+      current: section,
+      previous: {
+        ...section,
+        seasonId: 2026,
+        teams: [{ teamProviderId: 2, name: "KuPS" }],
+        guesses: { champion: { teams: [2], settled: null } },
+      },
     });
 
     await renderPage();
@@ -180,6 +189,8 @@ describe("/arvauspeli", () => {
     expect(readSeasonSectionOf).toHaveBeenCalledWith(view, "user-1", openGame.mock.calls[0]?.[1]);
     expect(screen.getByRole("heading", { name: "Kauden arvaukset" })).toBeInTheDocument();
     expect(screen.getByText("Arvauksesi: HJK")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Kauden 2026 arvaukset" })).toBeInTheDocument();
+    expect(screen.getByText("Arvauksesi: KuPS")).toBeInTheDocument();
   });
 
   it("reads no other players for a signed-out reader", async () => {

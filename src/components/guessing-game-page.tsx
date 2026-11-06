@@ -402,7 +402,10 @@ function PickSharesLine({
  *
  * decisions/075-season-guesses.md
  */
-function SeasonGuesses({ section }: Readonly<{ section: SeasonSection }>) {
+function SeasonGuesses({
+  section,
+  heading,
+}: Readonly<{ section: SeasonSection; heading: string }>) {
   const names = new Map(section.teams.map((team) => [team.teamProviderId, team.name]));
   const name = (id: number) => names.get(id) ?? "–";
   const placed = SEASON_KINDS.filter((kind) => section.guesses[kind] !== undefined);
@@ -414,7 +417,12 @@ function SeasonGuesses({ section }: Readonly<{ section: SeasonSection }>) {
     ? SEASON_KINDS.filter((kind) => placed.includes(kind) || sharesOf(kind) !== null)
     : SEASON_KINDS;
   return (
-    <GameFold count={guessCount(placed.length)} heading="Kauden arvaukset" id="season" open>
+    <GameFold
+      count={guessCount(placed.length)}
+      heading={heading}
+      id={`season-${section.seasonId}`}
+      open
+    >
       {!section.locked && (
         <p className="text-sm">
           Arvaa kausi ennen sen ensimmäistä ottelua {dayFormatter.format(section.lockAt)} klo{" "}
@@ -476,11 +484,31 @@ type Props = Readonly<{
   models: ReadonlyMap<number, ModelGuess[]>;
   /** The player's season guesses, or `null` with none to show. */
   season: SeasonSection | null;
+  /** The season just finished, shown while the next is before its lock, or `null`. */
+  previousSeason?: SeasonSection | null;
 }>;
 
-export function GuessingGamePage({ view, hasNickname, board, shares, models, season }: Props) {
+export function GuessingGamePage({
+  view,
+  hasNickname,
+  board,
+  shares,
+  models,
+  season,
+  previousSeason = null,
+}: Props) {
   const leaderboard = board === null ? null : <Leaderboard board={board} />;
-  const seasonGuesses = season === null ? null : <SeasonGuesses section={season} />;
+  const seasonGuesses = (
+    <>
+      {season !== null && <SeasonGuesses heading="Kauden arvaukset" section={season} />}
+      {previousSeason !== null && (
+        <SeasonGuesses
+          heading={`Kauden ${previousSeason.seasonId} arvaukset`}
+          section={previousSeason}
+        />
+      )}
+    </>
+  );
   if (view.kind === "no-season" || view.kind === "between") {
     return (
       <div className="flex flex-col items-start gap-3">

@@ -7,7 +7,7 @@ import { currentUserId } from "@/lib/current-user";
 import type { Board, Shares } from "@/lib/guessing-game";
 import { readOthers } from "@/lib/guessing-game-board";
 import type { ModelGuess } from "@/lib/guessing-game-models";
-import { readSeasonSectionOf, type SeasonSection } from "@/lib/guessing-game-season-store";
+import { readSeasonSectionOf, type SeasonSections } from "@/lib/guessing-game-season-store";
 import { type GameView, openGame } from "@/lib/guessing-game-store";
 import { logger } from "@/lib/logger";
 import { getNickname } from "@/lib/nickname-store";
@@ -56,7 +56,7 @@ export default async function GuessingGame() {
     shares: Map<number, Shares>;
     models: Map<number, ModelGuess[]>;
   };
-  let season: SeasonSection | null;
+  let seasons: SeasonSections;
   try {
     const userId = await currentUserId();
     if (userId === null) {
@@ -68,7 +68,7 @@ export default async function GuessingGame() {
     }
     const now = new Date();
     [view, nickname] = await Promise.all([openGame(userId, now), nicknameOrUnknown(userId)]);
-    [others, season] = await Promise.all([
+    [others, seasons] = await Promise.all([
       readOthers(view, userId, now),
       readSeasonSectionOf(view, userId, now),
     ]);
@@ -86,7 +86,8 @@ export default async function GuessingGame() {
         board={others.board}
         hasNickname={nickname !== null}
         models={others.models}
-        season={season}
+        previousSeason={seasons.previous}
+        season={seasons.current}
         shares={others.shares}
         view={view}
       />
