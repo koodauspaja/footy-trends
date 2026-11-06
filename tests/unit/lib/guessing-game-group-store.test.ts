@@ -120,8 +120,8 @@ describe("createGroup", () => {
 });
 
 describe("joinGroup", () => {
-  it("joins the game first, then the group", async () => {
-    queue(PLAYER, [{ id: 5 }], [OWNER], [{ groups: 0 }], []);
+  it("joins the game once the group would take the reader, then the group", async () => {
+    queue([{ id: 5 }], [OWNER], PLAYER, [{ groups: 0 }], []);
     expect(await store.joinGroup("friend", "token", NOW)).toEqual({
       ok: true,
       groupId: 5,
@@ -131,7 +131,7 @@ describe("joinGroup", () => {
   });
 
   it("joins nothing for a member already in the group", async () => {
-    queue(PLAYER, [{ id: 5 }], [OWNER, FRIEND]);
+    queue([{ id: 5 }], [OWNER, FRIEND]);
     expect(await store.joinGroup("friend", "token", NOW)).toEqual({
       ok: true,
       groupId: 5,
@@ -139,12 +139,13 @@ describe("joinGroup", () => {
     });
   });
 
-  it("refuses a link that names no group", async () => {
-    queue(PLAYER, []);
+  it("refuses a link that names no group, joining nothing of the game", async () => {
+    queue([]);
     expect(await store.joinGroup("friend", "token", NOW)).toEqual({
       ok: false,
       reason: "invalid-link",
     });
+    expect(joinGameIn).not.toHaveBeenCalled();
   });
 
   it("refuses the fifty-first member", async () => {
@@ -152,12 +153,13 @@ describe("joinGroup", () => {
       membershipId: index + 1,
       userId: `member-${index}`,
     }));
-    queue(PLAYER, [{ id: 5 }], members);
+    queue([{ id: 5 }], members);
     expect(await store.joinGroup("friend", "token", NOW)).toEqual({ ok: false, reason: "full" });
+    expect(joinGameIn).not.toHaveBeenCalled();
   });
 
   it("refuses a player already in ten groups", async () => {
-    queue(PLAYER, [{ id: 5 }], [OWNER], [{ groups: 10 }]);
+    queue([{ id: 5 }], [OWNER], PLAYER, [{ groups: 10 }]);
     expect(await store.joinGroup("friend", "token", NOW)).toEqual({
       ok: false,
       reason: "group-limit",
@@ -272,7 +274,8 @@ describe("readGroupsOf", () => {
       { groupId: 8, name: "Pallo", members: 2, rank: 2 },
       { groupId: 6, name: "Äijät", members: 2, rank: 1 },
     ]);
-    expect(readBoardEntries).toHaveBeenCalledWith(2027);
+    // Read for the members of the reader's groups only, each once.
+    expect(readBoardEntries).toHaveBeenCalledWith(2027, ["owner", "friend", "other"]);
   });
 
   it("gives no rank with no season to rank, without reading a board", async () => {
@@ -299,6 +302,7 @@ describe("readGroup", () => {
     queue(rows);
     readBoardEntries.mockResolvedValue([entry("friend", 1100), entry("outsider", 2000)]);
     const group = await store.readGroup("friend", 5, 2027);
+    expect(readBoardEntries).toHaveBeenCalledWith(2027, ["friend", "owner"]);
     expect(group).toMatchObject({
       groupId: 5,
       name: "Kaverit",

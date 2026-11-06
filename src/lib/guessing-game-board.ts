@@ -1,4 +1,18 @@
-import { and, count, eq, inArray, isNotNull, isNull, lt, lte, ne, or, sql, sum } from "drizzle-orm";
+import {
+  type AnyColumn,
+  and,
+  count,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  ne,
+  or,
+  sql,
+  sum,
+} from "drizzle-orm";
 import { db } from "@/db";
 import {
   gameGuess,
@@ -32,14 +46,20 @@ import { POISSON_MODEL } from "./poisson";
 
 /**
  * Every player with a guess in a season, a match's or the season's, with their
- * balance and settled count, read in one snapshot so the two agree. Ranked by
- * `rankBoard`, for everyone or for a group's members.
+ * balance and settled count, read in one snapshot so the two agree; or only
+ * those of the given users, a group's members. Ranked by `rankBoard`.
  *
  * decisions/073-leaderboard.md
  * decisions/075-season-guesses.md
  * decisions/078-private-groups.md
  */
-export async function readBoardEntries(seasonId: number): Promise<BoardEntry[]> {
+export async function readBoardEntries(
+  seasonId: number,
+  userIds?: readonly string[]
+): Promise<BoardEntry[]> {
+  // A group's board reads its members only, not the whole season's.
+  const only = (column: AnyColumn) =>
+    userIds === undefined ? undefined : inArray(column, [...userIds]);
   const [matchGuesses, seasonGuesses, balances] = await db.transaction(
     (tx) =>
       Promise.all([
@@ -51,7 +71,7 @@ export async function readBoardEntries(seasonId: number): Promise<BoardEntry[]> 
           })
           .from(gameGuess)
           .leftJoin(userNickname, eq(userNickname.userId, gameGuess.userId))
-          .where(eq(gameGuess.seasonId, seasonId))
+          .where(and(eq(gameGuess.seasonId, seasonId), only(gameGuess.userId)))
           .groupBy(gameGuess.userId, userNickname.nickname),
         tx
           .select({
@@ -61,12 +81,12 @@ export async function readBoardEntries(seasonId: number): Promise<BoardEntry[]> 
           })
           .from(gameSeasonGuess)
           .leftJoin(userNickname, eq(userNickname.userId, gameSeasonGuess.userId))
-          .where(eq(gameSeasonGuess.seasonId, seasonId))
+          .where(and(eq(gameSeasonGuess.seasonId, seasonId), only(gameSeasonGuess.userId)))
           .groupBy(gameSeasonGuess.userId, userNickname.nickname),
         tx
           .select({ userId: gameLedger.userId, balance: sum(gameLedger.amount).mapWith(Number) })
           .from(gameLedger)
-          .where(eq(gameLedger.seasonId, seasonId))
+          .where(and(eq(gameLedger.seasonId, seasonId), only(gameLedger.userId)))
           .groupBy(gameLedger.userId),
       ]),
     { isolationLevel: "repeatable read", accessMode: "read only" }

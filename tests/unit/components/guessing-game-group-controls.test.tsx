@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -86,20 +86,41 @@ describe("CreateGroupForm", () => {
 });
 
 describe("RenameGroupForm", () => {
-  it("holds the current name, saves the new one and refreshes", async () => {
+  function confirmRename() {
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Tallenna nimi" })
+    );
+  }
+
+  it("asks before renaming, then saves the new name and refreshes", async () => {
     actions.renameGroupAction.mockResolvedValue({ ok: true });
     render(<RenameGroupForm groupId={5} name="Kaverit" />);
     expect(screen.getByLabelText("Ryhmän nimi")).toHaveValue("Kaverit");
     fireEvent.change(screen.getByLabelText("Ryhmän nimi"), { target: { value: "Uusi" } });
     fireEvent.click(screen.getByRole("button", { name: "Tallenna nimi" }));
+    expect(screen.getByRole("alertdialog")).toHaveTextContent("Muutetaanko ryhmän nimeksi Uusi?");
+    expect(actions.renameGroupAction).not.toHaveBeenCalled();
+
+    confirmRename();
+
     await waitFor(() => expect(refresh).toHaveBeenCalled());
     expect(actions.renameGroupAction).toHaveBeenCalledWith(5, "Uusi");
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("renames nothing when the confirmation is cancelled", () => {
+    render(<RenameGroupForm groupId={5} name="Kaverit" />);
+    fireEvent.click(screen.getByRole("button", { name: "Tallenna nimi" }));
+    fireEvent.click(screen.getByRole("button", { name: "Peruuta" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(actions.renameGroupAction).not.toHaveBeenCalled();
   });
 
   it("reloads a page that no longer matches the group, saying nothing", async () => {
     actions.renameGroupAction.mockResolvedValue({ ok: false, reason: "stale" });
     render(<RenameGroupForm groupId={5} name="Kaverit" />);
     fireEvent.click(screen.getByRole("button", { name: "Tallenna nimi" }));
+    confirmRename();
     await waitFor(() => expect(refresh).toHaveBeenCalled());
     expect(screen.queryByRole("alert")).toBeNull();
   });
@@ -148,6 +169,17 @@ describe("InviteLink", () => {
   it("renders the path alone on the server, before the browser has its address", () => {
     const html = renderToString(<InviteLink token={TOKEN} />);
     expect(html).toContain(`>/arvauspeli/liity/${TOKEN}<`);
+  });
+
+  it("says so in a browser with no clipboard", async () => {
+    Object.assign(navigator, { clipboard: undefined });
+    render(<InviteLink token={TOKEN} />);
+    fireEvent.click(screen.getByRole("button", { name: "Kopioi linkki" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Kopiointi epäonnistui.");
+    expect(reportClientError).toHaveBeenCalledWith(
+      expect.any(TypeError),
+      "guessing-game.group.copy"
+    );
   });
 
   it("says so when the copy is refused", async () => {

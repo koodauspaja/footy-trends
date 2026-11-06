@@ -8,9 +8,17 @@
 import { randomBytes } from "node:crypto";
 import { hasAllowedCharacters, hasBlockedWord, normaliseNickname } from "./nickname";
 
-/** How many groups a player can belong to, owned or joined. */
+/**
+ * How many groups a player can belong to, owned or joined.
+ *
+ * decisions/078-private-groups.md
+ */
 export const MAX_GROUPS = 10;
-/** How many members a group can have: the size of the public board's top list. */
+/**
+ * How many members a group can have: the size of the public board's top list.
+ *
+ * decisions/078-private-groups.md
+ */
 export const MAX_MEMBERS = 50;
 
 export const MIN_GROUP_NAME_LENGTH = 3;
@@ -61,7 +69,11 @@ export function isInviteToken(value: unknown): value is string {
   return typeof value === "string" && TOKEN.test(value);
 }
 
-/** The largest `serial`: a larger id would fail in Postgres, not miss. */
+/**
+ * The largest `serial`: a larger id would fail in Postgres, not miss.
+ *
+ * decisions/078-private-groups.md
+ */
 const MAX_ROW_ID = 2_147_483_647;
 
 /**

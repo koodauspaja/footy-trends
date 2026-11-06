@@ -2,7 +2,7 @@ import { eq, gte, inArray, like } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { gameGroup, gameGroupMember, gamePlayer, tasoMatches, user } from "@/db/schema";
-import { readBoard } from "@/lib/guessing-game-board";
+import { readBoard, readBoardEntries } from "@/lib/guessing-game-board";
 import { MAX_GROUPS, MAX_MEMBERS } from "@/lib/guessing-game-group";
 import {
   createGroup,
@@ -145,6 +145,20 @@ describe("a group's board", () => {
     expect(await readGroupsOf(OWNER, SEASON)).toEqual([
       { groupId, name: "Kaverit", members: 2, rank: 2 },
     ]);
+    // A group's read takes only its members' rows from the database.
+    expect(
+      (await readBoardEntries(SEASON, [FRIEND, OWNER])).map((entry) => entry.userId).sort()
+    ).toEqual([FRIEND, OWNER].sort());
+  });
+
+  it("joins nothing of the game through a link that names no group", async () => {
+    expect(await joinGroup(NEWCOMER, "x".repeat(43), NOW)).toEqual({
+      ok: false,
+      reason: "invalid-link",
+    });
+    expect(await db.select().from(gamePlayer).where(eq(gamePlayer.userId, NEWCOMER))).toHaveLength(
+      0
+    );
   });
 
   it("gives a member with no guess this season no rank", async () => {

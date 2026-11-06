@@ -154,8 +154,6 @@ export async function joinGroup(
   now: Date
 ): Promise<GroupOutcome<{ groupId: number; joined: boolean }>> {
   return inTransaction(async (tx) => {
-    await joinGameIn(tx, userId, now);
-    await lockPlayer(tx, userId);
     // Locked by its token, so a link renewed or a group deleted meanwhile is
     // read again once the lock is held, and found to name no group.
     const [group] = await tx
@@ -169,6 +167,11 @@ export async function joinGroup(
       return { groupId: group.id, joined: false };
     }
     if (members.length >= MAX_MEMBERS) refuse("full");
+    // The game is joined only once the group would take the reader, so a
+    // refused join writes, and logs, no join of the game. A new player is in
+    // no group, so only one already playing can still meet the limit.
+    await joinGameIn(tx, userId, now);
+    await lockPlayer(tx, userId);
     if ((await groupCountOf(tx, userId)) >= MAX_GROUPS) refuse("group-limit");
     await tx.insert(gameGroupMember).values({ groupId: group.id, userId, joinedAt: now });
     return { groupId: group.id, joined: true };
@@ -286,6 +289,10 @@ function boardOf(
   );
 }
 
+function userIdsOf(rows: ReadonlyArray<{ userId: string }>): string[] {
+  return [...new Set(rows.map((row) => row.userId))];
+}
+
 /**
  * The groups a player belongs to, by name, each ranked by the season's
  * balances among its members: one read of every member of the player's groups.
@@ -306,7 +313,7 @@ export async function readGroupsOf(
     .innerJoin(gameGroup, eq(gameGroup.id, gameGroupMember.groupId))
     .where(inArray(gameGroupMember.groupId, mine));
   if (rows.length === 0) return [];
-  const entries = seasonId === null ? [] : await readBoardEntries(seasonId);
+  const entries = seasonId === null ? [] : await readBoardEntries(seasonId, userIdsOf(rows));
   const groups = new Map<number, { name: string; memberIds: Set<string> }>();
   for (const row of rows) {
     const group = groups.get(row.groupId) ?? { name: row.name, memberIds: new Set<string>() };
@@ -381,7 +388,11 @@ export async function readGroup(
   const board =
     seasonId === null
       ? null
-      : boardOf(await readBoardEntries(seasonId), new Set(rows.map((row) => row.userId)), userId);
+      : boardOf(
+          await readBoardEntries(seasonId, userIdsOf(rows)),
+          new Set(userIdsOf(rows)),
+          userId
+        );
   return {
     groupId,
     name: self.name,
