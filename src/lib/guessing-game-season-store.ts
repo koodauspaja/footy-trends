@@ -90,19 +90,24 @@ async function seasonTeams(client: Client, seasonId: number): Promise<Map<number
 }
 
 /**
- * The lock: the season's first stored kickoff, or an earlier one a guess was
- * placed under, so a lock once passed stays passed when the first match is
- * postponed.
+ * The lock: the season's first stored kickoff, or an earlier lock a guess was
+ * placed under once it has passed, so a passed lock stays passed when the first
+ * match is postponed, and one still ahead follows the first match.
  *
  * decisions/075-season-guesses.md
  */
-async function lockOf(client: Client, seasonId: number, firstKickoff: Date): Promise<Date> {
+async function lockOf(
+  client: Client,
+  seasonId: number,
+  firstKickoff: Date,
+  now: Date
+): Promise<Date> {
   const [row] = await client
     .select({ lockAt: min(gameSeasonGuess.lockAt) })
     .from(gameSeasonGuess)
     .where(eq(gameSeasonGuess.seasonId, seasonId));
-  const stored = row?.lockAt ?? null;
-  return stored !== null && stored < firstKickoff ? stored : firstKickoff;
+  const passed = row?.lockAt != null && row.lockAt <= now ? row.lockAt : null;
+  return passed !== null && passed < firstKickoff ? passed : firstKickoff;
 }
 
 function refused(
@@ -145,7 +150,7 @@ export async function placeSeasonGuess(
     const season = await seasonOfId(tx, seasonId);
     const firstKickoff = season.matches[0]?.kickoffAt;
     if (firstKickoff === undefined) return refused(userId, seasonId, kind, "no-season");
-    const lock = await lockOf(tx, seasonId, firstKickoff);
+    const lock = await lockOf(tx, seasonId, firstKickoff, now);
     if (now >= lock) return refused(userId, seasonId, kind, "locked");
     const guess = parseSeasonGuess(input, new Set((await seasonTeams(tx, seasonId)).keys()));
     if (guess === null) return refused(userId, seasonId, kind, "teams");
@@ -313,7 +318,7 @@ export async function readSeasonSection(
         .limit(1);
       const firstKickoff = matches[0]?.kickoffAt;
       if (firstKickoff === undefined) return null;
-      const lockAt = await lockOf(tx, seasonId, firstKickoff);
+      const lockAt = await lockOf(tx, seasonId, firstKickoff, now);
       const locked = now >= lockAt;
       const rows = await tx
         .select()

@@ -339,6 +339,16 @@ describe("placeSeasonGuess", () => {
     expect(inserted()[0]).toMatchObject({ lockAt: at(200) });
   });
 
+  it("follows the first kickoff when a stored lock still ahead is earlier, the opener moved later", async () => {
+    answer([{ joinedAt: JOINED }], [{ lockAt: at(100) }], teamRows(), [], [{ id: 44 }], undefined);
+
+    expect(await placeSeasonGuess("user-1", CHAMPION, () => NOW)).toEqual({
+      ok: true,
+      outcome: "placed",
+    });
+    expect(inserted()[0]).toMatchObject({ lockAt: at(200) });
+  });
+
   it("refuses teams that are not the season's, and logs the kind it was sent, cut short", async () => {
     answer([{ joinedAt: JOINED }], NO_LOCK, teamRows());
 
@@ -549,6 +559,24 @@ describe("readSeasonSection's lock", () => {
 
     expect(await readSeasonSection("user-1", 2038, NOW)).toMatchObject({
       lockAt: at(-1),
+      locked: true,
+    });
+  });
+
+  it("shows the season open until the first kickoff when a stored lock still ahead is earlier", async () => {
+    answer([{ kickoffAt: at(200) }], [{ lockAt: at(100) }], [], []);
+
+    expect(await readSeasonSection("user-1", 2040, NOW)).toMatchObject({
+      lockAt: at(200),
+      locked: false,
+    });
+  });
+
+  it("shows the first kickoff as the lock when it is earlier than a passed stored one", async () => {
+    answer([{ kickoffAt: at(-5) }], [{ lockAt: at(-1) }], [guessRow()], [], [], []);
+
+    expect(await readSeasonSection("user-1", 2041, NOW)).toMatchObject({
+      lockAt: at(-5),
       locked: true,
     });
   });
