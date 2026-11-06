@@ -84,17 +84,12 @@
     "node": ">=26"
   },
   "allowScripts": {
-    "esbuild@0.18.20": true,
     "esbuild@0.25.12": true,
     "esbuild@0.28.2": true,
-    "fsevents@2.3.2": true,
-    "fsevents@2.3.3": true,
-    "sharp@0.35.3": true
+    "fsevents@2.3.3": true
   },
   "packageManager": "npm@12.2.1",
   "overrides": {
-    "browserslist": "^4.28.7",
-    "fast-uri": "^4.0.0",
     "@esbuild-kit/core-utils": {
       "esbuild": "^0.25.0"
     }
