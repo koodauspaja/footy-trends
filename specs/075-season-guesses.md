@@ -76,13 +76,17 @@ Drafts, fine-tuned in implementation, as in specs/072.
     joukkueet`, `Arvaa putoaja`, `Arvaa sarjataulukko`; once placed, `Tallenna
     muutos`, with "Arvauksesi: {joukkue}" above it.
   - Too few tokens: "Pelimerkit eivät riitä." on that kind's block.
-- **After the lock:** each kind's line, "Arvauksesi: {…}", and the shares for
-  `Mestari` and `Putoaja`: "Pelaajien arvaukset: HJK 40 % · KuPS 30 % · muut
-  30 % (10 arvausta)".
+- **After the lock:** each guessed kind's line, "Arvauksesi: {…}", and the
+  shares for `Mestari` and `Putoaja`, whether the player guessed those kinds or
+  not: "Pelaajien arvaukset: HJK 40 % · KuPS 30 % · muut 30 % (10 arvausta)".
 - **Settled:** "Oikein, +200" or "Ohi" for `Mestari` and `Putoaja`; "4
   oikein, +60" for the six; "3 täsmälleen oikein, 5 yhden sijan päästä, +140"
   for the table.
-- **A player who has not joined, or joined after the lock:** no section.
+- **A player who has not joined:** no section. A player with no season guess
+  sees, after the lock, only the shares.
+- **The season just finished**, while the next is before its lock: its section
+  too, read-only, under "Kauden {vuosi} arvaukset", for a player who guessed
+  in it.
 
 ## API & Data
 
