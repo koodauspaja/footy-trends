@@ -790,6 +790,35 @@ describe("settleSeasonGuesses", () => {
     );
   });
 
+  it("names a season's guesses when its matches cannot be read, and settles the next season", async () => {
+    store.seasonOfId.mockImplementation(async (_client: unknown, seasonId: number) => {
+      if (seasonId === 2026) throw new Error("database down");
+      return season(2027, REGULAR_PLAYED);
+    });
+    standings.getSeasonStandings.mockResolvedValue({
+      status: "ok",
+      groups: [group(1, TEAMS)],
+      levels: [],
+    });
+    answer(
+      [openGuess({ seasonId: 2026 }), openGuess({ id: 42 })],
+      [{ userId: "user-1" }],
+      undefined,
+      undefined
+    );
+
+    expect(await settleSeasonGuesses(NOW)).toEqual({
+      settled: 1,
+      rewarded: 1,
+      voided: 0,
+      failed: [41],
+    });
+    expect(logger.error).toHaveBeenCalledWith(
+      { err: expect.any(Error), seasonId: 2026 },
+      "Reading an Arvauspeli season's answers failed"
+    );
+  });
+
   it("names a season's guesses when its tables cannot be read, and logs it", async () => {
     store.seasonOfId.mockResolvedValue(season(2027, REGULAR_PLAYED));
     standings.getSeasonStandings.mockResolvedValue({ status: "error", groups: [] });
