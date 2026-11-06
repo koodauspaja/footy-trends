@@ -941,7 +941,8 @@ describe("settleSeasonGuesses", () => {
   it("names a season's guesses when its tables cannot be read, and logs it", async () => {
     store.seasonOfId.mockResolvedValue(season(2027, REGULAR_PLAYED));
     standings.getSeasonStandings.mockResolvedValue({ status: "error", groups: [] });
-    answer([openGuess(), openGuess({ id: 42 })]);
+    // With no later season stored, a guess not yet due is retried too.
+    answer([openGuess(), openGuess({ id: 42, kind: "champion", teams: [100] })]);
 
     expect(await settleSeasonGuesses(NOW)).toEqual({
       settled: 0,
