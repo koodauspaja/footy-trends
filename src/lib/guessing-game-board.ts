@@ -244,10 +244,11 @@ export async function readModelGuesses(
 }
 
 /**
- * The season whose leaderboard a view shows: the one in play, or between
- * seasons the one just finished; none before any season is stored.
+ * The season whose leaderboard a view shows, a group's included: the one in
+ * play, or between seasons the one just finished; none before any is stored.
  *
  * decisions/073-leaderboard.md
+ * decisions/078-private-groups.md
  */
 export function boardSeason(view: GameView): number | null {
   if (view.kind === "no-season") return null;

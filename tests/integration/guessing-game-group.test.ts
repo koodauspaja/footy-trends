@@ -1,4 +1,4 @@
-import { eq, gte, inArray, like } from "drizzle-orm";
+import { eq, gte, inArray, like, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { gameGroup, gameGroupMember, gamePlayer, tasoMatches, user } from "@/db/schema";
@@ -69,6 +69,24 @@ async function newGroup(owner: string): Promise<number> {
   const created = await createGroup(owner, "Kaverit", NOW);
   if (!created.ok) throw new Error(created.reason);
   return created.groupId;
+}
+
+/**
+ * Waits until another connection is blocked on a lock, so a race test lets
+ * its held transaction go only once the competing statement has reached it.
+ *
+ * decisions/078-private-groups.md
+ */
+async function waitingOnALock(): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const rows = await db.execute<{ waiting: number }>(
+      sql`select count(*)::int as waiting from pg_stat_activity
+        where datname = current_database() and wait_event_type = 'Lock'`
+    );
+    if ((rows[0]?.waiting ?? 0) > 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error("No statement came to wait on the lock");
 }
 
 async function membersOf(groupId: number): Promise<string[]> {
@@ -222,7 +240,7 @@ describe("joining", () => {
     });
     await renewed.promise;
     const join = joinGroup(FRIEND, old, NOW);
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await waitingOnALock();
     held.resolve();
     await renewal;
     expect(await join).toEqual({ ok: false, reason: "invalid-link" });
@@ -332,7 +350,7 @@ describe("leaving and the owner", () => {
     await ownerDeleted.promise;
     // Started now, not when awaited: a query builder runs only once it is.
     const second = db.delete(user).where(eq(user.id, FRIEND)).execute();
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await waitingOnALock();
     held.resolve();
     await Promise.all([first, second]);
     expect(await groupExists(groupId)).toBe(false);

@@ -59,12 +59,16 @@ describe("the invite token", () => {
     expect(isInviteToken(token)).toBe(true);
   });
 
-  it.each([["a".repeat(42)], ["a".repeat(44)], [`${"a".repeat(42)}+`], [43], [null]])(
-    "refuses %s as a token",
-    (value) => {
-      expect(isInviteToken(value)).toBe(false);
-    }
-  );
+  it.each([
+    ["a".repeat(42)],
+    ["a".repeat(44)],
+    [`${"a".repeat(42)}+`],
+    [`${"a".repeat(43)}\n`],
+    [43],
+    [null],
+  ])("refuses %s as a token", (value) => {
+    expect(isInviteToken(value)).toBe(false);
+  });
 });
 
 describe("ids", () => {
@@ -87,6 +91,7 @@ describe("ids", () => {
     ["1e3", null],
     ["2147483648", null],
     ["12345678901", null],
+    ["5\n", null],
   ])("parses the URL's %s as %s", (segment, id) => {
     expect(parseGroupId(segment)).toBe(id);
   });
