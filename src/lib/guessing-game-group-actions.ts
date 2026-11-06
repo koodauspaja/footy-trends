@@ -43,9 +43,15 @@ export type GroupActionRefusal =
   | "stale"
   | "failed";
 
-export type GroupActionResult =
-  | { ok: true; groupId?: number }
-  | { ok: false; reason: GroupActionRefusal };
+export type GroupActionRefused = { ok: false; reason: GroupActionRefusal };
+
+/**
+ * What a group action answers: done, with what the page needs next, a new
+ * group's id for one; or refused.
+ *
+ * decisions/078-private-groups.md
+ */
+export type GroupActionResult<R extends object = object> = ({ ok: true } & R) | GroupActionRefused;
 
 const SHOWN: Readonly<Record<GroupRefusal | GroupNameRefusal, GroupActionRefusal>> = {
   "name-length": "name-length",
@@ -66,7 +72,7 @@ function refused(
   userId: string,
   context: Context,
   reason: GroupRefusal | GroupNameRefusal
-): GroupActionResult {
+): GroupActionRefused {
   logger.info({ userId, ...context, reason }, "Arvauspeli group refused");
   return { ok: false, reason: SHOWN[reason] };
 }
@@ -78,12 +84,12 @@ function refused(
  *
  * decisions/078-private-groups.md
  */
-async function act<T extends object>(
+async function act<T extends object, R extends object>(
   action: string,
   context: Context,
   write: (userId: string) => Promise<GroupOutcome<T> | { ok: false; reason: GroupNameRefusal }>,
-  done: (userId: string, result: T) => GroupActionResult
-): Promise<GroupActionResult> {
+  done: (userId: string, result: T) => R
+): Promise<GroupActionResult<R>> {
   let userId: string | null = null;
   try {
     userId = await currentUserId();
@@ -93,14 +99,14 @@ async function act<T extends object>(
     }
     const outcome = await write(userId);
     if (!outcome.ok) return refused(userId, context, outcome.reason);
-    return done(userId, outcome);
+    return { ok: true, ...done(userId, outcome) };
   } catch (error) {
     logger.error({ err: error, userId, ...context, action }, "An Arvauspeli group action failed");
     return { ok: false, reason: "failed" };
   }
 }
 
-function notParsed(action: string): GroupActionResult {
+function notParsed(action: string): GroupActionRefused {
   logger.warn({ action }, "Arvauspeli group action refused: not parsed");
   return { ok: false, reason: "failed" };
 }
@@ -123,7 +129,9 @@ async function named<T extends object>(
  *
  * decisions/078-private-groups.md
  */
-export async function createGroupAction(rawName: unknown): Promise<GroupActionResult> {
+export async function createGroupAction(
+  rawName: unknown
+): Promise<GroupActionResult<{ groupId: number }>> {
   if (typeof rawName !== "string") return notParsed("create");
   return act(
     "create",
@@ -131,7 +139,7 @@ export async function createGroupAction(rawName: unknown): Promise<GroupActionRe
     (userId) => named(rawName, (name) => createGroup(userId, name, new Date())),
     (userId, { groupId }) => {
       logger.info({ userId, groupId }, "Arvauspeli group created");
-      return { ok: true, groupId };
+      return { groupId };
     }
   );
 }
@@ -141,7 +149,9 @@ export async function createGroupAction(rawName: unknown): Promise<GroupActionRe
  *
  * decisions/078-private-groups.md
  */
-export async function joinGroupAction(token: unknown): Promise<GroupActionResult> {
+export async function joinGroupAction(
+  token: unknown
+): Promise<GroupActionResult<{ groupId: number }>> {
   if (!isInviteToken(token)) return notParsed("join");
   return act(
     "join",
@@ -149,7 +159,7 @@ export async function joinGroupAction(token: unknown): Promise<GroupActionResult
     (userId) => joinGroup(userId, token, new Date()),
     (userId, { groupId, joined }) => {
       if (joined) logger.info({ userId, groupId }, "Arvauspeli group joined");
-      return { ok: true, groupId };
+      return { groupId };
     }
   );
 }
@@ -170,7 +180,7 @@ export async function leaveGroupAction(groupId: unknown): Promise<GroupActionRes
       if (newOwnerId !== null) {
         logger.info({ userId, groupId, newOwnerId }, "Arvauspeli group ownership passed");
       }
-      return { ok: true };
+      return {};
     }
   );
 }
@@ -191,7 +201,7 @@ export async function removeMemberAction(
     (userId) => removeMember(userId, groupId, membershipId),
     (userId, { removedUserId }) => {
       logger.info({ userId, groupId, removedUserId }, "Arvauspeli group member removed");
-      return { ok: true };
+      return {};
     }
   );
 }
@@ -212,7 +222,7 @@ export async function renameGroupAction(
     (userId) => named(rawName, (name) => renameGroup(userId, groupId, name)),
     (userId) => {
       logger.info({ userId, groupId }, "Arvauspeli group renamed");
-      return { ok: true };
+      return {};
     }
   );
 }
@@ -230,7 +240,7 @@ export async function renewInviteLinkAction(groupId: unknown): Promise<GroupActi
     (userId) => renewInviteLink(userId, groupId),
     (userId) => {
       logger.info({ userId, groupId }, "Arvauspeli group link renewed");
-      return { ok: true };
+      return {};
     }
   );
 }
@@ -248,7 +258,7 @@ export async function deleteGroupAction(groupId: unknown): Promise<GroupActionRe
     (userId) => deleteGroup(userId, groupId),
     (userId) => {
       logger.info({ userId, groupId }, "Arvauspeli group deleted");
-      return { ok: true };
+      return {};
     }
   );
 }

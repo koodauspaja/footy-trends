@@ -21,6 +21,7 @@ import {
   renameGroupAction,
   renewInviteLinkAction,
 } from "@/lib/guessing-game-group-actions";
+import { groupPath, invitePath } from "@/lib/guessing-game-group-paths";
 import { reportClientError } from "@/lib/report-client-error";
 
 const BUTTON =
@@ -43,9 +44,6 @@ const REFUSALS: Readonly<Record<Exclude<GroupActionRefusal, "stale">, string>> =
   failed: "Ryhmän tallentaminen epäonnistui. Yritä uudelleen.",
 };
 
-export const GROUP_PATH = "/arvauspeli/ryhmat";
-export const INVITE_PATH = "/arvauspeli/liity";
-
 /**
  * Runs a group action in a transition: on success `then` with its result, on
  * `stale` a refresh, otherwise the refusal's line, and a thrown call as failed.
@@ -56,9 +54,9 @@ function useGroupAction(source: string) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const run = (
-    action: () => Promise<GroupActionResult>,
-    then: (result: { groupId?: number }) => void
+  const run = <R extends object>(
+    action: () => Promise<GroupActionResult<R>>,
+    then: (result: R) => void
   ) => {
     setError(null);
     startTransition(async () => {
@@ -89,7 +87,7 @@ function Refusal({ error }: Readonly<{ error: string | null }>) {
  *
  * decisions/078-private-groups.md
  */
-function NameForm({
+function NameForm<R extends object>({
   button,
   initial,
   source,
@@ -99,8 +97,8 @@ function NameForm({
   button: string;
   initial: string;
   source: string;
-  save: (name: string) => Promise<GroupActionResult>;
-  then: (result: { groupId?: number }, router: ReturnType<typeof useRouter>) => void;
+  save: (name: string) => Promise<GroupActionResult<R>>;
+  then: (result: R, router: ReturnType<typeof useRouter>) => void;
 }>) {
   const id = useId();
   const [name, setName] = useState(initial);
@@ -142,7 +140,7 @@ export function CreateGroupForm() {
       initial=""
       save={createGroupAction}
       source="create"
-      then={({ groupId }, router) => router.push(`${GROUP_PATH}/${groupId}`)}
+      then={({ groupId }, router) => router.push(groupPath(groupId))}
     />
   );
 }
@@ -175,7 +173,7 @@ export function JoinGroupButton({ token, player }: Readonly<{ token: string; pla
         onClick={() =>
           run(
             () => joinGroupAction(token),
-            ({ groupId }) => router.push(`${GROUP_PATH}/${groupId}`)
+            ({ groupId }) => router.push(groupPath(groupId))
           )
         }
         type="button"
@@ -203,7 +201,7 @@ function useInviteUrl(token: string): string {
     () => window.location.origin,
     () => ""
   );
-  return `${origin}${INVITE_PATH}/${token}`;
+  return `${origin}${invitePath(token)}`;
 }
 
 export function InviteLink({ token }: Readonly<{ token: string }>) {

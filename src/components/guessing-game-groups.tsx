@@ -11,7 +11,6 @@ import { GameFold } from "@/components/guessing-game-fold";
 import {
   CreateGroupForm,
   DeleteGroupButton,
-  GROUP_PATH,
   InviteLink,
   JoinGroupButton,
   LeaveGroupButton,
@@ -22,6 +21,7 @@ import {
 import { PANEL_HEADING, TABLE_HEADING } from "@/components/heading-classes";
 import { SignInPrompt } from "@/components/sign-in-prompt";
 import { MAX_GROUPS } from "@/lib/guessing-game-group";
+import { groupPath } from "@/lib/guessing-game-group-paths";
 import type { GroupPage, GroupSummary, Invite } from "@/lib/guessing-game-group-store";
 
 function memberCount(count: number): string {
@@ -65,7 +65,7 @@ export function GroupsSection({ groups }: Readonly<{ groups: GroupSummary[] | "e
         <ul>
           {groups.map((group) => (
             <li className="border-border-subtle border-b py-2" key={group.groupId}>
-              <Link href={`${GROUP_PATH}/${group.groupId}`}>{group.name}</Link>
+              <Link href={groupPath(group.groupId)}>{group.name}</Link>
               <span className="text-muted text-sm">
                 {" "}
                 · {memberCount(group.members)} ·{" "}

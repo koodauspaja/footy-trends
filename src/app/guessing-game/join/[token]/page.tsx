@@ -5,6 +5,7 @@ import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { currentUserId } from "@/lib/current-user";
 import { isInviteToken } from "@/lib/guessing-game-group";
+import { groupPath } from "@/lib/guessing-game-group-paths";
 import { type Invite, readInvite } from "@/lib/guessing-game-group-store";
 import { logger } from "@/lib/logger";
 
@@ -46,7 +47,7 @@ export default async function InviteRoute({
       </PageShell>
     );
   }
-  if (invite?.member === true) redirect(`/arvauspeli/ryhmat/${invite.groupId}`);
+  if (invite?.member === true) redirect(groupPath(invite.groupId));
   return (
     <PageShell heading={HEADING}>
       <InviteView invite={invite} signedIn={signedIn} token={token} />
