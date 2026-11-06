@@ -1,10 +1,26 @@
-import { and, count, eq, inArray } from "drizzle-orm";
+import { and, count, desc, eq, inArray, lte } from "drizzle-orm";
 import { db, type Transaction } from "@/db";
-import { gameGroup, gameGroupMember, gamePlayer, userNickname } from "@/db/schema";
-import { type Board, rankBoard } from "./guessing-game";
-import { readBoardEntries } from "./guessing-game-board";
+import {
+  gameGroup,
+  gameGroupMember,
+  gameGuess,
+  gameLedger,
+  gamePlayer,
+  tasoMatches,
+  userNickname,
+} from "@/db/schema";
+import { type Board, type Guess, rankBoard, type Settlement } from "./guessing-game";
+import { readBoardEntries, readModelGuesses } from "./guessing-game-board";
 import { MAX_GROUPS, MAX_MEMBERS, newInviteToken, ownerOf } from "./guessing-game-group";
-import { joinGameIn } from "./guessing-game-store";
+import type { ModelGuess } from "./guessing-game-models";
+import {
+  joinGameIn,
+  PAYMENT_KINDS,
+  paymentsOf,
+  settledResult,
+  storedGuess,
+} from "./guessing-game-store";
+import { logger } from "./logger";
 
 /**
  * Reading and writing `Arvauspeli`'s private groups. The rules are in
@@ -357,7 +373,150 @@ export type GroupPage = {
   members: GroupMember[];
   isOwner: boolean;
   board: Board | null;
+  /** The members' guesses, `"error"` when they could not be read, `null` with no season. */
+  guesses: MemberGuesses | "error" | null;
 };
+
+/**
+ * One member's guess on a listed match, and once settled what it paid.
+ *
+ * decisions/079-group-members-guesses.md
+ */
+export type MemberGuess = {
+  membershipId: number;
+  nickname: string | null;
+  self: boolean;
+  guess: Guess;
+  paid: { settlement: Settlement; reward: number; bonus: number; modelsReward: number } | null;
+};
+
+/**
+ * A kicked-off match as `Jäsenten arvaukset` lists it: the result it was
+ * settled against, if any, its members' guesses, and the models' guesses.
+ *
+ * decisions/079-group-members-guesses.md
+ */
+export type GroupMatch = {
+  providerMatchId: number;
+  kickoffAt: Date;
+  homeTeamName: string;
+  awayTeamName: string;
+  homeGoals: number | null;
+  awayGoals: number | null;
+  guesses: MemberGuess[];
+  models: ModelGuess[];
+};
+
+/**
+ * The matches a group's page lists, newest first, and whether there are more.
+ *
+ * decisions/079-group-members-guesses.md
+ */
+export type MemberGuesses = { matches: GroupMatch[]; more: boolean };
+
+type MemberRow = { membershipId: number; userId: string; nickname: string | null };
+
+/**
+ * The members' guesses on the season's matches whose stored kickoff has passed,
+ * the newest `shown` matches any member guessed. The kickoff rule is in the
+ * query, so nothing before kickoff is ever read. Payments are read as the
+ * player's own page reads them.
+ *
+ * decisions/079-group-members-guesses.md
+ */
+async function readMemberGuesses(
+  members: readonly MemberRow[],
+  readerId: string,
+  seasonId: number,
+  now: Date,
+  shown: number
+): Promise<MemberGuesses> {
+  const ids = userIdsOf(members);
+  const page = await db
+    .select({
+      providerMatchId: tasoMatches.providerMatchId,
+      kickoffAt: tasoMatches.kickoffAt,
+      homeTeamName: tasoMatches.homeTeamName,
+      awayTeamName: tasoMatches.awayTeamName,
+    })
+    .from(gameGuess)
+    .innerJoin(tasoMatches, eq(tasoMatches.providerMatchId, gameGuess.providerMatchId))
+    .where(
+      and(
+        inArray(gameGuess.userId, ids),
+        eq(gameGuess.seasonId, seasonId),
+        lte(tasoMatches.kickoffAt, now)
+      )
+    )
+    .groupBy(
+      tasoMatches.providerMatchId,
+      tasoMatches.kickoffAt,
+      tasoMatches.homeTeamName,
+      tasoMatches.awayTeamName
+    )
+    .orderBy(desc(tasoMatches.kickoffAt), desc(tasoMatches.providerMatchId))
+    .limit(shown + 1);
+  const listed = page.slice(0, shown);
+  if (listed.length === 0) return { matches: [], more: false };
+  const matchIds = listed.map((match) => match.providerMatchId);
+  const guesses = await db
+    .select()
+    .from(gameGuess)
+    .where(and(inArray(gameGuess.userId, ids), inArray(gameGuess.providerMatchId, matchIds)));
+  const [ledger, models] = await Promise.all([
+    db
+      .select({ guessId: gameLedger.guessId, amount: gameLedger.amount, kind: gameLedger.kind })
+      .from(gameLedger)
+      .where(
+        and(
+          inArray(
+            gameLedger.guessId,
+            guesses.map((guess) => guess.id)
+          ),
+          inArray(gameLedger.kind, PAYMENT_KINDS)
+        )
+      ),
+    readModelGuesses(db, matchIds),
+  ]);
+  const payments = paymentsOf(ledger);
+  const memberOf = new Map(members.map((member) => [member.userId, member]));
+  return {
+    matches: listed.map((match) => {
+      const rows = guesses
+        .filter((row) => row.providerMatchId === match.providerMatchId)
+        .map((row) => ({
+          row,
+          // A guess is read only for the members passed in, so each has one.
+          member: memberOf.get(row.userId) as MemberRow,
+          result: settledResult(row),
+        }))
+        .toSorted((left, right) => left.member.membershipId - right.member.membershipId);
+      const scored = rows.find(({ result }) => result !== null && result.homeGoals !== null);
+      return {
+        ...match,
+        homeGoals: scored?.result?.homeGoals ?? null,
+        awayGoals: scored?.result?.awayGoals ?? null,
+        guesses: rows.map(({ row, member, result }) => ({
+          membershipId: member.membershipId,
+          nickname: member.nickname,
+          self: member.userId === readerId,
+          guess: storedGuess(row),
+          paid:
+            result === null
+              ? null
+              : {
+                  settlement: result.settlement,
+                  reward: payments.paid.get(row.id) ?? 0,
+                  bonus: payments.bonuses.get(row.id) ?? 0,
+                  modelsReward: payments.models.get(row.id) ?? 0,
+                },
+        })),
+        models: models.get(match.providerMatchId) ?? [],
+      };
+    }),
+    more: page.length > shown,
+  };
+}
 
 /**
  * A group's page for one of its members, or `null` when the reader is not one
@@ -368,7 +527,8 @@ export type GroupPage = {
 export async function readGroup(
   userId: string,
   groupId: number,
-  seasonId: number | null
+  seasonId: number | null,
+  listing: { now: Date; shown: number }
 ): Promise<GroupPage | null> {
   const rows = await db
     .select({
@@ -385,14 +545,23 @@ export async function readGroup(
   const self = rows.find((row) => row.userId === userId);
   if (self === undefined) return null;
   const owner = ownerOf(rows);
-  const board =
+  const [board, guesses] =
     seasonId === null
-      ? null
-      : boardOf(
-          await readBoardEntries(seasonId, userIdsOf(rows)),
-          new Set(userIdsOf(rows)),
-          userId
-        );
+      ? [null, null]
+      : await Promise.all([
+          readBoardEntries(seasonId, userIdsOf(rows)).then((entries) =>
+            boardOf(entries, new Set(userIdsOf(rows)), userId)
+          ),
+          readMemberGuesses(rows, userId, seasonId, listing.now, listing.shown).catch(
+            (error: unknown) => {
+              logger.error(
+                { err: error, userId, groupId },
+                "Reading Arvauspeli members' guesses failed"
+              );
+              return "error" as const;
+            }
+          ),
+        ]);
   return {
     groupId,
     name: self.name,
@@ -407,6 +576,7 @@ export async function readGroup(
       })),
     isOwner: self === owner,
     board,
+    guesses,
   };
 }
 

@@ -16,17 +16,16 @@ import { BoardTable } from "@/components/guessing-game-board-table";
 import { GuessForm, JoinGameButton } from "@/components/guessing-game-controls";
 import { GameFold } from "@/components/guessing-game-fold";
 import { GroupsSection, INTRO } from "@/components/guessing-game-groups";
+import {
+  formatGuess,
+  ModelsLine,
+  SettledLines,
+  settledMatch,
+} from "@/components/guessing-game-lines";
 import { SeasonGuessForm } from "@/components/guessing-game-season-form";
 import { PANEL_HEADING, TABLE_HEADING } from "@/components/heading-classes";
 import { Notice } from "@/components/notice";
-import { modelLabel } from "@/components/prediction-quality-page";
-import {
-  type Board,
-  type Guess,
-  type Settlement,
-  type Shares,
-  STARTING_BALANCE,
-} from "@/lib/guessing-game";
+import { type Board, type Shares, STARTING_BALANCE } from "@/lib/guessing-game";
 import type { GroupSummary } from "@/lib/guessing-game-group-store";
 import type { ModelGuess } from "@/lib/guessing-game-models";
 import {
@@ -36,12 +35,7 @@ import {
   type SeasonKind,
 } from "@/lib/guessing-game-season";
 import type { PickShares, SeasonSection, ShownSeasonGuess } from "@/lib/guessing-game-season-store";
-import type {
-  AwaitingGuess,
-  GameView,
-  SettledGuess,
-  UpcomingMatch,
-} from "@/lib/guessing-game-store";
+import type { AwaitingGuess, GameView, UpcomingMatch } from "@/lib/guessing-game-store";
 import { matchCountLabel } from "@/lib/match-count";
 import { formatKickoff } from "@/lib/match-detail";
 
@@ -60,39 +54,6 @@ const timeFormatter = new Intl.DateTimeFormat("fi-FI", {
 });
 
 const tokens = new Intl.NumberFormat("fi-FI");
-
-function formatGuess(guess: Guess): string {
-  return guess.kind === "outcome" ? guess.outcome : `${guess.homeGoals}–${guess.awayGoals}`;
-}
-
-/**
- * What each way of settling says before what it paid back. A miss says only
- * that it missed.
- *
- * decisions/072-match-guesses.md
- * decisions/076-guesses-on-irregular-matches.md
- */
-const SETTLEMENT_LABELS: Readonly<Record<Exclude<Settlement, "miss">, string>> = {
-  exact: "Oikea tulos",
-  difference: "Oikea maaliero",
-  outcome: "Oikea merkki",
-  awarded: "Ottelu ratkaistiin päätöksellä",
-  abandoned: "Ottelu keskeytettiin, pelimerkit palautettu",
-  undecided: "Ottelua ei ratkaistu, pelimerkit palautettu",
-  void: "Arvaus tehtiin ottelun alettua, pelimerkit palautettu",
-};
-
-function settledLine(guess: SettledGuess): string {
-  return guess.settlement === "miss"
-    ? "Ei osunut"
-    : `${SETTLEMENT_LABELS[guess.settlement]} +${guess.reward}`;
-}
-
-function settledMatch(guess: SettledGuess): string {
-  return guess.homeGoals === null || guess.awayGoals === null
-    ? `${guess.homeTeamName} – ${guess.awayTeamName}`
-    : `${guess.homeTeamName} ${guess.homeGoals}–${guess.awayGoals} ${guess.awayTeamName}`;
-}
 
 function priceLine(match: UpcomingMatch): string {
   if (match.postponed) return "Muutos on maksuton";
@@ -190,22 +151,6 @@ function SharesLine({ shares }: Readonly<{ shares: Shares | undefined }>) {
       {guessCount(shares.total)})
     </p>
   );
-}
-
-function modelGuessText(guess: ModelGuess): string {
-  return guess.score === null ? guess.outcome : `${guess.score.homeGoals}–${guess.score.awayGoals}`;
-}
-
-/**
- * The models' guesses on a match once it has kicked off, by the names the
- * prediction pages give them, or nothing when no model guessed it.
- *
- * decisions/074-against-the-models.md
- */
-function ModelsLine({ models }: Readonly<{ models: readonly ModelGuess[] | undefined }>) {
-  if (models === undefined || models.length === 0) return null;
-  const guesses = models.map((guess) => `${modelLabel(guess.model)} ${modelGuessText(guess)}`);
-  return <p className="text-muted text-sm">Mallit: {guesses.join(" · ")}</p>;
 }
 
 function playerCount(count: number): string {
@@ -499,11 +444,7 @@ export function GuessingGamePage({
               <li className="border-border-subtle border-b py-3" key={guess.providerMatchId}>
                 <span className="font-medium">{settledMatch(guess)}</span>
                 <p className="text-sm">Arvauksesi: {formatGuess(guess.guess)}</p>
-                <p className="text-sm">{settledLine(guess)}</p>
-                {guess.bonus > 0 && <p className="text-sm">Harvinainen osuma +{guess.bonus}</p>}
-                {guess.modelsReward > 0 && (
-                  <p className="text-sm">Voitit mallit +{guess.modelsReward}</p>
-                )}
+                <SettledLines paid={guess} />
                 <SharesLine shares={shares.get(guess.providerMatchId)} />
                 <ModelsLine models={models.get(guess.providerMatchId)} />
               </li>

@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GroupPageView, GroupsSection, InviteView } from "@/components/guessing-game-groups";
 import { rankBoard } from "@/lib/guessing-game";
-import type { GroupPage } from "@/lib/guessing-game-group-store";
+import type { GroupMatch, GroupPage } from "@/lib/guessing-game-group-store";
 
 /**
  * Arvauspeli's groups as a reader sees them: `Ryhmät` on `/arvauspeli`, a
@@ -10,6 +10,7 @@ import type { GroupPage } from "@/lib/guessing-game-group-store";
  * opens in each of its states.
  *
  * decisions/078-private-groups.md
+ * decisions/079-group-members-guesses.md
  */
 
 vi.mock("@/lib/guessing-game-group-actions", () => ({
@@ -101,13 +102,14 @@ function group(overrides: Partial<GroupPage> = {}): GroupPage {
       ],
       "me"
     ),
+    guesses: null,
     ...overrides,
   };
 }
 
 describe("GroupPageView", () => {
   it("shows a member the board, the members, the link and a way out, and no owner's tools", () => {
-    render(<GroupPageView group={group()} />);
+    render(<GroupPageView shown={10} group={group()} />);
     expect(screen.getByText("3 jäsentä · omistaja Omistaja")).toBeInTheDocument();
     const rows = within(screen.getByRole("table")).getAllByRole("row");
     expect(rows[1]).toHaveTextContent("1.Omistaja1 1002");
@@ -136,6 +138,7 @@ describe("GroupPageView", () => {
   it("gives the owner a removal on every other member's row, and the owner's tools", () => {
     render(
       <GroupPageView
+        shown={10}
         group={group({
           isOwner: true,
           members: [
@@ -155,6 +158,7 @@ describe("GroupPageView", () => {
   it("names an owner without a nickname, and counts the members not yet guessing", () => {
     render(
       <GroupPageView
+        shown={10}
         group={group({
           members: [
             { membershipId: 1, nickname: null, self: true, owner: true },
@@ -171,8 +175,118 @@ describe("GroupPageView", () => {
   });
 
   it("says the season has not begun when there is none to rank", () => {
-    render(<GroupPageView group={group({ board: null })} />);
+    render(<GroupPageView shown={10} group={group({ board: null })} />);
     expect(screen.getByText("Kausi ei ole vielä alkanut.")).toBeInTheDocument();
+  });
+});
+
+describe("Jäsenten arvaukset", () => {
+  function played(overrides: Partial<GroupMatch> = {}): GroupMatch {
+    return {
+      providerMatchId: 7,
+      kickoffAt: new Date("2027-05-02T15:00:00Z"),
+      homeTeamName: "HJK",
+      awayTeamName: "KuPS",
+      homeGoals: 2,
+      awayGoals: 1,
+      models: [{ model: "elo", outcome: "1", score: null }],
+      guesses: [
+        {
+          membershipId: 1,
+          nickname: "Omistaja",
+          self: false,
+          guess: { kind: "outcome", outcome: "1" },
+          paid: { settlement: "outcome", reward: 30, bonus: 20, modelsReward: 10 },
+        },
+        {
+          membershipId: 2,
+          nickname: null,
+          self: true,
+          guess: { kind: "score", homeGoals: 0, awayGoals: 0 },
+          paid: { settlement: "miss", reward: 0, bonus: 0, modelsReward: 0 },
+        },
+      ],
+      ...overrides,
+    };
+  }
+
+  function section() {
+    return screen.getByRole("heading", { name: "Jäsenten arvaukset" }).parentElement as HTMLElement;
+  }
+
+  it("shows each member's guess on a played match, with what it paid, and the models", () => {
+    render(
+      <GroupPageView shown={10} group={group({ guesses: { matches: [played()], more: false } })} />
+    );
+    const shown = within(section());
+    expect(shown.getByText("Arvaukset näkyvät ottelun alettua.")).toBeInTheDocument();
+    expect(shown.getByRole("heading", { level: 3, name: "HJK 2–1 KuPS" })).toBeInTheDocument();
+    expect(shown.getByText(/Arvasi 2\/3 jäsentä$/)).toBeInTheDocument();
+    const rows = shown.getAllByRole("listitem");
+    expect(rows[0]).toHaveTextContent(
+      "Omistaja: 1Oikea merkki +30Harvinainen osuma +20Voitit mallit +10"
+    );
+    expect(rows[1]).toHaveTextContent("Nimetön pelaaja (sinä): 0–0Ei osunut");
+    expect(shown.getByText("Mallit: elo 1")).toBeInTheDocument();
+    expect(shown.queryByRole("link", { name: "Näytä aiemmat ottelut" })).toBeNull();
+  });
+
+  it("says a guess still waits, and shows a match not settled without a score", () => {
+    const waiting = played({
+      homeGoals: null,
+      awayGoals: null,
+      models: [],
+      guesses: [
+        {
+          membershipId: 1,
+          nickname: "Omistaja",
+          self: false,
+          guess: { kind: "outcome", outcome: "X" },
+          paid: null,
+        },
+      ],
+    });
+    render(
+      <GroupPageView shown={10} group={group({ guesses: { matches: [waiting], more: false } })} />
+    );
+    const shown = within(section());
+    expect(shown.getByRole("heading", { level: 3, name: "HJK – KuPS" })).toBeInTheDocument();
+    expect(shown.getByRole("listitem")).toHaveTextContent("Omistaja: XOdottaa tulosta");
+    expect(shown.queryByText(/^Mallit:/)).toBeNull();
+  });
+
+  it("links to ten more matches when there are more", () => {
+    render(
+      <GroupPageView shown={20} group={group({ guesses: { matches: [played()], more: true } })} />
+    );
+    expect(within(section()).getByRole("link", { name: "Näytä aiemmat ottelut" })).toHaveAttribute(
+      "href",
+      "?ottelut=30"
+    );
+  });
+
+  it("says when no member has guessed a match that has kicked off", () => {
+    render(<GroupPageView shown={10} group={group({ guesses: { matches: [], more: false } })} />);
+    expect(
+      within(section()).getByText(
+        "Kukaan ryhmästä ei ole vielä arvannut alkanutta ottelua tällä kaudella."
+      )
+    ).toBeInTheDocument();
+  });
+
+  it("says a failed read in its place, and keeps the rest of the page", () => {
+    render(<GroupPageView shown={10} group={group({ guesses: "error" })} />);
+    expect(
+      within(section()).getByText(
+        "Jäsenten arvausten lataaminen epäonnistui. Yritä myöhemmin uudelleen."
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Jäsenet" })).toBeInTheDocument();
+  });
+
+  it("is not shown with no season to list", () => {
+    render(<GroupPageView shown={10} group={group({ guesses: null })} />);
+    expect(screen.queryByRole("heading", { name: "Jäsenten arvaukset" })).toBeNull();
   });
 });
 
@@ -195,6 +309,9 @@ describe("InviteView", () => {
   it("offers a player the group", () => {
     render(<InviteView invite={invite} signedIn token="x" />);
     expect(screen.getByText("Sinut on kutsuttu ryhmään Kaverit (3 jäsentä).")).toBeInTheDocument();
+    expect(
+      screen.getByText("Ryhmän jäsenet näkevät toistensa arvaukset otteluiden alettua.")
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Liity ryhmään" })).toBeInTheDocument();
     expect(screen.queryByText(/Pelimerkkejä ei voi ostaa/)).toBeNull();
   });

@@ -77,11 +77,12 @@ Drafts, fine-tuned in implementation (S6).
 
 ## API & Data
 
-- **Reading:** one query over `game_guess` joined to `taso_matches`, for the
+- **Reading:** two queries over `game_guess` joined to `taso_matches`, for the
   group's current members (specs/078), the season the board shows, and matches
-  whose stored kickoff has passed, the same rule specs/073's shares use. The
-  page's ten matches are the newest of those by kickoff; the next ten follow by
-  a search parameter (S1).
+  whose stored kickoff has passed, the same rule specs/073's shares use: one
+  choosing the page's matches, the newest any member guessed, and one reading
+  the members' guesses on those. "Näytä aiemmat ottelut" lists ten more by the
+  search parameter `ottelut` (S1).
 - **What a row shows** is read as the player's own `Ratkaistut` reads it: the
   guess row's `tier` and result, and the ledger's `reward`, `refund`, `bonus` and
   `models` rows for the guess (specs/072, 073, 074, 076).
@@ -115,8 +116,8 @@ Drafts, fine-tuned in implementation (S6).
 
 ## Performance & Limits
 
-- Ten matches × at most 50 members: 500 rows a page at most, one query, plus the
-  ledger rows of those guesses and the models' rows of ten matches.
+- Ten matches × at most 50 members: 500 rows a page at most, by two queries,
+  plus the ledger rows of those guesses and the models' rows of ten matches.
 - The members' read goes by user id, the leading column of
   `game_guess_identity_idx (user_id, taso_match_id)`: at most 50 players' rows
   of one season. No new index.

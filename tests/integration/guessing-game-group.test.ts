@@ -16,7 +16,7 @@ import {
   renameGroup,
   renewInviteLink,
 } from "@/lib/guessing-game-group-store";
-import { joinGame, placeGuess, settleGuesses } from "@/lib/guessing-game-store";
+import { joinGame, openGame, placeGuess, settleGuesses } from "@/lib/guessing-game-store";
 
 /**
  * Arvauspeli's private groups against a real Postgres: the board restricted to
@@ -24,6 +24,7 @@ import { joinGame, placeGuess, settleGuesses } from "@/lib/guessing-game-store";
  * deletes a group left empty.
  *
  * decisions/078-private-groups.md
+ * decisions/079-group-members-guesses.md
  */
 
 const SEASON = 2095;
@@ -33,6 +34,8 @@ const at = (hours: number) => new Date(NOW.getTime() + hours * HOUR);
 const MATCH_ID = 9_500_001;
 const PREFIX = "itest-group-";
 const OWNER = `${PREFIX}owner`;
+// The members' guesses as the group's page reads them: the first ten matches.
+const LISTING = { now: NOW, shown: 10 };
 const FRIEND = `${PREFIX}friend`;
 const OUTSIDER = `${PREFIX}outsider`;
 const NEWCOMER = `${PREFIX}newcomer`;
@@ -156,7 +159,7 @@ describe("a group's board", () => {
       [2, 990, false],
       [2, 990, true],
     ]);
-    const group = await readGroup(OWNER, groupId, SEASON);
+    const group = await readGroup(OWNER, groupId, SEASON, LISTING);
     expect(group?.board?.players).toBe(2);
     expect(figures(group?.board?.rows ?? [])).toEqual([
       [1, 1020, false],
@@ -186,13 +189,13 @@ describe("a group's board", () => {
     expect(await readGroupsOf(OWNER, SEASON)).toEqual([
       { groupId, name: "Kaverit", members: 1, rank: null },
     ]);
-    expect((await readGroup(OWNER, groupId, SEASON))?.board?.players).toBe(0);
+    expect((await readGroup(OWNER, groupId, SEASON, LISTING))?.board?.players).toBe(0);
   });
 
   it("answers a reader outside the group as a group that does not exist", async () => {
     const groupId = await newGroup(OWNER);
-    expect(await readGroup(OUTSIDER, groupId, SEASON)).toBeNull();
-    expect(await readGroup(OWNER, groupId + 1_000_000, SEASON)).toBeNull();
+    expect(await readGroup(OUTSIDER, groupId, SEASON, LISTING)).toBeNull();
+    expect(await readGroup(OWNER, groupId + 1_000_000, SEASON, LISTING)).toBeNull();
   });
 });
 
@@ -310,21 +313,21 @@ describe("leaving and the owner", () => {
       newOwnerId: FRIEND,
       emptied: false,
     });
-    const group = await readGroup(FRIEND, groupId, SEASON);
+    const group = await readGroup(FRIEND, groupId, SEASON, LISTING);
     expect(group?.isOwner).toBe(true);
     expect(await renameGroup(OUTSIDER, groupId, "Uusi")).toEqual({
       ok: false,
       reason: "not-owner",
     });
     expect(await renameGroup(FRIEND, groupId, "Uusi")).toEqual({ ok: true });
-    expect((await readGroup(OUTSIDER, groupId, SEASON))?.name).toBe("Uusi");
+    expect((await readGroup(OUTSIDER, groupId, SEASON, LISTING))?.name).toBe("Uusi");
   });
 
   it("passes ownership on when the owner deletes their account", async () => {
     const groupId = await groupOfThree();
     await db.delete(user).where(eq(user.id, OWNER));
     expect(await membersOf(groupId)).toEqual([FRIEND, OUTSIDER]);
-    expect((await readGroup(FRIEND, groupId, SEASON))?.isOwner).toBe(true);
+    expect((await readGroup(FRIEND, groupId, SEASON, LISTING))?.isOwner).toBe(true);
   });
 
   it("deletes the group with its last member, by leaving or by the account's deletion", async () => {
@@ -360,7 +363,7 @@ describe("leaving and the owner", () => {
 
   it("lets the owner remove a member, who can rejoin by the same link", async () => {
     const groupId = await groupOfThree();
-    const friend = (await readGroup(OWNER, groupId, SEASON))?.members.find(
+    const friend = (await readGroup(OWNER, groupId, SEASON, LISTING))?.members.find(
       (member) => !member.self && !member.owner
     );
     if (friend === undefined) throw new Error("no member to remove");
@@ -384,5 +387,133 @@ describe("leaving and the owner", () => {
     expect(await groupExists(groupId)).toBe(false);
     expect(await readBoard(SEASON, OWNER)).toEqual(before);
     expect(await leaveGroup(FRIEND, groupId)).toEqual({ ok: false, reason: "not-member" });
+  });
+});
+
+describe("the members' guesses on a group's page", () => {
+  const EARLIER_ID = MATCH_ID + 1;
+
+  async function groupOfTwo(): Promise<number> {
+    const groupId = await newGroup(OWNER);
+    await joinGroup(FRIEND, await tokenOf(groupId), NOW);
+    return groupId;
+  }
+
+  async function guess(userId: string, outcome: "1" | "X" | "2", matchId = MATCH_ID) {
+    expect(
+      await placeGuess(userId, matchId, { kind: "outcome", outcome }, 10, () => NOW)
+    ).toMatchObject({ ok: true });
+  }
+
+  async function listed(groupId: number, now: Date, shown = 10) {
+    const group = await readGroup(FRIEND, groupId, SEASON, { now, shown });
+    const guesses = group?.guesses;
+    if (guesses === undefined || guesses === null || guesses === "error") {
+      throw new Error(`no guesses: ${String(guesses)}`);
+    }
+    return guesses;
+  }
+
+  it("reads nothing of a match before its kickoff", async () => {
+    const groupId = await groupOfTwo();
+    await guess(OWNER, "1");
+    expect(await listed(groupId, at(199))).toEqual({ matches: [], more: false });
+  });
+
+  it("lists the members' guesses once kicked off, paid as the player's own rows show them", async () => {
+    const groupId = await groupOfTwo();
+    await guess(OWNER, "2");
+    await guess(FRIEND, "1");
+    await guess(OUTSIDER, "1");
+    expect((await listed(groupId, at(201))).matches[0]?.guesses.map((row) => row.paid)).toEqual([
+      null,
+      null,
+    ]);
+
+    await db
+      .update(tasoMatches)
+      .set({ status: "FINISHED", homeGoals: 1, awayGoals: 0 })
+      .where(eq(tasoMatches.providerMatchId, MATCH_ID));
+    await settleGuesses(at(210));
+    // A match still to come keeps the season open, so the player's own page lists the settled one.
+    await db.insert(tasoMatches).values({
+      providerMatchId: EARLIER_ID,
+      competitionCode: `spljp${SEASON % 100}`,
+      categoryId: "VL",
+      seasonId: SEASON,
+      groupId: 1,
+      groupName: "Runkosarja",
+      kickoffAt: at(500),
+      status: "SCHEDULED",
+      homeTeamProviderId: 3,
+      homeTeamName: "Inter",
+      awayTeamProviderId: 4,
+      awayTeamName: "Ilves",
+    });
+
+    const [match] = (await listed(groupId, at(211))).matches;
+    expect(match).toMatchObject({ providerMatchId: MATCH_ID, homeGoals: 1, awayGoals: 0 });
+    // The owner joined first, the friend is the reader; the outsider is not listed.
+    expect(match?.guesses.map((row) => [row.self, row.guess, row.paid?.settlement])).toEqual([
+      [false, { kind: "outcome", outcome: "2" }, "miss"],
+      [true, { kind: "outcome", outcome: "1" }, "outcome"],
+    ]);
+    const own = await openGame(FRIEND, at(211));
+    if (own.kind !== "playing") throw new Error(own.kind);
+    const [settled] = own.settled;
+    expect(match?.guesses[1]?.paid).toEqual({
+      settlement: settled?.settlement,
+      reward: settled?.reward,
+      bonus: settled?.bonus,
+      modelsReward: settled?.modelsReward,
+    });
+  });
+
+  it("hides a postponed match again until its new kickoff", async () => {
+    const groupId = await groupOfTwo();
+    await guess(OWNER, "1");
+    await db
+      .update(tasoMatches)
+      .set({ kickoffAt: at(300) })
+      .where(eq(tasoMatches.providerMatchId, MATCH_ID));
+    expect((await listed(groupId, at(250))).matches).toEqual([]);
+    expect((await listed(groupId, at(301))).matches).toHaveLength(1);
+  });
+
+  it("takes a member's guesses off the page when they leave", async () => {
+    const groupId = await groupOfTwo();
+    await guess(OWNER, "1");
+    await guess(FRIEND, "X");
+    expect(await leaveGroup(OWNER, groupId)).toMatchObject({ ok: true });
+    const [match] = (await listed(groupId, at(201))).matches;
+    expect(match?.guesses.map((row) => row.guess)).toEqual([{ kind: "outcome", outcome: "X" }]);
+  });
+
+  it("lists the newest kicked-off matches first, and says there are more", async () => {
+    const groupId = await groupOfTwo();
+    await db.insert(tasoMatches).values({
+      providerMatchId: EARLIER_ID,
+      competitionCode: `spljp${SEASON % 100}`,
+      categoryId: "VL",
+      seasonId: SEASON,
+      groupId: 1,
+      groupName: "Runkosarja",
+      kickoffAt: at(180),
+      status: "SCHEDULED",
+      homeTeamProviderId: 3,
+      homeTeamName: "Inter",
+      awayTeamProviderId: 4,
+      awayTeamName: "Ilves",
+    });
+    await guess(OWNER, "1", EARLIER_ID);
+    await guess(FRIEND, "1");
+
+    expect(await listed(groupId, at(201), 1)).toMatchObject({
+      more: true,
+      matches: [{ providerMatchId: MATCH_ID }],
+    });
+    expect(
+      (await listed(groupId, at(201), 10)).matches.map((match) => match.providerMatchId)
+    ).toEqual([MATCH_ID, EARLIER_ID]);
   });
 });

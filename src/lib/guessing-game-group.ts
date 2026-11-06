@@ -109,3 +109,30 @@ export function ownerOf<T extends { membershipId: number }>(members: readonly T[
   }
   return owner;
 }
+
+/**
+ * How many matches a group's `Jäsenten arvaukset` shows at a time.
+ *
+ * decisions/079-group-members-guesses.md
+ */
+export const MATCHES_SHOWN = 10;
+
+/**
+ * The most matches one view lists: more than a season has.
+ *
+ * decisions/079-group-members-guesses.md
+ */
+const MAX_MATCHES_SHOWN = 200;
+
+/**
+ * How many matches a group's page lists, from its `ottelut` search parameter:
+ * ten more each time "Näytä aiemmat ottelut" is followed. Anything not a whole
+ * step of ten up to 200 is the first ten.
+ *
+ * decisions/079-group-members-guesses.md
+ */
+export function parseMatchesShown(value: string | string[] | undefined): number {
+  if (typeof value !== "string" || !/^[1-9]\d{1,2}$/.test(value)) return MATCHES_SHOWN;
+  const shown = Number(value);
+  return shown % MATCHES_SHOWN === 0 && shown <= MAX_MATCHES_SHOWN ? shown : MATCHES_SHOWN;
+}
