@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { type Browser, expect, type Page, test } from "@playwright/test";
 import postgres from "postgres";
 import { e2eAppPort } from "../../scripts/e2e-target";
@@ -12,11 +13,13 @@ import { testDatabaseUrl } from "../support/test-database";
  * season open, ids carrying the run's port.
  *
  * decisions/078-private-groups.md
+ * decisions/079-group-members-guesses.md
  */
 
 const PORT = e2eAppPort(process.env);
 const SEASON = 2199;
 const MATCH_ID = 999_500_000 + PORT * 2;
+const PLAYED_ID = 999_400_000 + PORT * 2;
 const GROUP_NAME = `E2E Ryhmä ${PORT}`;
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -156,5 +159,122 @@ test.describe("Arvauspeli's private groups", () => {
       outside.getByText("Kutsulinkki ei ole voimassa. Pyydä ryhmän jäseneltä uusi linkki.")
     ).toBeVisible();
     await expect(outside.getByText(GROUP_NAME)).toHaveCount(0);
+  });
+
+  test("shows each member the other's guess on a played match, and nothing before kickoff", async ({
+    browser,
+    baseURL,
+  }) => {
+    const origin = baseURL as string;
+    const [first, second] = await Promise.all([
+      storeSignedInReader("user"),
+      storeSignedInReader("user"),
+    ]);
+    const kickoff = new Date(Date.now() - 2 * DAY);
+    let groupId = 0;
+    try {
+      await withDatabase(async (sql) => {
+        await sql`delete from taso_matches where taso_match_id = ${PLAYED_ID}`;
+        await sql`insert into taso_matches ${sql({
+          taso_match_id: PLAYED_ID,
+          competition_id: `spljp${SEASON % 100}`,
+          category_id: "VL",
+          season_id: SEASON,
+          group_id: 1,
+          group_name: "Runkosarja",
+          kickoff_at: kickoff,
+          matchday: 1,
+          status: "FINISHED",
+          home_team_provider_id: PLAYED_ID,
+          home_team_name: `E2E Pelattu Koti ${PORT}`,
+          away_team_provider_id: PLAYED_ID + 1_000_000_000,
+          away_team_name: `E2E Pelattu Vieras ${PORT}`,
+          home_goals: 2,
+          away_goals: 1,
+        })}`;
+        await sql`insert into game_player ${sql([{ user_id: first.id }, { user_id: second.id }])}`;
+        const settled = { settled_at: kickoff, result_home_goals: 2, result_away_goals: 1 };
+        const [miss, exact] = await sql<{ id: number }[]>`insert into game_guess ${sql([
+          {
+            user_id: first.id,
+            season_id: SEASON,
+            taso_match_id: PLAYED_ID,
+            kind: "outcome",
+            outcome: "2",
+            home_goals: null,
+            away_goals: null,
+            made_at: new Date(kickoff.getTime() - DAY),
+            kickoff_at: kickoff,
+            tier: "miss",
+            ...settled,
+          },
+          {
+            user_id: second.id,
+            season_id: SEASON,
+            taso_match_id: PLAYED_ID,
+            kind: "score",
+            outcome: null,
+            home_goals: 2,
+            away_goals: 1,
+            made_at: new Date(kickoff.getTime() - DAY),
+            kickoff_at: kickoff,
+            tier: "exact",
+            ...settled,
+          },
+        ])} returning id`;
+        await sql`insert into game_ledger ${sql({
+          user_id: second.id,
+          season_id: SEASON,
+          kind: "reward",
+          amount: 100,
+          guess_id: exact?.id ?? null,
+        })}`;
+        if (miss === undefined) throw new Error("no guess stored");
+        // A guess on the match still to come, which nobody may see yet.
+        await sql`insert into game_guess ${sql({
+          user_id: first.id,
+          season_id: SEASON,
+          taso_match_id: MATCH_ID,
+          kind: "outcome",
+          outcome: "X",
+          made_at: new Date(),
+          kickoff_at: new Date(Date.now() + 10 * DAY),
+        })}`;
+        const [group] = await sql<{ id: number }[]>`insert into game_group ${sql({
+          name: `E2E Arvaajat ${PORT}`,
+          invite_token: randomBytes(32).toString("base64url"),
+        })} returning id`;
+        groupId = group?.id ?? 0;
+        await sql`insert into game_group_member ${sql([
+          { group_id: groupId, user_id: first.id, joined_at: new Date() },
+          { group_id: groupId, user_id: second.id, joined_at: new Date() },
+        ])}`;
+      });
+
+      for (const [reader, own, other] of [
+        [first, "Nimetön pelaaja (sinä): 2Ei osunut", "Nimetön pelaaja: 2–1Oikea tulos +100"],
+        [second, "Nimetön pelaaja: 2Ei osunut", "Nimetön pelaaja (sinä): 2–1Oikea tulos +100"],
+      ] as const) {
+        const page = await signedIn(browser, reader, origin);
+        await page.goto(`/arvauspeli/ryhmat/${groupId}`);
+        const section = page
+          .getByRole("heading", { name: "Jäsenten arvaukset" })
+          .locator("xpath=..");
+        await expect(
+          section.getByRole("heading", {
+            level: 3,
+            name: `E2E Pelattu Koti ${PORT} 2–1 E2E Pelattu Vieras ${PORT}`,
+          })
+        ).toBeVisible();
+        await expect(section.getByText(/Arvasi 2\/2 jäsentä$/)).toBeVisible();
+        await expect(section.getByRole("listitem")).toHaveText([own, other]);
+        // Nothing of the match still to come.
+        await expect(section.getByText(`E2E Ryhmä Koti ${PORT}`, { exact: false })).toHaveCount(0);
+        await page.context().close();
+      }
+    } finally {
+      await Promise.all([first.remove(), second.remove()]);
+      await withDatabase((sql) => sql`delete from taso_matches where taso_match_id = ${PLAYED_ID}`);
+    }
   });
 });
