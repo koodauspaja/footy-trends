@@ -13,6 +13,7 @@
 import { modelLabel } from "@/components/prediction-quality-page";
 import type { Guess, Settlement } from "@/lib/guessing-game";
 import type { ModelGuess } from "@/lib/guessing-game-models";
+import type { Paid } from "@/lib/guessing-game-store";
 
 export function formatGuess(guess: Guess): string {
   return guess.kind === "outcome" ? guess.outcome : `${guess.homeGoals}–${guess.awayGoals}`;
@@ -34,14 +35,6 @@ const SETTLEMENT_LABELS: Readonly<Record<Exclude<Settlement, "miss">, string>> =
   undecided: "Ottelua ei ratkaistu, pelimerkit palautettu",
   void: "Arvaus tehtiin ottelun alettua, pelimerkit palautettu",
 };
-
-/**
- * What a settled guess paid, as its lines say it.
- *
- * decisions/072-match-guesses.md
- * decisions/079-group-members-guesses.md
- */
-export type Paid = { settlement: Settlement; reward: number; bonus: number; modelsReward: number };
 
 export function settledLine(guess: Pick<Paid, "settlement" | "reward">): string {
   return guess.settlement === "miss"

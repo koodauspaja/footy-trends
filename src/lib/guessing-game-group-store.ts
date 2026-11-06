@@ -9,13 +9,14 @@ import {
   tasoMatches,
   userNickname,
 } from "@/db/schema";
-import { type Board, type Guess, rankBoard, type Settlement } from "./guessing-game";
+import { type Board, type Guess, rankBoard } from "./guessing-game";
 import { readBoardEntries, readModelGuesses } from "./guessing-game-board";
 import { MAX_GROUPS, MAX_MEMBERS, newInviteToken, ownerOf } from "./guessing-game-group";
 import type { ModelGuess } from "./guessing-game-models";
 import {
   joinGameIn,
   PAYMENT_KINDS,
+  type Paid,
   paymentsOf,
   settledResult,
   storedGuess,
@@ -387,7 +388,7 @@ export type MemberGuess = {
   nickname: string | null;
   self: boolean;
   guess: Guess;
-  paid: { settlement: Settlement; reward: number; bonus: number; modelsReward: number } | null;
+  paid: Paid | null;
 };
 
 /**
@@ -473,7 +474,7 @@ async function readMemberGuesses(
             gameLedger.guessId,
             guesses.map((guess) => guess.id)
           ),
-          inArray(gameLedger.kind, PAYMENT_KINDS)
+          inArray(gameLedger.kind, [...PAYMENT_KINDS])
         )
       ),
     readModelGuesses(db, matchIds),

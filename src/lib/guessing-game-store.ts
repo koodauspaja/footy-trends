@@ -375,7 +375,7 @@ export async function openGame(userId: string, now: Date): Promise<GameView> {
             and(
               eq(gameLedger.userId, userId),
               eq(gameLedger.seasonId, seasonId),
-              inArray(gameLedger.kind, PAYMENT_KINDS)
+              inArray(gameLedger.kind, [...PAYMENT_KINDS])
             )
           ),
         openGuessesOf(tx, userId),
@@ -410,7 +410,7 @@ export function paymentsOf(
   models: Map<number | null, number>;
 } {
   // A reward or a refund is what is not paid on top of one.
-  const onTop = new Set(["bonus", "models"]);
+  const onTop = new Set<string>(PAID_ON_TOP);
   const byKind = (keep: (kind: string) => boolean) =>
     new Map(rows.filter((row) => keep(row.kind)).map((row) => [row.guessId, row.amount]));
   return {
@@ -421,11 +421,28 @@ export function paymentsOf(
 }
 
 /**
+ * What a guess's settlement paid on top of its reward or refund.
+ *
+ * decisions/073-leaderboard.md
+ * decisions/074-against-the-models.md
+ */
+const PAID_ON_TOP = ["bonus", "models"] as const;
+
+/**
  * The ledger kinds a settled guess's payments are read from.
  *
  * decisions/079-group-members-guesses.md
  */
-export const PAYMENT_KINDS = ["reward", "refund", "bonus", "models"];
+export const PAYMENT_KINDS = ["reward", "refund", ...PAID_ON_TOP] as const;
+
+/**
+ * What a settled guess paid, as its lines say it: how it was settled, its
+ * reward or refund, the rarity bonus and the models' reward.
+ *
+ * decisions/072-match-guesses.md
+ * decisions/079-group-members-guesses.md
+ */
+export type Paid = { settlement: Settlement; reward: number; bonus: number; modelsReward: number };
 
 function playingView(
   season: Season,
