@@ -626,8 +626,8 @@ function answerDue(guess: OpenSeasonGuess, matches: readonly SeasonMatch[]): boo
 
 /**
  * Settles one season's open guesses whose answer is in, and voids the rest once
- * a later season is stored; a due guess whose tables cannot be read is named
- * in the report for the next run.
+ * a later season is stored; until then a due guess whose tables cannot be read
+ * is named in the report for the next run.
  *
  * decisions/075-season-guesses.md
  */
