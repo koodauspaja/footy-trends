@@ -178,7 +178,7 @@ export async function latestSeason(client: Client): Promise<number | null> {
   return row?.seasonId ?? null;
 }
 
-async function seasonMatches(client: Client, seasonId: number): Promise<SeasonMatch[]> {
+export async function seasonMatches(client: Client, seasonId: number): Promise<SeasonMatch[]> {
   return client
     .select(MATCH_COLUMNS)
     .from(tasoMatches)

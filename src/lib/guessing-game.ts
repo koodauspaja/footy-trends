@@ -382,7 +382,7 @@ const RARITY_MIN_GUESSES = 5;
  *
  * decisions/073-leaderboard.md
  */
-const SHARES_MIN_GUESSES = 3;
+export const SHARES_MIN_GUESSES = 3;
 
 const PLAYED: ReadonlySet<Settlement> = new Set<Settlement>([
   "exact",

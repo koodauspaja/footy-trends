@@ -26,6 +26,7 @@ const { state, logger, store, standings } = vi.hoisted(() => {
     store: {
       latestSeason: vi.fn(),
       seasonOfId: vi.fn(),
+      seasonMatches: vi.fn(),
       ensureGrant: vi.fn(),
       balanceOf: vi.fn(),
     },
@@ -153,6 +154,7 @@ beforeEach(() => {
   store.seasonOfId
     .mockReset()
     .mockImplementation(async (_client, seasonId: number) => season(seasonId));
+  store.seasonMatches.mockReset().mockImplementation(async () => [match()]);
   store.ensureGrant.mockReset().mockResolvedValue(undefined);
   store.balanceOf.mockReset().mockResolvedValue(1000);
   standings.getSeasonStandings.mockReset();
@@ -673,13 +675,16 @@ function group(groupId: number, teams: readonly number[], kind = "own-calculated
     : { kind, groupId, groupName: `Group ${groupId}`, standings: rows(teams) };
 }
 
-const REGULAR_PLAYED = [match({ status: "FINISHED" }), match({ status: "FINISHED" })];
-const SPLIT_PLAYED = [
-  ...REGULAR_PLAYED,
-  match({ groupId: 2, status: "FINISHED" }),
-  match({ groupId: 3, status: "FINISHED" }),
-];
+// A group's matches in today's format, every one finished.
+function played(groupId: number, count: number) {
+  return Array.from({ length: count }, (_, index) =>
+    match({ providerMatchId: groupId * 1000 + index, groupId, status: "FINISHED" })
+  );
+}
 
+const REGULAR_PLAYED = played(1, 132);
+const SPLIT_ONLY = [...played(2, 30), ...played(3, 15)];
+const SPLIT_PLAYED = [...REGULAR_PLAYED, ...SPLIT_ONLY];
 describe("readSeasonAnswers", () => {
   it("reads no tables while neither part of the season is played", async () => {
     const matches = [match({ status: "FINISHED" }), match(), match({ groupId: 2 })];
@@ -733,13 +738,7 @@ describe("readSeasonAnswers", () => {
       groups: [group(2, TEAMS.slice(0, 6)), group(3, TEAMS.slice(6))],
       levels: [],
     });
-    const matches = [
-      match(),
-      match({ groupId: 2, status: "FINISHED" }),
-      match({ groupId: 3, status: "FINISHED" }),
-    ];
-
-    expect(await readSeasonAnswers(2027, 2027, matches)).toEqual({
+    expect(await readSeasonAnswers(2027, 2027, [match(), ...SPLIT_ONLY])).toEqual({
       upper: null,
       places: new Map(TEAMS.map((team, index) => [team, index + 1])),
     });
@@ -762,6 +761,48 @@ describe("readSeasonAnswers", () => {
         SPLIT_PLAYED.filter((played) => played.groupId !== 1)
       )
     ).rejects.toThrow("Season 2027's group 3 has no table");
+  });
+
+  it("leaves a group with fewer finished matches than its format unplayed", async () => {
+    expect(await readSeasonAnswers(2027, 2027, REGULAR_PLAYED.slice(1))).toEqual({
+      upper: null,
+      places: null,
+    });
+    expect(
+      await readSeasonAnswers(2027, 2027, [...REGULAR_PLAYED.slice(1), ...SPLIT_ONLY.slice(1)])
+    ).toEqual({ upper: null, places: null });
+    expect(
+      await readSeasonAnswers(2027, 2027, [...REGULAR_PLAYED.slice(1), ...SPLIT_ONLY.slice(0, -1)])
+    ).toEqual({ upper: null, places: null });
+    expect(standings.getSeasonStandings).not.toHaveBeenCalled();
+  });
+
+  it("counts a group played with its format's finished matches beside an abandoned one", async () => {
+    standings.getSeasonStandings.mockResolvedValue({
+      status: "ok",
+      groups: [group(1, TEAMS)],
+      levels: [],
+    });
+
+    expect(
+      await readSeasonAnswers(2027, 2027, [
+        ...REGULAR_PLAYED,
+        match({ providerMatchId: 9999, status: "Abandoned" }),
+      ])
+    ).toEqual({ upper: new Set(TEAMS.slice(0, 6)), places: null });
+  });
+
+  it("reads no tables for a played part no open guess needs", async () => {
+    expect(
+      await readSeasonAnswers(2027, 2027, REGULAR_PLAYED, { upper: false, places: true })
+    ).toEqual({ upper: null, places: null });
+    expect(
+      await readSeasonAnswers(2027, 2027, [match(), ...SPLIT_ONLY], {
+        upper: true,
+        places: false,
+      })
+    ).toEqual({ upper: null, places: null });
+    expect(standings.getSeasonStandings).not.toHaveBeenCalled();
   });
 
   it("throws when the tables cannot be read", async () => {
@@ -804,7 +845,7 @@ describe("settleSeasonGuesses", () => {
   });
 
   it("pays a guess of the six once the regular season is played, and leaves the rest waiting", async () => {
-    store.seasonOfId.mockResolvedValue(season(2027, REGULAR_PLAYED));
+    store.seasonMatches.mockResolvedValue(REGULAR_PLAYED);
     standings.getSeasonStandings.mockResolvedValue({
       status: "ok",
       groups: [group(1, [100, 101, 102, 103, 106, 107, 104, 105, 108, 109, 110, 111])],
@@ -835,7 +876,7 @@ describe("settleSeasonGuesses", () => {
   });
 
   it("settles the champion, the last place and the table by the final places", async () => {
-    store.seasonOfId.mockResolvedValue(season(2027, SPLIT_PLAYED));
+    store.seasonMatches.mockResolvedValue(SPLIT_PLAYED);
     standings.getSeasonStandings.mockResolvedValue({
       status: "ok",
       groups: [group(1, TEAMS), group(2, TEAMS.slice(0, 6)), group(3, TEAMS.slice(6))],
@@ -908,7 +949,7 @@ describe("settleSeasonGuesses", () => {
       voided: 0,
       failed: [],
     });
-    expect(store.seasonOfId).toHaveBeenCalledWith(expect.anything(), 2027);
+    expect(store.seasonMatches).toHaveBeenCalledWith(expect.anything(), 2027);
   });
 
   it("locks the player before the guess's row, as a match's settling does", async () => {
@@ -964,9 +1005,9 @@ describe("settleSeasonGuesses", () => {
   });
 
   it("names a season's guesses when its matches cannot be read, and settles the next season", async () => {
-    store.seasonOfId.mockImplementation(async (_client: unknown, seasonId: number) => {
+    store.seasonMatches.mockImplementation(async (_client: unknown, seasonId: number) => {
       if (seasonId === 2026) throw new Error("database down");
-      return season(2027, REGULAR_PLAYED);
+      return REGULAR_PLAYED;
     });
     standings.getSeasonStandings.mockResolvedValue({
       status: "ok",
@@ -995,7 +1036,7 @@ describe("settleSeasonGuesses", () => {
 
   it("with a later season stored and the tables unreadable, retries a due guess and voids one not due", async () => {
     store.latestSeason.mockResolvedValue(2028);
-    store.seasonOfId.mockResolvedValue(season(2027, REGULAR_PLAYED));
+    store.seasonMatches.mockResolvedValue(REGULAR_PLAYED);
     standings.getSeasonStandings.mockResolvedValue({ status: "error", groups: [] });
     // The six are due, the regular season played; the champion is not, the split unplayed.
     answer(
@@ -1018,18 +1059,55 @@ describe("settleSeasonGuesses", () => {
     ]);
   });
 
-  it("names a season's guesses when its tables cannot be read, and logs it", async () => {
-    store.seasonOfId.mockResolvedValue(season(2027, REGULAR_PLAYED));
+  it("reads no tables when the open guesses need no part that is played", async () => {
+    store.seasonMatches.mockResolvedValue(REGULAR_PLAYED);
+    answer([openGuess({ kind: "champion", teams: [100] }), openGuess({ id: 42, kind: "table" })]);
+
+    expect(await settleSeasonGuesses(NOW)).toEqual({
+      settled: 0,
+      rewarded: 0,
+      voided: 0,
+      failed: [],
+    });
+    expect(standings.getSeasonStandings).not.toHaveBeenCalled();
+  });
+
+  it("reads no tables for a played split when only guesses of the six are open", async () => {
+    store.seasonMatches.mockResolvedValue([match(), ...SPLIT_ONLY]);
+    answer([openGuess()]);
+
+    expect(await settleSeasonGuesses(NOW)).toMatchObject({ settled: 0, failed: [] });
+    expect(standings.getSeasonStandings).not.toHaveBeenCalled();
+  });
+
+  it("leaves a guess of the six waiting, not failed, when the split's tables cannot be read before the regular season is played", async () => {
+    store.seasonMatches.mockResolvedValue([match(), ...SPLIT_ONLY]);
     standings.getSeasonStandings.mockResolvedValue({ status: "error", groups: [] });
-    // With no later season stored, a guess not yet due is retried too.
     answer([openGuess(), openGuess({ id: 42, kind: "champion", teams: [100] })]);
 
     expect(await settleSeasonGuesses(NOW)).toEqual({
       settled: 0,
       rewarded: 0,
       voided: 0,
-      failed: [41, 42],
+      failed: [42],
     });
+  });
+
+  it("names only the due guesses when the tables cannot be read, logs it, and leaves one not due waiting", async () => {
+    store.seasonMatches.mockResolvedValue(REGULAR_PLAYED);
+    standings.getSeasonStandings.mockResolvedValue({ status: "error", groups: [] });
+    // The six are due, the regular season played; the champion is not, and
+    // with no later season stored it neither fails nor settles.
+    answer([openGuess(), openGuess({ id: 42, kind: "champion", teams: [100] })]);
+
+    expect(await settleSeasonGuesses(NOW)).toEqual({
+      settled: 0,
+      rewarded: 0,
+      voided: 0,
+      failed: [41],
+    });
+    expect(inserted()).toEqual([]);
+    expect(updated()).toEqual([]);
     expect(logger.error).toHaveBeenCalledWith(
       { err: expect.any(Error), seasonId: 2027 },
       "Reading an Arvauspeli season's answers failed"

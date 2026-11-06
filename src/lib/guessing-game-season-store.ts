@@ -2,6 +2,7 @@ import { and, asc, eq, isNull, min, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { gameLedger, gamePlayer, gameSeasonGuess, tasoMatches } from "@/db/schema";
 import { categoryIdForSeason, competitionIdForSeason } from "./domestic-competitions";
+import { SHARES_MIN_GUESSES } from "./guessing-game";
 import {
   finalPlaces,
   judgeByPlaces,
@@ -24,6 +25,7 @@ import {
   latestSeason,
   REGULAR_SEASON_GROUP,
   type SeasonMatch,
+  seasonMatches,
   seasonOf,
   seasonOfId,
 } from "./guessing-game-store";
@@ -45,12 +47,7 @@ import { getSeasonStandings } from "./taso-standings-service";
  */
 const UPPER_GROUP = 2;
 const LOWER_GROUP = 3;
-/**
- * Shares of the picks are shown from this many guesses, as a match's shares are.
- *
- * decisions/075-season-guesses.md
- */
-const MIN_SHARED = 3;
+type SeasonGroup = typeof REGULAR_SEASON_GROUP | typeof UPPER_GROUP | typeof LOWER_GROUP;
 /**
  * The teams a share line names before the rest are `muut`.
  *
@@ -262,7 +259,7 @@ function shownOf(row: typeof gameSeasonGuess.$inferSelect): ShownSeasonGuess {
  */
 export function pickSharesOf(counts: ReadonlyMap<number, number>): PickShares | null {
   const total = [...counts.values()].reduce((sum, count) => sum + count, 0);
-  if (total < MIN_SHARED) return null;
+  if (total < SHARES_MIN_GUESSES) return null;
   const ranked = [...counts].sort(([leftTeam, left], [rightTeam, right]) =>
     right === left ? leftTeam - rightTeam : right - left
   );
@@ -345,10 +342,9 @@ export async function readSeasonSection(
 }
 
 /**
- * The sections for the season a view is about: the one in play, and while it
- * is before its lock the one just finished, with its results; between seasons
- * the one just finished. A finished season shows only a player who guessed in
- * it. A failed read logs and leaves the sections out, not the game.
+ * The sections a view shows: the season in play, and the one just finished
+ * while the next is before its lock, or between seasons the one just finished.
+ * A failed read logs and leaves them out, not the game.
  *
  * decisions/075-season-guesses.md
  */
@@ -399,29 +395,46 @@ export type SeasonAnswers = {
 };
 
 /**
- * Whether every stored match of a group has been played: a group with none
- * stored has not.
+ * Each group's matches in today's format (S14): 12 teams over 22 rounds, then
+ * six over 10 rounds and six over 5.
  *
  * decisions/075-season-guesses.md
  */
-function groupPlayed(matches: readonly SeasonMatch[], groupId: number): boolean {
-  const group = matches.filter((match) => match.groupId === groupId);
-  return group.length > 0 && group.every((match) => match.status === FINISHED);
+const GROUP_MATCHES: Readonly<Record<SeasonGroup, number>> = {
+  [REGULAR_SEASON_GROUP]: 132,
+  [UPPER_GROUP]: 30,
+  [LOWER_GROUP]: 15,
+};
+
+/**
+ * Whether a group's whole format has been played: as many finished matches as
+ * it has, so a schedule stored in part, or an abandoned match never replayed,
+ * leaves it unplayed.
+ *
+ * decisions/075-season-guesses.md
+ */
+function groupPlayed(matches: readonly SeasonMatch[], groupId: SeasonGroup): boolean {
+  const finished = matches.filter(
+    (match) => match.groupId === groupId && match.status === FINISHED
+  );
+  return finished.length >= GROUP_MATCHES[groupId];
 }
 
 /**
- * Reads the answers of a season whose stored matches say one is due. A failed
- * read throws, and so does a due group with no table to judge by.
+ * Reads the answers an open guess needs and the stored matches say are due. A
+ * failed read throws, and so does a due group with no table to judge by.
  *
  * decisions/075-season-guesses.md
  */
 export async function readSeasonAnswers(
   seasonId: number,
   activeSeasonId: number,
-  matches: readonly SeasonMatch[]
+  matches: readonly SeasonMatch[],
+  need: { upper: boolean; places: boolean } = { upper: true, places: true }
 ): Promise<SeasonAnswers> {
-  const regularPlayed = groupPlayed(matches, REGULAR_SEASON_GROUP);
-  const splitPlayed = groupPlayed(matches, UPPER_GROUP) && groupPlayed(matches, LOWER_GROUP);
+  const regularPlayed = need.upper && groupPlayed(matches, REGULAR_SEASON_GROUP);
+  const splitPlayed =
+    need.places && groupPlayed(matches, UPPER_GROUP) && groupPlayed(matches, LOWER_GROUP);
   if (!regularPlayed && !splitPlayed) return { upper: null, places: null };
   const result = await getSeasonStandings(
     categoryIdForSeason(COMPETITION, seasonId),
@@ -469,10 +482,9 @@ type OpenSeasonGuess = {
 };
 
 /**
- * Settles one guess in its own transaction, the player locked first, the order
- * a match's settling and an account's deletion take them in, then the row,
- * still open, so a racing run settles nothing twice: by its judgement, or `void` with the
- * price refunded. `false` when another run settled it first.
+ * Settles one guess in its own transaction, the player and then the open row
+ * locked: by its judgement, or `void` with the price refunded. `false` when
+ * another run settled it first.
  *
  * decisions/075-season-guesses.md
  */
@@ -587,10 +599,9 @@ function answerDue(guess: OpenSeasonGuess, matches: readonly SeasonMatch[]): boo
 }
 
 /**
- * Settles one season's open guesses whose answer is in, voiding those still
- * open once a later season is stored. When the season's tables cannot be read,
- * a guess whose answer is due is named in the report for the next run, and
- * one whose answer is not is still voided once a later season is stored.
+ * Settles one season's open guesses whose answer is in, and voids the rest once
+ * a later season is stored; a due guess whose tables cannot be read is named
+ * in the report for the next run.
  *
  * decisions/075-season-guesses.md
  */
@@ -604,7 +615,7 @@ async function settleSeason(
   const replaced = latest > seasonId;
   let matches: readonly SeasonMatch[];
   try {
-    matches = (await seasonOfId(db, seasonId)).matches;
+    matches = await seasonMatches(db, seasonId);
   } catch (error) {
     logger.error({ err: error, seasonId }, "Reading an Arvauspeli season's answers failed");
     report.failed.push(...guesses.map((guess) => guess.id));
@@ -612,11 +623,15 @@ async function settleSeason(
   }
   let answers: SeasonAnswers;
   let pending = guesses;
+  const need = {
+    upper: guesses.some((guess) => guess.kind === "upper"),
+    places: guesses.some((guess) => guess.kind !== "upper"),
+  };
   try {
-    answers = await readSeasonAnswers(seasonId, latest, matches);
+    answers = await readSeasonAnswers(seasonId, latest, matches, need);
   } catch (error) {
     logger.error({ err: error, seasonId }, "Reading an Arvauspeli season's answers failed");
-    const due = replaced ? guesses.filter((guess) => answerDue(guess, matches)) : guesses;
+    const due = guesses.filter((guess) => answerDue(guess, matches));
     report.failed.push(...due.map((guess) => guess.id));
     answers = { upper: null, places: null };
     pending = guesses.filter((guess) => !due.includes(guess));

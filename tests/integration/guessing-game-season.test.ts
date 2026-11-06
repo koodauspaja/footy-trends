@@ -51,19 +51,41 @@ function vlMatch(overrides: Partial<typeof tasoMatches.$inferInsert> = {}) {
   };
 }
 
-// The regular season's fixtures: each team once, 1 v 2 to 11 v 12.
-async function storeRegularSeason() {
-  await db.insert(tasoMatches).values(
-    [0, 2, 4, 6, 8, 10].map((index) =>
-      vlMatch({
-        homeTeamProviderId: index + 1,
-        homeTeamName: `Joukkue ${index + 1}`,
-        awayTeamProviderId: index + 2,
-        awayTeamName: `Joukkue ${index + 2}`,
-        kickoffAt: at(200 + index),
-      })
-    )
+// One round of six fixtures, each team once: 1 v 2 to 11 v 12, the first at
+// `firstHour`.
+function round(groupId: number, firstHour: number, overrides = {}) {
+  return [0, 2, 4, 6, 8, 10].map((index) =>
+    vlMatch({
+      groupId,
+      homeTeamProviderId: index + 1,
+      homeTeamName: `Joukkue ${index + 1}`,
+      awayTeamProviderId: index + 2,
+      awayTeamName: `Joukkue ${index + 2}`,
+      kickoffAt: at(firstHour + index),
+      ...overrides,
+    })
   );
+}
+
+// The regular season's 132 fixtures, 22 rounds of six, the first at hour 200.
+async function storeRegularSeason() {
+  await db
+    .insert(tasoMatches)
+    .values(Array.from({ length: 22 }, (_, index) => round(1, 200 + 24 * index)).flat());
+}
+
+// The split, played: 30 matches in the upper group, 15 in the lower, as the
+// format has them.
+async function storePlayedSplit() {
+  const played = { status: "FINISHED", homeGoals: 1, awayGoals: 0 };
+  await db.insert(tasoMatches).values([
+    ...Array.from({ length: 10 }, (_, index) => round(2, 900 + 24 * index, played))
+      .flat()
+      .slice(0, 30),
+    ...Array.from({ length: 5 }, (_, index) => round(3, 900 + 24 * index, played))
+      .flat()
+      .slice(0, 15),
+  ]);
 }
 
 async function finishGroup(groupId: number) {
@@ -195,12 +217,7 @@ describe("settling season guesses", () => {
     expect(await settleSeasonGuesses(at(300))).toMatchObject({ settled: 1, rewarded: 1 });
     expect(await ledger("season-reward")).toEqual([{ userId: PLAYER, amount: 75 }]);
 
-    await db
-      .insert(tasoMatches)
-      .values([
-        vlMatch({ groupId: 2, groupName: "Mestaruussarja", status: "FINISHED" }),
-        vlMatch({ groupId: 3, groupName: "Karsintasarja", status: "FINISHED" }),
-      ]);
+    await storePlayedSplit();
     // Team 1 champion; 11 and 12 swapped at the bottom.
     standings.mockResolvedValue({
       status: "ok",
@@ -220,6 +237,22 @@ describe("settling season guesses", () => {
 
     expect(await settleSeasonGuesses(at(401))).toMatchObject({ settled: 0 });
     expect(await ledger("season-reward")).toHaveLength(4);
+  });
+
+  it("waits while the split is stored only in part, though every stored match is played", async () => {
+    await finishGroup(1);
+    standings.mockResolvedValue({ status: "ok", groups: [table(1, TEAMS)], levels: [] });
+    await settleSeasonGuesses(at(300));
+    // The first rounds of each group, played, the rest not yet published.
+    await db
+      .insert(tasoMatches)
+      .values([
+        ...round(2, 900, { status: "FINISHED", homeGoals: 1, awayGoals: 0 }),
+        ...round(3, 900, { status: "FINISHED", homeGoals: 1, awayGoals: 0 }),
+      ]);
+
+    expect(await settleSeasonGuesses(at(1000))).toMatchObject({ settled: 0, failed: [] });
+    expect(await ledger("season-reward")).toEqual([{ userId: PLAYER, amount: 75 }]);
   });
 
   it("voids a guess still open once the next season's first fixture is stored", async () => {

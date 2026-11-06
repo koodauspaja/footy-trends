@@ -1,5 +1,5 @@
 {
-  "id": "5a126b06-1571-4ce0-b21c-19404bbaaad3",
+  "id": "62a3ffa4-e610-4203-8b99-2bdcc5a4d917",
   "prevId": "f050aa5a-0419-4de6-aed6-1cc4f1e948bf",
   "version": "7",
   "dialect": "postgresql",
@@ -750,6 +750,18 @@
           "primaryKey": false,
           "notNull": true
         },
+        "changed_at": {
+          "name": "changed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lock_at": {
+          "name": "lock_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
         "settled_at": {
           "name": "settled_at",
           "type": "timestamp with time zone",
@@ -799,6 +811,43 @@
             }
           ],
           "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "game_season_guess_season_idx": {
+          "name": "game_season_guess_season_idx",
+          "columns": [
+            {
+              "expression": "season_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "game_season_guess_open_idx": {
+          "name": "game_season_guess_open_idx",
+          "columns": [
+            {
+              "expression": "season_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"game_season_guess\".\"settled_at\" is null",
           "concurrently": false,
           "method": "btree",
           "with": {}

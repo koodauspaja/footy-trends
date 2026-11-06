@@ -110,10 +110,11 @@ function guessCount(count: number): string {
 
 /**
  * One of the page's sections, folded by its heading with its count after it.
- * Only `Tulevat ottelut`, the page's most basic part, starts open; nothing is
- * remembered.
+ * Only `Tulevat ottelut` and `Kauden arvaukset`, the page's playable parts,
+ * start open; nothing is remembered.
  *
  * decisions/072-match-guesses.md
+ * decisions/075-season-guesses.md
  */
 function GameFold({
   id,
