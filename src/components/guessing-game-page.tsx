@@ -8,24 +8,26 @@
  * decisions/073-leaderboard.md
  * decisions/074-against-the-models.md
  * decisions/075-season-guesses.md
+ * decisions/078-private-groups.md
  */
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { BoardTable } from "@/components/guessing-game-board-table";
 import { GuessForm, JoinGameButton } from "@/components/guessing-game-controls";
+import { GameFold } from "@/components/guessing-game-fold";
+import { GroupsSection, INTRO } from "@/components/guessing-game-groups";
 import { SeasonGuessForm } from "@/components/guessing-game-season-form";
 import { PANEL_HEADING, TABLE_HEADING } from "@/components/heading-classes";
 import { Notice } from "@/components/notice";
 import { modelLabel } from "@/components/prediction-quality-page";
-import { SectionFold } from "@/components/section-fold";
 import {
   type Board,
-  type BoardRow,
   type Guess,
   type Settlement,
   type Shares,
   STARTING_BALANCE,
 } from "@/lib/guessing-game";
+import type { GroupSummary } from "@/lib/guessing-game-group-store";
 import type { ModelGuess } from "@/lib/guessing-game-models";
 import {
   SEASON_KINDS,
@@ -42,9 +44,6 @@ import type {
 } from "@/lib/guessing-game-store";
 import { matchCountLabel } from "@/lib/match-count";
 import { formatKickoff } from "@/lib/match-detail";
-
-const INTRO =
-  "Arvaa Veikkausliigan otteluiden tuloksia pelimerkeillä. Pelimerkkejä ei voi ostaa, myydä eikä vaihtaa mihinkään.";
 
 const dayFormatter = new Intl.DateTimeFormat("fi-FI", {
   timeZone: "Europe/Helsinki",
@@ -106,41 +105,6 @@ function priceLine(match: UpcomingMatch): string {
 
 function guessCount(count: number): string {
   return count === 1 ? "1 arvaus" : `${count} arvausta`;
-}
-
-/**
- * One of the page's sections, folded by its heading with its count after it.
- * Only `Tulevat ottelut` and `Kauden arvaukset`, the page's playable parts,
- * start open; nothing is remembered.
- *
- * decisions/072-match-guesses.md
- * decisions/075-season-guesses.md
- */
-function GameFold({
-  id,
-  heading,
-  count,
-  open,
-  children,
-}: Readonly<{ id: string; heading: string; count: string; open: boolean; children: ReactNode }>) {
-  return (
-    <SectionFold
-      className="mt-8"
-      fold={{ initiallyOpen: open, remember: null }}
-      headingId={id}
-      summary={
-        <>
-          <h2 className={TABLE_HEADING} id={id}>
-            {heading}
-          </h2>
-          <span className="text-muted text-sm">({count})</span>
-        </>
-      }
-      summaryClassName="mb-2"
-    >
-      {children}
-    </SectionFold>
-  );
 }
 
 function JoinSection({ grant }: Readonly<{ grant: number }>) {
@@ -248,20 +212,6 @@ function playerCount(count: number): string {
   return count === 1 ? "1 pelaaja" : `${count} pelaajaa`;
 }
 
-function BoardTableRow({ row }: Readonly<{ row: BoardRow }>) {
-  return (
-    <tr className={`border-border-subtle border-b ${row.self ? "font-semibold" : ""}`}>
-      <td className="py-2 pr-4 tabular-nums">{row.rank}.</td>
-      <td className="py-2 pr-4">
-        {row.nickname ?? "Nimetön pelaaja"}
-        {row.self && <span className="text-muted"> (sinä)</span>}
-      </td>
-      <td className="py-2 pr-4 text-right tabular-nums">{tokens.format(row.balance)}</td>
-      <td className="py-2 text-right tabular-nums">{row.settled}</td>
-    </tr>
-  );
-}
-
 /**
  * A season's leaderboard: the first 50 by balance, and the reader's own row
  * after them when it is further down. A failed read says so.
@@ -282,33 +232,7 @@ function Leaderboard({ board }: Readonly<{ board: Board | "error" }>) {
       {board.players === 0 ? (
         <p className="mt-2">Kukaan ei ole vielä arvannut tällä kaudella.</p>
       ) : (
-        <div className="scroll-edge overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-border border-b">
-                <th className="py-2 pr-4">Sija</th>
-                <th className="py-2 pr-4">Pelaaja</th>
-                <th className="py-2 pr-4 text-right">Pelimerkit</th>
-                <th className="py-2 text-right">Ratkaistut</th>
-              </tr>
-            </thead>
-            <tbody>
-              {board.rows.map((row) => (
-                <BoardTableRow key={row.place} row={row} />
-              ))}
-              {board.own !== null && (
-                <>
-                  <tr>
-                    <td className="py-1 text-muted" colSpan={4}>
-                      …
-                    </td>
-                  </tr>
-                  <BoardTableRow row={board.own} />
-                </>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <BoardTable board={board} />
       )}
     </GameFold>
   );
@@ -487,6 +411,8 @@ type Props = Readonly<{
   season: SeasonSection | null;
   /** The season just finished, shown while the next is before its lock, or `null`. */
   previousSeason?: SeasonSection | null;
+  /** A joined player's groups, `"error"` when they could not be read, `null` for a reader not playing. */
+  groups?: GroupSummary[] | "error" | null;
 }>;
 
 export function GuessingGamePage({
@@ -497,8 +423,15 @@ export function GuessingGamePage({
   models,
   season,
   previousSeason = null,
+  groups = null,
 }: Props) {
-  const leaderboard = board === null ? null : <Leaderboard board={board} />;
+  // The public board, and after it a player's groups.
+  const boards = (
+    <>
+      {board !== null && <Leaderboard board={board} />}
+      {groups !== null && <GroupsSection groups={groups} />}
+    </>
+  );
   const seasonGuesses = (
     <>
       {season !== null && <SeasonGuesses heading="Kauden arvaukset" section={season} />}
@@ -524,7 +457,7 @@ export function GuessingGamePage({
         {view.kind === "between" && (
           <Awaiting guesses={view.awaiting} models={models} shares={shares} />
         )}
-        {leaderboard}
+        {boards}
       </div>
     );
   }
@@ -532,7 +465,7 @@ export function GuessingGamePage({
     return (
       <div>
         <JoinSection grant={view.grant} />
-        {leaderboard}
+        {boards}
       </div>
     );
   }
@@ -552,7 +485,7 @@ export function GuessingGamePage({
       )}
       {seasonGuesses}
       <Upcoming groups={view.groups} matches={view.upcoming} />
-      {leaderboard}
+      {boards}
       <Awaiting guesses={view.awaiting} models={models} shares={shares} />
       {view.settled.length > 0 && (
         <GameFold

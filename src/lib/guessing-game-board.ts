@@ -1,4 +1,18 @@
-import { and, count, eq, inArray, isNotNull, isNull, lt, lte, ne, or, sql, sum } from "drizzle-orm";
+import {
+  type AnyColumn,
+  and,
+  count,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  ne,
+  or,
+  sql,
+  sum,
+} from "drizzle-orm";
 import { db } from "@/db";
 import {
   gameGuess,
@@ -8,7 +22,14 @@ import {
   tasoMatches,
   userNickname,
 } from "@/db/schema";
-import { type Board, type Outcome, rankBoard, type Shares, sharesOf } from "./guessing-game";
+import {
+  type Board,
+  type BoardEntry,
+  type Outcome,
+  rankBoard,
+  type Shares,
+  sharesOf,
+} from "./guessing-game";
 import { favouredOutcome, GAME_MODELS, type ModelGuess } from "./guessing-game-models";
 import type { GameView } from "./guessing-game-store";
 import { logger } from "./logger";
@@ -24,14 +45,21 @@ import { POISSON_MODEL } from "./poisson";
  */
 
 /**
- * A season's leaderboard for the reader: every player with a guess in it, a
- * match's or the season's, by balance, read in one snapshot so a balance and
- * its settled count agree.
+ * Every player with a guess in a season, a match's or the season's, with their
+ * balance and settled count, read in one snapshot so the two agree; or only
+ * those of the given users, a group's members. Ranked by `rankBoard`.
  *
  * decisions/073-leaderboard.md
  * decisions/075-season-guesses.md
+ * decisions/078-private-groups.md
  */
-export async function readBoard(seasonId: number, readerId: string): Promise<Board> {
+export async function readBoardEntries(
+  seasonId: number,
+  userIds?: readonly string[]
+): Promise<BoardEntry[]> {
+  // A group's board reads its members only, not the whole season's.
+  const only = (column: AnyColumn) =>
+    userIds === undefined ? undefined : inArray(column, [...userIds]);
   const [matchGuesses, seasonGuesses, balances] = await db.transaction(
     (tx) =>
       Promise.all([
@@ -43,7 +71,7 @@ export async function readBoard(seasonId: number, readerId: string): Promise<Boa
           })
           .from(gameGuess)
           .leftJoin(userNickname, eq(userNickname.userId, gameGuess.userId))
-          .where(eq(gameGuess.seasonId, seasonId))
+          .where(and(eq(gameGuess.seasonId, seasonId), only(gameGuess.userId)))
           .groupBy(gameGuess.userId, userNickname.nickname),
         tx
           .select({
@@ -53,12 +81,12 @@ export async function readBoard(seasonId: number, readerId: string): Promise<Boa
           })
           .from(gameSeasonGuess)
           .leftJoin(userNickname, eq(userNickname.userId, gameSeasonGuess.userId))
-          .where(eq(gameSeasonGuess.seasonId, seasonId))
+          .where(and(eq(gameSeasonGuess.seasonId, seasonId), only(gameSeasonGuess.userId)))
           .groupBy(gameSeasonGuess.userId, userNickname.nickname),
         tx
           .select({ userId: gameLedger.userId, balance: sum(gameLedger.amount).mapWith(Number) })
           .from(gameLedger)
-          .where(eq(gameLedger.seasonId, seasonId))
+          .where(and(eq(gameLedger.seasonId, seasonId), only(gameLedger.userId)))
           .groupBy(gameLedger.userId),
       ]),
     { isolationLevel: "repeatable read", accessMode: "read only" }
@@ -73,10 +101,17 @@ export async function readBoard(seasonId: number, readerId: string): Promise<Boa
     const known = players.get(row.userId);
     players.set(row.userId, { ...row, settled: (known?.settled ?? 0) + row.settled });
   }
-  return rankBoard(
-    [...players.values()].map((row) => ({ ...row, balance: balanceOf.get(row.userId) ?? 0 })),
-    readerId
-  );
+  return [...players.values()].map((row) => ({ ...row, balance: balanceOf.get(row.userId) ?? 0 }));
+}
+
+/**
+ * A season's leaderboard for the reader: every player with a guess in it, by
+ * balance.
+ *
+ * decisions/073-leaderboard.md
+ */
+export async function readBoard(seasonId: number, readerId: string): Promise<Board> {
+  return rankBoard(await readBoardEntries(seasonId), readerId);
 }
 
 /**
@@ -209,12 +244,13 @@ export async function readModelGuesses(
 }
 
 /**
- * The season whose leaderboard a view shows: the one in play, or between
- * seasons the one just finished; none before any season is stored.
+ * The season whose leaderboard a view shows, a group's included: the one in
+ * play, or between seasons the one just finished; none before any is stored.
  *
  * decisions/073-leaderboard.md
+ * decisions/078-private-groups.md
  */
-function boardSeason(view: GameView): number | null {
+export function boardSeason(view: GameView): number | null {
   if (view.kind === "no-season") return null;
   return view.kind === "between" ? view.nextSeasonId - 1 : view.seasonId;
 }

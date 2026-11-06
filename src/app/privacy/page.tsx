@@ -16,6 +16,7 @@ export const metadata: Metadata = { title: HEADING };
  * decisions/072-match-guesses.md
  * decisions/077-nickname.md
  * decisions/073-leaderboard.md
+ * decisions/078-private-groups.md
  */
 const SECTION = "mb-8";
 const HEADING_2 = "mb-3 font-semibold text-xl";
@@ -24,7 +25,7 @@ const LIST = "list-disc space-y-1 pl-6";
 export default function Privacy() {
   return (
     <PageShell heading={HEADING}>
-      <p className="mb-8 text-muted text-sm">Päivitetty 5.11.2026</p>
+      <p className="mb-8 text-muted text-sm">Päivitetty 6.11.2026</p>
 
       <section className={SECTION}>
         <h2 className={HEADING_2}>Lyhyesti</h2>
@@ -62,6 +63,11 @@ export default function Privacy() {
           <li>
             Nimimerkkisi, jos olet valinnut sellaisen. Muut kirjautuneet käyttäjät näkevät sen
             arvauspelin tulostaulukossa.
+          </li>
+          <li>
+            Arvauspelin ryhmät, joihin kuulut, ja niiden nimet. Ryhmän jäsenet näkevät toistensa
+            nimimerkit ja pelimerkit ryhmän tulostaulukossa, ja kutsulinkin saanut näkee ryhmän
+            nimen ja jäsenmäärän.
           </li>
         </ul>
       </section>
@@ -120,8 +126,8 @@ export default function Privacy() {
         <p>
           Sivulla <Link href="/asetukset">Asetukset</Link> on
           <strong> Poista tili</strong>. Se poistaa tilin ja kaiken siihen liittyvän heti:
-          asetukset, profiilikuvan, nimimerkin, suosikit, osioiden valinnat, arvauspelin tiedot ja
-          kirjautumistiedot. Erillistä pyyntöä ei tarvita.
+          asetukset, profiilikuvan, nimimerkin, suosikit, osioiden valinnat, arvauspelin tiedot,
+          arvauspelin ryhmäjäsenyydet ja kirjautumistiedot. Erillistä pyyntöä ei tarvita.
         </p>
       </section>
 

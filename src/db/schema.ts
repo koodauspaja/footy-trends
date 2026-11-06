@@ -752,3 +752,42 @@ export const gameLedger = pgTable(
       .where(sql`${table.kind} in ('season-reward', 'season-refund')`),
   ]
 );
+
+/**
+ * A private group of `Arvauspeli` players, joined by its invite link. Its owner
+ * is not stored: it is the member who joined earliest.
+ *
+ * decisions/078-private-groups.md
+ */
+export const gameGroup = pgTable("game_group", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  /** The invite link's secret; renewing replaces it, so the old link stops working. */
+  inviteToken: text("invite_token").notNull().unique(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * A player's membership of a group. The lowest id is the owner's; a trigger
+ * from the migration deletes the group once its last membership is gone.
+ *
+ * decisions/078-private-groups.md
+ */
+export const gameGroupMember = pgTable(
+  "game_group_member",
+  {
+    id: serial("id").primaryKey(),
+    groupId: integer("group_id")
+      .notNull()
+      .references(() => gameGroup.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => gamePlayer.userId, { onDelete: "cascade" }),
+    joinedAt: timestamp("joined_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("game_group_member_identity_idx").on(table.groupId, table.userId),
+    // A player's groups, and the limit on how many, are read by player.
+    index("game_group_member_user_idx").on(table.userId),
+  ]
+);

@@ -4,6 +4,8 @@ import {
   account,
   favoriteCompetition,
   favoriteTeam,
+  gameGroup,
+  gameGroupMember,
   gameGuess,
   gameLedger,
   gamePlayer,
@@ -46,6 +48,7 @@ import {
  * decisions/073-leaderboard.md
  * decisions/074-against-the-models.md
  * decisions/075-season-guesses.md
+ * decisions/078-private-groups.md
  */
 
 describe("matches table", () => {
@@ -643,6 +646,40 @@ describe("Arvauspeli's tables", () => {
         where: "partial",
       });
     }
+  });
+
+  describe("game_group and game_group_member tables", () => {
+    it("makes an invite token unique, so one link names one group", () => {
+      const token = getTableConfig(gameGroup).columns.find(
+        (column) => column.name === "invite_token"
+      );
+      expect(token?.isUnique).toBe(true);
+      expect(token?.notNull).toBe(true);
+    });
+
+    it("keeps one membership per player and group, and reads a player's groups by player", () => {
+      expect(indexNamed(gameGroupMember, "game_group_member_identity_idx")).toEqual({
+        unique: true,
+        columns: ["group_id", "user_id"],
+        where: undefined,
+      });
+      expect(indexNamed(gameGroupMember, "game_group_member_user_idx")).toEqual({
+        unique: false,
+        columns: ["user_id"],
+        where: undefined,
+      });
+    });
+
+    it("cascades a membership away with its group and with its player", () => {
+      const foreignKeys = getTableConfig(gameGroupMember).foreignKeys.map((foreignKey) => ({
+        onDelete: foreignKey.onDelete,
+        table: foreignKey.reference().foreignTable,
+      }));
+      expect(foreignKeys).toEqual([
+        { onDelete: "cascade", table: gameGroup },
+        { onDelete: "cascade", table: gamePlayer },
+      ]);
+    });
   });
 });
 

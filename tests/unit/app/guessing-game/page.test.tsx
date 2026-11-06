@@ -10,22 +10,36 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * decisions/077-nickname.md
  * decisions/073-leaderboard.md
  * decisions/075-season-guesses.md
+ * decisions/078-private-groups.md
  */
 
-const { currentUserId, openGame, getNickname, readOthers, readSeasonSectionOf, logger } =
-  vi.hoisted(() => ({
-    readOthers: vi.fn(),
-    readSeasonSectionOf: vi.fn(),
-    currentUserId: vi.fn(async (): Promise<string | null> => "user-1"),
-    openGame: vi.fn(),
-    getNickname: vi.fn(async (): Promise<string | null> => null),
-    logger: { error: vi.fn() },
-  }));
+const {
+  currentUserId,
+  openGame,
+  getNickname,
+  readOthers,
+  readSeasonSectionOf,
+  readGroupsOf,
+  logger,
+} = vi.hoisted(() => ({
+  readOthers: vi.fn(),
+  readGroupsOf: vi.fn(),
+  readSeasonSectionOf: vi.fn(),
+  currentUserId: vi.fn(async (): Promise<string | null> => "user-1"),
+  openGame: vi.fn(),
+  getNickname: vi.fn(async (): Promise<string | null> => null),
+  logger: { error: vi.fn() },
+}));
 
 vi.mock("@/lib/current-user", () => ({ currentUserId }));
 vi.mock("@/lib/guessing-game-store", () => ({ openGame }));
 vi.mock("@/lib/nickname-store", () => ({ getNickname }));
-vi.mock("@/lib/guessing-game-board", () => ({ readOthers }));
+vi.mock("@/lib/guessing-game-board", () => ({
+  readOthers,
+  boardSeason: (view: { seasonId?: number }) => view.seasonId ?? null,
+}));
+vi.mock("@/lib/guessing-game-group-store", () => ({ readGroupsOf }));
+vi.mock("@/lib/guessing-game-group-actions", () => ({ createGroupAction: vi.fn() }));
 vi.mock("@/lib/guessing-game-season-store", () => ({ readSeasonSectionOf }));
 vi.mock("@/lib/logger", () => ({ logger }));
 vi.mock("@/lib/guessing-game-actions", () => ({
@@ -52,6 +66,7 @@ beforeEach(() => {
   getNickname.mockResolvedValue(null);
   readOthers.mockResolvedValue({ board: null, shares: new Map(), models: new Map() });
   readSeasonSectionOf.mockResolvedValue({ current: null, previous: null });
+  readGroupsOf.mockResolvedValue([]);
 });
 
 describe("/arvauspeli", () => {
@@ -208,5 +223,55 @@ describe("/arvauspeli", () => {
 
     expect(page.dynamic).toBe("force-dynamic");
     expect(page.metadata).toEqual({ title: "Arvauspeli" });
+  });
+
+  describe("Ryhmät", () => {
+    const playing = {
+      kind: "playing",
+      seasonId: 2027,
+      balance: 1000,
+      upcoming: [],
+      awaiting: [],
+      settled: [],
+      groups: 1,
+    };
+
+    it("reads a player's groups for the season the board shows, and lists them", async () => {
+      openGame.mockResolvedValue(playing);
+      readGroupsOf.mockResolvedValue([{ groupId: 4, name: "Kaverit", members: 2, rank: 1 }]);
+
+      await renderPage();
+
+      expect(readGroupsOf).toHaveBeenCalledWith("user-1", 2027);
+      expect(screen.getByRole("link", { name: "Kaverit" })).toBeInTheDocument();
+    });
+
+    it.each([
+      [{ kind: "between", nextSeasonId: 2028, joined: true, awaiting: [] }, 1],
+      [{ kind: "no-season", joined: true }, 1],
+      [{ kind: "no-season", joined: false }, 0],
+      [{ kind: "not-joined", seasonId: 2027, grant: 1000 }, 0],
+    ])("reads groups for a joined reader only: %o", async (view, reads) => {
+      openGame.mockResolvedValue(view);
+      await renderPage();
+      expect(readGroupsOf).toHaveBeenCalledTimes(reads);
+      expect(screen.queryAllByRole("heading", { name: "Ryhmät" })).toHaveLength(reads);
+    });
+
+    it("costs only the section when the groups cannot be read, and logs it", async () => {
+      openGame.mockResolvedValue(playing);
+      readGroupsOf.mockRejectedValue(new Error("database down"));
+
+      await renderPage();
+
+      expect(
+        screen.getByText("Ryhmien lataaminen epäonnistui. Yritä myöhemmin uudelleen.")
+      ).toBeInTheDocument();
+      expect(screen.getByText(/^Pelimerkit:/)).toBeInTheDocument();
+      expect(logger.error).toHaveBeenCalledWith(
+        { err: expect.any(Error), userId: "user-1" },
+        "Reading Arvauspeli groups failed"
+      );
+    });
   });
 });

@@ -10,6 +10,7 @@ import { warmModules } from "../../support/warm-module";
  * decisions/073-leaderboard.md
  * decisions/074-against-the-models.md
  * decisions/075-season-guesses.md
+ * decisions/078-private-groups.md
  */
 
 const { state, logger } = vi.hoisted(() => ({
@@ -75,7 +76,7 @@ vi.mock("@/db", () => {
 vi.mock("@/lib/logger", () => ({ logger }));
 
 const { db } = await import("@/db");
-const { readBoard, readModelGuesses, readOthers, readShares } = await import(
+const { readBoard, readBoardEntries, readModelGuesses, readOthers, readShares } = await import(
   "@/lib/guessing-game-board"
 );
 
@@ -117,6 +118,16 @@ describe("readBoard", () => {
       { nickname: "Aino", balance: 900, settled: 3, rank: 2, place: 2, self: true },
     ]);
     expect(board.players).toBe(2);
+  });
+
+  it("reads a group's members by the same three statements, in one snapshot", async () => {
+    state.guessed = [{ userId: "a", settled: 1, nickname: null }];
+    state.balances = [{ userId: "a", balance: 990 }];
+
+    expect(await readBoardEntries(2027, ["a"])).toEqual([
+      { userId: "a", settled: 1, nickname: null, balance: 990 },
+    ]);
+    expect(state.selects).toBe(3);
   });
 
   it("reads both in one read-only snapshot", async () => {
