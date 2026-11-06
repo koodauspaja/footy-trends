@@ -84,7 +84,8 @@ Drafts, fine-tuned in implementation (S10).
   - `Jäsenet`: every member by when they joined, the reader "(sinä)" and the
     owner "· omistaja" after the name.
   - For the owner: renaming under "Nimeä ryhmä uudelleen" (the field `Ryhmän
-    nimi` and `Tallenna nimi`), a
+    nimi` and `Tallenna nimi`), confirmed with "Muutetaanko ryhmän nimeksi
+    {name}?", a
     `Poista ryhmästä` on each other member's row under `Jäsenet`, confirmed
     with "Poistetaanko {nickname} ryhmästä?", and `Poista ryhmä`, confirmed
     with "Poistetaanko ryhmä {name}? Ryhmän tulostaulukko katoaa, pelimerkit
