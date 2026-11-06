@@ -421,6 +421,14 @@ function groupPlayed(matches: readonly SeasonMatch[], groupId: SeasonGroup): boo
 }
 
 /**
+ * Which parts of a season's answers a read is for: the six, the final places.
+ *
+ * decisions/075-season-guesses.md
+ */
+type AnswersNeeded = Readonly<{ upper: boolean; places: boolean }>;
+const EVERY_ANSWER: AnswersNeeded = { upper: true, places: true };
+
+/**
  * Reads the answers an open guess needs and the stored matches say are due. A
  * failed read throws, and so does a due group with no table to judge by.
  *
@@ -430,7 +438,7 @@ export async function readSeasonAnswers(
   seasonId: number,
   activeSeasonId: number,
   matches: readonly SeasonMatch[],
-  need: { upper: boolean; places: boolean } = { upper: true, places: true }
+  need: AnswersNeeded = EVERY_ANSWER
 ): Promise<SeasonAnswers> {
   const regularPlayed = need.upper && groupPlayed(matches, REGULAR_SEASON_GROUP);
   const splitPlayed =
