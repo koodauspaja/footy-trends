@@ -121,7 +121,7 @@ describe("createGroup", () => {
 
 describe("joinGroup", () => {
   it("joins the game first, then the group", async () => {
-    queue(PLAYER, [{ id: 5 }], LOCK, [OWNER], [{ groups: 0 }], []);
+    queue(PLAYER, [{ id: 5 }], [OWNER], [{ groups: 0 }], []);
     expect(await store.joinGroup("friend", "token", NOW)).toEqual({
       ok: true,
       groupId: 5,
@@ -131,7 +131,7 @@ describe("joinGroup", () => {
   });
 
   it("joins nothing for a member already in the group", async () => {
-    queue(PLAYER, [{ id: 5 }], LOCK, [OWNER, FRIEND]);
+    queue(PLAYER, [{ id: 5 }], [OWNER, FRIEND]);
     expect(await store.joinGroup("friend", "token", NOW)).toEqual({
       ok: true,
       groupId: 5,
@@ -152,12 +152,12 @@ describe("joinGroup", () => {
       membershipId: index + 1,
       userId: `member-${index}`,
     }));
-    queue(PLAYER, [{ id: 5 }], LOCK, members);
+    queue(PLAYER, [{ id: 5 }], members);
     expect(await store.joinGroup("friend", "token", NOW)).toEqual({ ok: false, reason: "full" });
   });
 
   it("refuses a player already in ten groups", async () => {
-    queue(PLAYER, [{ id: 5 }], LOCK, [OWNER], [{ groups: 10 }]);
+    queue(PLAYER, [{ id: 5 }], [OWNER], [{ groups: 10 }]);
     expect(await store.joinGroup("friend", "token", NOW)).toEqual({
       ok: false,
       reason: "group-limit",

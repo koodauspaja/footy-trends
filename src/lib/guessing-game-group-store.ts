@@ -93,6 +93,10 @@ async function lockedMembers(tx: Transaction, groupId: number): Promise<Member[]
     .from(gameGroup)
     .where(eq(gameGroup.id, groupId))
     .for("update");
+  return membersOf(tx, groupId);
+}
+
+function membersOf(tx: Transaction, groupId: number): Promise<Member[]> {
   return tx
     .select({ membershipId: gameGroupMember.id, userId: gameGroupMember.userId })
     .from(gameGroupMember)
@@ -152,12 +156,15 @@ export async function joinGroup(
   return inTransaction(async (tx) => {
     await joinGameIn(tx, userId, now);
     await lockPlayer(tx, userId);
+    // Locked by its token, so a link renewed or a group deleted meanwhile is
+    // read again once the lock is held, and found to name no group.
     const [group] = await tx
       .select({ id: gameGroup.id })
       .from(gameGroup)
-      .where(eq(gameGroup.inviteToken, inviteToken));
+      .where(eq(gameGroup.inviteToken, inviteToken))
+      .for("update");
     if (group === undefined) refuse("invalid-link");
-    const members = await lockedMembers(tx, group.id);
+    const members = await membersOf(tx, group.id);
     if (members.some((member) => member.userId === userId)) {
       return { groupId: group.id, joined: false };
     }

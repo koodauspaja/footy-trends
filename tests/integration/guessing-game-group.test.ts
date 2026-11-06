@@ -193,6 +193,28 @@ describe("joining", () => {
     expect(await joinGroup(FRIEND, await tokenOf(groupId), NOW)).toMatchObject({ ok: true });
   });
 
+  it("refuses a join through a link renewed while the join waited", async () => {
+    const groupId = await newGroup(OWNER);
+    const old = await tokenOf(groupId);
+    const held = Promise.withResolvers<void>();
+    const renewed = Promise.withResolvers<void>();
+    const renewal = db.transaction(async (tx) => {
+      await tx
+        .update(gameGroup)
+        .set({ inviteToken: "b".repeat(43) })
+        .where(eq(gameGroup.id, groupId));
+      renewed.resolve();
+      await held.promise;
+    });
+    await renewed.promise;
+    const join = joinGroup(FRIEND, old, NOW);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    held.resolve();
+    await renewal;
+    expect(await join).toEqual({ ok: false, reason: "invalid-link" });
+    expect(await membersOf(groupId)).toEqual([OWNER]);
+  });
+
   it("lets only one of two joins take the last place, and leaves the refused reader unjoined", async () => {
     const groupId = await newGroup(OWNER);
     const fillers = Array.from(
