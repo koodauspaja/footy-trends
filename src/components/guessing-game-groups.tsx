@@ -149,7 +149,7 @@ export function GroupPageView({ group }: Readonly<{ group: GroupPage }>) {
       </section>
       {group.isOwner && (
         <section className="mt-8">
-          <h2 className={PANEL_HEADING}>Ryhmän nimi</h2>
+          <h2 className={PANEL_HEADING}>Nimeä ryhmä uudelleen</h2>
           <RenameGroupForm groupId={group.groupId} name={group.name} />
         </section>
       )}

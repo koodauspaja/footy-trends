@@ -425,7 +425,8 @@ export function GuessingGamePage({
   previousSeason = null,
   groups = null,
 }: Props) {
-  const leaderboard = (
+  // The public board, and after it a player's groups.
+  const boards = (
     <>
       {board !== null && <Leaderboard board={board} />}
       {groups !== null && <GroupsSection groups={groups} />}
@@ -456,7 +457,7 @@ export function GuessingGamePage({
         {view.kind === "between" && (
           <Awaiting guesses={view.awaiting} models={models} shares={shares} />
         )}
-        {leaderboard}
+        {boards}
       </div>
     );
   }
@@ -464,7 +465,7 @@ export function GuessingGamePage({
     return (
       <div>
         <JoinSection grant={view.grant} />
-        {leaderboard}
+        {boards}
       </div>
     );
   }
@@ -484,7 +485,7 @@ export function GuessingGamePage({
       )}
       {seasonGuesses}
       <Upcoming groups={view.groups} matches={view.upcoming} />
-      {leaderboard}
+      {boards}
       <Awaiting guesses={view.awaiting} models={models} shares={shares} />
       {view.settled.length > 0 && (
         <GameFold

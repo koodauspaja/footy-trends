@@ -83,14 +83,21 @@ Drafts, fine-tuned in implementation (S10).
     ryhmän pisimpään jäsenenä olleelle."
   - `Jäsenet`: every member by when they joined, the reader "(sinä)" and the
     owner "· omistaja" after the name.
-  - For the owner: renaming (the field `Ryhmän nimi` and `Tallenna nimi`), a
+  - For the owner: renaming under "Nimeä ryhmä uudelleen" (the field `Ryhmän
+    nimi` and `Tallenna nimi`), a
     `Poista ryhmästä` on each other member's row under `Jäsenet`, confirmed
     with "Poistetaanko {nickname} ryhmästä?", and `Poista ryhmä`, confirmed
     with "Poistetaanko ryhmä {name}? Ryhmän tulostaulukko katoaa, pelimerkit
     eivät."
+  - Before any season is stored, in place of the board: "Kausi ei ole vielä
+    alkanut."
+  - Copying: "Linkki kopioitu.", or "Kopiointi epäonnistui. Kopioi linkki yllä
+    olevasta tekstistä."; a confirmation's other button is `Peruuta`; at the
+    foot, "Takaisin arvauspeliin" linking to `/arvauspeli`.
   - Not a member, or no such group: the site's 404, so a group's existence is
     not revealed. Signed out: "Kirjaudu sisään nähdäksesi ryhmän." and the
     sign-in button, for any id alike.
+  - A failed read: "Ryhmän lataaminen epäonnistui. Yritä myöhemmin uudelleen."
 - **The invite page**, `/arvauspeli/liity/{token}`:
   - Signed out: "Kirjaudu sisään liittyäksesi ryhmään {name}." and the sign-in
     button, which returns to this page.
@@ -104,6 +111,7 @@ Drafts, fine-tuned in implementation (S10).
     voimassa. Pyydä ryhmän jäseneltä uusi linkki." No group's name is shown.
   - Refusals: "Ryhmä on täynnä (50 jäsentä)." and "Voit kuulua enintään 10
     ryhmään."
+  - A failed read: "Kutsun lataaminen epäonnistui. Yritä myöhemmin uudelleen."
 - **The group's name, refused:** "Ryhmän nimen pituus on 3–30 merkkiä.",
   "Ryhmän nimessä voi olla kirjaimia, numeroita, välilyöntejä sekä merkit -, _
   ja .", "Valitse ryhmälle toinen nimi." (the word list), "Ryhmän tallentaminen
@@ -118,8 +126,9 @@ Drafts, fine-tuned in implementation (S10).
 
 ## API & Data
 
-- **Storage:** two new tables. A group: its name, its owner, its invite token,
-  created at. A membership: the group, the player, joined at; unique on the
+- **Storage:** two new tables. A group: its name, its invite token, created at;
+  its owner is not stored but is the member who joined earliest (S3). A
+  membership: the group, the player, joined at; unique on the
   pair, cascading on the group's deletion and on the player's (`game_player`).
   The shape is the implementation's (decisions/078). One migration,
   `create_game_group`.

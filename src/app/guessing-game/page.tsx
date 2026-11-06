@@ -58,8 +58,8 @@ async function groupsOf(view: GameView, userId: string): Promise<GroupSummary[] 
 
 /**
  * `/arvauspeli`: a signed-in reader's way into the game, or their balance and
- * guesses, and the season's leaderboard. A failed read says so, never "signed
- * out".
+ * guesses, the season's leaderboard and their groups. A failed read says so,
+ * never "signed out".
  *
  * decisions/072-match-guesses.md
  * decisions/077-nickname.md
