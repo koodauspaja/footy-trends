@@ -342,9 +342,28 @@ export async function readSeasonSection(
 }
 
 /**
+ * One season's section, or `null` when its read fails: logged, and that
+ * section left out, not the other or the game.
+ *
+ * decisions/075-season-guesses.md
+ */
+async function sectionOrNone(
+  userId: string,
+  seasonId: number,
+  now: Date,
+  sharesAlone: boolean
+): Promise<SeasonSection | null> {
+  try {
+    return await readSeasonSection(userId, seasonId, now, sharesAlone);
+  } catch (error) {
+    logger.error({ err: error, userId, seasonId }, "Reading Arvauspeli season guesses failed");
+    return null;
+  }
+}
+
+/**
  * The sections a view shows: the season in play, and the one just finished
  * while the next is before its lock, or between seasons the one just finished.
- * A failed read logs and leaves them out, not the game.
  *
  * decisions/075-season-guesses.md
  */
@@ -353,24 +372,19 @@ export async function readSeasonSectionOf(
   userId: string,
   now: Date
 ): Promise<SeasonSections> {
-  try {
-    if (view.kind === "between" && view.joined) {
-      return {
-        current: await readSeasonSection(userId, view.nextSeasonId - 1, now, false),
-        previous: null,
-      };
-    }
-    if (view.kind !== "playing") return NO_SECTIONS;
-    const current = await readSeasonSection(userId, view.seasonId, now);
-    const previous =
-      current === null || current.locked
-        ? null
-        : await readSeasonSection(userId, view.seasonId - 1, now, false);
-    return { current, previous };
-  } catch (error) {
-    logger.error({ err: error, userId }, "Reading Arvauspeli season guesses failed");
-    return NO_SECTIONS;
+  if (view.kind === "between" && view.joined) {
+    return {
+      current: await sectionOrNone(userId, view.nextSeasonId - 1, now, false),
+      previous: null,
+    };
   }
+  if (view.kind !== "playing") return NO_SECTIONS;
+  const current = await sectionOrNone(userId, view.seasonId, now, true);
+  const previous =
+    current === null || current.locked
+      ? null
+      : await sectionOrNone(userId, view.seasonId - 1, now, false);
+  return { current, previous };
 }
 
 /**

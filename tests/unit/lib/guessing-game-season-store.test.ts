@@ -659,7 +659,20 @@ describe("readSeasonSectionOf", () => {
       previous: null,
     });
     expect(logger.error).toHaveBeenCalledWith(
-      { err: expect.any(Error), userId: "user-1" },
+      { err: expect.any(Error), userId: "user-1", seasonId: 2036 },
+      "Reading Arvauspeli season guesses failed"
+    );
+  });
+
+  it("keeps the season in play when the read of the season just finished fails", async () => {
+    answer([{ kickoffAt: at(10) }], NO_LOCK, [], teamRows(), new Error("database down"));
+
+    expect(await readSeasonSectionOf(PLAYING, "user-1", NOW)).toMatchObject({
+      current: { seasonId: 2036, locked: false },
+      previous: null,
+    });
+    expect(logger.error).toHaveBeenCalledWith(
+      { err: expect.any(Error), userId: "user-1", seasonId: 2035 },
       "Reading Arvauspeli season guesses failed"
     );
   });
