@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { gamePlayer, gameSeasonGuess } from "@/db/schema";
 import type { GameView } from "@/lib/guessing-game-store";
 import { warmModules } from "../../support/warm-module";
 
@@ -95,6 +96,10 @@ const HOUR = 60 * 60 * 1000;
 const at = (hours: number) => new Date(NOW.getTime() + hours * HOUR);
 const JOINED = new Date("2027-01-01T00:00:00Z");
 const TEAMS = Array.from({ length: 12 }, (_, index) => 100 + index);
+// The lock read's answer when no guess of the season has stored one.
+const NO_LOCK = [{ lockAt: null }];
+// The settling run's lock on the player, taken before the guess's row.
+const PLAYER = [{ userId: "user-1" }];
 
 function answer(...answers: unknown[]) {
   state.answers.push(...answers);
@@ -155,7 +160,7 @@ describe("placeSeasonGuess", () => {
   const CHAMPION = { kind: "champion", teams: [100] };
 
   it("charges a first guess its price, writes it and logs it", async () => {
-    answer([{ joinedAt: JOINED }], teamRows(), [], [{ id: 41 }], undefined);
+    answer([{ joinedAt: JOINED }], NO_LOCK, teamRows(), [], [{ id: 41 }], undefined);
 
     expect(await placeSeasonGuess("user-1", CHAMPION, () => NOW)).toEqual({
       ok: true,
@@ -168,7 +173,14 @@ describe("placeSeasonGuess", () => {
       JOINED
     );
     expect(inserted()).toEqual([
-      { userId: "user-1", seasonId: 2027, kind: "champion", teams: [100], madeAt: NOW },
+      {
+        userId: "user-1",
+        seasonId: 2027,
+        kind: "champion",
+        teams: [100],
+        madeAt: NOW,
+        lockAt: at(200),
+      },
       { userId: "user-1", seasonId: 2027, kind: "season-guess", amount: -50, seasonGuessId: 41 },
     ]);
     expect(logger.info).toHaveBeenCalledWith(
@@ -178,7 +190,7 @@ describe("placeSeasonGuess", () => {
   });
 
   it("charges a table guess 100", async () => {
-    answer([{ joinedAt: JOINED }], teamRows(), [], [{ id: 42 }], undefined);
+    answer([{ joinedAt: JOINED }], NO_LOCK, teamRows(), [], [{ id: 42 }], undefined);
 
     await placeSeasonGuess("user-1", { kind: "table", teams: TEAMS }, () => NOW);
 
@@ -187,7 +199,7 @@ describe("placeSeasonGuess", () => {
 
   it("refuses a first guess the balance cannot pay, writes nothing and logs it", async () => {
     store.balanceOf.mockResolvedValue(49);
-    answer([{ joinedAt: JOINED }], teamRows(), []);
+    answer([{ joinedAt: JOINED }], NO_LOCK, teamRows(), []);
 
     expect(await placeSeasonGuess("user-1", CHAMPION, () => NOW)).toEqual({
       ok: false,
@@ -202,7 +214,7 @@ describe("placeSeasonGuess", () => {
 
   it("pays a first guess with exactly its price", async () => {
     store.balanceOf.mockResolvedValue(50);
-    answer([{ joinedAt: JOINED }], teamRows(), [], [{ id: 43 }], undefined);
+    answer([{ joinedAt: JOINED }], NO_LOCK, teamRows(), [], [{ id: 43 }], undefined);
 
     expect(await placeSeasonGuess("user-1", CHAMPION, () => NOW)).toEqual({
       ok: true,
@@ -210,15 +222,15 @@ describe("placeSeasonGuess", () => {
     });
   });
 
-  it("changes a guess for free, rewriting its teams, and logs it", async () => {
+  it("changes a guess for free, rewriting its teams and when it changed, not when it was made, and logs it", async () => {
     store.balanceOf.mockResolvedValue(0);
-    answer([{ joinedAt: JOINED }], teamRows(), [{ id: 41, teams: [101] }], undefined);
+    answer([{ joinedAt: JOINED }], NO_LOCK, teamRows(), [{ id: 41, teams: [101] }], undefined);
 
     expect(await placeSeasonGuess("user-1", CHAMPION, () => NOW)).toEqual({
       ok: true,
       outcome: "changed",
     });
-    expect(updated()).toEqual([{ teams: [100], madeAt: NOW }]);
+    expect(updated()).toEqual([{ teams: [100], changedAt: NOW }]);
     expect(inserted()).toEqual([]);
     expect(logger.info).toHaveBeenCalledWith(
       { userId: "user-1", seasonId: 2027, kind: "champion", price: 0 },
@@ -227,7 +239,7 @@ describe("placeSeasonGuess", () => {
   });
 
   it("writes nothing for the same guess again", async () => {
-    answer([{ joinedAt: JOINED }], teamRows(), [{ id: 41, teams: [100] }]);
+    answer([{ joinedAt: JOINED }], NO_LOCK, teamRows(), [{ id: 41, teams: [100] }]);
 
     expect(await placeSeasonGuess("user-1", CHAMPION, () => NOW)).toEqual({
       ok: true,
@@ -271,7 +283,7 @@ describe("placeSeasonGuess", () => {
 
   it("refuses at the season's first kickoff and after it", async () => {
     for (const now of [at(200), at(201)]) {
-      answer([{ joinedAt: JOINED }]);
+      answer([{ joinedAt: JOINED }], NO_LOCK);
 
       expect(await placeSeasonGuess("user-1", CHAMPION, () => now)).toEqual({
         ok: false,
@@ -289,7 +301,7 @@ describe("placeSeasonGuess", () => {
     store.seasonOfId.mockResolvedValueOnce(
       season(2027, [match({ kickoffAt: at(-1) }), match({ kickoffAt: at(200) })])
     );
-    answer([{ joinedAt: JOINED }]);
+    answer([{ joinedAt: JOINED }], NO_LOCK);
 
     expect(await placeSeasonGuess("user-1", CHAMPION, () => NOW)).toEqual({
       ok: false,
@@ -297,15 +309,41 @@ describe("placeSeasonGuess", () => {
     });
   });
 
+  it("locks at a lock a guess was placed under, earlier than the first kickoff now stored", async () => {
+    answer([{ joinedAt: JOINED }], [{ lockAt: at(-1) }]);
+
+    expect(await placeSeasonGuess("user-1", CHAMPION, () => NOW)).toEqual({
+      ok: false,
+      reason: "locked",
+    });
+  });
+
+  it("locks at the first kickoff when a stored lock is later, and places a guess under it", async () => {
+    answer([{ joinedAt: JOINED }], [{ lockAt: at(300) }]);
+
+    expect(await placeSeasonGuess("user-1", CHAMPION, () => at(250))).toEqual({
+      ok: false,
+      reason: "locked",
+    });
+
+    answer([{ joinedAt: JOINED }], [{ lockAt: at(300) }], teamRows(), [], [{ id: 44 }], undefined);
+
+    expect(await placeSeasonGuess("user-1", CHAMPION, () => NOW)).toEqual({
+      ok: true,
+      outcome: "placed",
+    });
+    expect(inserted()[0]).toMatchObject({ lockAt: at(200) });
+  });
+
   it("refuses teams that are not the season's, and logs the kind it was sent, cut short", async () => {
-    answer([{ joinedAt: JOINED }], teamRows());
+    answer([{ joinedAt: JOINED }], NO_LOCK, teamRows());
 
     expect(await placeSeasonGuess("user-1", { kind: "champion", teams: [999] }, () => NOW)).toEqual(
       { ok: false, reason: "teams" }
     );
     expect(store.ensureGrant).not.toHaveBeenCalled();
 
-    answer([{ joinedAt: JOINED }], teamRows());
+    answer([{ joinedAt: JOINED }], NO_LOCK, teamRows());
     await placeSeasonGuess("user-1", { kind: "x".repeat(40), teams: [100] }, () => NOW);
 
     expect(logger.info).toHaveBeenLastCalledWith(
@@ -315,7 +353,7 @@ describe("placeSeasonGuess", () => {
   });
 
   it("logs no kind for a request that is not an object", async () => {
-    answer([{ joinedAt: JOINED }], teamRows());
+    answer([{ joinedAt: JOINED }], NO_LOCK, teamRows());
 
     await placeSeasonGuess("user-1", null, () => NOW);
 
@@ -398,6 +436,7 @@ describe("readSeasonSection", () => {
   it("before the lock gives the teams in Finnish order and the player's guesses, no shares", async () => {
     answer(
       [{ kickoffAt: at(200) }],
+      NO_LOCK,
       [guessRow()],
       [
         { homeId: 2, homeName: "Ähtäri", awayId: 1, awayName: "Oulu" },
@@ -423,7 +462,7 @@ describe("readSeasonSection", () => {
   });
 
   it("before the lock shows a section with no guess yet", async () => {
-    answer([{ kickoffAt: at(200) }], [], []);
+    answer([{ kickoffAt: at(200) }], NO_LOCK, [], []);
 
     expect(await readSeasonSection("user-1", 2033, NOW)).toMatchObject({
       locked: false,
@@ -432,7 +471,7 @@ describe("readSeasonSection", () => {
   });
 
   it("after the lock is nothing for a player with no season guess", async () => {
-    answer([{ kickoffAt: at(-1) }], []);
+    answer([{ kickoffAt: at(-1) }], NO_LOCK, []);
 
     expect(await readSeasonSection("user-1", 2034, NOW)).toBeNull();
   });
@@ -440,6 +479,7 @@ describe("readSeasonSection", () => {
   it("after the lock reads the shares, and what each settled guess paid or that it was refunded", async () => {
     answer(
       [{ kickoffAt: NOW }],
+      NO_LOCK,
       [
         guessRow({ settledAt: NOW, reward: 200, rightCount: 1, nearCount: 0 }),
         guessRow({ kind: "last", settledAt: NOW, reward: null }),
@@ -479,6 +519,26 @@ describe("readSeasonSection", () => {
   });
 });
 
+describe("readSeasonSection's lock", () => {
+  it("shows the season locked at a lock a guess was placed under, earlier than the first kickoff", async () => {
+    answer([{ kickoffAt: at(200) }], [{ lockAt: at(-1) }], [guessRow()], [], [], []);
+
+    expect(await readSeasonSection("user-1", 2038, NOW)).toMatchObject({
+      lockAt: at(-1),
+      locked: true,
+    });
+  });
+
+  it("keeps the first kickoff as the lock when a stored one is later", async () => {
+    answer([{ kickoffAt: at(200) }], [{ lockAt: at(300) }], [], []);
+
+    expect(await readSeasonSection("user-1", 2039, NOW)).toMatchObject({
+      lockAt: at(200),
+      locked: false,
+    });
+  });
+});
+
 describe("readSeasonSectionOf", () => {
   const PLAYING = { kind: "playing", seasonId: 2036 } as unknown as GameView;
 
@@ -490,7 +550,7 @@ describe("readSeasonSectionOf", () => {
   });
 
   it("between seasons reads the season just finished for a player", async () => {
-    answer([{ kickoffAt: at(-1) }], [guessRow({ seasonId: 2036 })], [], [], []);
+    answer([{ kickoffAt: at(-1) }], NO_LOCK, [guessRow({ seasonId: 2036 })], [], [], []);
 
     expect(
       await readSeasonSectionOf(
@@ -634,13 +694,20 @@ describe("readSeasonAnswers", () => {
 });
 
 function openGuess(overrides: Record<string, unknown> = {}) {
-  return { id: 41, seasonId: 2027, kind: "upper", teams: TEAMS.slice(0, 6), ...overrides };
+  return {
+    id: 41,
+    userId: "user-1",
+    seasonId: 2027,
+    kind: "upper",
+    teams: TEAMS.slice(0, 6),
+    ...overrides,
+  };
 }
 
 describe("settleSeasonGuesses", () => {
   const SETTLED_LINE = "Arvauspeli season guesses settled";
 
-  it("does nothing, and logs nothing, with no open season guess", async () => {
+  it("settles nothing and reads no season with no open season guess, and logs the empty run", async () => {
     answer([]);
 
     expect(await settleSeasonGuesses(NOW)).toEqual({
@@ -650,7 +717,10 @@ describe("settleSeasonGuesses", () => {
       failed: [],
     });
     expect(store.latestSeason).not.toHaveBeenCalled();
-    expect(logger.info).not.toHaveBeenCalled();
+    expect(logger.info).toHaveBeenCalledWith(
+      { settled: 0, rewarded: 0, voided: 0, failed: [] },
+      SETTLED_LINE
+    );
   });
 
   it("pays a guess of the six once the regular season is played, and leaves the rest waiting", async () => {
@@ -662,7 +732,8 @@ describe("settleSeasonGuesses", () => {
     });
     answer(
       [openGuess(), openGuess({ id: 42, kind: "champion", teams: [100] })],
-      [{ userId: "user-1" }],
+      PLAYER,
+      [{ id: 41 }],
       undefined,
       undefined
     );
@@ -696,7 +767,7 @@ describe("settleSeasonGuesses", () => {
         openGuess({ id: 42, kind: "last", teams: [110] }),
         openGuess({ id: 43, kind: "table", teams: TEAMS }),
       ],
-      ...[41, 42, 43].flatMap(() => [[{ userId: "user-1" }], undefined, undefined])
+      ...[41, 42, 43].flatMap((id) => [PLAYER, [{ id }], undefined, undefined])
     );
 
     expect(await settleSeasonGuesses(NOW)).toEqual({
@@ -717,7 +788,8 @@ describe("settleSeasonGuesses", () => {
     store.latestSeason.mockResolvedValue(2028);
     answer(
       [openGuess({ kind: "table" })],
-      [{ userId: "user-1" }],
+      PLAYER,
+      [{ id: 41 }],
       [{ amount: -100 }],
       undefined,
       undefined
@@ -737,7 +809,7 @@ describe("settleSeasonGuesses", () => {
 
   it("refunds nothing for a voided guess with no price paid", async () => {
     store.latestSeason.mockResolvedValue(2028);
-    answer([openGuess()], [{ userId: "user-1" }], [], undefined, undefined);
+    answer([openGuess()], PLAYER, [{ id: 41 }], [], undefined, undefined);
 
     await settleSeasonGuesses(NOW);
 
@@ -759,9 +831,29 @@ describe("settleSeasonGuesses", () => {
     expect(store.seasonOfId).toHaveBeenCalledWith(expect.anything(), 2027);
   });
 
+  it("locks the player before the guess's row, as a match's settling does", async () => {
+    store.latestSeason.mockResolvedValue(2028);
+    answer([openGuess()], PLAYER, [{ id: 41 }], [{ amount: -50 }], undefined, undefined);
+
+    await settleSeasonGuesses(NOW);
+
+    const locks = state.calls.filter(
+      (call) => call.method === "from" || (call.method === "for" && call.args[0] !== undefined)
+    );
+    const order = locks.map((call) =>
+      call.method === "for" ? `for ${String(call.args[0])}` : call.args[0]
+    );
+    const share = order.indexOf("for share");
+    const update = order.indexOf("for update");
+    expect(share).toBeGreaterThan(-1);
+    expect(update).toBeGreaterThan(share);
+    expect(order[share - 1]).toBe(gamePlayer);
+    expect(order[update - 1]).toBe(gameSeasonGuess);
+  });
+
   it("skips a guess another run settled first", async () => {
     store.latestSeason.mockResolvedValue(2028);
-    answer([openGuess()], []);
+    answer([openGuess()], PLAYER, []);
 
     expect(await settleSeasonGuesses(NOW)).toMatchObject({ settled: 0, voided: 0 });
     expect(inserted()).toEqual([]);
@@ -772,7 +864,8 @@ describe("settleSeasonGuesses", () => {
     answer(
       [openGuess(), openGuess({ id: 42 })],
       new Error("database down"),
-      [{ userId: "user-1" }],
+      PLAYER,
+      [{ id: 42 }],
       [{ amount: -50 }],
       undefined,
       undefined
@@ -802,7 +895,8 @@ describe("settleSeasonGuesses", () => {
     });
     answer(
       [openGuess({ seasonId: 2026 }), openGuess({ id: 42 })],
-      [{ userId: "user-1" }],
+      PLAYER,
+      [{ id: 42 }],
       undefined,
       undefined
     );

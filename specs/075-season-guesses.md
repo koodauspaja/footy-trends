@@ -87,9 +87,9 @@ Drafts, fine-tuned in implementation, as in specs/072.
 ## API & Data
 
 - **A table of season guesses:** one row per player, season and kind, with the
-  teams as provider team ids in order, the price paid, when it was placed and
-  last changed, and when settled with its reward. One per player, season and
-  kind by a unique index.
+  teams as provider team ids in order, when it was placed and when last
+  changed, the lock it was placed under, and when settled with its reward; its
+  price is its ledger row. One per player, season and kind by a unique index.
 - **The ledger** (specs/072) gains a kind for a season guess's price and one
   for its reward, each referencing the season guess, at most one each per
   guess by partial unique indexes, as specs/073's bonus. A free change writes
@@ -99,8 +99,9 @@ Drafts, fine-tuned in implementation, as in specs/072.
   kind (one, six distinct, one, twelve distinct), and the balance for a first
   placement. The balance read and the ledger write share a transaction with a
   lock on the player, as 072's guesses do.
-- **The lock** is the earliest stored kickoff of the season's `Runkosarja`,
-  read at the time of the request.
+- **The lock** is the season's first stored kickoff, read at the time of the
+  request, or an earlier lock a guess was placed under, so a postponed first
+  match does not move it later (S15).
 - **Settling** (072 S11) runs after the match guesses in the hourly run; one
   transaction per season guess, so a racing run cannot pay twice.
 - **Caching:** none of the game's own; its rows are read per page view, signed
@@ -143,8 +144,8 @@ are a convenience.
 - **Refused:** `info`, "Arvauspeli season guess refused", with the user id,
   season, kind and the reason (`locked`, `balance`, `teams`).
 - **Settling:** `info`, "Arvauspeli season guesses settled", with `settled`,
-  `rewarded` (those that paid), `voided` and `failed`, beside specs/072's line
-  for the match guesses. A season guess that fails to settle is logged at
+  `rewarded` (those that paid), `voided` and `failed`, every run, beside
+  specs/072's line for the match guesses. A season guess that fails to settle is logged at
   `error` with its id and named in the run's failures.
 - Ids only; no team names are needed, no nickname or email.
 

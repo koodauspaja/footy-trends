@@ -127,6 +127,24 @@ describe("placing a season guess", () => {
     expect(row?.teams).toEqual([5]);
   });
 
+  it("stays locked once the first kickoff has passed, though the first matches move later", async () => {
+    await placeSeasonGuess(PLAYER, { kind: "champion", teams: [3] }, () => NOW);
+    await db
+      .update(tasoMatches)
+      .set({ kickoffAt: at(500) })
+      .where(eq(tasoMatches.seasonId, SEASON));
+
+    expect(await placeSeasonGuess(OTHER, { kind: "champion", teams: [4] }, () => at(300))).toEqual({
+      ok: false,
+      reason: "locked",
+    });
+    const [row] = await db
+      .select({ madeAt: gameSeasonGuess.madeAt, lockAt: gameSeasonGuess.lockAt })
+      .from(gameSeasonGuess)
+      .where(eq(gameSeasonGuess.userId, PLAYER));
+    expect(row).toEqual({ madeAt: NOW, lockAt: at(200) });
+  });
+
   it("is refused at the season's first kickoff, and with a team outside the season", async () => {
     expect(await placeSeasonGuess(PLAYER, { kind: "last", teams: [12] }, () => at(200))).toEqual({
       ok: false,
@@ -143,9 +161,14 @@ describe("placing a season guess", () => {
     await placeSeasonGuess(PLAYER, { kind: "champion", teams: [3] }, () => NOW);
 
     await expect(
-      db
-        .insert(gameSeasonGuess)
-        .values({ userId: PLAYER, seasonId: SEASON, kind: "champion", teams: [4], madeAt: NOW })
+      db.insert(gameSeasonGuess).values({
+        userId: PLAYER,
+        seasonId: SEASON,
+        kind: "champion",
+        teams: [4],
+        madeAt: NOW,
+        lockAt: at(200),
+      })
     ).rejects.toThrow();
   });
 });

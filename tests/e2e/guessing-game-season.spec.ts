@@ -112,6 +112,7 @@ test.describe("Arvauspeli season guesses", () => {
         kind: "champion",
         teams: [FIRST_TEAM + 3],
         made_at: new Date(Date.now() - 20 * DAY),
+        lock_at: new Date(Date.now() - DAY),
         settled_at: new Date(Date.now() - DAY / 2),
         reward: 200,
         right_count: 1,

@@ -678,6 +678,10 @@ export const gameSeasonGuess = pgTable(
     /** TASO team ids in the guess's order: the table's first is its 1st place. */
     teams: integer("teams").array().notNull(),
     madeAt: timestamp("made_at", { withTimezone: true }).notNull(),
+    /** When it was last changed, or null if never. */
+    changedAt: timestamp("changed_at", { withTimezone: true }),
+    /** The lock it was placed under, which a postponed first match does not move later. */
+    lockAt: timestamp("lock_at", { withTimezone: true }).notNull(),
     settledAt: timestamp("settled_at", { withTimezone: true }),
     /** What it paid, or null for a guess voided and refunded. */
     reward: integer("reward"),

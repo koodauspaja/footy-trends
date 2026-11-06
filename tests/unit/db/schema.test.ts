@@ -612,6 +612,16 @@ describe("Arvauspeli's tables", () => {
     expect(foreignKey?.reference().foreignTable).toBe(gamePlayer);
   });
 
+  it("keeps a season guess's lock, which it must have, and when it last changed, which it may not", () => {
+    const columns = new Map(
+      getTableConfig(gameSeasonGuess).columns.map((column) => [column.name, column])
+    );
+
+    expect(columns.get("lock_at")?.notNull).toBe(true);
+    expect(columns.get("changed_at")?.notNull).toBe(false);
+    expect(columns.get("made_at")?.notNull).toBe(true);
+  });
+
   it("allows one price and one settlement per season guess", () => {
     for (const name of ["game_ledger_season_price_idx", "game_ledger_season_settlement_idx"]) {
       expect(indexNamed(gameLedger, name)).toEqual({

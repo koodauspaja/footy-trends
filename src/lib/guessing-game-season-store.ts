@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, min, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { gameLedger, gamePlayer, gameSeasonGuess, tasoMatches } from "@/db/schema";
 import { categoryIdForSeason, competitionIdForSeason } from "./domestic-competitions";
@@ -81,12 +81,19 @@ async function seasonTeams(client: Client, seasonId: number): Promise<Map<number
 }
 
 /**
- * The lock: the season's first stored kickoff, or `null` with nothing stored.
+ * The lock: the season's first stored kickoff, or an earlier one a guess was
+ * placed under, so a lock once passed stays passed when the first match is
+ * postponed.
  *
  * decisions/075-season-guesses.md
  */
-function lockOf(matches: readonly SeasonMatch[]): Date | null {
-  return matches[0]?.kickoffAt ?? null;
+async function lockOf(client: Client, seasonId: number, firstKickoff: Date): Promise<Date> {
+  const [row] = await client
+    .select({ lockAt: min(gameSeasonGuess.lockAt) })
+    .from(gameSeasonGuess)
+    .where(eq(gameSeasonGuess.seasonId, seasonId));
+  const stored = row?.lockAt ?? null;
+  return stored !== null && stored < firstKickoff ? stored : firstKickoff;
 }
 
 function refused(
@@ -127,8 +134,9 @@ export async function placeSeasonGuess(
     const seasonId = await latestSeason(tx);
     if (seasonId === null) return refused(userId, null, kind, "no-season");
     const season = await seasonOfId(tx, seasonId);
-    const lock = lockOf(season.matches);
-    if (lock === null) return refused(userId, seasonId, kind, "no-season");
+    const firstKickoff = season.matches[0]?.kickoffAt;
+    if (firstKickoff === undefined) return refused(userId, seasonId, kind, "no-season");
+    const lock = await lockOf(tx, seasonId, firstKickoff);
     if (now >= lock) return refused(userId, seasonId, kind, "locked");
     const guess = parseSeasonGuess(input, new Set((await seasonTeams(tx, seasonId)).keys()));
     if (guess === null) return refused(userId, seasonId, kind, "teams");
@@ -150,7 +158,7 @@ export async function placeSeasonGuess(
       }
       await tx
         .update(gameSeasonGuess)
-        .set({ teams: guess.teams, madeAt: now })
+        .set({ teams: guess.teams, changedAt: now })
         .where(eq(gameSeasonGuess.id, existing.id));
       logger.info(
         { userId, seasonId, kind: guess.kind, price: 0 },
@@ -165,7 +173,14 @@ export async function placeSeasonGuess(
     }
     const [row] = await tx
       .insert(gameSeasonGuess)
-      .values({ userId, seasonId, kind: guess.kind, teams: guess.teams, madeAt: now })
+      .values({
+        userId,
+        seasonId,
+        kind: guess.kind,
+        teams: guess.teams,
+        madeAt: now,
+        lockAt: lock,
+      })
       .returning({ id: gameSeasonGuess.id });
     await tx.insert(gameLedger).values({
       userId,
@@ -285,8 +300,9 @@ export async function readSeasonSection(
         .where(seasonOf(seasonId))
         .orderBy(asc(tasoMatches.kickoffAt))
         .limit(1);
-      const lockAt = matches[0]?.kickoffAt;
-      if (lockAt === undefined) return null;
+      const firstKickoff = matches[0]?.kickoffAt;
+      if (firstKickoff === undefined) return null;
+      const lockAt = await lockOf(tx, seasonId, firstKickoff);
       const locked = now >= lockAt;
       const rows = await tx
         .select()
@@ -411,11 +427,18 @@ export type SeasonSettleReport = {
   failed: number[];
 };
 
-type OpenSeasonGuess = { id: number; seasonId: number; kind: string; teams: number[] };
+type OpenSeasonGuess = {
+  id: number;
+  userId: string;
+  seasonId: number;
+  kind: string;
+  teams: number[];
+};
 
 /**
- * Settles one guess in its own transaction, the row locked and still open, so
- * a racing run settles nothing twice: by its judgement, or `void` with the
+ * Settles one guess in its own transaction, the player locked first, the order
+ * a match's settling and an account's deletion take them in, then the row,
+ * still open, so a racing run settles nothing twice: by its judgement, or `void` with the
  * price refunded. `false` when another run settled it first.
  *
  * decisions/075-season-guesses.md
@@ -425,14 +448,19 @@ async function settleOne(
   judgement: SeasonJudgement | "void",
   now: Date
 ): Promise<boolean> {
+  const { userId } = guess;
   return db.transaction(async (tx) => {
+    await tx
+      .select({ userId: gamePlayer.userId })
+      .from(gamePlayer)
+      .where(eq(gamePlayer.userId, userId))
+      .for("share");
     const [row] = await tx
-      .select({ userId: gameSeasonGuess.userId })
+      .select({ id: gameSeasonGuess.id })
       .from(gameSeasonGuess)
       .where(and(eq(gameSeasonGuess.id, guess.id), isNull(gameSeasonGuess.settledAt)))
       .for("update");
     if (row === undefined) return false;
-    const { userId } = row;
     if (judgement === "void") {
       const [paid] = await tx
         .select({ amount: gameLedger.amount })
@@ -557,13 +585,28 @@ export async function settleSeasonGuesses(now: Date): Promise<SeasonSettleReport
   const open = await db
     .select({
       id: gameSeasonGuess.id,
+      userId: gameSeasonGuess.userId,
       seasonId: gameSeasonGuess.seasonId,
       kind: gameSeasonGuess.kind,
       teams: gameSeasonGuess.teams,
     })
     .from(gameSeasonGuess)
     .where(isNull(gameSeasonGuess.settledAt));
-  if (open.length === 0) return report;
+  if (open.length > 0) await settleOpen(open, now, report);
+  logger.info(report, "Arvauspeli season guesses settled");
+  return report;
+}
+
+/**
+ * Settles the open guesses season by season, one at a time.
+ *
+ * decisions/075-season-guesses.md
+ */
+async function settleOpen(
+  open: readonly OpenSeasonGuess[],
+  now: Date,
+  report: SeasonSettleReport
+): Promise<void> {
   const bySeason = [...Map.groupBy(open, (guess) => guess.seasonId)];
   // A guess exists only for a season whose fixtures are stored, so one is.
   const latest = (await latestSeason(db)) ?? Math.max(...bySeason.map(([seasonId]) => seasonId));
@@ -571,6 +614,4 @@ export async function settleSeasonGuesses(now: Date): Promise<SeasonSettleReport
     await previous;
     await settleSeason(seasonId, guesses, latest, now, report);
   }, Promise.resolve());
-  logger.info(report, "Arvauspeli season guesses settled");
-  return report;
 }
