@@ -8,7 +8,14 @@ import {
   tasoMatches,
   userNickname,
 } from "@/db/schema";
-import { type Board, type Outcome, rankBoard, type Shares, sharesOf } from "./guessing-game";
+import {
+  type Board,
+  type BoardEntry,
+  type Outcome,
+  rankBoard,
+  type Shares,
+  sharesOf,
+} from "./guessing-game";
 import { favouredOutcome, GAME_MODELS, type ModelGuess } from "./guessing-game-models";
 import type { GameView } from "./guessing-game-store";
 import { logger } from "./logger";
@@ -24,14 +31,15 @@ import { POISSON_MODEL } from "./poisson";
  */
 
 /**
- * A season's leaderboard for the reader: every player with a guess in it, a
- * match's or the season's, by balance, read in one snapshot so a balance and
- * its settled count agree.
+ * Every player with a guess in a season, a match's or the season's, with their
+ * balance and settled count, read in one snapshot so the two agree. Ranked by
+ * `rankBoard`, for everyone or for a group's members.
  *
  * decisions/073-leaderboard.md
  * decisions/075-season-guesses.md
+ * decisions/078-private-groups.md
  */
-export async function readBoard(seasonId: number, readerId: string): Promise<Board> {
+export async function readBoardEntries(seasonId: number): Promise<BoardEntry[]> {
   const [matchGuesses, seasonGuesses, balances] = await db.transaction(
     (tx) =>
       Promise.all([
@@ -73,10 +81,17 @@ export async function readBoard(seasonId: number, readerId: string): Promise<Boa
     const known = players.get(row.userId);
     players.set(row.userId, { ...row, settled: (known?.settled ?? 0) + row.settled });
   }
-  return rankBoard(
-    [...players.values()].map((row) => ({ ...row, balance: balanceOf.get(row.userId) ?? 0 })),
-    readerId
-  );
+  return [...players.values()].map((row) => ({ ...row, balance: balanceOf.get(row.userId) ?? 0 }));
+}
+
+/**
+ * A season's leaderboard for the reader: every player with a guess in it, by
+ * balance.
+ *
+ * decisions/073-leaderboard.md
+ */
+export async function readBoard(seasonId: number, readerId: string): Promise<Board> {
+  return rankBoard(await readBoardEntries(seasonId), readerId);
 }
 
 /**
@@ -214,7 +229,7 @@ export async function readModelGuesses(
  *
  * decisions/073-leaderboard.md
  */
-function boardSeason(view: GameView): number | null {
+export function boardSeason(view: GameView): number | null {
   if (view.kind === "no-season") return null;
   return view.kind === "between" ? view.nextSeasonId - 1 : view.seasonId;
 }

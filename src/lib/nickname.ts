@@ -26,6 +26,17 @@ const ALLOWED = /^[\p{Script=Latin}0-9 ._-]+$/u;
  */
 const WORD_BREAK = /[^\p{L}\p{N}]+/u;
 
+/**
+ * Whether a normalised name holds only the characters a nickname may: a group's
+ * name in `Arvauspeli` is held to the same.
+ *
+ * decisions/077-nickname.md
+ * decisions/078-private-groups.md
+ */
+export function hasAllowedCharacters(name: string): boolean {
+  return ALLOWED.test(name);
+}
+
 export type NicknameRefusal = "length" | "characters" | "word-list";
 
 export type NicknameCheck =
@@ -104,7 +115,7 @@ export function checkNickname(raw: string): NicknameCheck {
   if (length < MIN_NICKNAME_LENGTH || length > MAX_NICKNAME_LENGTH) {
     return { ok: false, reason: "length" };
   }
-  if (!ALLOWED.test(nickname)) return { ok: false, reason: "characters" };
+  if (!hasAllowedCharacters(nickname)) return { ok: false, reason: "characters" };
   if (hasBlockedWord(nickname)) return { ok: false, reason: "word-list" };
   return { ok: true, nickname, key: nicknameKey(nickname) };
 }

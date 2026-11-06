@@ -54,6 +54,9 @@ const ROUTES: ReadonlyArray<readonly [url: string, folder: string]> = [
   ["/ennusteet", "/predictions"],
   // Arvauspeli, the guessing game.
   ["/arvauspeli", "/guessing-game"],
+  // A private group's page, and the page its invite link opens.
+  ["/arvauspeli/ryhmat/:id", "/guessing-game/groups/:id"],
+  ["/arvauspeli/liity/:token", "/guessing-game/join/:token"],
   ["/kotimaa", "/domestic"],
   ["/kotimaa/joukkue/:id", "/domestic/team/:id"],
   ["/kotimaa/ottelu/:id", "/domestic/match/:id"],

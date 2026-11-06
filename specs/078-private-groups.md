@@ -81,12 +81,16 @@ Drafts, fine-tuned in implementation (S10).
   - For a member: `Poistu ryhmästä`, confirmed with "Poistutaanko ryhmästä
     {name}?". For the owner, when other members remain: "Omistajuus siirtyy
     ryhmän pisimpään jäsenenä olleelle."
+  - `Jäsenet`: every member by when they joined, the reader "(sinä)" and the
+    owner "· omistaja" after the name.
   - For the owner: renaming (the field `Ryhmän nimi` and `Tallenna nimi`), a
-    `Poista ryhmästä` on each other member's row, confirmed with "Poistetaanko
-    {nickname} ryhmästä?", and `Poista ryhmä`, confirmed with "Poistetaanko
-    ryhmä {name}? Ryhmän tulostaulukko katoaa, pelimerkit eivät."
+    `Poista ryhmästä` on each other member's row under `Jäsenet`, confirmed
+    with "Poistetaanko {nickname} ryhmästä?", and `Poista ryhmä`, confirmed
+    with "Poistetaanko ryhmä {name}? Ryhmän tulostaulukko katoaa, pelimerkit
+    eivät."
   - Not a member, or no such group: the site's 404, so a group's existence is
-    not revealed.
+    not revealed. Signed out: "Kirjaudu sisään nähdäksesi ryhmän." and the
+    sign-in button, for any id alike.
 - **The invite page**, `/arvauspeli/liity/{token}`:
   - Signed out: "Kirjaudu sisään liittyäksesi ryhmään {name}." and the sign-in
     button, which returns to this page.
@@ -185,10 +189,12 @@ Names and nicknames are rendered as text, never as HTML.
 - **Each write:** `info`, one line with the user id, the group id and the
   outcome: `Arvauspeli group created`, `renamed`, `joined`, `left`,
   `member removed` (with the removed member's id), `link renewed`, `deleted`,
-  `ownership passed` (with the new owner's id).
+  and `ownership passed` (with the new owner's id) when the owner leaves. An
+  account's deletion passes ownership in the database, with no line of its own.
 - **A refusal:** `info`, `Arvauspeli group refused`, with the user id, the
   group id when known, and the reason (`full`, `group-limit`, `name-length`,
-  `name-characters`, `word-list`, `not-member`, `not-owner`, `invalid-link`).
+  `name-characters`, `word-list`, `not-member`, `not-owner`, `invalid-link`,
+  `not-player`, `self`).
 - **A failed read or write:** `error`, with the user id and the group id.
 - Ids only: no email address, account name, nickname, group name or token.
 

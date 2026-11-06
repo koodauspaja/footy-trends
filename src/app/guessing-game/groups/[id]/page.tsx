@@ -1,0 +1,61 @@
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { GroupPageView } from "@/components/guessing-game-groups";
+import { Notice } from "@/components/notice";
+import { PageShell } from "@/components/page-shell";
+import { SignInPrompt } from "@/components/sign-in-prompt";
+import { currentUserId } from "@/lib/current-user";
+import { boardSeason } from "@/lib/guessing-game-board";
+import { parseGroupId } from "@/lib/guessing-game-group";
+import { type GroupPage, readGroup } from "@/lib/guessing-game-group-store";
+import { openGame } from "@/lib/guessing-game-store";
+import { logger } from "@/lib/logger";
+
+export const metadata: Metadata = { title: "Arvauspelin ryhmä" };
+
+/**
+ * Per-member, so it can never be prerendered.
+ *
+ * decisions/078-private-groups.md
+ */
+export const dynamic = "force-dynamic";
+
+/**
+ * `/arvauspeli/ryhmat/{id}`: a group's page for its members. Anyone else, and
+ * an id that names no group, gets the same 404, so a group's existence is not
+ * revealed; a signed-out reader is asked to sign in.
+ *
+ * decisions/078-private-groups.md
+ */
+export default async function GroupRoute({
+  params,
+}: Readonly<{ params: Promise<{ id: string }> }>) {
+  const groupId = parseGroupId((await params).id);
+  if (groupId === null) notFound();
+  let group: GroupPage | null;
+  try {
+    const userId = await currentUserId();
+    if (userId === null) {
+      return (
+        <PageShell heading="Arvauspeli">
+          <SignInPrompt message="Kirjaudu sisään nähdäksesi ryhmän." />
+        </PageShell>
+      );
+    }
+    const view = await openGame(userId, new Date());
+    group = await readGroup(userId, groupId, boardSeason(view));
+  } catch (error) {
+    logger.error({ err: error, groupId }, "Reading an Arvauspeli group failed");
+    return (
+      <PageShell heading="Arvauspeli">
+        <Notice>Ryhmän lataaminen epäonnistui. Yritä myöhemmin uudelleen.</Notice>
+      </PageShell>
+    );
+  }
+  if (group === null) notFound();
+  return (
+    <PageShell heading={group.name}>
+      <GroupPageView group={group} />
+    </PageShell>
+  );
+}

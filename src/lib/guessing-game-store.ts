@@ -487,20 +487,29 @@ function settledResult(row: typeof gameGuess.$inferSelect) {
  * decisions/072-match-guesses.md
  */
 export async function joinGame(userId: string, now: Date): Promise<void> {
-  await db.transaction(async (tx) => {
-    const inserted = await tx
-      .insert(gamePlayer)
-      .values({ userId, joinedAt: now })
-      .onConflictDoNothing()
-      .returning({ userId: gamePlayer.userId });
-    if (inserted.length > 0) logger.info({ userId }, "Arvauspeli joined");
-    const seasonId = await latestSeason(tx);
-    if (seasonId === null) return;
-    const season = await seasonOfId(tx, seasonId);
-    if (!isOpen(season, now)) return;
-    const joinedAt = (await joinedAtOf(tx, userId)) ?? now;
-    await ensureGrant(tx, userId, season, joinedAt);
-  });
+  await db.transaction((tx) => joinGameIn(tx, userId, now));
+}
+
+/**
+ * `joinGame` inside a transaction of the caller's, so joining a group by its
+ * link joins the game in the same write, or neither.
+ *
+ * decisions/072-match-guesses.md
+ * decisions/078-private-groups.md
+ */
+export async function joinGameIn(tx: Client, userId: string, now: Date): Promise<void> {
+  const inserted = await tx
+    .insert(gamePlayer)
+    .values({ userId, joinedAt: now })
+    .onConflictDoNothing()
+    .returning({ userId: gamePlayer.userId });
+  if (inserted.length > 0) logger.info({ userId }, "Arvauspeli joined");
+  const seasonId = await latestSeason(tx);
+  if (seasonId === null) return;
+  const season = await seasonOfId(tx, seasonId);
+  if (!isOpen(season, now)) return;
+  const joinedAt = (await joinedAtOf(tx, userId)) ?? now;
+  await ensureGrant(tx, userId, season, joinedAt);
 }
 
 function refused(
