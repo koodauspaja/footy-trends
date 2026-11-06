@@ -16,6 +16,7 @@ import type { HomeBaseline } from "@/lib/home-baseline";
  * decisions/060-elo-variants.md
  * decisions/072-match-guesses.md
  * decisions/074-against-the-models.md
+ * decisions/075-season-guesses.md
  */
 
 const mocks = vi.hoisted(() => ({

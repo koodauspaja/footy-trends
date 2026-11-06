@@ -1164,6 +1164,31 @@ describe("Kauden arvaukset", () => {
     expect(within(block("Lopullinen sarjataulukko")).queryByText(/Pelaajien arvaukset/)).toBeNull();
   });
 
+  it("after the lock shows the champion and last-place shares to a player who guessed neither", () => {
+    const shares = {
+      shares: [
+        { teamProviderId: 1, percent: 60 },
+        { teamProviderId: 2, percent: 40 },
+      ],
+      total: 5,
+    };
+    renderSection(
+      section({
+        locked: true,
+        guesses: { table: { teams: [1, 2, 3], settled: null } },
+        shares: { champion: shares, last: null },
+      })
+    );
+
+    expect(
+      within(block("Mestari")).getByText("Pelaajien arvaukset: HJK 60 % · KuPS 40 % (5 arvausta)")
+    ).toBeInTheDocument();
+    expect(within(block("Mestari")).queryByText(/Arvauksesi/)).toBeNull();
+    // Too few last-place picks to share: no block for a kind the player did not guess.
+    expect(screen.queryByRole("heading", { name: "Putoaja" })).toBeNull();
+    expect(screen.getByText("(1 arvaus)")).toBeInTheDocument();
+  });
+
   it("says what each settled guess paid, missed or refunded", () => {
     renderSection(
       section({

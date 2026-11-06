@@ -397,8 +397,8 @@ function PickSharesLine({
 
 /**
  * `Kauden arvaukset`: before the lock a form per kind, after it the player's
- * guesses, the shares of the champion and last-place picks, and once settled
- * what each paid.
+ * guesses, the shares of the champion and last-place picks, guessed or not,
+ * and once settled what each paid.
  *
  * decisions/075-season-guesses.md
  */
@@ -406,7 +406,13 @@ function SeasonGuesses({ section }: Readonly<{ section: SeasonSection }>) {
   const names = new Map(section.teams.map((team) => [team.teamProviderId, team.name]));
   const name = (id: number) => names.get(id) ?? "–";
   const placed = SEASON_KINDS.filter((kind) => section.guesses[kind] !== undefined);
-  const kinds = section.locked ? placed : SEASON_KINDS;
+  const sharesOf = (kind: SeasonKind) =>
+    kind === "champion" || kind === "last" ? (section.shares?.[kind] ?? null) : null;
+  // After the lock: the kinds the player guessed, and the champion and
+  // last-place shares whether or not the player guessed those kinds.
+  const kinds = section.locked
+    ? SEASON_KINDS.filter((kind) => placed.includes(kind) || sharesOf(kind) !== null)
+    : SEASON_KINDS;
   return (
     <GameFold count={guessCount(placed.length)} heading="Kauden arvaukset" id="season" open>
       {!section.locked && (
@@ -418,8 +424,7 @@ function SeasonGuesses({ section }: Readonly<{ section: SeasonSection }>) {
       <ul>
         {kinds.map((kind) => {
           const guess = section.guesses[kind];
-          const shares =
-            kind === "champion" || kind === "last" ? (section.shares?.[kind] ?? null) : null;
+          const shares = sharesOf(kind);
           return (
             <li className="border-border-subtle border-b py-3" key={kind}>
               <h3 className="font-medium">{SEASON_LABELS[kind]}</h3>
