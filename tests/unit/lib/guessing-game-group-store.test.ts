@@ -13,7 +13,12 @@ import { warmModules } from "../../support/warm-module";
  */
 
 const { state, readBoardEntries, readModelGuesses, joinGameIn, logger } = vi.hoisted(() => ({
-  state: { results: [] as unknown[], ops: [] as string[], entries: [] as unknown[] },
+  state: {
+    results: [] as unknown[],
+    ops: [] as string[],
+    entries: [] as unknown[],
+    transactionOptions: [] as unknown[],
+  },
   readBoardEntries: vi.fn(),
   readModelGuesses: vi.fn(),
   joinGameIn: vi.fn(async () => undefined),
@@ -52,7 +57,15 @@ vi.mock("@/db", () => {
     update: statement("update"),
     delete: statement("delete"),
   };
-  return { db: { ...client, transaction: async (run: (tx: unknown) => unknown) => run(client) } };
+  return {
+    db: {
+      ...client,
+      transaction: async (run: (tx: unknown) => unknown, options?: unknown) => {
+        state.transactionOptions.push(options);
+        return run(client);
+      },
+    },
+  };
 });
 vi.mock("@/lib/guessing-game-board", () => ({ readBoardEntries, readModelGuesses }));
 // The store's own reading of a guess and its payments, so a member's row is
@@ -85,6 +98,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.results = [];
   state.ops = [];
+  state.transactionOptions = [];
   readBoardEntries.mockResolvedValue([]);
   readModelGuesses.mockResolvedValue(new Map());
 });
@@ -405,6 +419,14 @@ describe("the members' guesses on a group's page", () => {
     queue(members, []);
     expect(await guessesOf()).toEqual({ matches: [], more: false });
     expect(readModelGuesses).not.toHaveBeenCalled();
+  });
+
+  it("reads the matches, guesses, payments and models in one read-only snapshot", async () => {
+    queue(members, [match(7)], [guess({})], []);
+    await guessesOf();
+    expect(state.transactionOptions).toEqual([
+      { isolationLevel: "repeatable read", accessMode: "read only" },
+    ]);
   });
 
   it("lists each member's guess in the members' order, with what a settled one paid", async () => {

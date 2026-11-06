@@ -433,52 +433,62 @@ async function readMemberGuesses(
   shown: number
 ): Promise<MemberGuesses> {
   const ids = userIdsOf(members);
-  const page = await db
-    .select({
-      providerMatchId: tasoMatches.providerMatchId,
-      kickoffAt: tasoMatches.kickoffAt,
-      homeTeamName: tasoMatches.homeTeamName,
-      awayTeamName: tasoMatches.awayTeamName,
-    })
-    .from(gameGuess)
-    .innerJoin(tasoMatches, eq(tasoMatches.providerMatchId, gameGuess.providerMatchId))
-    .where(
-      and(
-        inArray(gameGuess.userId, ids),
-        eq(gameGuess.seasonId, seasonId),
-        lte(tasoMatches.kickoffAt, now)
-      )
-    )
-    .groupBy(
-      tasoMatches.providerMatchId,
-      tasoMatches.kickoffAt,
-      tasoMatches.homeTeamName,
-      tasoMatches.awayTeamName
-    )
-    .orderBy(desc(tasoMatches.kickoffAt), desc(tasoMatches.providerMatchId))
-    .limit(shown + 1);
-  const listed = page.slice(0, shown);
-  if (listed.length === 0) return { matches: [], more: false };
-  const matchIds = listed.map((match) => match.providerMatchId);
-  const guesses = await db
-    .select()
-    .from(gameGuess)
-    .where(and(inArray(gameGuess.userId, ids), inArray(gameGuess.providerMatchId, matchIds)));
-  const [ledger, models] = await Promise.all([
-    db
-      .select({ guessId: gameLedger.guessId, amount: gameLedger.amount, kind: gameLedger.kind })
-      .from(gameLedger)
-      .where(
-        and(
-          inArray(
-            gameLedger.guessId,
-            guesses.map((guess) => guess.id)
-          ),
-          inArray(gameLedger.kind, [...PAYMENT_KINDS])
+  // One snapshot, so a settlement committing between the reads cannot show a
+  // settled guess as waiting, or its payment without its tier.
+  const read = await db.transaction(
+    async (tx) => {
+      const page = await tx
+        .select({
+          providerMatchId: tasoMatches.providerMatchId,
+          kickoffAt: tasoMatches.kickoffAt,
+          homeTeamName: tasoMatches.homeTeamName,
+          awayTeamName: tasoMatches.awayTeamName,
+        })
+        .from(gameGuess)
+        .innerJoin(tasoMatches, eq(tasoMatches.providerMatchId, gameGuess.providerMatchId))
+        .where(
+          and(
+            inArray(gameGuess.userId, ids),
+            eq(gameGuess.seasonId, seasonId),
+            lte(tasoMatches.kickoffAt, now)
+          )
         )
-      ),
-    readModelGuesses(db, matchIds),
-  ]);
+        .groupBy(
+          tasoMatches.providerMatchId,
+          tasoMatches.kickoffAt,
+          tasoMatches.homeTeamName,
+          tasoMatches.awayTeamName
+        )
+        .orderBy(desc(tasoMatches.kickoffAt), desc(tasoMatches.providerMatchId))
+        .limit(shown + 1);
+      const listed = page.slice(0, shown);
+      if (listed.length === 0) return null;
+      const matchIds = listed.map((match) => match.providerMatchId);
+      const guesses = await tx
+        .select()
+        .from(gameGuess)
+        .where(and(inArray(gameGuess.userId, ids), inArray(gameGuess.providerMatchId, matchIds)));
+      const [ledger, models] = await Promise.all([
+        tx
+          .select({ guessId: gameLedger.guessId, amount: gameLedger.amount, kind: gameLedger.kind })
+          .from(gameLedger)
+          .where(
+            and(
+              inArray(
+                gameLedger.guessId,
+                guesses.map((guess) => guess.id)
+              ),
+              inArray(gameLedger.kind, [...PAYMENT_KINDS])
+            )
+          ),
+        readModelGuesses(tx, matchIds),
+      ]);
+      return { more: page.length > shown, listed, guesses, ledger, models };
+    },
+    { isolationLevel: "repeatable read", accessMode: "read only" }
+  );
+  if (read === null) return { matches: [], more: false };
+  const { listed, guesses, ledger, models } = read;
   const payments = paymentsOf(ledger);
   const memberOf = new Map(members.map((member) => [member.userId, member]));
   return {
@@ -515,7 +525,7 @@ async function readMemberGuesses(
         models: models.get(match.providerMatchId) ?? [],
       };
     }),
-    more: page.length > shown,
+    more: read.more,
   };
 }
 

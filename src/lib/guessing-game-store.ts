@@ -515,10 +515,11 @@ function playingView(
 /**
  * How a guess was settled and the result it was judged against, as stored
  * when it was settled, or `null` while it is open. A refund, and an award with
- * no score, have no result.
+ * no score, have no result. The player's own page and a group's read it alike.
  *
  * decisions/072-match-guesses.md
  * decisions/076-guesses-on-irregular-matches.md
+ * decisions/079-group-members-guesses.md
  */
 export function settledResult(row: typeof gameGuess.$inferSelect) {
   const { id, settledAt, tier, resultHomeGoals, resultAwayGoals } = row;
