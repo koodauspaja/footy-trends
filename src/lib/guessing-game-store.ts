@@ -275,7 +275,14 @@ async function joinedAtOf(client: Client, userId: string): Promise<Date | null> 
   return row?.joinedAt ?? null;
 }
 
-function storedGuess(row: {
+/**
+ * A stored guess row as the guess it holds, for the player's own page and a
+ * group's alike.
+ *
+ * decisions/072-match-guesses.md
+ * decisions/079-group-members-guesses.md
+ */
+export function storedGuess(row: {
   kind: string;
   outcome: string | null;
   homeGoals: number | null;
@@ -368,7 +375,7 @@ export async function openGame(userId: string, now: Date): Promise<GameView> {
             and(
               eq(gameLedger.userId, userId),
               eq(gameLedger.seasonId, seasonId),
-              inArray(gameLedger.kind, ["reward", "refund", "bonus", "models"])
+              inArray(gameLedger.kind, [...PAYMENT_KINDS])
             )
           ),
         openGuessesOf(tx, userId),
@@ -385,6 +392,58 @@ export async function openGame(userId: string, now: Date): Promise<GameView> {
   });
 }
 
+/**
+ * What a settlement's ledger rows paid on each guess, by guess id: the reward
+ * or refund, the rarity bonus, and the models' reward. The player's own page
+ * and a group's page read a guess's payments alike.
+ *
+ * decisions/072-match-guesses.md
+ * decisions/073-leaderboard.md
+ * decisions/074-against-the-models.md
+ * decisions/079-group-members-guesses.md
+ */
+export function paymentsOf(
+  rows: ReadonlyArray<{ guessId: number | null; amount: number; kind: string }>
+): {
+  paid: Map<number | null, number>;
+  bonuses: Map<number | null, number>;
+  models: Map<number | null, number>;
+} {
+  // A reward or a refund is what is not paid on top of one.
+  const onTop = new Set<string>(PAID_ON_TOP);
+  const byKind = (keep: (kind: string) => boolean) =>
+    new Map(rows.filter((row) => keep(row.kind)).map((row) => [row.guessId, row.amount]));
+  return {
+    paid: byKind((kind) => !onTop.has(kind)),
+    bonuses: byKind((kind) => kind === "bonus"),
+    models: byKind((kind) => kind === "models"),
+  };
+}
+
+/**
+ * What a guess's settlement paid on top of its reward or refund.
+ *
+ * decisions/073-leaderboard.md
+ * decisions/074-against-the-models.md
+ */
+const PAID_ON_TOP = ["bonus", "models"] as const;
+
+/**
+ * The ledger kinds a settled guess's payments are read from.
+ *
+ * decisions/079-group-members-guesses.md
+ */
+export const PAYMENT_KINDS = ["reward", "refund", ...PAID_ON_TOP] as const;
+
+/**
+ * What a settled guess paid, as its lines say it: how it was settled, its
+ * reward or refund, the rarity bonus and the models' reward.
+ *
+ * decisions/072-match-guesses.md
+ * decisions/079-group-members-guesses.md
+ */
+export type Paid = { settlement: Settlement; reward: number; bonus: number; modelsReward: number };
+
 function playingView(
   season: Season,
   now: Date,
@@ -394,13 +453,7 @@ function playingView(
   open: { awaiting: AwaitingGuess[]; hasOpenGuess: boolean }
 ): GameView {
   const byMatch = new Map(guesses.map((row) => [row.providerMatchId, row]));
-  // A reward or a refund is what is not paid on top of one.
-  const onTop = new Set(["bonus", "models"]);
-  const byKind = (keep: (kind: string) => boolean) =>
-    new Map(rewards.filter((row) => keep(row.kind)).map((row) => [row.guessId, row.amount]));
-  const paid = byKind((kind) => !onTop.has(kind));
-  const bonuses = byKind((kind) => kind === "bonus");
-  const modelRewardsPaid = byKind((kind) => kind === "models");
+  const { paid, bonuses, models: modelRewardsPaid } = paymentsOf(rewards);
   const floor = mayUseFloor(balance, cheapestOpenPrice(season.matches, now), open.hasOpenGuess);
 
   const upcoming: UpcomingMatch[] = [];
@@ -462,12 +515,13 @@ function playingView(
 /**
  * How a guess was settled and the result it was judged against, as stored
  * when it was settled, or `null` while it is open. A refund, and an award with
- * no score, have no result.
+ * no score, have no result. The player's own page and a group's read it alike.
  *
  * decisions/072-match-guesses.md
  * decisions/076-guesses-on-irregular-matches.md
+ * decisions/079-group-members-guesses.md
  */
-function settledResult(row: typeof gameGuess.$inferSelect) {
+export function settledResult(row: typeof gameGuess.$inferSelect) {
   const { id, settledAt, tier, resultHomeGoals, resultAwayGoals } = row;
   if (settledAt === null || tier === null) return null;
   const scored = resultHomeGoals !== null && resultAwayGoals !== null;

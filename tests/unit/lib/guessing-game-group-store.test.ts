@@ -9,12 +9,20 @@ import { warmModules } from "../../support/warm-module";
  * `tests/integration/guessing-game-group.test.ts`.
  *
  * decisions/078-private-groups.md
+ * decisions/079-group-members-guesses.md
  */
 
-const { state, readBoardEntries, joinGameIn } = vi.hoisted(() => ({
-  state: { results: [] as unknown[], ops: [] as string[], entries: [] as unknown[] },
+const { state, readBoardEntries, readModelGuesses, joinGameIn, logger } = vi.hoisted(() => ({
+  state: {
+    results: [] as unknown[],
+    ops: [] as string[],
+    entries: [] as unknown[],
+    transactionOptions: [] as unknown[],
+  },
   readBoardEntries: vi.fn(),
+  readModelGuesses: vi.fn(),
   joinGameIn: vi.fn(async () => undefined),
+  logger: { info: vi.fn(), error: vi.fn() },
 }));
 
 vi.mock("@/db", () => {
@@ -49,13 +57,28 @@ vi.mock("@/db", () => {
     update: statement("update"),
     delete: statement("delete"),
   };
-  return { db: { ...client, transaction: async (run: (tx: unknown) => unknown) => run(client) } };
+  return {
+    db: {
+      ...client,
+      transaction: async (run: (tx: unknown) => unknown, options?: unknown) => {
+        state.transactionOptions.push(options);
+        return run(client);
+      },
+    },
+  };
 });
-vi.mock("@/lib/guessing-game-board", () => ({ readBoardEntries }));
-vi.mock("@/lib/guessing-game-store", () => ({ joinGameIn }));
+vi.mock("@/lib/guessing-game-board", () => ({ readBoardEntries, readModelGuesses }));
+// The store's own reading of a guess and its payments, so a member's row is
+// read as the player's own; only joining the game is faked.
+vi.mock("@/lib/guessing-game-store", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/guessing-game-store")>()),
+  joinGameIn,
+}));
+vi.mock("@/lib/logger", () => ({ logger }));
 
 const store = await import("@/lib/guessing-game-group-store");
 const NOW = new Date("2027-04-01T12:00:00Z");
+const LISTING = { now: NOW, shown: 10 };
 
 function queue(...results: unknown[]) {
   state.results.push(...results);
@@ -75,7 +98,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.results = [];
   state.ops = [];
+  state.transactionOptions = [];
   readBoardEntries.mockResolvedValue([]);
+  readModelGuesses.mockResolvedValue(new Map());
 });
 
 warmModules(() => import("@/lib/guessing-game-group-store"));
@@ -295,13 +320,13 @@ describe("readGroup", () => {
 
   it("is null for a reader who is not a member", async () => {
     queue(rows);
-    expect(await store.readGroup("outsider", 5, 2027)).toBeNull();
+    expect(await store.readGroup("outsider", 5, 2027, LISTING)).toBeNull();
   });
 
   it("lists the members by when they joined, with the owner and the reader named", async () => {
-    queue(rows);
+    queue(rows, []);
     readBoardEntries.mockResolvedValue([entry("friend", 1100), entry("outsider", 2000)]);
-    const group = await store.readGroup("friend", 5, 2027);
+    const group = await store.readGroup("friend", 5, 2027, LISTING);
     expect(readBoardEntries).toHaveBeenCalledWith(2027, ["friend", "owner"]);
     expect(group).toMatchObject({
       groupId: 5,
@@ -319,7 +344,9 @@ describe("readGroup", () => {
 
   it("has no board with no season to rank", async () => {
     queue(rows);
-    expect((await store.readGroup("owner", 5, null))?.board).toBeNull();
+    const group = await store.readGroup("owner", 5, null, LISTING);
+    expect(group?.board).toBeNull();
+    expect(group?.guesses).toBeNull();
   });
 });
 
@@ -350,5 +377,148 @@ describe("readInvite", () => {
       member: true,
       player: true,
     });
+  });
+});
+
+describe("the members' guesses on a group's page", () => {
+  const members = [
+    { membershipId: 1, userId: "owner", nickname: "Omistaja", name: "Kaverit", inviteToken: "t" },
+    { membershipId: 3, userId: "friend", nickname: null, name: "Kaverit", inviteToken: "t" },
+  ];
+  const kickoff = new Date("2027-03-30T15:00:00Z");
+  function match(id: number) {
+    return { providerMatchId: id, kickoffAt: kickoff, homeTeamName: "HJK", awayTeamName: "KuPS" };
+  }
+  function guess(overrides: Record<string, unknown>) {
+    return {
+      id: 10,
+      userId: "owner",
+      seasonId: 2027,
+      providerMatchId: 7,
+      kind: "outcome",
+      outcome: "1",
+      homeGoals: null,
+      awayGoals: null,
+      free: false,
+      madeAt: kickoff,
+      kickoffAt: kickoff,
+      settledAt: null,
+      tier: null,
+      resultHomeGoals: null,
+      resultAwayGoals: null,
+      ...overrides,
+    };
+  }
+
+  async function guessesOf(shown = 10) {
+    const group = await store.readGroup("friend", 5, 2027, { now: NOW, shown });
+    return group?.guesses;
+  }
+
+  it("lists nothing when no member has guessed a match that has kicked off", async () => {
+    queue(members, []);
+    expect(await guessesOf()).toEqual({ matches: [], more: false });
+    expect(readModelGuesses).not.toHaveBeenCalled();
+  });
+
+  it("reads the matches, guesses, payments and models in one read-only snapshot", async () => {
+    queue(members, [match(7)], [guess({})], []);
+    await guessesOf();
+    expect(state.transactionOptions).toEqual([
+      { isolationLevel: "repeatable read", accessMode: "read only" },
+    ]);
+  });
+
+  it("lists each member's guess in the members' order, with what a settled one paid", async () => {
+    queue(
+      members,
+      [match(7)],
+      [
+        guess({
+          id: 11,
+          userId: "friend",
+          kind: "score",
+          outcome: null,
+          homeGoals: 2,
+          awayGoals: 0,
+        }),
+        guess({
+          id: 10,
+          settledAt: kickoff,
+          tier: "outcome",
+          resultHomeGoals: 2,
+          resultAwayGoals: 1,
+        }),
+      ],
+      [
+        { guessId: 10, kind: "reward", amount: 30 },
+        { guessId: 10, kind: "bonus", amount: 20 },
+        { guessId: 10, kind: "models", amount: 10 },
+      ]
+    );
+    readModelGuesses.mockResolvedValue(
+      new Map([[7, [{ model: "elo", outcome: "1", score: null }]]])
+    );
+
+    expect(await guessesOf()).toEqual({
+      matches: [
+        {
+          ...match(7),
+          homeGoals: 2,
+          awayGoals: 1,
+          models: [{ model: "elo", outcome: "1", score: null }],
+          guesses: [
+            {
+              membershipId: 1,
+              nickname: "Omistaja",
+              self: false,
+              guess: { kind: "outcome", outcome: "1" },
+              paid: { settlement: "outcome", reward: 30, bonus: 20, modelsReward: 10 },
+            },
+            {
+              membershipId: 3,
+              nickname: null,
+              self: true,
+              guess: { kind: "score", homeGoals: 2, awayGoals: 0 },
+              paid: null,
+            },
+          ],
+        },
+      ],
+      more: false,
+    });
+    expect(readModelGuesses).toHaveBeenCalledWith(expect.anything(), [7]);
+  });
+
+  it("shows no score before a guess is settled, nor for a refunded one, and pays nothing unpaid", async () => {
+    queue(members, [match(7)], [guess({ settledAt: kickoff, tier: "void" })], []);
+    const listed = await guessesOf();
+    expect(listed).toMatchObject({
+      matches: [
+        {
+          homeGoals: null,
+          awayGoals: null,
+          models: [],
+          guesses: [{ paid: { settlement: "void", reward: 0, bonus: 0, modelsReward: 0 } }],
+        },
+      ],
+    });
+  });
+
+  it("lists the shown number of matches, and says there are more", async () => {
+    queue(members, [match(9), match(8)], [guess({ providerMatchId: 9 })], []);
+    const listed = await guessesOf(1);
+    expect(listed).toMatchObject({ more: true, matches: [{ providerMatchId: 9 }] });
+  });
+
+  it("costs only the section when the guesses cannot be read, and logs it with ids", async () => {
+    queue(members, new Error("database down"));
+    const group = await store.readGroup("friend", 5, 2027, LISTING);
+    expect(group?.guesses).toBe("error");
+    expect(group?.name).toBe("Kaverit");
+    expect(logger.error).toHaveBeenCalledWith(
+      { err: expect.any(Error), userId: "friend", groupId: 5 },
+      "Reading Arvauspeli members' guesses failed"
+    );
   });
 });

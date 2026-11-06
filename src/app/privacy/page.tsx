@@ -17,6 +17,7 @@ export const metadata: Metadata = { title: HEADING };
  * decisions/077-nickname.md
  * decisions/073-leaderboard.md
  * decisions/078-private-groups.md
+ * decisions/079-group-members-guesses.md
  */
 const SECTION = "mb-8";
 const HEADING_2 = "mb-3 font-semibold text-xl";
@@ -66,8 +67,9 @@ export default function Privacy() {
           </li>
           <li>
             Arvauspelin ryhmät, joihin kuulut, ja niiden nimet. Ryhmän jäsenet näkevät toistensa
-            nimimerkit ja pelimerkit ryhmän tulostaulukossa, ja kutsulinkin saanut näkee ryhmän
-            nimen ja jäsenmäärän.
+            nimimerkit ja pelimerkit ryhmän tulostaulukossa ja toistensa arvaukset otteluiden
+            alettua, myös ennen ryhmään liittymistä tehdyt, ja kutsulinkin saanut näkee ryhmän nimen
+            ja jäsenmäärän.
           </li>
         </ul>
       </section>

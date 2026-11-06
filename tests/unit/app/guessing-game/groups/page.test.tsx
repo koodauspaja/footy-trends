@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * failed read says so.
  *
  * decisions/078-private-groups.md
+ * decisions/079-group-members-guesses.md
  */
 
 const { currentUserId, openGame, readGroup, logger, notFound } = vi.hoisted(() => ({
@@ -32,9 +33,11 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn(), replace: vi.fn() }),
 }));
 
-async function renderRoute(id: string) {
+async function renderRoute(id: string, search: Record<string, string> = {}) {
   const { default: GroupRoute } = await import("@/app/guessing-game/groups/[id]/page");
-  render(await GroupRoute({ params: Promise.resolve({ id }) }));
+  render(
+    await GroupRoute({ params: Promise.resolve({ id }), searchParams: Promise.resolve(search) })
+  );
 }
 
 const GROUP = {
@@ -44,6 +47,7 @@ const GROUP = {
   isOwner: false,
   members: [{ membershipId: 1, nickname: "Kalle", self: true, owner: true }],
   board: null,
+  guesses: null,
 };
 
 beforeEach(() => {
@@ -57,7 +61,12 @@ describe("/arvauspeli/ryhmat/{id}", () => {
   it("shows a member the group under its name, for the season the board shows", async () => {
     await renderRoute("5");
     expect(screen.getByRole("heading", { level: 1, name: "Kaverit" })).toBeInTheDocument();
-    expect(readGroup).toHaveBeenCalledWith("user-1", 5, 2027);
+    expect(readGroup).toHaveBeenCalledWith("user-1", 5, 2027, { now: expect.any(Date), shown: 10 });
+  });
+
+  it("lists as many of the members' matches as its ottelut parameter asks", async () => {
+    await renderRoute("5", { ottelut: "30" });
+    expect(readGroup).toHaveBeenCalledWith("user-1", 5, 2027, { now: expect.any(Date), shown: 30 });
   });
 
   it("answers a reader who is not a member with the 404", async () => {

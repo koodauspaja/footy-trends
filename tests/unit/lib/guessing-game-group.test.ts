@@ -6,6 +6,7 @@ import {
   newInviteToken,
   ownerOf,
   parseGroupId,
+  parseMatchesShown,
 } from "@/lib/guessing-game-group";
 
 /**
@@ -13,6 +14,7 @@ import {
  * ids a browser or a URL may send, and who owns it.
  *
  * decisions/078-private-groups.md
+ * decisions/079-group-members-guesses.md
  */
 
 describe("checkGroupName", () => {
@@ -106,5 +108,22 @@ describe("ownerOf", () => {
 
   it("is null for a group with no members", () => {
     expect(ownerOf([])).toBeNull();
+  });
+});
+
+describe("parseMatchesShown", () => {
+  it.each([
+    [undefined, 10],
+    ["20", 20],
+    ["200", 200],
+    ["210", 10],
+    ["15", 10],
+    ["0", 10],
+    ["10.0", 10],
+    ["-10", 10],
+    ["2000", 10],
+    [["20", "30"], 10],
+  ])("lists %s as %s matches", (value, shown) => {
+    expect(parseMatchesShown(value)).toBe(shown);
   });
 });

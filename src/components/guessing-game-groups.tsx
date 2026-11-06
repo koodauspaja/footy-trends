@@ -3,9 +3,11 @@
  * `/arvauspeli`, a group's own page, and the page an invite link opens.
  *
  * decisions/078-private-groups.md
+ * decisions/079-group-members-guesses.md
  */
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { BoardTable } from "@/components/guessing-game-board-table";
 import { GameFold } from "@/components/guessing-game-fold";
 import {
@@ -18,11 +20,25 @@ import {
   RenameGroupForm,
   RenewLinkButton,
 } from "@/components/guessing-game-group-controls";
+import {
+  formatGuess,
+  ModelsLine,
+  SettledLines,
+  settledMatch,
+} from "@/components/guessing-game-lines";
 import { PANEL_HEADING, TABLE_HEADING } from "@/components/heading-classes";
+import { SameRouteLink } from "@/components/same-route-link";
 import { SignInPrompt } from "@/components/sign-in-prompt";
-import { MAX_GROUPS } from "@/lib/guessing-game-group";
+import { MATCHES_SHOWN, MAX_GROUPS } from "@/lib/guessing-game-group";
 import { groupPath } from "@/lib/guessing-game-group-paths";
-import type { GroupPage, GroupSummary, Invite } from "@/lib/guessing-game-group-store";
+import type {
+  GroupMatch,
+  GroupPage,
+  GroupSummary,
+  Invite,
+  MemberGuesses,
+} from "@/lib/guessing-game-group-store";
+import { formatKickoff } from "@/lib/match-detail";
 
 function memberCount(count: number): string {
   return count === 1 ? "1 jäsen" : `${count} jäsentä`;
@@ -99,12 +115,96 @@ function GroupBoard({ group }: Readonly<{ group: GroupPage }>) {
 }
 
 /**
- * A group's page for one of its members: its board, its members, the invite
- * link, and what the member, or the owner, can do.
+ * One kicked-off match under `Jäsenten arvaukset`: each member's guess on it,
+ * with what it paid once settled, and the models' guesses under them.
+ *
+ * decisions/079-group-members-guesses.md
+ */
+function MatchGuesses({ match, members }: Readonly<{ match: GroupMatch; members: number }>) {
+  return (
+    <div className="border-border-subtle border-b py-3">
+      <h3 className="font-medium">{settledMatch(match)}</h3>
+      <p className="text-muted text-sm">
+        {formatKickoff(match.kickoffAt)} · Arvasi {match.guesses.length}/{members} jäsentä
+      </p>
+      <ul className="mt-2">
+        {match.guesses.map((member) => (
+          <li className="py-1" key={member.membershipId}>
+            <p className="text-sm">
+              <span className="font-medium">{member.nickname ?? NO_NICKNAME}</span>
+              {member.self && <span className="text-muted"> (sinä)</span>}:{" "}
+              {formatGuess(member.guess)}
+            </p>
+            {member.paid === null ? (
+              <p className="text-muted text-sm">Odottaa tulosta</p>
+            ) : (
+              <SettledLines paid={member.paid} />
+            )}
+          </li>
+        ))}
+      </ul>
+      <ModelsLine models={match.models} />
+    </div>
+  );
+}
+
+/**
+ * `Jäsenten arvaukset`: the members' guesses on the season's matches that have
+ * kicked off, newest first, ten more at a time. Nothing before kickoff, and
+ * nothing with no season. A failed read says so in its place.
+ *
+ * decisions/079-group-members-guesses.md
+ */
+function MembersGuesses({
+  guesses,
+  members,
+  shown,
+}: Readonly<{ guesses: MemberGuesses | "error" | null; members: number; shown: number }>) {
+  if (guesses === null) return null;
+  let body: ReactNode;
+  if (guesses === "error") {
+    body = (
+      <p className="mt-2">Jäsenten arvausten lataaminen epäonnistui. Yritä myöhemmin uudelleen.</p>
+    );
+  } else if (guesses.matches.length === 0) {
+    body = (
+      <p className="mt-2">
+        Kukaan ryhmästä ei ole vielä arvannut alkanutta ottelua tällä kaudella.
+      </p>
+    );
+  } else {
+    body = (
+      <>
+        {guesses.matches.map((match) => (
+          <MatchGuesses key={match.providerMatchId} match={match} members={members} />
+        ))}
+        {guesses.more && (
+          <p className="mt-4 text-sm">
+            <SameRouteLink href={`?ottelut=${shown + MATCHES_SHOWN}`} scroll={false}>
+              Näytä aiemmat ottelut
+            </SameRouteLink>
+          </p>
+        )}
+      </>
+    );
+  }
+  return (
+    <section className="mt-8">
+      <h2 className={TABLE_HEADING}>Jäsenten arvaukset</h2>
+      <p className="text-muted text-sm">Arvaukset näkyvät ottelun alettua.</p>
+      {body}
+    </section>
+  );
+}
+
+/**
+ * A group's page for one of its members: its board, the members' guesses, its
+ * members, the invite link, and what the member, or the owner, can do.
  *
  * decisions/078-private-groups.md
+ * decisions/079-group-members-guesses.md
  */
-export function GroupPageView({ group }: Readonly<{ group: GroupPage }>) {
+export function GroupPageView({ group, shown }: Readonly<{ group: GroupPage; shown: number }>) {
   const owner = group.members.find((member) => member.owner);
   return (
     <div>
@@ -115,6 +215,7 @@ export function GroupPageView({ group }: Readonly<{ group: GroupPage }>) {
         <h2 className={TABLE_HEADING}>Tulostaulukko</h2>
         <GroupBoard group={group} />
       </section>
+      <MembersGuesses guesses={group.guesses} members={group.members.length} shown={shown} />
       <section className="mt-8">
         <h2 className={TABLE_HEADING}>Jäsenet</h2>
         <ul>
@@ -190,6 +291,7 @@ export function InviteView({
       <p>
         Sinut on kutsuttu ryhmään {invite.name} ({memberCount(invite.members)}).
       </p>
+      <p className="text-sm">Ryhmän jäsenet näkevät toistensa arvaukset otteluiden alettua.</p>
       {!invite.player && <p className="text-sm">{INTRO}</p>}
       <JoinGroupButton player={invite.player} token={token} />
     </div>
