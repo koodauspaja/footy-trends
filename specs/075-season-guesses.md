@@ -104,8 +104,9 @@ Drafts, fine-tuned in implementation, as in specs/072.
   placement. The balance read and the ledger write share a transaction with a
   lock on the player, as 072's guesses do.
 - **The lock** is the season's first stored kickoff, read at the time of the
-  request, or an earlier lock a guess was placed under, so a postponed first
-  match does not move it later (S15).
+  request, or an earlier lock a guess was placed under once that has passed,
+  so a postponed first match does not reopen it (S15); a lock still ahead
+  follows the first match when it moves (S3).
 - **Settling** (072 S11) runs after the match guesses in the hourly run; one
   transaction per season guess, so a racing run cannot pay twice.
 - **Caching:** none of the game's own; its rows are read per page view, signed
@@ -146,7 +147,8 @@ are a convenience.
 - **Placed or changed:** `info`, "Arvauspeli season guess placed" or
   "… changed", with the user id, season, kind and price.
 - **Refused:** `info`, "Arvauspeli season guess refused", with the user id,
-  season, kind and the reason (`locked`, `balance`, `teams`).
+  season, kind and the reason (`not-joined`, `no-season`, `locked`, `teams`,
+  `insufficient`).
 - **Settling:** `info`, "Arvauspeli season guesses settled", with `settled`,
   `rewarded` (those that paid), `voided` and `failed`, every run, beside
   specs/072's line for the match guesses. A season guess that fails to settle is logged at
