@@ -594,6 +594,26 @@ describe("readSeasonSectionOf", () => {
     });
   });
 
+  it("before the lock leaves out a season just finished the player did not guess in, shares or not", async () => {
+    answer(
+      [{ kickoffAt: at(10) }],
+      NO_LOCK,
+      [],
+      teamRows(),
+      [{ kickoffAt: at(-1000) }],
+      NO_LOCK,
+      [],
+      teamRows(),
+      [{ team: 100, count: 3 }],
+      []
+    );
+
+    expect(await readSeasonSectionOf(PLAYING, "user-1", NOW)).toMatchObject({
+      current: { seasonId: 2036 },
+      previous: null,
+    });
+  });
+
   it("after the lock reads no season just finished", async () => {
     answer([{ kickoffAt: at(-1) }], NO_LOCK, [guessRow({ seasonId: 2036 })], teamRows(), [], []);
 
