@@ -13,7 +13,10 @@ old one.
 | No version override in the tooling | A one-off does not need a second way to decide the number. A later major chosen the same way takes the same route: a record, in a commit marked `!` |
 | The `!` is on this commit, not on #752's or a feature's | The release notes list the breaking commit's subject. On a Tailwind patch, or on one of the eight features, the row would name the wrong change as the reason for 2.0.0 |
 | The notes show this row under "Breaking changes" | That heading comes from `scripts/next-version.ts` and is the same on every release. Changing it for one release is the tooling change this record avoids, and the row's own sentence says what moved the number |
+| `skills/release.md` names a `!` after any type as a major | Its table said `feat!:` and `fix!:`, and listed `docs` as a patch. `scripts/next-version.ts` reads the `!` on any type, and this record is the first `docs!:` |
 
-Checked on the branch, against `origin/release`: `npm run release:version`
-reported `Bump major` and `Next v2.0.0`, and `--print=notes` listed #777 alone
-under Breaking changes, with the eight features under Features.
+Checked on the branch: `npm run release:version -- origin/release HEAD`
+reported `Bump major` and `Next v2.0.0`, and the same with `--print=notes`
+listed #777 alone under Breaking changes, with the eight features under
+Features. The command with no refs compares `origin/release..origin/main`,
+which holds this commit only once it is merged.

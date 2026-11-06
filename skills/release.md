@@ -29,7 +29,7 @@ promotion range and applies semver:
 
 | In the range | Bump |
 |---|---|
-| any `feat!:` / `fix!:` / a `BREAKING CHANGE:` footer | major |
+| a `!` after any type (`feat!:`, `fix!:`, `docs!:` …) / a `BREAKING CHANGE:` footer | major |
 | any `feat:` | minor |
 | anything else — `fix`, `chore`, `docs`, `refactor`, `test`, `ci` | patch |
 
