@@ -72,16 +72,18 @@ async function newGroup(owner: string): Promise<number> {
 }
 
 /**
- * Waits until another connection is blocked on a lock, so a race test lets
- * its held transaction go only once the competing statement has reached it.
+ * Waits until the competing statement, the one naming `table`, is blocked on a
+ * lock, so a race test lets its held transaction go only once that statement
+ * has reached it, and no other waiter can stand in for it.
  *
  * decisions/078-private-groups.md
  */
-async function waitingOnALock(): Promise<void> {
+async function blockedOn(table: string): Promise<void> {
   for (let attempt = 0; attempt < 100; attempt += 1) {
     const rows = await db.execute<{ waiting: number }>(
       sql`select count(*)::int as waiting from pg_stat_activity
-        where datname = current_database() and wait_event_type = 'Lock'`
+        where datname = current_database() and wait_event_type = 'Lock'
+          and pid <> pg_backend_pid() and query like ${`%"${table}"%`}`
     );
     if ((rows[0]?.waiting ?? 0) > 0) return;
     await new Promise((resolve) => setTimeout(resolve, 20));
@@ -240,7 +242,7 @@ describe("joining", () => {
     });
     await renewed.promise;
     const join = joinGroup(FRIEND, old, NOW);
-    await waitingOnALock();
+    await blockedOn("game_group");
     held.resolve();
     await renewal;
     expect(await join).toEqual({ ok: false, reason: "invalid-link" });
@@ -350,7 +352,7 @@ describe("leaving and the owner", () => {
     await ownerDeleted.promise;
     // Started now, not when awaited: a query builder runs only once it is.
     const second = db.delete(user).where(eq(user.id, FRIEND)).execute();
-    await waitingOnALock();
+    await blockedOn("user");
     held.resolve();
     await Promise.all([first, second]);
     expect(await groupExists(groupId)).toBe(false);
