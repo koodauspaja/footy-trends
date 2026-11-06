@@ -33,14 +33,15 @@ export default async function InviteRoute({
   const { token } = await params;
   let invite: Invite | null = null;
   let signedIn = false;
+  let userId: string | null = null;
   try {
     if (isInviteToken(token)) {
-      const userId = await currentUserId();
+      userId = await currentUserId();
       signedIn = userId !== null;
       invite = await readInvite(userId, token);
     }
   } catch (error) {
-    logger.error({ err: error }, "Reading an Arvauspeli invite failed");
+    logger.error({ err: error, userId }, "Reading an Arvauspeli invite failed");
     return (
       <PageShell heading={HEADING}>
         <Notice>Kutsun lataaminen epäonnistui. Yritä myöhemmin uudelleen.</Notice>

@@ -76,15 +76,16 @@ describe("/arvauspeli/liity/{token}", () => {
     expect(readInvite).not.toHaveBeenCalled();
   });
 
-  it("says a failed read, and logs it without the token", async () => {
+  it("says a failed read, and logs it with the reader, without the token", async () => {
     readInvite.mockRejectedValue(new Error("database down"));
     await renderRoute(TOKEN);
     expect(
       screen.getByText("Kutsun lataaminen epäonnistui. Yritä myöhemmin uudelleen.")
     ).toBeInTheDocument();
     expect(logger.error).toHaveBeenCalledWith(
-      { err: expect.any(Error) },
+      { err: expect.any(Error), userId: "user-1" },
       "Reading an Arvauspeli invite failed"
     );
+    expect(JSON.stringify(logger.error.mock.calls)).not.toContain(TOKEN);
   });
 });

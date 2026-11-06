@@ -84,7 +84,7 @@ describe("/arvauspeli/ryhmat/{id}", () => {
       screen.getByText("Ryhmän lataaminen epäonnistui. Yritä myöhemmin uudelleen.")
     ).toBeInTheDocument();
     expect(logger.error).toHaveBeenCalledWith(
-      { err: expect.any(Error), groupId: 5 },
+      { err: expect.any(Error), userId: "user-1", groupId: 5 },
       "Reading an Arvauspeli group failed"
     );
   });

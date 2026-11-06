@@ -33,8 +33,9 @@ export default async function GroupRoute({
   const groupId = parseGroupId((await params).id);
   if (groupId === null) notFound();
   let group: GroupPage | null;
+  let userId: string | null = null;
   try {
-    const userId = await currentUserId();
+    userId = await currentUserId();
     if (userId === null) {
       return (
         <PageShell heading="Arvauspeli">
@@ -45,7 +46,7 @@ export default async function GroupRoute({
     const view = await openGame(userId, new Date());
     group = await readGroup(userId, groupId, boardSeason(view));
   } catch (error) {
-    logger.error({ err: error, groupId }, "Reading an Arvauspeli group failed");
+    logger.error({ err: error, userId, groupId }, "Reading an Arvauspeli group failed");
     return (
       <PageShell heading="Arvauspeli">
         <Notice>Ryhmän lataaminen epäonnistui. Yritä myöhemmin uudelleen.</Notice>
