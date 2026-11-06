@@ -728,7 +728,13 @@ function group(groupId: number, teams: readonly number[], kind = "own-calculated
 // A group's matches in today's format, every one finished.
 function played(groupId: number, count: number) {
   return Array.from({ length: count }, (_, index) =>
-    match({ providerMatchId: groupId * 1000 + index, groupId, status: "FINISHED" })
+    match({
+      providerMatchId: groupId * 1000 + index,
+      groupId,
+      status: "FINISHED",
+      homeGoals: 1,
+      awayGoals: 0,
+    })
   );
 }
 
@@ -840,6 +846,16 @@ describe("readSeasonAnswers", () => {
         match({ providerMatchId: 9999, status: "Abandoned" }),
       ])
     ).toEqual({ upper: new Set(TEAMS.slice(0, 6)), places: null });
+  });
+
+  it("leaves a group unplayed when a finished match has no score, as its table leaves it out", async () => {
+    const forfeit = match({ providerMatchId: 1000, groupId: 1, status: "FINISHED", awayGoals: 0 });
+
+    expect(await readSeasonAnswers(2027, 2027, [forfeit, ...REGULAR_PLAYED.slice(1)])).toEqual({
+      upper: null,
+      places: null,
+    });
+    expect(standings.getSeasonStandings).not.toHaveBeenCalled();
   });
 
   it("reads no tables for a played part no open guess needs", async () => {
@@ -1084,13 +1100,18 @@ describe("settleSeasonGuesses", () => {
     );
   });
 
-  it("with a later season stored and the tables unreadable, retries a due guess and voids one not due", async () => {
+  it("with a later season stored and the tables unreadable, voids every open guess, a due one included", async () => {
     store.latestSeason.mockResolvedValue(2028);
     store.seasonMatches.mockResolvedValue(REGULAR_PLAYED);
     standings.getSeasonStandings.mockResolvedValue({ status: "error", groups: [] });
     // The six are due, the regular season played; the champion is not, the split unplayed.
     answer(
       [openGuess(), openGuess({ id: 42, kind: "champion", teams: [100] })],
+      PLAYER,
+      [{ id: 41 }],
+      [{ amount: -50 }],
+      undefined,
+      undefined,
       PLAYER,
       [{ id: 42 }],
       [{ amount: -50 }],
@@ -1099,12 +1120,13 @@ describe("settleSeasonGuesses", () => {
     );
 
     expect(await settleSeasonGuesses(NOW)).toEqual({
-      settled: 1,
+      settled: 2,
       rewarded: 0,
-      voided: 1,
-      failed: [41],
+      voided: 2,
+      failed: [],
     });
     expect(inserted()).toEqual([
+      { userId: "user-1", seasonId: 2027, kind: "season-refund", amount: 50, seasonGuessId: 41 },
       { userId: "user-1", seasonId: 2027, kind: "season-refund", amount: 50, seasonGuessId: 42 },
     ]);
   });

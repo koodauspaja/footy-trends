@@ -20,7 +20,6 @@ import {
   type Client,
   COMPETITION,
   ensureGrant,
-  FINISHED,
   type GameView,
   latestSeason,
   REGULAR_SEASON_GROUP,
@@ -30,6 +29,7 @@ import {
   seasonOfId,
 } from "./guessing-game-store";
 import { logger } from "./logger";
+import { toFinishedMatches } from "./standings";
 import { getSeasonStandings } from "./taso-standings-service";
 
 /**
@@ -426,16 +426,15 @@ const GROUP_MATCHES: Readonly<Record<SeasonGroup, number>> = {
 };
 
 /**
- * Whether a group's whole format has been played: as many finished matches as
- * it has, so a schedule stored in part, or an abandoned match never replayed,
+ * Whether a group's whole format has been played: as many matches as it has
+ * that the standings page's table counts, finished with a score, so a schedule
+ * stored in part, an abandoned match never replayed, or a forfeit with no score
  * leaves it unplayed.
  *
  * decisions/075-season-guesses.md
  */
 function groupPlayed(matches: readonly SeasonMatch[], groupId: SeasonGroup): boolean {
-  const finished = matches.filter(
-    (match) => match.groupId === groupId && match.status === FINISHED
-  );
+  const finished = toFinishedMatches(matches.filter((match) => match.groupId === groupId));
   return finished.length >= GROUP_MATCHES[groupId];
 }
 
@@ -658,10 +657,14 @@ async function settleSeason(
     answers = await readSeasonAnswers(seasonId, latest, matches, need);
   } catch (error) {
     logger.error({ err: error, seasonId }, "Reading an Arvauspeli season's answers failed");
-    const due = guesses.filter((guess) => answerDue(guess, matches));
-    report.failed.push(...due.map((guess) => guess.id));
     answers = { upper: null, places: null };
-    pending = guesses.filter((guess) => !due.includes(guess));
+    // Once a later season is stored every open guess is void (S16), a due one
+    // included; until then a due one is retried.
+    if (!replaced) {
+      const due = guesses.filter((guess) => answerDue(guess, matches));
+      report.failed.push(...due.map((guess) => guess.id));
+      pending = guesses.filter((guess) => !due.includes(guess));
+    }
   }
   // One at a time, so a season's guesses never hold a connection each.
   await pending.reduce<Promise<void>>(async (previous, guess) => {
