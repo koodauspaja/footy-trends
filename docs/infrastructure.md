@@ -207,6 +207,10 @@ settle`: on staging, which has no cron, whenever its guesses should be settled.
 
 - **Schema:** `src/db/schema.ts`; migrations in `drizzle/`, named
   `<verb>_<what>`, never edited once applied anywhere (CLAUDE.md).
+- **One trigger,** `game_group_member_last_out` (`0029_create_game_group`):
+  it deletes an Arvauspeli group once its last membership is gone, whether by
+  leaving or by an account's deletion. `drizzle-kit` does not track triggers,
+  so a change to it is a migration written by hand (decisions/078).
 - **`DATABASE_URL` is required, and nothing stands in for it.** Unset or
   empty, the first query and `npm run db:migrate` fail with a line naming the
   variable; neither falls back to `localhost` or the `PG*` variables, which is
