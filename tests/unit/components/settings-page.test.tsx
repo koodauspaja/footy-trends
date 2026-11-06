@@ -12,6 +12,7 @@ import { NO_PREFERENCES, type Preferences } from "@/lib/regions";
  * decisions/271-saved-value-in-settings-dropdowns.md
  * decisions/675-wait-for-the-control-not-the-notice.md
  * decisions/719-file-input-in-finnish.md
+ * decisions/077-nickname.md
  */
 
 const { refetch } = vi.hoisted(() => ({ refetch: vi.fn(async () => {}) }));
@@ -47,6 +48,7 @@ beforeEach(() => {
 
 vi.mock("@/lib/settings-actions", () => ({ saveSettings, signOutOtherDevices, deleteAccount }));
 vi.mock("@/lib/avatar-actions", () => ({ saveAvatarAction, removeAvatarAction }));
+vi.mock("@/lib/nickname-actions", () => ({ saveNicknameAction: vi.fn() }));
 // Wrapped, so the component gets a promise of its own: a mock handles the
 // rejection of the one it returns, which would hide one the component ignored.
 vi.mock("@/lib/auth-client", () => ({ useSession: () => ({ refetch: async () => refetch() }) }));
@@ -97,6 +99,7 @@ function renderPage(
       avatarVersion={null}
       googleImage={null}
       devices={devices}
+      nickname={{ nickname: null }}
       preferences={preferences}
       regionOptions={REGION_OPTIONS}
     />
@@ -209,6 +212,25 @@ describe("preferences", () => {
     expect(
       await screen.findByText("Asetusten tallentaminen epäonnistui. Yritä uudelleen.")
     ).toBeInTheDocument();
+  });
+});
+
+describe("Nimimerkki", () => {
+  it("comes after the profile picture, with the stored nickname in its field", () => {
+    render(
+      <SettingsPage
+        avatarVersion={null}
+        devices={[THIS_DEVICE]}
+        googleImage={null}
+        nickname={{ nickname: "Kalle" }}
+        preferences={NO_PREFERENCES}
+        regionOptions={REGION_OPTIONS}
+      />
+    );
+
+    const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    expect(headings.indexOf("Nimimerkki")).toBe(headings.indexOf("Profiilikuva") + 1);
+    expect(screen.getByLabelText("Nimimerkki")).toHaveValue("Kalle");
   });
 });
 
@@ -407,6 +429,7 @@ describe("a dropdown after the server sends the saved value back", () => {
         avatarVersion={null}
         googleImage={null}
         devices={[THIS_DEVICE]}
+        nickname={{ nickname: null }}
         preferences={{ ...NO_PREFERENCES, defaultCompetitionDomestic: "M1L" }}
         regionOptions={REGION_OPTIONS}
       />
@@ -424,6 +447,7 @@ describe("a dropdown after the server sends the saved value back", () => {
         avatarVersion={null}
         googleImage={null}
         devices={[THIS_DEVICE]}
+        nickname={{ nickname: null }}
         preferences={{ ...NO_PREFERENCES, defaultRegion: "kotimaa" }}
         regionOptions={REGION_OPTIONS}
       />
@@ -439,6 +463,7 @@ describe("a dropdown after the server sends the saved value back", () => {
         avatarVersion={null}
         googleImage={null}
         devices={[THIS_DEVICE]}
+        nickname={{ nickname: null }}
         preferences={{ ...NO_PREFERENCES, defaultCompetitionDomestic: "M1L" }}
         regionOptions={REGION_OPTIONS}
       />
@@ -450,6 +475,7 @@ describe("a dropdown after the server sends the saved value back", () => {
         avatarVersion={null}
         googleImage={null}
         devices={[THIS_DEVICE]}
+        nickname={{ nickname: null }}
         preferences={NO_PREFERENCES}
         regionOptions={REGION_OPTIONS}
       />
@@ -472,6 +498,7 @@ describe("a dropdown after the server sends the saved value back", () => {
         avatarVersion={null}
         googleImage={null}
         devices={[THIS_DEVICE]}
+        nickname={{ nickname: null }}
         preferences={{ ...NO_PREFERENCES }}
         regionOptions={REGION_OPTIONS}
       />
@@ -497,6 +524,7 @@ describe("Profiilikuva", () => {
         avatarVersion={avatarVersion}
         devices={[THIS_DEVICE]}
         googleImage={googleImage}
+        nickname={{ nickname: null }}
         preferences={NO_PREFERENCES}
         regionOptions={REGION_OPTIONS}
       />

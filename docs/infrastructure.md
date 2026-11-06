@@ -54,6 +54,7 @@ pins each value.
 |---|---|
 | Before traffic | `npm run db:migrate` (migrations are forward-only: redeploying an older commit does not roll the schema back) |
 | Start | `node node_modules/next/dist/bin/next start`, not `npm start`: under npm the server never received Railway's SIGTERM (#525) |
+| Node | the major in `.nvmrc`, 26. Railway's builder, Railpack, reads it: its build log lists `node │ 26.x │ idiomatic-version-file`. A push changing only `.nvmrc` deploys nothing (*Redeploys on*) |
 | Health check | `/api/health`, 60 s. It checks Postgres and Redis and reports the running commit |
 | Restart | on failure (Railway's default, deliberately not declared), at most 3 times |
 | Handover | 15 s overlap, then 10 s draining |
@@ -169,7 +170,21 @@ with nothing done in Railway.
 `npm run predictions -- log`, hourly on the hour (UTC), production only
 (specs/052). It skips `next build`. It writes `live` rows to `predictions`,
 and then the `backtest` rows of finished matches that have none, of every
-model (specs/057); a row that exists is left as it is.
+model (specs/057); a row that exists is left as it is. Straight after its
+refresh, before any of that, it settles every open Arvauspeli guess whose match
+has finished, been abandoned or awarded, or moved earlier than the guess
+(specs/072, specs/076), and pays a played match's rarity bonuses (specs/073)
+and the rewards for beating the prediction models (specs/074);
+a match that fails to settle is named in the run's
+failures. A match whose guesses still wait for a reason worth a look (gone
+from the store, a status not seen before, no result 48 hours after kickoff)
+gets a `warn`, `Arvauspeli guesses still waiting`, once per run.
+Then it settles the season guesses whose season has answered them (specs/075):
+the six once the regular season is played, the rest once both groups are,
+judged by the standings page's own tables, and voids and refunds one still
+open once the next season's first fixture is stored. It logs
+`Arvauspeli season guesses settled` every run, and names a season guess that
+fails to settle in the run's failures.
 
 The whole backtest is still run by hand, per environment:
 `DATABASE_URL=<that environment> npm run predictions -- backtest`, from a
@@ -180,6 +195,9 @@ checkout of the commit that environment runs. It rewrites every row.
 - **On staging, whenever its backtest rows should be current**: nothing
   scheduled runs there.
 
+Settling alone is `DATABASE_URL=<that environment> npm run predictions --
+settle`: on staging, which has no cron, whenever its guesses should be settled.
+
 ## Databases
 
 | | Staging | Production | Local | Tests |
@@ -189,6 +207,10 @@ checkout of the commit that environment runs. It rewrites every row.
 
 - **Schema:** `src/db/schema.ts`; migrations in `drizzle/`, named
   `<verb>_<what>`, never edited once applied anywhere (CLAUDE.md).
+- **One trigger,** `game_group_member_last_out` (`0029_create_game_group`):
+  it deletes an Arvauspeli group once its last membership is gone, whether by
+  leaving or by an account's deletion. `drizzle-kit` does not track triggers,
+  so a change to it is a migration written by hand (decisions/078).
 - **`DATABASE_URL` is required, and nothing stands in for it.** Unset or
   empty, the first query and `npm run db:migrate` fail with a line naming the
   variable; neither falls back to `localhost` or the `PG*` variables, which is

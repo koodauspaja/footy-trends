@@ -5,6 +5,7 @@ import {
   describeUncoveredBranches,
   findCoverageGaps,
   findUncoveredBranches,
+  isNestedCheckout,
   isPrunedDirectory,
   isSourceFile,
   matchesAnyPattern,
@@ -391,6 +392,17 @@ describe("matchesAnyPattern", () => {
 
   it("is false for no patterns at all", () => {
     expect(matchesAnyPattern("src/lib/a.ts", [])).toBe(false);
+  });
+});
+
+describe("isNestedCheckout", () => {
+  it("knows a directory holding a .git entry, a worktree's file or a clone's directory", () => {
+    expect(isNestedCheckout(["src", ".git", "package.json"])).toBe(true);
+  });
+
+  it("walks into an ordinary directory, a name merely like .git included", () => {
+    expect(isNestedCheckout(["src", ".github", ".gitignore"])).toBe(false);
+    expect(isNestedCheckout([])).toBe(false);
   });
 });
 

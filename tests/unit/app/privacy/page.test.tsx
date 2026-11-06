@@ -10,6 +10,11 @@ import Privacy, { metadata } from "@/app/privacy/page";
  * decisions/302-privacy-policy-and-footer.md
  * decisions/024-account-settings.md
  * decisions/071-section-toggles.md
+ * decisions/072-match-guesses.md
+ * decisions/077-nickname.md
+ * decisions/073-leaderboard.md
+ * decisions/078-private-groups.md
+ * decisions/079-group-members-guesses.md
  */
 
 describe("the privacy policy", () => {
@@ -36,6 +41,16 @@ describe("the privacy policy", () => {
     ["favorite_team", "Suosikkijoukkueesi"],
     ["favorite_competition", "-sarjasi"],
     ["section_choice", "osiot, jotka olet avannut tai sulkenut"],
+    ["game_guess, game_ledger", "Arvauspelin arvauksesi ja pelimerkkisi"],
+    ["user_nickname", "Nimimerkkisi"],
+    ["the leaderboard, to other users", "näkevät pelimerkkisi arvauspelin tulostaulukossa"],
+    ["game_group, game_group_member", "Arvauspelin ryhmät, joihin kuulut, ja niiden nimet"],
+    ["a group's board, to its members", "Ryhmän jäsenet näkevät toistensa"],
+    ["an invite link, to whoever holds it", "kutsulinkin saanut näkee ryhmän nimen ja"],
+    [
+      "a group's guesses, to its members",
+      "toistensa arvaukset otteluiden alettua, myös ennen ryhmään liittymistä tehdyt",
+    ],
   ])("describes what %s stores", (_column, phrase) => {
     render(<Privacy />);
 
@@ -67,6 +82,8 @@ describe("the privacy policy", () => {
     expect(screen.getAllByRole("link", { name: "Asetukset" }).length).toBeGreaterThan(0);
     expect(document.body.textContent).toContain("Poista tili");
     expect(document.body.textContent).toContain("osioiden valinnat");
+    expect(document.body.textContent).toContain("arvauspelin tiedot");
+    expect(document.body.textContent).toContain("arvauspelin ryhmäjäsenyydet");
   });
 
   it("does not claim deletion reaches the log store, because it does not", () => {

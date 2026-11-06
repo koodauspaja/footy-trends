@@ -38,6 +38,7 @@ function match(providerMatchId: number, year: number): NationalTeamMatch {
     groupId: 1,
     groupName: "A-maaottelut",
     status: "FINISHED",
+    providerStatus: null,
     kickoffAt: new Date(`${year}-06-05T19:00:00Z`),
     matchday: null,
     homeTeamProviderId: FINLAND_TEAM_ID,

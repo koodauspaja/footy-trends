@@ -1,0 +1,1 @@
+ALTER TABLE "taso_matches" ADD COLUMN "provider_status" text;

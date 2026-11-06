@@ -85,6 +85,9 @@ export type PredictionRow = {
   awayProbability: number;
   predictedAt: Date;
   kickoffAt: Date;
+  /** A Poisson live row's most likely score; absent on every other row. */
+  predictedHomeGoals?: number;
+  predictedAwayGoals?: number;
 };
 
 /**
@@ -239,10 +242,12 @@ export function eloVariantLiveRows(
 }
 
 /**
- * The `poisson-v1` live row for a match, from its provider's fit — or nothing
- * for a placeholder side or a competition the fit has no match of.
+ * The `poisson-v1` live row for a match, from its provider's fit, with its most
+ * likely score — or nothing for a placeholder side or a competition the fit has
+ * no match of.
  *
  * decisions/055-poisson-goal-model.md
+ * decisions/074-against-the-models.md
  */
 export function poissonLiveRow(
   candidate: LogCandidate,
@@ -262,5 +267,7 @@ export function poissonLiveRow(
     awayProbability: poisson.prediction.away,
     predictedAt: now,
     kickoffAt: candidate.kickoffAt,
+    predictedHomeGoals: poisson.score.home,
+    predictedAwayGoals: poisson.score.away,
   };
 }

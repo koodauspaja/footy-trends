@@ -1,0 +1,185 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+/**
+ * Arvauspeli's server actions: a request with no session, or with a match id or
+ * guess that is not one, stores nothing; the store's refusals reach the browser
+ * as the three a reader is told, and everything else as a failure to retry.
+ * A season guess's refusals reach it the same way, two told and the rest a
+ * failure.
+ *
+ * decisions/072-match-guesses.md
+ * decisions/075-season-guesses.md
+ */
+
+const { currentUserId, joinGame, placeGuess, placeSeasonGuess, logger } = vi.hoisted(() => ({
+  currentUserId: vi.fn(async (): Promise<string | null> => "user-1"),
+  joinGame: vi.fn(async () => undefined),
+  placeGuess: vi.fn(),
+  placeSeasonGuess: vi.fn(),
+  logger: { warn: vi.fn(), error: vi.fn() },
+}));
+
+vi.mock("@/lib/current-user", () => ({ currentUserId }));
+vi.mock("@/lib/guessing-game-store", () => ({ joinGame, placeGuess }));
+vi.mock("@/lib/guessing-game-season-store", () => ({ placeSeasonGuess }));
+vi.mock("@/lib/logger", () => ({ logger }));
+
+const { joinGameAction, placeGuessAction, placeSeasonGuessAction } = await import(
+  "@/lib/guessing-game-actions"
+);
+
+const OUTCOME = { kind: "outcome", outcome: "X" };
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  currentUserId.mockResolvedValue("user-1");
+  joinGame.mockResolvedValue(undefined);
+});
+
+describe("joinGameAction", () => {
+  it("joins the signed-in reader", async () => {
+    expect(await joinGameAction()).toEqual({ ok: true });
+    expect(joinGame).toHaveBeenCalledWith("user-1", expect.any(Date));
+  });
+
+  it("refuses a request with no session, and logs it", async () => {
+    currentUserId.mockResolvedValue(null);
+
+    expect(await joinGameAction()).toEqual({ ok: false });
+    expect(joinGame).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith("Arvauspeli join refused: no session");
+  });
+
+  it("answers a failed write with ok false, and logs it", async () => {
+    joinGame.mockRejectedValue(new Error("database down"));
+
+    expect(await joinGameAction()).toEqual({ ok: false });
+    expect(logger.error).toHaveBeenCalledWith(
+      { err: expect.any(Error) },
+      "Joining Arvauspeli failed"
+    );
+  });
+});
+
+describe("placeGuessAction", () => {
+  it("places a parsed guess for the signed-in reader", async () => {
+    placeGuess.mockResolvedValue({ ok: true, decision: { kind: "new", price: 10 } });
+
+    expect(await placeGuessAction(42, OUTCOME, 10)).toEqual({ ok: true });
+    expect(placeGuess).toHaveBeenCalledWith(
+      "user-1",
+      42,
+      { kind: "outcome", outcome: "X" },
+      10,
+      expect.any(Function)
+    );
+    // The store reads the clock once it holds the player's lock.
+    const clock = placeGuess.mock.calls[0]?.[4] as () => Date;
+    expect(clock()).toBeInstanceOf(Date);
+  });
+
+  it("refuses a match id that is not a positive whole number, before reading anything", async () => {
+    for (const id of [0, -1, 1.5, "42", Number.MAX_SAFE_INTEGER + 1, null]) {
+      expect(await placeGuessAction(id, OUTCOME, 10)).toEqual({ ok: false, reason: "failed" });
+    }
+    expect(currentUserId).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith(
+      { providerMatchId: "42" },
+      "Arvauspeli guess refused: not a guess"
+    );
+  });
+
+  it("refuses a shown price that is not a whole number of tokens, before reading anything", async () => {
+    for (const price of [-1, 1.5, "10", null]) {
+      expect(await placeGuessAction(42, OUTCOME, price)).toEqual({ ok: false, reason: "failed" });
+    }
+    expect(currentUserId).not.toHaveBeenCalled();
+  });
+
+  it("refuses a guess that is not one", async () => {
+    expect(await placeGuessAction(42, { kind: "outcome", outcome: "3" }, 10)).toEqual({
+      ok: false,
+      reason: "failed",
+    });
+    expect(placeGuess).not.toHaveBeenCalled();
+  });
+
+  it("refuses a request with no session", async () => {
+    currentUserId.mockResolvedValue(null);
+
+    expect(await placeGuessAction(42, OUTCOME, 10)).toEqual({ ok: false, reason: "failed" });
+    expect(placeGuess).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith("Arvauspeli guess refused: no session");
+  });
+
+  it("passes the four refusals a reader is told", async () => {
+    for (const reason of ["started", "insufficient", "free-fixed", "price-changed"]) {
+      placeGuess.mockResolvedValueOnce({ ok: false, reason });
+      expect(await placeGuessAction(42, OUTCOME, 10)).toEqual({ ok: false, reason });
+    }
+  });
+
+  it("answers any other refusal as a failure to retry", async () => {
+    for (const reason of ["not-joined", "unknown-match", "settled"]) {
+      placeGuess.mockResolvedValueOnce({ ok: false, reason });
+      expect(await placeGuessAction(42, OUTCOME, 10)).toEqual({ ok: false, reason: "failed" });
+    }
+  });
+
+  it("answers a failed write as a failure, and logs it", async () => {
+    placeGuess.mockRejectedValue(new Error("database down"));
+
+    expect(await placeGuessAction(42, OUTCOME, 10)).toEqual({ ok: false, reason: "failed" });
+    expect(logger.error).toHaveBeenCalledWith(
+      { err: expect.any(Error) },
+      "Placing an Arvauspeli guess failed"
+    );
+  });
+});
+
+describe("placeSeasonGuessAction", () => {
+  const CHAMPION = { kind: "champion", teams: [100] };
+
+  it("places the guess for the signed-in reader, as the browser sent it", async () => {
+    placeSeasonGuess.mockResolvedValue({ ok: true, outcome: "placed" });
+
+    expect(await placeSeasonGuessAction(CHAMPION)).toEqual({ ok: true });
+    expect(placeSeasonGuess).toHaveBeenCalledWith("user-1", CHAMPION, expect.any(Function));
+    const clock = placeSeasonGuess.mock.calls[0]?.[2] as () => Date;
+    expect(clock()).toBeInstanceOf(Date);
+  });
+
+  it("refuses a request with no session, and logs it", async () => {
+    currentUserId.mockResolvedValue(null);
+
+    expect(await placeSeasonGuessAction(CHAMPION)).toEqual({ ok: false, reason: "failed" });
+    expect(placeSeasonGuess).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith("Arvauspeli season guess refused: no session");
+  });
+
+  it("tells the reader a locked season and a short balance", async () => {
+    for (const reason of ["locked", "insufficient"]) {
+      placeSeasonGuess.mockResolvedValue({ ok: false, reason });
+
+      expect(await placeSeasonGuessAction(CHAMPION)).toEqual({ ok: false, reason });
+    }
+  });
+
+  it("answers every other refusal as a failure to retry", async () => {
+    for (const reason of ["not-joined", "no-season", "teams"]) {
+      placeSeasonGuess.mockResolvedValue({ ok: false, reason });
+
+      expect(await placeSeasonGuessAction(CHAMPION)).toEqual({ ok: false, reason: "failed" });
+    }
+  });
+
+  it("answers a failed write as a failure, and logs it", async () => {
+    placeSeasonGuess.mockRejectedValue(new Error("database down"));
+
+    expect(await placeSeasonGuessAction(CHAMPION)).toEqual({ ok: false, reason: "failed" });
+    expect(logger.error).toHaveBeenCalledWith(
+      { err: expect.any(Error) },
+      "Placing an Arvauspeli season guess failed"
+    );
+  });
+});

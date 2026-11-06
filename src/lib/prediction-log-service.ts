@@ -8,6 +8,7 @@
  * decisions/055-poisson-goal-model.md
  * decisions/057-surprise-index.md
  * decisions/060-elo-variants.md
+ * decisions/072-match-guesses.md
  */
 
 import { and, eq, gt, inArray, isNotNull, lte, sql } from "drizzle-orm";
@@ -18,6 +19,8 @@ import { categoryIdsFor, competitionForSeasonPair } from "./domestic-competition
 import { isRated, type TeamRating } from "./elo";
 import { replayVariants, type VariantState } from "./elo-variants";
 import { getSeasonMatches as getFootballDataSeasonMatches } from "./football-data";
+import { settleSeasonGuesses } from "./guessing-game-season-store";
+import { settleGuesses } from "./guessing-game-store";
 import { HOME_BASELINE_MODEL, isPredictedCup, PREDICTED_COMPETITIONS } from "./home-baseline";
 import { logger } from "./logger";
 import {
@@ -196,6 +199,7 @@ function batches<T>(rows: readonly T[], size: number): T[][] {
  *
  * decisions/052-predictions-log.md
  * decisions/571-bounded-database-close.md
+ * decisions/074-against-the-models.md
  */
 async function writePredictions(rows: readonly PredictionRow[]): Promise<void> {
   const failures: unknown[] = [];
@@ -218,6 +222,8 @@ async function writePredictions(rows: readonly PredictionRow[]): Promise<void> {
             awayProbability: sql`excluded.away_probability`,
             predictedAt: sql`excluded.predicted_at`,
             kickoffAt: sql`excluded.kickoff_at`,
+            predictedHomeGoals: sql`excluded.predicted_home_goals`,
+            predictedAwayGoals: sql`excluded.predicted_away_goals`,
           },
         })
         .catch((reason: unknown) => {
@@ -245,6 +251,8 @@ export type PredictionRunReport = {
   logged: number;
   /** Backtest rows written, of matches finished since the last backtest. */
   backtested: number;
+  /** Arvauspeli guesses settled, after the refresh stored their results. */
+  settled: number;
   /** One line per competition that failed, to refresh or to predict. */
   failures: string[];
 };
@@ -289,6 +297,9 @@ export async function runPredictionLog(
 
   // Read again: the refresh may have moved a kickoff or finished a match.
   const candidates = await readCandidates(startedAt);
+  // Straight after the refresh: settling needs no model, and a failed write of
+  // the predictions below must not hold up the payouts.
+  const settled = await settle(clock(), failures);
   const keyOf = (candidate: LogCandidate) => `${candidate.source}:${candidate.code}`;
   const competitions = new Map(
     candidates
@@ -371,10 +382,41 @@ export async function runPredictionLog(
     refreshed: targets.length - refreshFailures.length,
     logged: rows.length,
     backtested,
+    settled,
     failures,
   };
   logger.info(report, "Predictions run finished");
   return report;
+}
+
+/**
+ * Settles the Arvauspeli guesses whose matches are finished, then the season
+ * guesses whose season has answered them, adding a failure for each match or
+ * season guess that could not be and for a step that failed outright.
+ *
+ * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
+ * decisions/075-season-guesses.md
+ */
+export async function settle(now: Date, failures: string[]): Promise<number> {
+  let settled = 0;
+  try {
+    const report = await settleGuesses(now);
+    failures.push(...report.failed.map((providerMatchId) => `settle match ${providerMatchId}`));
+    settled += report.rewarded + report.missed + report.refunded + report.voided;
+  } catch (error) {
+    logger.error({ err: error }, "Unable to settle Arvauspeli guesses");
+    failures.push("settle");
+  }
+  try {
+    const report = await settleSeasonGuesses(now);
+    failures.push(...report.failed.map((id) => `settle season guess ${id}`));
+    settled += report.settled;
+  } catch (error) {
+    logger.error({ err: error }, "Unable to settle Arvauspeli season guesses");
+    failures.push("settle seasons");
+  }
+  return settled;
 }
 
 /**

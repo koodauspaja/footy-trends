@@ -13,6 +13,11 @@ export const metadata: Metadata = { title: HEADING };
  *
  * decisions/302-privacy-policy-and-footer.md
  * decisions/071-section-toggles.md
+ * decisions/072-match-guesses.md
+ * decisions/077-nickname.md
+ * decisions/073-leaderboard.md
+ * decisions/078-private-groups.md
+ * decisions/079-group-members-guesses.md
  */
 const SECTION = "mb-8";
 const HEADING_2 = "mb-3 font-semibold text-xl";
@@ -21,7 +26,7 @@ const LIST = "list-disc space-y-1 pl-6";
 export default function Privacy() {
   return (
     <PageShell heading={HEADING}>
-      <p className="mb-8 text-muted text-sm">Päivitetty 24.10.2026</p>
+      <p className="mb-8 text-muted text-sm">Päivitetty 6.11.2026</p>
 
       <section className={SECTION}>
         <h2 className={HEADING_2}>Lyhyesti</h2>
@@ -52,15 +57,29 @@ export default function Privacy() {
             Sivujen osiot, jotka olet avannut tai sulkenut, jotta ne näkyvät seuraavalla kerralla
             samoin.
           </li>
+          <li>
+            Arvauspelin arvauksesi ja pelimerkkisi. Muut kirjautuneet käyttäjät näkevät pelimerkkisi
+            arvauspelin tulostaulukossa.
+          </li>
+          <li>
+            Nimimerkkisi, jos olet valinnut sellaisen. Muut kirjautuneet käyttäjät näkevät sen
+            arvauspelin tulostaulukossa.
+          </li>
+          <li>
+            Arvauspelin ryhmät, joihin kuulut, ja niiden nimet. Ryhmän jäsenet näkevät toistensa
+            nimimerkit ja pelimerkit ryhmän tulostaulukossa ja toistensa arvaukset otteluiden
+            alettua, myös ennen ryhmään liittymistä tehdyt, ja kutsulinkin saanut näkee ryhmän nimen
+            ja jäsenmäärän.
+          </li>
         </ul>
       </section>
 
       <section className={SECTION}>
         <h2 className={HEADING_2}>Miksi tietoja käsitellään</h2>
         <p>
-          Jotta kirjautuminen toimii ja jotta omat asetuksesi ja suosikkisi näkyvät sinulle.
-          Käsittelyn peruste on palvelun toteuttaminen sinulle. Tietoja ei käytetä mainontaan,
-          profilointiin eikä myydä eteenpäin.
+          Jotta kirjautuminen toimii, jotta omat asetuksesi ja suosikkisi näkyvät sinulle ja jotta
+          voit pelata arvauspeliä. Käsittelyn peruste on palvelun toteuttaminen sinulle. Tietoja ei
+          käytetä mainontaan, profilointiin eikä myydä eteenpäin.
         </p>
       </section>
 
@@ -109,8 +128,8 @@ export default function Privacy() {
         <p>
           Sivulla <Link href="/asetukset">Asetukset</Link> on
           <strong> Poista tili</strong>. Se poistaa tilin ja kaiken siihen liittyvän heti:
-          asetukset, profiilikuvan, suosikit, osioiden valinnat ja kirjautumistiedot. Erillistä
-          pyyntöä ei tarvita.
+          asetukset, profiilikuvan, nimimerkin, suosikit, osioiden valinnat, arvauspelin tiedot,
+          arvauspelin ryhmäjäsenyydet ja kirjautumistiedot. Erillistä pyyntöä ei tarvita.
         </p>
       </section>
 

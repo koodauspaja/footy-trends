@@ -7,9 +7,11 @@ import { warmModules } from "../../support/warm-module";
  * records what was written, so a refusal can be checked for having written nothing.
  *
  * decisions/028-admin-tools-and-roles.md
+ * decisions/077-nickname.md
  */
 
-const { state, logger } = vi.hoisted(() => ({
+const { state, logger, clearNickname } = vi.hoisted(() => ({
+  clearNickname: vi.fn(async (_userId: string) => undefined),
   state: {
     target: undefined as { role: string } | undefined,
     adminCount: 2,
@@ -21,6 +23,8 @@ const { state, logger } = vi.hoisted(() => ({
     limits: [] as number[],
     offsets: [] as number[],
     orderKeys: 0,
+    joined: 0,
+    projected: [] as string[],
     total: 3,
     countMissing: false,
     totalMissing: false,
@@ -29,6 +33,7 @@ const { state, logger } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/logger", () => ({ logger }));
+vi.mock("@/lib/nickname-store", () => ({ clearNickname }));
 vi.mock("@/db", () => {
   const tx = {
     execute: vi.fn(async () => {
@@ -73,7 +78,8 @@ vi.mock("@/db", () => {
           // `listUsers` counts first, then reads a page. Told apart by shape:
           // the count selects one aliased column and is awaited directly.
           if ("n" in shape) return Promise.resolve(state.totalMissing ? [] : [{ n: state.total }]);
-          return {
+          state.projected = Object.keys(shape);
+          const page = {
             orderBy: (...keys: unknown[]) => {
               state.orderKeys = keys.length;
               return {
@@ -87,6 +93,12 @@ vi.mock("@/db", () => {
                   };
                 },
               };
+            },
+          };
+          return {
+            leftJoin: () => {
+              state.joined += 1;
+              return page;
             },
           };
         },
@@ -106,12 +118,15 @@ beforeEach(() => {
   state.limits = [];
   state.offsets = [];
   state.orderKeys = 0;
+  state.joined = 0;
+  state.projected = [];
   state.total = 3;
   state.countMissing = false;
   state.totalMissing = false;
   state.countMissing = false;
   logger.error.mockReset();
   logger.info.mockReset();
+  clearNickname.mockReset().mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -371,6 +386,18 @@ describe("listUsers", () => {
     await expect(listUsers(1).then((p) => p.users[0]?.role)).resolves.toBe("user");
   });
 
+  it("reads each user's nickname with them, null for one who has none", async () => {
+    state.listed = [row({ nickname: "Kalle" }), row({ id: "u2", nickname: null })];
+    const { listUsers } = await import("@/lib/admin-users");
+
+    const { users } = await listUsers(1);
+
+    expect(state.joined).toBe(1);
+    // The rows above are the mock's; what the query asks for is the claim.
+    expect(state.projected).toContain("nickname");
+    expect(users.map((u) => u.nickname)).toEqual(["Kalle", null]);
+  });
+
   it("asks for one page of rows, offset by the page asked for", async () => {
     state.total = 173;
     const { listUsers } = await import("@/lib/admin-users");
@@ -450,5 +477,34 @@ describe("the page ordering", () => {
     await listUsers(1);
 
     expect(state.orderKeys).toBe(2);
+  });
+});
+
+describe("clearNicknameOf", () => {
+  it("clears the target's nickname and records who did it, by id alone", async () => {
+    const { clearNicknameOf } = await import("@/lib/admin-users");
+
+    await expect(clearNicknameOf("admin-1", "reader-1")).resolves.toEqual({ ok: true });
+    expect(clearNickname).toHaveBeenCalledWith("reader-1");
+    expect(logger.info).toHaveBeenCalledWith(
+      { actingAdminId: "admin-1", targetUserId: "reader-1" },
+      "Nickname cleared by admin"
+    );
+  });
+
+  it("reports a failure rather than throwing, and logs it", async () => {
+    const error = new Error("database down");
+    clearNickname.mockRejectedValue(error);
+    const { clearNicknameOf } = await import("@/lib/admin-users");
+
+    await expect(clearNicknameOf("admin-1", "reader-1")).resolves.toEqual({
+      ok: false,
+      reason: "failed",
+    });
+    expect(logger.error).toHaveBeenCalledWith(
+      { err: error, actingAdminId: "admin-1", targetUserId: "reader-1" },
+      "Clearing a nickname failed"
+    );
+    expect(logger.info).not.toHaveBeenCalled();
   });
 });

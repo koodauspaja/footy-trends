@@ -10,13 +10,17 @@ import type { AdminUser } from "@/lib/admin-user-view";
  *
  * decisions/028-admin-tools-and-roles.md
  * decisions/408-refusal-cleared-waits-for-the-button.md
+ * decisions/077-nickname.md
  */
 
-const { promoteUserAction, demoteUserAction, deleteUserAction } = vi.hoisted(() => ({
-  promoteUserAction: vi.fn(),
-  demoteUserAction: vi.fn(),
-  deleteUserAction: vi.fn(),
-}));
+const { promoteUserAction, demoteUserAction, deleteUserAction, clearNicknameAction } = vi.hoisted(
+  () => ({
+    promoteUserAction: vi.fn(),
+    demoteUserAction: vi.fn(),
+    deleteUserAction: vi.fn(),
+    clearNicknameAction: vi.fn(),
+  })
+);
 
 const { reportClientError } = vi.hoisted(() => ({ reportClientError: vi.fn() }));
 
@@ -30,12 +34,14 @@ vi.mock("@/lib/admin-actions", () => ({
   promoteUserAction,
   demoteUserAction,
   deleteUserAction,
+  clearNicknameAction,
 }));
 
 const ADMIN: AdminUser = {
   id: "admin-1",
   email: "admin@example.fi",
   name: "Aino Ylläpitäjä",
+  nickname: "Aino",
   role: "admin",
   createdAt: new Date("2026-03-04T10:00:00Z"),
 };
@@ -43,6 +49,7 @@ const READER: AdminUser = {
   id: "reader-1",
   email: "lukija@example.fi",
   name: "Lauri Lukija",
+  nickname: null,
   role: "user",
   createdAt: new Date("2026-01-02T10:00:00Z"),
 };
@@ -67,6 +74,7 @@ beforeEach(() => {
   promoteUserAction.mockReset().mockResolvedValue({ ok: true });
   demoteUserAction.mockReset().mockResolvedValue({ ok: true });
   deleteUserAction.mockReset().mockResolvedValue({ ok: true });
+  clearNicknameAction.mockReset().mockResolvedValue({ ok: true });
 });
 
 afterEach(() => {
@@ -169,11 +177,12 @@ describe("deleting", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Poista tili" }));
 
-    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
-    expect(screen.getByText("Poistetaanko lukija@example.fi pysyvästi?")).toBeInTheDocument();
+    expect(
+      screen.getByRole("alertdialog", { name: "Poistetaanko lukija@example.fi pysyvästi?" })
+    ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Tämä poistaa tilin, suosikit, asetukset ja profiilikuvan. Tätä ei voi perua."
+        "Tämä poistaa tilin, suosikit, asetukset, profiilikuvan, nimimerkin ja arvauspelin tiedot. Tätä ei voi perua."
       )
     ).toBeInTheDocument();
     // Nothing has happened yet — the question is the point.
@@ -197,6 +206,83 @@ describe("deleting", () => {
 
     expect(deleteUserAction).not.toHaveBeenCalled();
     expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+});
+
+describe("clearing a nickname", () => {
+  const NAMED: AdminUser = { ...READER, nickname: "Lauri L" };
+  const CLEAR = "Tyhjennä nimimerkki";
+
+  it("shows each user's nickname, and nothing for one without", () => {
+    renderTable([ADMIN, READER]);
+
+    expect(screen.getByRole("columnheader", { name: "Nimimerkki" })).toBeInTheDocument();
+    expect(screen.getByText("Aino")).toBeInTheDocument();
+    const readerRow = screen.getByText("lukija@example.fi").closest("tr") as HTMLElement;
+    expect(readerRow.querySelectorAll("td")[2]).toHaveTextContent("");
+  });
+
+  it("is offered only on another user's row that has one", () => {
+    renderTable([ADMIN, READER, NAMED]);
+
+    // The acting admin's own nickname is cleared on their settings page.
+    expect(screen.getAllByRole("button", { name: CLEAR })).toHaveLength(1);
+  });
+
+  it("asks first, naming the account", () => {
+    renderTable([NAMED]);
+
+    fireEvent.click(screen.getByRole("button", { name: CLEAR }));
+
+    expect(
+      screen.getByRole("alertdialog", {
+        name: "Tyhjennetäänkö käyttäjän lukija@example.fi nimimerkki?",
+      })
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Tätä ei voi perua/)).toBeNull();
+    expect(clearNicknameAction).not.toHaveBeenCalled();
+  });
+
+  it("clears it once confirmed, and says so", async () => {
+    renderTable([NAMED]);
+
+    fireEvent.click(screen.getByRole("button", { name: CLEAR }));
+    fireEvent.click(screen.getAllByRole("button", { name: CLEAR }).at(-1) as HTMLElement);
+
+    expect(clearNicknameAction).toHaveBeenCalledWith("reader-1");
+    expect(deleteUserAction).not.toHaveBeenCalled();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Nimimerkki tyhjennetty.");
+  });
+
+  it("cancels without clearing", () => {
+    renderTable([NAMED]);
+
+    fireEvent.click(screen.getByRole("button", { name: CLEAR }));
+    fireEvent.click(screen.getByRole("button", { name: "Peruuta" }));
+
+    expect(clearNicknameAction).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("says a failed clear failed", async () => {
+    clearNicknameAction.mockResolvedValue({ ok: false, reason: "failed" });
+    renderTable([NAMED]);
+
+    fireEvent.click(screen.getByRole("button", { name: CLEAR }));
+    fireEvent.click(screen.getAllByRole("button", { name: CLEAR }).at(-1) as HTMLElement);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Toiminto epäonnistui. Yritä uudelleen."
+    );
+  });
+
+  it("says nothing after a role change that worked", async () => {
+    renderTable([READER]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Tee ylläpitäjäksi" }));
+
+    await waitFor(() => expect(promoteUserAction).toHaveBeenCalled());
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });
 

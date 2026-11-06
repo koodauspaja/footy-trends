@@ -119,6 +119,7 @@ export const matches = pgTable(
  * decisions/019-match-page.md
  * decisions/020-context-free-team-page.md
  * decisions/027-team-search.md
+ * decisions/076-guesses-on-irregular-matches.md
  */
 export const tasoMatches = pgTable(
   "taso_matches",
@@ -139,6 +140,9 @@ export const tasoMatches = pgTable(
     // re-indexed per group. Null when TASO reports no round for the match.
     matchday: integer("matchday"),
     status: text("status").notNull(),
+    // TASO's own status, `Forfeited` kept apart from `Played`; null when not
+    // stored, and `status` is then all that is known.
+    providerStatus: text("provider_status"),
     // TASO's verdict on who went through, null until played: a cup tie level after
     // normal time goes to penalties it does not itemise.
     winner: text("winner").$type<TasoWinner>(),
@@ -426,6 +430,22 @@ export const userAvatar = pgTable("user_avatar", {
 });
 
 /**
+ * A user's own nickname, the name other players see in `Arvauspeli`. A table
+ * of its own: better-auth rewrites `user` on every sign-in.
+ *
+ * decisions/077-nickname.md
+ */
+export const userNickname = pgTable("user_nickname", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  nickname: text("nickname").notNull(),
+  /** The nickname with its case folded, which two nicknames are compared by: one user per key. */
+  nicknameKey: text("nickname_key").notNull().unique(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
  * A reader's favourite teams. The identity is `(source, team_provider_id)`, not
  * a competition: a favourite follows the club.
  *
@@ -520,6 +540,7 @@ export const refreshRuns = pgTable("refresh_runs", {
  * the match tables. One `live` and one `backtest` row per match per model.
  *
  * decisions/052-predictions-log.md
+ * decisions/074-against-the-models.md
  */
 export const predictions = pgTable(
   "predictions",
@@ -541,6 +562,9 @@ export const predictions = pgTable(
     predictedAt: timestamp("predicted_at", { withTimezone: true }).notNull(),
     /** The kickoff the prediction was made against; it follows a rescheduled match. */
     kickoffAt: timestamp("kickoff_at", { withTimezone: true }).notNull(),
+    /** A `poisson-v1` live row's most likely score, its guess in `Arvauspeli`; null otherwise. */
+    predictedHomeGoals: integer("predicted_home_goals"),
+    predictedAwayGoals: integer("predicted_away_goals"),
   },
   (table) => [
     uniqueIndex("predictions_identity_idx").on(
@@ -574,5 +598,196 @@ export const sectionChoice = pgTable(
   },
   (table) => [
     uniqueIndex("section_choice_identity_idx").on(table.userId, table.pageKind, table.section),
+  ]
+);
+
+/**
+ * A reader who has joined `Arvauspeli`, from then on in every season.
+ *
+ * decisions/072-match-guesses.md
+ */
+export const gamePlayer = pgTable("game_player", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  joinedAt: timestamp("joined_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * A player's one guess on one stored TASO match: a 1X2 or an exact score. A
+ * change rewrites the row; what each version cost is in the ledger.
+ *
+ * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
+ */
+export const gameGuess = pgTable(
+  "game_guess",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => gamePlayer.userId, { onDelete: "cascade" }),
+    seasonId: integer("season_id").notNull(),
+    /** TASO's own match id, as `taso_matches.taso_match_id` holds it. */
+    providerMatchId: integer("taso_match_id").notNull(),
+    /** `"outcome"` or `"score"`. */
+    kind: text("kind").notNull(),
+    /** `"1"`, `"X"` or `"2"` for an outcome guess, else null. */
+    outcome: text("outcome"),
+    /** Both set for a score guess, both null for an outcome guess. */
+    homeGoals: integer("home_goals"),
+    awayGoals: integer("away_goals"),
+    /** The floor's free 1X2: changed only after a postponement, and as a 1X2. */
+    free: boolean("free").notNull().default(false),
+    madeAt: timestamp("made_at", { withTimezone: true }).notNull(),
+    /** The stored kickoff when the guess was last made or changed: a later one is a postponement. */
+    kickoffAt: timestamp("kickoff_at", { withTimezone: true }).notNull(),
+    settledAt: timestamp("settled_at", { withTimezone: true }),
+    /**
+     * How it was settled: a played match's `"exact"`, `"difference"`, `"outcome"`
+     * or `"miss"`, else `"awarded"`, `"abandoned"`, `"undecided"` or `"void"`.
+     */
+    tier: text("tier"),
+    /** The result the guess was judged against, kept as it was when settled. */
+    resultHomeGoals: integer("result_home_goals"),
+    resultAwayGoals: integer("result_away_goals"),
+  },
+  (table) => [
+    uniqueIndex("game_guess_identity_idx").on(table.userId, table.providerMatchId),
+    // The settling run reads only the guesses still open.
+    index("game_guess_open_idx").on(table.providerMatchId).where(sql`${table.settledAt} is null`),
+  ]
+);
+
+/**
+ * A player's guess on a Veikkausliiga season as a whole, one of each kind per
+ * season. A change before the lock rewrites the row; it costs nothing.
+ *
+ * decisions/075-season-guesses.md
+ */
+export const gameSeasonGuess = pgTable(
+  "game_season_guess",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => gamePlayer.userId, { onDelete: "cascade" }),
+    seasonId: integer("season_id").notNull(),
+    /** `"champion"`, `"upper"`, `"last"` or `"table"`. */
+    kind: text("kind").notNull(),
+    /** TASO team ids in the guess's order: the table's first is its 1st place. */
+    teams: integer("teams").array().notNull(),
+    madeAt: timestamp("made_at", { withTimezone: true }).notNull(),
+    /** When it was last changed, or null if never. */
+    changedAt: timestamp("changed_at", { withTimezone: true }),
+    /** The lock it was placed under, which a postponed first match does not move later. */
+    lockAt: timestamp("lock_at", { withTimezone: true }).notNull(),
+    settledAt: timestamp("settled_at", { withTimezone: true }),
+    /** What it paid, or null for a guess voided and refunded. */
+    reward: integer("reward"),
+    /** Teams right, and for a table the teams one place off, as settled. */
+    rightCount: integer("right_count"),
+    nearCount: integer("near_count"),
+  },
+  (table) => [
+    uniqueIndex("game_season_guess_identity_idx").on(table.userId, table.seasonId, table.kind),
+    // A season's lock, its shares and its leaderboard read by season.
+    index("game_season_guess_season_idx").on(table.seasonId, table.kind),
+    // The hourly run reads only the guesses still open.
+    index("game_season_guess_open_idx").on(table.seasonId).where(sql`${table.settledAt} is null`),
+  ]
+);
+
+/**
+ * Every token movement, append-only: a player's balance in a season is the sum
+ * of its amounts, never a figure stored of its own.
+ *
+ * decisions/072-match-guesses.md
+ * decisions/076-guesses-on-irregular-matches.md
+ * decisions/073-leaderboard.md
+ * decisions/074-against-the-models.md
+ * decisions/075-season-guesses.md
+ */
+export const gameLedger = pgTable(
+  "game_ledger",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => gamePlayer.userId, { onDelete: "cascade" }),
+    seasonId: integer("season_id").notNull(),
+    /**
+     * `"grant"`, `"guess"`, `"change"`, `"reward"`, `"refund"`, `"bonus"` or
+     * `"models"`; for a season guess `"season-guess"`, `"season-reward"` or
+     * `"season-refund"`.
+     */
+    kind: text("kind").notNull(),
+    /** Negative for what a guess or a change cost, positive or zero otherwise. */
+    amount: integer("amount").notNull(),
+    guessId: integer("guess_id").references(() => gameGuess.id, { onDelete: "cascade" }),
+    seasonGuessId: integer("season_guess_id").references(() => gameSeasonGuess.id, {
+      onDelete: "cascade",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("game_ledger_balance_idx").on(table.userId, table.seasonId),
+    // One grant per player and season, and one settlement per guess, a reward
+    // or a refund: a second write fails, so a retry can never pay twice.
+    uniqueIndex("game_ledger_grant_idx")
+      .on(table.userId, table.seasonId)
+      .where(sql`${table.kind} = 'grant'`),
+    uniqueIndex("game_ledger_settlement_idx")
+      .on(table.guessId)
+      .where(sql`${table.kind} in ('reward', 'refund')`),
+    // One rarity bonus per guess, and one reward for beating the models, for the same reason.
+    uniqueIndex("game_ledger_bonus_idx").on(table.guessId).where(sql`${table.kind} = 'bonus'`),
+    uniqueIndex("game_ledger_models_idx").on(table.guessId).where(sql`${table.kind} = 'models'`),
+    // One price and one settlement per season guess, for the same reason.
+    uniqueIndex("game_ledger_season_price_idx")
+      .on(table.seasonGuessId)
+      .where(sql`${table.kind} = 'season-guess'`),
+    uniqueIndex("game_ledger_season_settlement_idx")
+      .on(table.seasonGuessId)
+      .where(sql`${table.kind} in ('season-reward', 'season-refund')`),
+  ]
+);
+
+/**
+ * A private group of `Arvauspeli` players, joined by its invite link. Its owner
+ * is not stored: it is the member who joined earliest.
+ *
+ * decisions/078-private-groups.md
+ */
+export const gameGroup = pgTable("game_group", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  /** The invite link's secret; renewing replaces it, so the old link stops working. */
+  inviteToken: text("invite_token").notNull().unique(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * A player's membership of a group. The lowest id is the owner's; a trigger
+ * from the migration deletes the group once its last membership is gone.
+ *
+ * decisions/078-private-groups.md
+ */
+export const gameGroupMember = pgTable(
+  "game_group_member",
+  {
+    id: serial("id").primaryKey(),
+    groupId: integer("group_id")
+      .notNull()
+      .references(() => gameGroup.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => gamePlayer.userId, { onDelete: "cascade" }),
+    joinedAt: timestamp("joined_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("game_group_member_identity_idx").on(table.groupId, table.userId),
+    // A player's groups, and the limit on how many, are read by player.
+    index("game_group_member_user_idx").on(table.userId),
   ]
 );

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin-guard";
 import { DEFAULT_ROLE } from "@/lib/admin-role";
 import type { AdminWriteResult } from "@/lib/admin-user-view";
-import { changeRole, deleteUser } from "@/lib/admin-users";
+import { changeRole, clearNicknameOf, deleteUser } from "@/lib/admin-users";
 
 /**
  * The `"use server"` boundary for administration. `requireAdmin()` runs first
@@ -12,6 +12,7 @@ import { changeRole, deleteUser } from "@/lib/admin-users";
  * id comes from that gate, never from the caller.
  *
  * decisions/028-admin-tools-and-roles.md
+ * decisions/077-nickname.md
  */
 
 /**
@@ -48,6 +49,15 @@ export async function deleteUserAction(userId: string): Promise<AdminWriteResult
   if (adminId === null) return { ok: false, reason: "failed" };
 
   const result = await deleteUser(adminId, userId);
+  if (result.ok) revalidateAdmin();
+  return result;
+}
+
+export async function clearNicknameAction(userId: string): Promise<AdminWriteResult> {
+  const adminId = await requireAdmin();
+  if (adminId === null) return { ok: false, reason: "failed" };
+
+  const result = await clearNicknameOf(adminId, userId);
   if (result.ok) revalidateAdmin();
   return result;
 }

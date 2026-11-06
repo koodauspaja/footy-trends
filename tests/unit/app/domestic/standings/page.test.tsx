@@ -96,6 +96,7 @@ function buildMatch(overrides: Partial<NormalizedTasoMatch> = {}): NormalizedTas
     groupId: 1,
     groupName: "Runkosarja",
     status: "FINISHED",
+    providerStatus: null,
     kickoffAt: new Date("2026-04-01T14:00:00Z"),
     matchday: 1,
     homeTeamProviderId: 1,

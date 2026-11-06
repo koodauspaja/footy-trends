@@ -3,6 +3,7 @@
  * the e2e stand-in's data on every one.
  *
  * decisions/695-ux-sweep.md
+ * decisions/078-private-groups.md
  */
 export const UX_PAGES: ReadonlyArray<readonly [string, string]> = [
   ["front", "/"],
@@ -29,6 +30,10 @@ export const UX_PAGES: ReadonlyArray<readonly [string, string]> = [
   ["upcoming-match", "/kotimaa/ottelu/4353547"],
   ["rivalry", "/kotimaa/kohtaamiset/60901/60987"],
   ["predictions", "/ennusteet"],
+  ["guessing-game", "/arvauspeli"],
+  // An invite link that names no group: a group's own page needs a member, so
+  // its states are read in the group's end-to-end test instead.
+  ["group-invite", `/arvauspeli/liity/${"x".repeat(43)}`],
   ["favourites", "/suosikit"],
   ["settings", "/asetukset"],
   ["admin", "/yllapito"],

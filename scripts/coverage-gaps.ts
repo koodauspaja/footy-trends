@@ -4,6 +4,7 @@ import {
   describeUncoveredBranches,
   findCoverageGaps,
   findUncoveredBranches,
+  isNestedCheckout,
   isPrunedDirectory,
   isSourceFile,
   matchesAnyPattern,
@@ -41,7 +42,10 @@ function sourceFiles(directory: string): string[] {
     const relative = toPosixPath(directory === "." ? entry.name : path.join(directory, entry.name));
 
     if (entry.isDirectory()) {
-      return isPrunedDirectory(relative, prunePatterns) ? [] : sourceFiles(relative);
+      if (isPrunedDirectory(relative, prunePatterns)) return [];
+      // Sonar's CI checkout never holds one; a local one holds another session's work.
+      if (isNestedCheckout(readdirSync(path.join(ROOT, relative)))) return [];
+      return sourceFiles(relative);
     }
     if (!isSourceFile(entry.name)) return [];
     // Indexed by Sonar at all? `sonar.exclusions` decides, and a file it never

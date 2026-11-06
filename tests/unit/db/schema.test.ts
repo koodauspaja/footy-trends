@@ -4,6 +4,12 @@ import {
   account,
   favoriteCompetition,
   favoriteTeam,
+  gameGroup,
+  gameGroupMember,
+  gameGuess,
+  gameLedger,
+  gamePlayer,
+  gameSeasonGuess,
   matches,
   predictions,
   refreshRuns,
@@ -14,6 +20,7 @@ import {
   tasoMatches,
   user,
   userAvatar,
+  userNickname,
   userPreferences,
   verification,
 } from "@/db/schema";
@@ -36,6 +43,12 @@ import {
  * decisions/536-database-url-required.md
  * decisions/063-competition-zones.md
  * decisions/071-section-toggles.md
+ * decisions/072-match-guesses.md
+ * decisions/077-nickname.md
+ * decisions/073-leaderboard.md
+ * decisions/074-against-the-models.md
+ * decisions/075-season-guesses.md
+ * decisions/078-private-groups.md
  */
 
 describe("matches table", () => {
@@ -283,6 +296,27 @@ describe("user_avatar table", () => {
   });
 });
 
+describe("user_nickname table", () => {
+  it("keys on the user and cascades from them, so deleting the account removes it", () => {
+    const { columns, foreignKeys } = getTableConfig(userNickname);
+
+    expect(columns.find((column) => column.name === "user_id")?.primary).toBe(true);
+    expect(foreignKeys[0]?.onDelete).toBe("cascade");
+    const reference = foreignKeys[0]?.reference();
+    expect(reference?.foreignTable).toBe(user);
+    expect(reference?.foreignColumns.map((column) => column.name)).toEqual(["id"]);
+  });
+
+  it("makes the key unique, so two users cannot hold one name in different cases", () => {
+    const key = getTableConfig(userNickname).columns.find(
+      (column) => column.name === "nickname_key"
+    );
+
+    expect(key?.isUnique).toBe(true);
+    expect(key?.notNull).toBe(true);
+  });
+});
+
 describe("favorite_team table", () => {
   it("makes one reader's favourite of one team unique, so a double click is a no-op", () => {
     // Two tabs and a double press are the ordinary way this happens; without
@@ -486,5 +520,177 @@ describe("section_choice table", () => {
 
     expect(foreignKey?.onDelete).toBe("cascade");
     expect(foreignKey?.reference().foreignTable).toBe(user);
+  });
+});
+
+describe("Arvauspeli's tables", () => {
+  function indexNamed(table: Parameters<typeof getTableConfig>[0], name: string) {
+    const config = getTableConfig(table).indexes.find(
+      (index) => index.config.name === name
+    )?.config;
+    return {
+      unique: config?.unique,
+      columns: config?.columns.map((column) => (column as { name: string }).name),
+      where: config?.where === undefined ? undefined : "partial",
+    };
+  }
+
+  it("keys a player by their user, and cascades away with it", () => {
+    const [foreignKey] = getTableConfig(gamePlayer).foreignKeys;
+
+    expect(getTableConfig(gamePlayer).columns.find((column) => column.primary)?.name).toBe(
+      "user_id"
+    );
+    expect(foreignKey?.onDelete).toBe("cascade");
+    expect(foreignKey?.reference().foreignTable).toBe(user);
+  });
+
+  it("keeps one guess per player and match, and indexes the open ones for settling", () => {
+    expect(indexNamed(gameGuess, "game_guess_identity_idx")).toEqual({
+      unique: true,
+      columns: ["user_id", "taso_match_id"],
+      where: undefined,
+    });
+    expect(indexNamed(gameGuess, "game_guess_open_idx")).toEqual({
+      unique: false,
+      columns: ["taso_match_id"],
+      where: "partial",
+    });
+    const [foreignKey] = getTableConfig(gameGuess).foreignKeys;
+    expect(foreignKey?.onDelete).toBe("cascade");
+    expect(foreignKey?.reference().foreignTable).toBe(gamePlayer);
+  });
+
+  it("allows one reward for beating the models per guess", () => {
+    expect(indexNamed(gameLedger, "game_ledger_models_idx")).toEqual({
+      unique: true,
+      columns: ["guess_id"],
+      where: "partial",
+    });
+  });
+
+  it("allows one rarity bonus per guess", () => {
+    expect(indexNamed(gameLedger, "game_ledger_bonus_idx")).toEqual({
+      unique: true,
+      columns: ["guess_id"],
+      where: "partial",
+    });
+  });
+
+  it("allows one grant per player and season and one settlement per guess, and cascades from both", () => {
+    expect(indexNamed(gameLedger, "game_ledger_balance_idx")).toEqual({
+      unique: false,
+      columns: ["user_id", "season_id"],
+      where: undefined,
+    });
+    expect(indexNamed(gameLedger, "game_ledger_grant_idx")).toEqual({
+      unique: true,
+      columns: ["user_id", "season_id"],
+      where: "partial",
+    });
+    expect(indexNamed(gameLedger, "game_ledger_settlement_idx")).toEqual({
+      unique: true,
+      columns: ["guess_id"],
+      where: "partial",
+    });
+    const references = getTableConfig(gameLedger).foreignKeys.map((foreignKey) => ({
+      onDelete: foreignKey.onDelete,
+      table: foreignKey.reference().foreignTable,
+    }));
+    expect(references).toEqual([
+      { onDelete: "cascade", table: gamePlayer },
+      { onDelete: "cascade", table: gameGuess },
+      { onDelete: "cascade", table: gameSeasonGuess },
+    ]);
+  });
+
+  it("keeps one season guess per player, season and kind, and cascades away with the player", () => {
+    expect(indexNamed(gameSeasonGuess, "game_season_guess_identity_idx")).toEqual({
+      unique: true,
+      columns: ["user_id", "season_id", "kind"],
+      where: undefined,
+    });
+    const [foreignKey] = getTableConfig(gameSeasonGuess).foreignKeys;
+    expect(foreignKey?.onDelete).toBe("cascade");
+    expect(foreignKey?.reference().foreignTable).toBe(gamePlayer);
+  });
+
+  it("indexes season guesses by season and kind, and the open ones for settling", () => {
+    expect(indexNamed(gameSeasonGuess, "game_season_guess_season_idx")).toEqual({
+      unique: false,
+      columns: ["season_id", "kind"],
+      where: undefined,
+    });
+    expect(indexNamed(gameSeasonGuess, "game_season_guess_open_idx")).toEqual({
+      unique: false,
+      columns: ["season_id"],
+      where: "partial",
+    });
+  });
+
+  it("keeps a season guess's lock, which it must have, and when it last changed, which it may not", () => {
+    const columns = new Map(
+      getTableConfig(gameSeasonGuess).columns.map((column) => [column.name, column])
+    );
+
+    expect(columns.get("lock_at")?.notNull).toBe(true);
+    expect(columns.get("changed_at")?.notNull).toBe(false);
+    expect(columns.get("made_at")?.notNull).toBe(true);
+  });
+
+  it("allows one price and one settlement per season guess", () => {
+    for (const name of ["game_ledger_season_price_idx", "game_ledger_season_settlement_idx"]) {
+      expect(indexNamed(gameLedger, name)).toEqual({
+        unique: true,
+        columns: ["season_guess_id"],
+        where: "partial",
+      });
+    }
+  });
+
+  describe("game_group and game_group_member tables", () => {
+    it("makes an invite token unique, so one link names one group", () => {
+      const token = getTableConfig(gameGroup).columns.find(
+        (column) => column.name === "invite_token"
+      );
+      expect(token?.isUnique).toBe(true);
+      expect(token?.notNull).toBe(true);
+    });
+
+    it("keeps one membership per player and group, and reads a player's groups by player", () => {
+      expect(indexNamed(gameGroupMember, "game_group_member_identity_idx")).toEqual({
+        unique: true,
+        columns: ["group_id", "user_id"],
+        where: undefined,
+      });
+      expect(indexNamed(gameGroupMember, "game_group_member_user_idx")).toEqual({
+        unique: false,
+        columns: ["user_id"],
+        where: undefined,
+      });
+    });
+
+    it("cascades a membership away with its group and with its player", () => {
+      const foreignKeys = getTableConfig(gameGroupMember).foreignKeys.map((foreignKey) => ({
+        onDelete: foreignKey.onDelete,
+        table: foreignKey.reference().foreignTable,
+      }));
+      expect(foreignKeys).toEqual([
+        { onDelete: "cascade", table: gameGroup },
+        { onDelete: "cascade", table: gamePlayer },
+      ]);
+    });
+  });
+});
+
+describe("predictions, Poisson's score", () => {
+  it("keeps a live row's most likely score in two nullable whole-number columns", () => {
+    const { columns } = getTableConfig(predictions);
+    const goals = columns.filter((column) => column.name.endsWith("_goals"));
+
+    expect(goals.map((column) => [column.name, column.getSQLType(), column.notNull])).toEqual([
+      ["predicted_home_goals", "integer", false],
+      ["predicted_away_goals", "integer", false],
+    ]);
   });
 });

@@ -8,15 +8,17 @@ import { warmModules } from "../../../support/warm-module";
  *
  * decisions/024-account-settings.md
  * decisions/025-custom-avatar.md
+ * decisions/077-nickname.md
  */
 
-const { getSession, listSessions, currentPreferencesRow, getAvatar, logger, state } = vi.hoisted(
-  () => {
+const { getSession, listSessions, currentPreferencesRow, getAvatar, getNickname, logger, state } =
+  vi.hoisted(() => {
     const state = {
       signedIn: true,
       listThrows: false,
       sessionThrows: false,
       avatarThrows: false,
+      nicknameThrows: false,
       row: null as unknown,
     };
     return {
@@ -52,10 +54,13 @@ const { getSession, listSessions, currentPreferencesRow, getAvatar, logger, stat
         if (state.avatarThrows) throw new Error("database down");
         return null;
       }),
+      getNickname: vi.fn(async (): Promise<string | null> => {
+        if (state.nicknameThrows) throw new Error("database down");
+        return "Kalle";
+      }),
       logger: { error: vi.fn() },
     };
-  }
-);
+  });
 
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("@/lib/auth", () => ({ auth: { api: { getSession, listSessions } } }));
@@ -76,6 +81,8 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/lib/logger", () => ({ logger }));
 vi.mock("@/lib/avatar", () => ({ getAvatar }));
+vi.mock("@/lib/nickname-store", () => ({ getNickname }));
+vi.mock("@/lib/nickname-actions", () => ({ saveNicknameAction: vi.fn() }));
 
 async function renderPage() {
   const { default: Settings } = await import("@/app/settings/page");
@@ -87,6 +94,7 @@ beforeEach(() => {
   state.signedIn = true;
   state.listThrows = false;
   state.avatarThrows = false;
+  state.nicknameThrows = false;
   state.sessionThrows = false;
   state.row = null;
   // `clearAllMocks` clears calls but not implementations, so a
@@ -200,5 +208,25 @@ describe("the settings route", () => {
     expect(screen.getByRole("heading", { name: "Profiilikuva" })).toBeInTheDocument();
     expect(screen.getByText("Aloitusnäkymä")).toBeInTheDocument();
     expect(logger.error).toHaveBeenCalled();
+  });
+
+  it("shows the reader's stored nickname, read for their own id", async () => {
+    await renderPage();
+
+    expect(getNickname).toHaveBeenCalledWith("user-1");
+    expect(screen.getByLabelText("Nimimerkki")).toHaveValue("Kalle");
+  });
+
+  it("keeps the page when the nickname cannot be read, and says so in its section", async () => {
+    state.nicknameThrows = true;
+
+    await renderPage();
+
+    expect(screen.getByText("Nimimerkkiä ei voitu ladata.")).toBeInTheDocument();
+    expect(screen.getByText("Aloitusnäkymä")).toBeInTheDocument();
+    expect(logger.error).toHaveBeenCalledWith(
+      { err: expect.any(Error), userId: "user-1" },
+      "Reading the nickname on the settings page failed"
+    );
   });
 });
