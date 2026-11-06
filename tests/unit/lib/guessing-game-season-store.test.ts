@@ -599,20 +599,29 @@ describe("readSeasonAnswers", () => {
       match({ groupId: 3, status: "FINISHED" }),
     ];
 
-    expect(await readSeasonAnswers(2027, 2027, matches)).toMatchObject({ upper: null });
+    expect(await readSeasonAnswers(2027, 2027, matches)).toEqual({
+      upper: null,
+      places: new Map(TEAMS.map((team, index) => [team, index + 1])),
+    });
   });
 
-  it("gives no answer for a group shown as a match list, or not among the tables", async () => {
+  it("throws for a due group shown as a match list, or not among the tables", async () => {
     standings.getSeasonStandings.mockResolvedValue({
       status: "ok",
       groups: [group(1, TEAMS, "match-list"), group(2, TEAMS.slice(0, 6))],
       levels: [],
     });
 
-    expect(await readSeasonAnswers(2027, 2027, SPLIT_PLAYED)).toEqual({
-      upper: null,
-      places: null,
-    });
+    await expect(readSeasonAnswers(2027, 2027, REGULAR_PLAYED)).rejects.toThrow(
+      "Season 2027's group 1 has no table"
+    );
+    await expect(
+      readSeasonAnswers(
+        2027,
+        2027,
+        SPLIT_PLAYED.filter((played) => played.groupId !== 1)
+      )
+    ).rejects.toThrow("Season 2027's group 3 has no table");
   });
 
   it("throws when the tables cannot be read", async () => {
@@ -734,7 +743,7 @@ describe("settleSeasonGuesses", () => {
 
     const [refund] = inserted() as Array<{ kind: string; amount: number }>;
     expect(refund?.kind).toBe("season-refund");
-    expect(refund?.amount).toBeCloseTo(0);
+    expect(refund?.amount).toBe(0);
   });
 
   it("leaves a guess waiting while its answer is not in and no later season is stored", async () => {

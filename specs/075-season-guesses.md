@@ -103,7 +103,9 @@ Drafts, fine-tuned in implementation, as in specs/072.
   read at the time of the request.
 - **Settling** (072 S11) runs after the match guesses in the hourly run; one
   transaction per season guess, so a racing run cannot pay twice.
-- **Caching:** none; the rows are read per page view, signed in only.
+- **Caching:** none of the game's own; its rows are read per page view, signed
+  in only. Settling reads the tables through the standings page's own path,
+  with that path's freshness rules for TASO's data (specs/009) unchanged.
 
 ## Edge Cases
 

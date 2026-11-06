@@ -157,16 +157,18 @@ export function SeasonGuessForm({
       ) : (
         <fieldset className="flex flex-col gap-1">
           <legend className="sr-only">{label}</legend>
-          {chosen.map((team, index) => (
-            <TeamSelect
-              // biome-ignore lint/suspicious/noArrayIndexKey: a place is its index, and never moves.
-              key={index}
-              label={kind === "table" ? `Sija ${index + 1}` : label}
-              onChange={(value) => choose(index, value)}
-              teams={teams}
-              value={team}
-            />
-          ))}
+          {chosen.map((team, index) => {
+            const place = index + 1;
+            return (
+              <TeamSelect
+                key={`${kind}-${place}`}
+                label={kind === "table" ? `Sija ${place}` : label}
+                onChange={(value) => choose(index, value)}
+                teams={teams}
+                value={team}
+              />
+            );
+          })}
         </fieldset>
       )}
       {repeated && <p className="text-sm">Jokainen joukkue vain kerran.</p>}

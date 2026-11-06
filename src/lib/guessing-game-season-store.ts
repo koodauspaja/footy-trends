@@ -41,7 +41,7 @@ import { getSeasonStandings } from "./taso-standings-service";
 /** The groups the split makes of the regular season: the upper and the lower. */
 const UPPER_GROUP = 2;
 const LOWER_GROUP = 3;
-/** Shares of the picks are shown from this many guesses, as specs/073's are. */
+/** Shares of the picks are shown from this many guesses, as a match's shares are. */
 const MIN_SHARED = 3;
 /** The teams a share line names before the rest are `muut`. */
 const SHARED_TEAMS = 3;
@@ -107,6 +107,7 @@ function refused(
  * with the player locked, as a match guess is. A first placement pays its
  * price; a change before the lock is free.
  *
+ * decisions/072-match-guesses.md
  * decisions/075-season-guesses.md
  */
 export async function placeSeasonGuess(
@@ -360,8 +361,8 @@ function groupPlayed(matches: readonly SeasonMatch[], groupId: number): boolean 
 }
 
 /**
- * Reads the answers of a season whose stored matches say one is due; a group
- * not stored or shown as a match list gives none. A failed read throws.
+ * Reads the answers of a season whose stored matches say one is due. A failed
+ * read throws, and so does a due group with no table to judge by.
  *
  * decisions/075-season-guesses.md
  */
@@ -381,16 +382,18 @@ export async function readSeasonAnswers(
     undefined
   );
   if (result.status === "error") throw new Error(`Season ${seasonId}'s tables could not be read`);
-  const rows = (groupId: number): TableRow[] | null => {
+  // A group that is due must have a table: without one the guess cannot be
+  // judged, which is a failure to report, not an answer still to come.
+  const rows = (groupId: number): TableRow[] => {
     const group = result.groups.find((candidate) => candidate.groupId === groupId);
-    return group === undefined || group.kind === "match-list" ? null : group.standings;
+    if (group === undefined || group.kind === "match-list") {
+      throw new Error(`Season ${seasonId}'s group ${groupId} has no table`);
+    }
+    return group.standings;
   };
-  const regular = regularPlayed ? rows(REGULAR_SEASON_GROUP) : null;
-  const upper = splitPlayed ? rows(UPPER_GROUP) : null;
-  const lower = splitPlayed ? rows(LOWER_GROUP) : null;
   return {
-    upper: regular === null ? null : upperSix(regular),
-    places: upper === null || lower === null ? null : finalPlaces(upper, lower),
+    upper: regularPlayed ? upperSix(rows(REGULAR_SEASON_GROUP)) : null,
+    places: splitPlayed ? finalPlaces(rows(UPPER_GROUP), rows(LOWER_GROUP)) : null,
   };
 }
 
@@ -485,6 +488,64 @@ function judgementOf(guess: OpenSeasonGuess, answers: SeasonAnswers): SeasonJudg
 }
 
 /**
+ * Settles one guess and counts it; a failure is logged, named in the report
+ * and left for the next run.
+ *
+ * decisions/075-season-guesses.md
+ */
+async function settleCounted(
+  guess: OpenSeasonGuess,
+  judgement: SeasonJudgement | "void",
+  now: Date,
+  report: SeasonSettleReport
+): Promise<void> {
+  try {
+    if (!(await settleOne(guess, judgement, now))) return;
+    report.settled += 1;
+    if (judgement === "void") report.voided += 1;
+    else if (judgement.reward > 0) report.rewarded += 1;
+  } catch (error) {
+    logger.error(
+      { err: error, seasonGuessId: guess.id },
+      "Unable to settle an Arvauspeli season guess"
+    );
+    report.failed.push(guess.id);
+  }
+}
+
+/**
+ * Settles one season's open guesses whose answer is in, voiding those still
+ * open once a later season is stored. A season that cannot be read names all
+ * its open guesses in the report.
+ *
+ * decisions/075-season-guesses.md
+ */
+async function settleSeason(
+  seasonId: number,
+  guesses: readonly OpenSeasonGuess[],
+  latest: number,
+  now: Date,
+  report: SeasonSettleReport
+): Promise<void> {
+  let answers: SeasonAnswers;
+  try {
+    const season = await seasonOfId(db, seasonId);
+    answers = await readSeasonAnswers(seasonId, latest, season.matches);
+  } catch (error) {
+    logger.error({ err: error, seasonId }, "Reading an Arvauspeli season's answers failed");
+    report.failed.push(...guesses.map((guess) => guess.id));
+    return;
+  }
+  const replaced = latest > seasonId;
+  // One at a time, so a season's guesses never hold a connection each.
+  await guesses.reduce<Promise<void>>(async (previous, guess) => {
+    await previous;
+    const judgement = judgementOf(guess, answers) ?? (replaced ? "void" : null);
+    if (judgement !== null) await settleCounted(guess, judgement, now, report);
+  }, Promise.resolve());
+}
+
+/**
  * Settles every open season guess whose answer is in, and voids, refunding its
  * price, one still open once the next season's first fixture is stored. A
  * guess that fails is named in the report and left for the next run.
@@ -503,35 +564,13 @@ export async function settleSeasonGuesses(now: Date): Promise<SeasonSettleReport
     .from(gameSeasonGuess)
     .where(isNull(gameSeasonGuess.settledAt));
   if (open.length === 0) return report;
-  const latest = await latestSeason(db);
-  for (const [seasonId, guesses] of Map.groupBy(open, (guess) => guess.seasonId)) {
-    const season = await seasonOfId(db, seasonId);
-    let answers: SeasonAnswers;
-    try {
-      answers = await readSeasonAnswers(seasonId, latest ?? seasonId, season.matches);
-    } catch (error) {
-      logger.error({ err: error, seasonId }, "Reading an Arvauspeli season's answers failed");
-      report.failed.push(...guesses.map((guess) => guess.id));
-      continue;
-    }
-    const replaced = latest !== null && latest > seasonId;
-    for (const guess of guesses) {
-      const judgement = judgementOf(guess, answers) ?? (replaced ? "void" : null);
-      if (judgement === null) continue;
-      try {
-        if (!(await settleOne(guess, judgement, now))) continue;
-        report.settled += 1;
-        if (judgement === "void") report.voided += 1;
-        else if (judgement.reward > 0) report.rewarded += 1;
-      } catch (error) {
-        logger.error(
-          { err: error, seasonGuessId: guess.id },
-          "Unable to settle an Arvauspeli season guess"
-        );
-        report.failed.push(guess.id);
-      }
-    }
-  }
+  const bySeason = [...Map.groupBy(open, (guess) => guess.seasonId)];
+  // A guess exists only for a season whose fixtures are stored, so one is.
+  const latest = (await latestSeason(db)) ?? Math.max(...bySeason.map(([seasonId]) => seasonId));
+  await bySeason.reduce<Promise<void>>(async (previous, [seasonId, guesses]) => {
+    await previous;
+    await settleSeason(seasonId, guesses, latest, now, report);
+  }, Promise.resolve());
   logger.info(report, "Arvauspeli season guesses settled");
   return report;
 }
