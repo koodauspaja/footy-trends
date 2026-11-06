@@ -14,6 +14,7 @@ import Privacy, { metadata } from "@/app/privacy/page";
  * decisions/077-nickname.md
  * decisions/073-leaderboard.md
  * decisions/078-private-groups.md
+ * decisions/079-group-members-guesses.md
  */
 
 describe("the privacy policy", () => {
@@ -46,6 +47,10 @@ describe("the privacy policy", () => {
     ["game_group, game_group_member", "Arvauspelin ryhmät, joihin kuulut, ja niiden nimet"],
     ["a group's board, to its members", "Ryhmän jäsenet näkevät toistensa"],
     ["an invite link, to whoever holds it", "kutsulinkin saanut näkee ryhmän nimen ja"],
+    [
+      "a group's guesses, to its members",
+      "toistensa arvaukset otteluiden alettua, myös ennen ryhmään liittymistä tehdyt",
+    ],
   ])("describes what %s stores", (_column, phrase) => {
     render(<Privacy />);
 
