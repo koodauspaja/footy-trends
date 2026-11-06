@@ -24,7 +24,11 @@ const REFUSALS: Readonly<Record<SeasonGuessRefusalShown, string>> = {
   failed: "Arvausta ei voitu tallentaa. Yritä uudelleen.",
 };
 
-/** Each kind's button, unlike every other's, before and after a guess is placed. */
+/**
+ * Each kind's button, unlike every other's, before and after a guess is placed.
+ *
+ * decisions/075-season-guesses.md
+ */
 const PLACE: Readonly<Record<SeasonKind, string>> = {
   champion: "Arvaa mestari",
   upper: "Arvaa joukkueet",

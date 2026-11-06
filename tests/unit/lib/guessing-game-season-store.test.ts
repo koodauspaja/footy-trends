@@ -913,6 +913,31 @@ describe("settleSeasonGuesses", () => {
     );
   });
 
+  it("with a later season stored and the tables unreadable, retries a due guess and voids one not due", async () => {
+    store.latestSeason.mockResolvedValue(2028);
+    store.seasonOfId.mockResolvedValue(season(2027, REGULAR_PLAYED));
+    standings.getSeasonStandings.mockResolvedValue({ status: "error", groups: [] });
+    // The six are due, the regular season played; the champion is not, the split unplayed.
+    answer(
+      [openGuess(), openGuess({ id: 42, kind: "champion", teams: [100] })],
+      PLAYER,
+      [{ id: 42 }],
+      [{ amount: -50 }],
+      undefined,
+      undefined
+    );
+
+    expect(await settleSeasonGuesses(NOW)).toEqual({
+      settled: 1,
+      rewarded: 0,
+      voided: 1,
+      failed: [41],
+    });
+    expect(inserted()).toEqual([
+      { userId: "user-1", seasonId: 2027, kind: "season-refund", amount: 50, seasonGuessId: 42 },
+    ]);
+  });
+
   it("names a season's guesses when its tables cannot be read, and logs it", async () => {
     store.seasonOfId.mockResolvedValue(season(2027, REGULAR_PLAYED));
     standings.getSeasonStandings.mockResolvedValue({ status: "error", groups: [] });

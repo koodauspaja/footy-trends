@@ -147,7 +147,11 @@ export async function readShares(
   return shares;
 }
 
-/** Each game model's place in the order they are shown. */
+/**
+ * Each game model's place in the order they are shown.
+ *
+ * decisions/074-against-the-models.md
+ */
 const MODEL_ORDER: ReadonlyMap<string, number> = new Map(
   GAME_MODELS.map((model, place) => [model, place])
 );

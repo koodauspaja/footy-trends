@@ -38,12 +38,24 @@ import { getSeasonStandings } from "./taso-standings-service";
  * decisions/075-season-guesses.md
  */
 
-/** The groups the split makes of the regular season: the upper and the lower. */
+/**
+ * The groups the split makes of the regular season: the upper and the lower.
+ *
+ * decisions/075-season-guesses.md
+ */
 const UPPER_GROUP = 2;
 const LOWER_GROUP = 3;
-/** Shares of the picks are shown from this many guesses, as a match's shares are. */
+/**
+ * Shares of the picks are shown from this many guesses, as a match's shares are.
+ *
+ * decisions/075-season-guesses.md
+ */
 const MIN_SHARED = 3;
-/** The teams a share line names before the rest are `muut`. */
+/**
+ * The teams a share line names before the rest are `muut`.
+ *
+ * decisions/075-season-guesses.md
+ */
 const SHARED_TEAMS = 3;
 
 /**
@@ -542,9 +554,22 @@ async function settleCounted(
 }
 
 /**
+ * Whether a guess's answer is due by the season's stored matches: the six once
+ * the regular season is played, the rest once both groups are.
+ *
+ * decisions/075-season-guesses.md
+ */
+function answerDue(guess: OpenSeasonGuess, matches: readonly SeasonMatch[]): boolean {
+  return guess.kind === "upper"
+    ? groupPlayed(matches, REGULAR_SEASON_GROUP)
+    : groupPlayed(matches, UPPER_GROUP) && groupPlayed(matches, LOWER_GROUP);
+}
+
+/**
  * Settles one season's open guesses whose answer is in, voiding those still
- * open once a later season is stored. A season that cannot be read names all
- * its open guesses in the report.
+ * open once a later season is stored. When the season's tables cannot be read,
+ * a guess whose answer is due is named in the report for the next run, and
+ * one whose answer is not is still voided once a later season is stored.
  *
  * decisions/075-season-guesses.md
  */
@@ -555,18 +580,28 @@ async function settleSeason(
   now: Date,
   report: SeasonSettleReport
 ): Promise<void> {
-  let answers: SeasonAnswers;
+  const replaced = latest > seasonId;
+  let matches: readonly SeasonMatch[];
   try {
-    const season = await seasonOfId(db, seasonId);
-    answers = await readSeasonAnswers(seasonId, latest, season.matches);
+    matches = (await seasonOfId(db, seasonId)).matches;
   } catch (error) {
     logger.error({ err: error, seasonId }, "Reading an Arvauspeli season's answers failed");
     report.failed.push(...guesses.map((guess) => guess.id));
     return;
   }
-  const replaced = latest > seasonId;
+  let answers: SeasonAnswers;
+  let pending = guesses;
+  try {
+    answers = await readSeasonAnswers(seasonId, latest, matches);
+  } catch (error) {
+    logger.error({ err: error, seasonId }, "Reading an Arvauspeli season's answers failed");
+    const due = replaced ? guesses.filter((guess) => answerDue(guess, matches)) : guesses;
+    report.failed.push(...due.map((guess) => guess.id));
+    answers = { upper: null, places: null };
+    pending = guesses.filter((guess) => !due.includes(guess));
+  }
   // One at a time, so a season's guesses never hold a connection each.
-  await guesses.reduce<Promise<void>>(async (previous, guess) => {
+  await pending.reduce<Promise<void>>(async (previous, guess) => {
     await previous;
     const judgement = judgementOf(guess, answers) ?? (replaced ? "void" : null);
     if (judgement !== null) await settleCounted(guess, judgement, now, report);

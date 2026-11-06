@@ -46,7 +46,11 @@ export const SEASON_REWARDS = {
   tableNear: 10,
 } as const;
 
-/** The place a last-place guess names. */
+/**
+ * The place a last-place guess names.
+ *
+ * decisions/075-season-guesses.md
+ */
 export const LAST_PLACE = 12;
 
 /**
