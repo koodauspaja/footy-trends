@@ -7,11 +7,13 @@
  * decisions/077-nickname.md
  * decisions/073-leaderboard.md
  * decisions/074-against-the-models.md
+ * decisions/075-season-guesses.md
  */
 
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { GuessForm, JoinGameButton } from "@/components/guessing-game-controls";
+import { SeasonGuessForm } from "@/components/guessing-game-season-form";
 import { PANEL_HEADING, TABLE_HEADING } from "@/components/heading-classes";
 import { Notice } from "@/components/notice";
 import { modelLabel } from "@/components/prediction-quality-page";
@@ -25,6 +27,13 @@ import {
   STARTING_BALANCE,
 } from "@/lib/guessing-game";
 import type { ModelGuess } from "@/lib/guessing-game-models";
+import {
+  SEASON_KINDS,
+  SEASON_PRICES,
+  SEASON_REWARDS,
+  type SeasonKind,
+} from "@/lib/guessing-game-season";
+import type { PickShares, SeasonSection, ShownSeasonGuess } from "@/lib/guessing-game-season-store";
 import type {
   AwaitingGuess,
   GameView,
@@ -101,10 +110,11 @@ function guessCount(count: number): string {
 
 /**
  * One of the page's sections, folded by its heading with its count after it.
- * Only `Tulevat ottelut`, the page's most basic part, starts open; nothing is
- * remembered.
+ * Only `Tulevat ottelut` and `Kauden arvaukset`, the page's playable parts,
+ * start open; nothing is remembered.
  *
  * decisions/072-match-guesses.md
+ * decisions/075-season-guesses.md
  */
 function GameFold({
   id,
@@ -337,6 +347,120 @@ function Awaiting({
   );
 }
 
+const SEASON_LABELS: Readonly<Record<SeasonKind, string>> = {
+  champion: "Mestari",
+  upper: "Mestaruussarjan joukkueet",
+  last: "Putoaja",
+  table: "Lopullinen sarjataulukko",
+};
+
+const SEASON_TERMS: Readonly<Record<SeasonKind, string>> = {
+  champion: `Hinta ${SEASON_PRICES.champion} · oikein ${SEASON_REWARDS.champion}`,
+  upper: `Hinta ${SEASON_PRICES.upper} · ${SEASON_REWARDS.upperTeam} jokaisesta oikeasta`,
+  last: `Hinta ${SEASON_PRICES.last} · oikein ${SEASON_REWARDS.last}`,
+  table: `Hinta ${SEASON_PRICES.table} · ${SEASON_REWARDS.tableExact} oikeasta sijasta, ${SEASON_REWARDS.tableNear} yhden sijan päästä`,
+};
+
+/**
+ * What a settled season guess says: paid, missed or refunded.
+ *
+ * decisions/075-season-guesses.md
+ */
+function seasonSettledLine(kind: SeasonKind, settled: NonNullable<ShownSeasonGuess["settled"]>) {
+  if (settled.kind === "void") return "Kausi jäi kesken, pelimerkit palautettu";
+  if (kind === "upper") return `${settled.right} oikein, +${settled.reward}`;
+  if (kind === "table") {
+    return `${settled.right} täsmälleen oikein, ${settled.near} yhden sijan päästä, +${settled.reward}`;
+  }
+  return settled.right > 0 ? `Oikein, +${settled.reward}` : "Ohi";
+}
+
+function seasonGuessText(kind: SeasonKind, teams: readonly number[], name: (id: number) => string) {
+  if (kind === "table") return teams.map((team, index) => `${index + 1}. ${name(team)}`).join(", ");
+  return teams.map(name).join(", ");
+}
+
+function PickSharesLine({
+  shares,
+  name,
+}: Readonly<{ shares: PickShares | null; name: (id: number) => string }>) {
+  if (shares === null) return null;
+  const parts = shares.shares.map(
+    (share) =>
+      `${share.teamProviderId === null ? "muut" : name(share.teamProviderId)} ${share.percent} %`
+  );
+  return (
+    <p className="text-muted text-sm">
+      Pelaajien arvaukset: {parts.join(" · ")} ({guessCount(shares.total)})
+    </p>
+  );
+}
+
+/**
+ * `Kauden arvaukset`: before the lock a form per kind, after it the player's
+ * guesses, the shares of the champion and last-place picks, guessed or not,
+ * and once settled what each paid.
+ *
+ * decisions/075-season-guesses.md
+ */
+function SeasonGuesses({
+  section,
+  heading,
+}: Readonly<{ section: SeasonSection; heading: string }>) {
+  const names = new Map(section.teams.map((team) => [team.teamProviderId, team.name]));
+  const name = (id: number) => names.get(id) ?? "–";
+  const placed = SEASON_KINDS.filter((kind) => section.guesses[kind] !== undefined);
+  const sharesOf = (kind: SeasonKind) =>
+    kind === "champion" || kind === "last" ? (section.shares?.[kind] ?? null) : null;
+  // After the lock: the kinds the player guessed, and the champion and
+  // last-place shares whether or not the player guessed those kinds.
+  const kinds = section.locked
+    ? SEASON_KINDS.filter((kind) => placed.includes(kind) || sharesOf(kind) !== null)
+    : SEASON_KINDS;
+  return (
+    <GameFold
+      count={guessCount(placed.length)}
+      heading={heading}
+      id={`season-${section.seasonId}`}
+      open
+    >
+      {!section.locked && (
+        <p className="text-sm">
+          Arvaa kausi ennen sen ensimmäistä ottelua {dayFormatter.format(section.lockAt)} klo{" "}
+          {timeFormatter.format(section.lockAt)}. Arvauksia voi muuttaa maksutta siihen asti.
+        </p>
+      )}
+      <ul>
+        {kinds.map((kind) => {
+          const guess = section.guesses[kind];
+          const shares = sharesOf(kind);
+          return (
+            <li className="border-border-subtle border-b py-3" key={kind}>
+              <h3 className="font-medium">{SEASON_LABELS[kind]}</h3>
+              {!section.locked && <p className="text-muted text-sm">{SEASON_TERMS[kind]}</p>}
+              {guess !== undefined && (
+                <p className="text-sm">Arvauksesi: {seasonGuessText(kind, guess.teams, name)}</p>
+              )}
+              {guess?.settled != null && (
+                <p className="text-sm">{seasonSettledLine(kind, guess.settled)}</p>
+              )}
+              <PickSharesLine name={name} shares={shares} />
+              {!section.locked && (
+                <SeasonGuessForm
+                  guess={guess?.teams ?? null}
+                  kind={kind}
+                  label={SEASON_LABELS[kind]}
+                  teams={section.teams}
+                />
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </GameFold>
+  );
+}
+
 /**
  * The line for a joined player without a nickname, saying where to choose one.
  *
@@ -359,10 +483,33 @@ type Props = Readonly<{
   shares: ReadonlyMap<number, Shares>;
   /** The models' guesses on the reader's matches that have kicked off. */
   models: ReadonlyMap<number, ModelGuess[]>;
+  /** The player's season guesses, or `null` with none to show. */
+  season: SeasonSection | null;
+  /** The season just finished, shown while the next is before its lock, or `null`. */
+  previousSeason?: SeasonSection | null;
 }>;
 
-export function GuessingGamePage({ view, hasNickname, board, shares, models }: Props) {
+export function GuessingGamePage({
+  view,
+  hasNickname,
+  board,
+  shares,
+  models,
+  season,
+  previousSeason = null,
+}: Props) {
   const leaderboard = board === null ? null : <Leaderboard board={board} />;
+  const seasonGuesses = (
+    <>
+      {season !== null && <SeasonGuesses heading="Kauden arvaukset" section={season} />}
+      {previousSeason !== null && (
+        <SeasonGuesses
+          heading={`Kauden ${previousSeason.seasonId} arvaukset`}
+          section={previousSeason}
+        />
+      )}
+    </>
+  );
   if (view.kind === "no-season" || view.kind === "between") {
     return (
       <div className="flex flex-col items-start gap-3">
@@ -373,6 +520,7 @@ export function GuessingGamePage({ view, hasNickname, board, shares, models }: P
         </p>
         {!view.joined && <JoinSection grant={STARTING_BALANCE} />}
         {view.joined && !hasNickname && <NicknameHint />}
+        {seasonGuesses}
         {view.kind === "between" && (
           <Awaiting guesses={view.awaiting} models={models} shares={shares} />
         )}
@@ -402,6 +550,7 @@ export function GuessingGamePage({ view, hasNickname, board, shares, models }: P
           </Notice>
         </div>
       )}
+      {seasonGuesses}
       <Upcoming groups={view.groups} matches={view.upcoming} />
       {leaderboard}
       <Awaiting guesses={view.awaiting} models={models} shares={shares} />

@@ -2,6 +2,7 @@
 
 import { currentUserId } from "@/lib/current-user";
 import { parseGuess } from "@/lib/guessing-game";
+import { placeSeasonGuess } from "@/lib/guessing-game-season-store";
 import { joinGame, placeGuess } from "@/lib/guessing-game-store";
 import { logger } from "@/lib/logger";
 
@@ -89,6 +90,42 @@ export async function placeGuessAction(
     return isTold(reason) ? { ok: false, reason } : { ok: false, reason: "failed" };
   } catch (error) {
     logger.error({ err: error }, "Placing an Arvauspeli guess failed");
+    return { ok: false, reason: "failed" };
+  }
+}
+
+/**
+ * Why a season guess was not stored, as its block says it: the season has
+ * locked, the balance is short, or anything else, which reads as a failure to
+ * retry.
+ *
+ * decisions/075-season-guesses.md
+ */
+export type SeasonGuessRefusalShown = "locked" | "insufficient" | "failed";
+
+/**
+ * Places or changes the signed-in player's season guess of one kind. The guess
+ * comes from the browser, so the store parses it against the season's teams.
+ *
+ * decisions/075-season-guesses.md
+ */
+export async function placeSeasonGuessAction(
+  input: unknown
+): Promise<{ ok: true } | { ok: false; reason: SeasonGuessRefusalShown }> {
+  try {
+    const userId = await currentUserId();
+    if (userId === null) {
+      logger.warn("Arvauspeli season guess refused: no session");
+      return { ok: false, reason: "failed" };
+    }
+    const outcome = await placeSeasonGuess(userId, input, () => new Date());
+    if (outcome.ok) return { ok: true };
+    const { reason } = outcome;
+    return reason === "locked" || reason === "insufficient"
+      ? { ok: false, reason }
+      : { ok: false, reason: "failed" };
+  } catch (error) {
+    logger.error({ err: error }, "Placing an Arvauspeli season guess failed");
     return { ok: false, reason: "failed" };
   }
 }

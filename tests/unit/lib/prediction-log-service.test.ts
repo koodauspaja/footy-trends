@@ -1,3 +1,5 @@
+import type { SQL } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { HomeBaseline } from "@/lib/home-baseline";
 
@@ -14,6 +16,7 @@ import type { HomeBaseline } from "@/lib/home-baseline";
  * decisions/060-elo-variants.md
  * decisions/072-match-guesses.md
  * decisions/074-against-the-models.md
+ * decisions/075-season-guesses.md
  */
 
 const mocks = vi.hoisted(() => ({
@@ -30,6 +33,7 @@ const mocks = vi.hoisted(() => ({
   loggerError: vi.fn(),
   loggerInfo: vi.fn(),
   settleGuesses: vi.fn(),
+  settleSeasonGuesses: vi.fn(),
 }));
 
 vi.mock("@/db", () => ({
@@ -66,6 +70,9 @@ vi.mock("@/lib/logger", () => ({
 }));
 vi.mock("@/lib/cache", () => ({ invalidateCache: mocks.invalidateCache }));
 vi.mock("@/lib/guessing-game-store", () => ({ settleGuesses: mocks.settleGuesses }));
+vi.mock("@/lib/guessing-game-season-store", () => ({
+  settleSeasonGuesses: mocks.settleSeasonGuesses,
+}));
 
 // Every key a backtest's reports are cached under: each provider's own, then one per competition.
 const DROPPED_KEYS = [
@@ -179,6 +186,9 @@ describe("runPredictionLog", () => {
     mocks.getFootballDataSeasonMatches.mockReset().mockResolvedValue([{ id: "fd" }]);
     mocks.getTasoSeasonMatches.mockReset().mockResolvedValue([{ id: "taso" }]);
     mocks.onConflictDoUpdate.mockReset().mockResolvedValue(undefined);
+    mocks.settleSeasonGuesses
+      .mockReset()
+      .mockResolvedValue({ settled: 0, rewarded: 0, voided: 0, failed: [] });
     mocks.settleGuesses.mockReset().mockResolvedValue({
       matches: 0,
       rewarded: 0,
@@ -230,15 +240,13 @@ describe("runPredictionLog", () => {
     expect(mocks.onConflictDoUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ target: expect.any(Array) })
     );
-    // A rerun before kickoff keeps Poisson's most likely score current with its probabilities.
-    expect(mocks.onConflictDoUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        set: expect.objectContaining({
-          predictedHomeGoals: expect.anything(),
-          predictedAwayGoals: expect.anything(),
-        }),
-      })
-    );
+    // A rerun before kickoff keeps Poisson's most likely score current with its
+    // probabilities, each side from its own column.
+    const [upsert] = mocks.onConflictDoUpdate.mock.calls[0] as [{ set: Record<string, SQL> }];
+    const rendered = (value: SQL | undefined) =>
+      value === undefined ? undefined : new PgDialect().sqlToQuery(value).sql;
+    expect(rendered(upsert.set.predictedHomeGoals)).toBe("excluded.predicted_home_goals");
+    expect(rendered(upsert.set.predictedAwayGoals)).toBe("excluded.predicted_away_goals");
   });
 
   it("refreshes a competition for a missing result, and writes nothing for it", async () => {
@@ -1085,6 +1093,9 @@ describe("settle", () => {
     vi.clearAllMocks();
     // A queued answer another test left unread would otherwise answer this one.
     mocks.settleGuesses.mockReset();
+    mocks.settleSeasonGuesses
+      .mockReset()
+      .mockResolvedValue({ settled: 0, rewarded: 0, voided: 0, failed: [] });
   });
 
   it("counts every guess settled, paid, missed, refunded or void, and adds nothing to the failures", async () => {
@@ -1131,6 +1142,59 @@ describe("settle", () => {
     expect(mocks.loggerError).toHaveBeenCalledWith(
       expect.objectContaining({ err: expect.any(Error) }),
       "Unable to settle Arvauspeli guesses"
+    );
+  });
+
+  it("settles the season guesses after the match guesses, and counts them", async () => {
+    const order: string[] = [];
+    mocks.settleGuesses.mockImplementationOnce(async () => {
+      order.push("matches");
+      return { rewarded: 1, missed: 0, refunded: 0, voided: 0, failed: [] };
+    });
+    mocks.settleSeasonGuesses.mockImplementationOnce(async () => {
+      order.push("seasons");
+      return { settled: 3, rewarded: 2, voided: 1, failed: [] };
+    });
+    const failures: string[] = [];
+
+    expect(await settle(NOW, failures)).toBe(4);
+    expect(order).toEqual(["matches", "seasons"]);
+    expect(mocks.settleSeasonGuesses).toHaveBeenCalledWith(NOW);
+    expect(failures).toEqual([]);
+  });
+
+  it("names each season guess that could not be settled", async () => {
+    mocks.settleGuesses.mockResolvedValueOnce({
+      rewarded: 0,
+      missed: 0,
+      refunded: 0,
+      voided: 0,
+      failed: [],
+    });
+    mocks.settleSeasonGuesses.mockResolvedValueOnce({
+      settled: 0,
+      rewarded: 0,
+      voided: 0,
+      failed: [7, 8],
+    });
+    const failures: string[] = [];
+
+    await settle(NOW, failures);
+
+    expect(failures).toEqual(["settle season guess 7", "settle season guess 8"]);
+  });
+
+  it("settles the season guesses when the match guesses fail, and reports a season step that fails", async () => {
+    mocks.settleGuesses.mockRejectedValueOnce(new Error("database down"));
+    mocks.settleSeasonGuesses.mockRejectedValueOnce(new Error("database down"));
+    const failures: string[] = [];
+
+    expect(await settle(NOW, failures)).toBe(0);
+    expect(mocks.settleSeasonGuesses).toHaveBeenCalledWith(NOW);
+    expect(failures).toEqual(["settle", "settle seasons"]);
+    expect(mocks.loggerError).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      "Unable to settle Arvauspeli season guesses"
     );
   });
 });

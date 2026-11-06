@@ -169,8 +169,9 @@ describe("the reward for beating the models", () => {
     ).rejects.toThrow();
   });
 
-  it("pays nothing when the models were right", async () => {
-    // 2–1: Elo's and Poisson's `1`; the outcome player's `2` misses.
+  it("pays nothing to a 1X2 guess that missed, or to a score guess below Poisson's", async () => {
+    // 2–1: the outcome player's `2` misses, so beats no model; the score
+    // player's 0–1 misses, and Poisson's 2–1 is exact.
     await finish(2, 1);
 
     expect(await settleGuesses(at(210))).toMatchObject({ modelWins: 0 });
@@ -181,6 +182,25 @@ describe("the reward for beating the models", () => {
     await finish(0, 2, "Abandoned");
 
     expect(await settleGuesses(at(210))).toMatchObject({ refunded: 2, modelWins: 0 });
+    expect(await modelRows()).toEqual([]);
+  });
+});
+
+describe("a match every model got right", () => {
+  it("pays nothing to a right guess", async () => {
+    await db
+      .insert(predictions)
+      .values([
+        liveRow("elo-v1", [0.2, 0.3, 0.5]),
+        liveRow("elo-form-v1", [0.2, 0.3, 0.5]),
+        liveRow("elo-home-v1", [0.2, 0.3, 0.5]),
+        liveRow("poisson-v1", [0.2, 0.3, 0.5], [0, 1]),
+      ]);
+    // 0–1: both players right, the outcome player's `2` and the score player's
+    // exact 0–1, and so is every model, Poisson's score exact as well.
+    await finish(0, 1);
+
+    expect(await settleGuesses(at(210))).toMatchObject({ rewarded: 2, modelWins: 0 });
     expect(await modelRows()).toEqual([]);
   });
 });

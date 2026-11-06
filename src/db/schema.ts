@@ -660,6 +660,45 @@ export const gameGuess = pgTable(
 );
 
 /**
+ * A player's guess on a Veikkausliiga season as a whole, one of each kind per
+ * season. A change before the lock rewrites the row; it costs nothing.
+ *
+ * decisions/075-season-guesses.md
+ */
+export const gameSeasonGuess = pgTable(
+  "game_season_guess",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => gamePlayer.userId, { onDelete: "cascade" }),
+    seasonId: integer("season_id").notNull(),
+    /** `"champion"`, `"upper"`, `"last"` or `"table"`. */
+    kind: text("kind").notNull(),
+    /** TASO team ids in the guess's order: the table's first is its 1st place. */
+    teams: integer("teams").array().notNull(),
+    madeAt: timestamp("made_at", { withTimezone: true }).notNull(),
+    /** When it was last changed, or null if never. */
+    changedAt: timestamp("changed_at", { withTimezone: true }),
+    /** The lock it was placed under, which a postponed first match does not move later. */
+    lockAt: timestamp("lock_at", { withTimezone: true }).notNull(),
+    settledAt: timestamp("settled_at", { withTimezone: true }),
+    /** What it paid, or null for a guess voided and refunded. */
+    reward: integer("reward"),
+    /** Teams right, and for a table the teams one place off, as settled. */
+    rightCount: integer("right_count"),
+    nearCount: integer("near_count"),
+  },
+  (table) => [
+    uniqueIndex("game_season_guess_identity_idx").on(table.userId, table.seasonId, table.kind),
+    // A season's lock, its shares and its leaderboard read by season.
+    index("game_season_guess_season_idx").on(table.seasonId, table.kind),
+    // The hourly run reads only the guesses still open.
+    index("game_season_guess_open_idx").on(table.seasonId).where(sql`${table.settledAt} is null`),
+  ]
+);
+
+/**
  * Every token movement, append-only: a player's balance in a season is the sum
  * of its amounts, never a figure stored of its own.
  *
@@ -667,6 +706,7 @@ export const gameGuess = pgTable(
  * decisions/076-guesses-on-irregular-matches.md
  * decisions/073-leaderboard.md
  * decisions/074-against-the-models.md
+ * decisions/075-season-guesses.md
  */
 export const gameLedger = pgTable(
   "game_ledger",
@@ -676,11 +716,18 @@ export const gameLedger = pgTable(
       .notNull()
       .references(() => gamePlayer.userId, { onDelete: "cascade" }),
     seasonId: integer("season_id").notNull(),
-    /** `"grant"`, `"guess"`, `"change"`, `"reward"`, `"refund"`, `"bonus"` or `"models"`. */
+    /**
+     * `"grant"`, `"guess"`, `"change"`, `"reward"`, `"refund"`, `"bonus"` or
+     * `"models"`; for a season guess `"season-guess"`, `"season-reward"` or
+     * `"season-refund"`.
+     */
     kind: text("kind").notNull(),
     /** Negative for what a guess or a change cost, positive or zero otherwise. */
     amount: integer("amount").notNull(),
     guessId: integer("guess_id").references(() => gameGuess.id, { onDelete: "cascade" }),
+    seasonGuessId: integer("season_guess_id").references(() => gameSeasonGuess.id, {
+      onDelete: "cascade",
+    }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
@@ -696,5 +743,12 @@ export const gameLedger = pgTable(
     // One rarity bonus per guess, and one reward for beating the models, for the same reason.
     uniqueIndex("game_ledger_bonus_idx").on(table.guessId).where(sql`${table.kind} = 'bonus'`),
     uniqueIndex("game_ledger_models_idx").on(table.guessId).where(sql`${table.kind} = 'models'`),
+    // One price and one settlement per season guess, for the same reason.
+    uniqueIndex("game_ledger_season_price_idx")
+      .on(table.seasonGuessId)
+      .where(sql`${table.kind} = 'season-guess'`),
+    uniqueIndex("game_ledger_season_settlement_idx")
+      .on(table.seasonGuessId)
+      .where(sql`${table.kind} in ('season-reward', 'season-refund')`),
   ]
 );

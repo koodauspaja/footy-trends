@@ -36,14 +36,14 @@ import { readModelGuesses } from "./guessing-game-board";
 import { MODEL_REWARD, modelsBeaten } from "./guessing-game-models";
 import { logger } from "./logger";
 
-const COMPETITION = "VL";
-const FINISHED = "FINISHED";
+export const COMPETITION = "VL";
+export const FINISHED = "FINISHED";
 /** The regular season's group; any other group of a season came out of the split. */
-const REGULAR_SEASON_GROUP = 1;
+export const REGULAR_SEASON_GROUP = 1;
 
-type Client = Pick<typeof db, "select" | "insert" | "update">;
+export type Client = Pick<typeof db, "select" | "insert" | "update">;
 
-type SeasonMatch = {
+export type SeasonMatch = {
   providerMatchId: number;
   groupId: number;
   groupName: string;
@@ -122,7 +122,12 @@ export type GuessOutcome =
         | "price-changed";
     };
 
-function seasonOf(seasonId: number) {
+/**
+ * A Veikkausliiga season's stored matches, under the codes it is stored under.
+ *
+ * decisions/072-match-guesses.md
+ */
+export function seasonOf(seasonId: number) {
   return and(
     eq(tasoMatches.seasonId, seasonId),
     eq(tasoMatches.competitionCode, competitionIdForSeason(COMPETITION, seasonId)),
@@ -165,7 +170,7 @@ function hasResult(
  *
  * decisions/072-match-guesses.md
  */
-async function latestSeason(client: Client): Promise<number | null> {
+export async function latestSeason(client: Client): Promise<number | null> {
   const [row] = await client
     .select({ seasonId: max(tasoMatches.seasonId) })
     .from(tasoMatches)
@@ -173,7 +178,7 @@ async function latestSeason(client: Client): Promise<number | null> {
   return row?.seasonId ?? null;
 }
 
-async function seasonMatches(client: Client, seasonId: number): Promise<SeasonMatch[]> {
+export async function seasonMatches(client: Client, seasonId: number): Promise<SeasonMatch[]> {
   return client
     .select(MATCH_COLUMNS)
     .from(tasoMatches)
@@ -195,7 +200,7 @@ async function previousSplitMatches(client: Client, seasonId: number): Promise<n
   return row?.count ?? 0;
 }
 
-type Season = {
+export type Season = {
   seasonId: number;
   matches: SeasonMatch[];
   splitStored: boolean;
@@ -203,7 +208,7 @@ type Season = {
   previousSplit: number;
 };
 
-async function seasonOfId(client: Client, seasonId: number): Promise<Season> {
+export async function seasonOfId(client: Client, seasonId: number): Promise<Season> {
   const matches = await seasonMatches(client, seasonId);
   const splitStored = matches.some((match) => match.groupId !== REGULAR_SEASON_GROUP);
   const previousSplit = splitStored ? 0 : await previousSplitMatches(client, seasonId);
@@ -237,7 +242,7 @@ function grantOf(season: Season, joinedAt: Date): number {
  *
  * decisions/072-match-guesses.md
  */
-async function ensureGrant(
+export async function ensureGrant(
   client: Client,
   userId: string,
   season: Season,
@@ -254,7 +259,7 @@ async function ensureGrant(
   }
 }
 
-async function balanceOf(client: Client, userId: string, seasonId: number): Promise<number> {
+export async function balanceOf(client: Client, userId: string, seasonId: number): Promise<number> {
   const [row] = await client
     .select({ balance: sum(gameLedger.amount).mapWith(Number) })
     .from(gameLedger)

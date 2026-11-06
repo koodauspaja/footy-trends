@@ -179,6 +179,12 @@ a match that fails to settle is named in the run's
 failures. A match whose guesses still wait for a reason worth a look (gone
 from the store, a status not seen before, no result 48 hours after kickoff)
 gets a `warn`, `Arvauspeli guesses still waiting`, once per run.
+Then it settles the season guesses whose season has answered them (specs/075):
+the six once the regular season is played, the rest once both groups are,
+judged by the standings page's own tables, and voids and refunds one still
+open once the next season's first fixture is stored. It logs
+`Arvauspeli season guesses settled` every run, and names a season guess that
+fails to settle in the run's failures.
 
 The whole backtest is still run by hand, per environment:
 `DATABASE_URL=<that environment> npm run predictions -- backtest`, from a

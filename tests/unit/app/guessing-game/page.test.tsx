@@ -9,24 +9,29 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * decisions/072-match-guesses.md
  * decisions/077-nickname.md
  * decisions/073-leaderboard.md
+ * decisions/075-season-guesses.md
  */
 
-const { currentUserId, openGame, getNickname, readOthers, logger } = vi.hoisted(() => ({
-  readOthers: vi.fn(),
-  currentUserId: vi.fn(async (): Promise<string | null> => "user-1"),
-  openGame: vi.fn(),
-  getNickname: vi.fn(async (): Promise<string | null> => null),
-  logger: { error: vi.fn() },
-}));
+const { currentUserId, openGame, getNickname, readOthers, readSeasonSectionOf, logger } =
+  vi.hoisted(() => ({
+    readOthers: vi.fn(),
+    readSeasonSectionOf: vi.fn(),
+    currentUserId: vi.fn(async (): Promise<string | null> => "user-1"),
+    openGame: vi.fn(),
+    getNickname: vi.fn(async (): Promise<string | null> => null),
+    logger: { error: vi.fn() },
+  }));
 
 vi.mock("@/lib/current-user", () => ({ currentUserId }));
 vi.mock("@/lib/guessing-game-store", () => ({ openGame }));
 vi.mock("@/lib/nickname-store", () => ({ getNickname }));
 vi.mock("@/lib/guessing-game-board", () => ({ readOthers }));
+vi.mock("@/lib/guessing-game-season-store", () => ({ readSeasonSectionOf }));
 vi.mock("@/lib/logger", () => ({ logger }));
 vi.mock("@/lib/guessing-game-actions", () => ({
   joinGameAction: vi.fn(),
   placeGuessAction: vi.fn(),
+  placeSeasonGuessAction: vi.fn(),
 }));
 vi.mock("@/lib/auth-client", () => ({ signIn: { social: vi.fn() } }));
 vi.mock("@/lib/section-choice-actions", () => ({ saveSectionChoiceAction: vi.fn() }));
@@ -46,6 +51,7 @@ beforeEach(() => {
   currentUserId.mockResolvedValue("user-1");
   getNickname.mockResolvedValue(null);
   readOthers.mockResolvedValue({ board: null, shares: new Map(), models: new Map() });
+  readSeasonSectionOf.mockResolvedValue({ current: null, previous: null });
 });
 
 describe("/arvauspeli", () => {
@@ -149,12 +155,51 @@ describe("/arvauspeli", () => {
     expect(screen.getByText("Aino")).toBeInTheDocument();
   });
 
+  it("reads the player's season guesses for the view, at the same moment, and shows them", async () => {
+    const view = {
+      kind: "playing",
+      seasonId: 2027,
+      balance: 950,
+      upcoming: [],
+      awaiting: [],
+      settled: [],
+      groups: 1,
+    };
+    openGame.mockResolvedValue(view);
+    const section = {
+      seasonId: 2027,
+      lockAt: new Date("2027-04-05T15:00:00Z"),
+      locked: true,
+      teams: [{ teamProviderId: 1, name: "HJK" }],
+      guesses: { champion: { teams: [1], settled: null } },
+      shares: { champion: null, last: null },
+    };
+    readSeasonSectionOf.mockResolvedValue({
+      current: section,
+      previous: {
+        ...section,
+        seasonId: 2026,
+        teams: [{ teamProviderId: 2, name: "KuPS" }],
+        guesses: { champion: { teams: [2], settled: null } },
+      },
+    });
+
+    await renderPage();
+
+    expect(readSeasonSectionOf).toHaveBeenCalledWith(view, "user-1", openGame.mock.calls[0]?.[1]);
+    expect(screen.getByRole("heading", { name: "Kauden arvaukset" })).toBeInTheDocument();
+    expect(screen.getByText("Arvauksesi: HJK")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Kauden 2026 arvaukset" })).toBeInTheDocument();
+    expect(screen.getByText("Arvauksesi: KuPS")).toBeInTheDocument();
+  });
+
   it("reads no other players for a signed-out reader", async () => {
     currentUserId.mockResolvedValue(null);
 
     await renderPage();
 
     expect(readOthers).not.toHaveBeenCalled();
+    expect(readSeasonSectionOf).not.toHaveBeenCalled();
     expect(screen.queryByRole("heading", { name: "Tulostaulukko" })).not.toBeInTheDocument();
   });
 

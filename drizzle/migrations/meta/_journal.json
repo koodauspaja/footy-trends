@@ -197,6 +197,13 @@
       "when": 1793912729348,
       "tag": "0027_add_game_models_index",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1793944910996,
+      "tag": "0028_create_game_season_guess",
+      "breakpoints": true
     }
   ]
 }

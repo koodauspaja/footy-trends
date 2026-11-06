@@ -7,6 +7,7 @@ import {
   gameGuess,
   gameLedger,
   gamePlayer,
+  gameSeasonGuess,
   matches,
   predictions,
   refreshRuns,
@@ -44,6 +45,7 @@ import {
  * decisions/077-nickname.md
  * decisions/073-leaderboard.md
  * decisions/074-against-the-models.md
+ * decisions/075-season-guesses.md
  */
 
 describe("matches table", () => {
@@ -595,7 +597,52 @@ describe("Arvauspeli's tables", () => {
     expect(references).toEqual([
       { onDelete: "cascade", table: gamePlayer },
       { onDelete: "cascade", table: gameGuess },
+      { onDelete: "cascade", table: gameSeasonGuess },
     ]);
+  });
+
+  it("keeps one season guess per player, season and kind, and cascades away with the player", () => {
+    expect(indexNamed(gameSeasonGuess, "game_season_guess_identity_idx")).toEqual({
+      unique: true,
+      columns: ["user_id", "season_id", "kind"],
+      where: undefined,
+    });
+    const [foreignKey] = getTableConfig(gameSeasonGuess).foreignKeys;
+    expect(foreignKey?.onDelete).toBe("cascade");
+    expect(foreignKey?.reference().foreignTable).toBe(gamePlayer);
+  });
+
+  it("indexes season guesses by season and kind, and the open ones for settling", () => {
+    expect(indexNamed(gameSeasonGuess, "game_season_guess_season_idx")).toEqual({
+      unique: false,
+      columns: ["season_id", "kind"],
+      where: undefined,
+    });
+    expect(indexNamed(gameSeasonGuess, "game_season_guess_open_idx")).toEqual({
+      unique: false,
+      columns: ["season_id"],
+      where: "partial",
+    });
+  });
+
+  it("keeps a season guess's lock, which it must have, and when it last changed, which it may not", () => {
+    const columns = new Map(
+      getTableConfig(gameSeasonGuess).columns.map((column) => [column.name, column])
+    );
+
+    expect(columns.get("lock_at")?.notNull).toBe(true);
+    expect(columns.get("changed_at")?.notNull).toBe(false);
+    expect(columns.get("made_at")?.notNull).toBe(true);
+  });
+
+  it("allows one price and one settlement per season guess", () => {
+    for (const name of ["game_ledger_season_price_idx", "game_ledger_season_settlement_idx"]) {
+      expect(indexNamed(gameLedger, name)).toEqual({
+        unique: true,
+        columns: ["season_guess_id"],
+        where: "partial",
+      });
+    }
   });
 });
 

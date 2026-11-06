@@ -9,11 +9,13 @@ import { warmModules } from "../../support/warm-module";
  *
  * decisions/073-leaderboard.md
  * decisions/074-against-the-models.md
+ * decisions/075-season-guesses.md
  */
 
 const { state, logger } = vi.hoisted(() => ({
   state: {
     guessed: [] as unknown[],
+    seasonGuessed: [] as unknown[],
     balances: [] as unknown[],
     shareRows: [] as unknown[],
     modelRows: [] as unknown[],
@@ -29,6 +31,7 @@ const { state, logger } = vi.hoisted(() => ({
 vi.mock("@/db", () => {
   function rowsFor(shape: Record<string, unknown>): unknown[] {
     if ("settled" in shape) return state.guessed;
+    if ("seasonSettled" in shape) return state.seasonGuessed;
     if ("balance" in shape) return state.balances;
     if ("model" in shape) return state.modelRows;
     return state.shareRows;
@@ -83,6 +86,7 @@ const NOW = new Date("2027-06-01T12:00:00Z");
 beforeEach(() => {
   vi.clearAllMocks();
   state.guessed = [];
+  state.seasonGuessed = [];
   state.balances = [];
   state.shareRows = [];
   state.modelRows = [];
@@ -121,6 +125,26 @@ describe("readBoard", () => {
     expect(state.transactionOptions).toEqual([
       { isolationLevel: "repeatable read", accessMode: "read only" },
     ]);
+  });
+
+  it("ranks a player with only season guesses, and adds settled season guesses to a player's count", async () => {
+    state.guessed = [{ userId: "a", settled: 2, nickname: "Aino" }];
+    state.seasonGuessed = [
+      { userId: "a", seasonSettled: 1, nickname: "Aino" },
+      { userId: "b", seasonSettled: 0, nickname: "Bea" },
+    ];
+    state.balances = [
+      { userId: "a", balance: 950 },
+      { userId: "b", balance: 900 },
+    ];
+
+    const board = await readBoard(2027, "a");
+
+    expect(board.rows).toEqual([
+      { nickname: "Aino", balance: 950, settled: 3, rank: 1, place: 1, self: true },
+      { nickname: "Bea", balance: 900, settled: 0, rank: 2, place: 2, self: false },
+    ]);
+    expect(board.players).toBe(2);
   });
 
   it("ranks a player whose ledger has no rows at 0", async () => {

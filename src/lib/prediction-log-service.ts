@@ -19,6 +19,7 @@ import { categoryIdsFor, competitionForSeasonPair } from "./domestic-competition
 import { isRated, type TeamRating } from "./elo";
 import { replayVariants, type VariantState } from "./elo-variants";
 import { getSeasonMatches as getFootballDataSeasonMatches } from "./football-data";
+import { settleSeasonGuesses } from "./guessing-game-season-store";
 import { settleGuesses } from "./guessing-game-store";
 import { HOME_BASELINE_MODEL, isPredictedCup, PREDICTED_COMPETITIONS } from "./home-baseline";
 import { logger } from "./logger";
@@ -389,22 +390,33 @@ export async function runPredictionLog(
 }
 
 /**
- * Settles the Arvauspeli guesses whose matches are finished, adding a failure
- * for each match that could not be and for a step that failed outright.
+ * Settles the Arvauspeli guesses whose matches are finished, then the season
+ * guesses whose season has answered them, adding a failure for each match or
+ * season guess that could not be and for a step that failed outright.
  *
  * decisions/072-match-guesses.md
  * decisions/076-guesses-on-irregular-matches.md
+ * decisions/075-season-guesses.md
  */
 export async function settle(now: Date, failures: string[]): Promise<number> {
+  let settled = 0;
   try {
     const report = await settleGuesses(now);
     failures.push(...report.failed.map((providerMatchId) => `settle match ${providerMatchId}`));
-    return report.rewarded + report.missed + report.refunded + report.voided;
+    settled += report.rewarded + report.missed + report.refunded + report.voided;
   } catch (error) {
     logger.error({ err: error }, "Unable to settle Arvauspeli guesses");
     failures.push("settle");
-    return 0;
   }
+  try {
+    const report = await settleSeasonGuesses(now);
+    failures.push(...report.failed.map((id) => `settle season guess ${id}`));
+    settled += report.settled;
+  } catch (error) {
+    logger.error({ err: error }, "Unable to settle Arvauspeli season guesses");
+    failures.push("settle seasons");
+  }
+  return settled;
 }
 
 /**

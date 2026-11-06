@@ -7,6 +7,7 @@ import { currentUserId } from "@/lib/current-user";
 import type { Board, Shares } from "@/lib/guessing-game";
 import { readOthers } from "@/lib/guessing-game-board";
 import type { ModelGuess } from "@/lib/guessing-game-models";
+import { readSeasonSectionOf, type SeasonSections } from "@/lib/guessing-game-season-store";
 import { type GameView, openGame } from "@/lib/guessing-game-store";
 import { logger } from "@/lib/logger";
 import { getNickname } from "@/lib/nickname-store";
@@ -45,6 +46,7 @@ async function nicknameOrUnknown(userId: string): Promise<string | null | undefi
  * decisions/072-match-guesses.md
  * decisions/077-nickname.md
  * decisions/073-leaderboard.md
+ * decisions/075-season-guesses.md
  */
 export default async function GuessingGame() {
   let view: GameView;
@@ -54,6 +56,7 @@ export default async function GuessingGame() {
     shares: Map<number, Shares>;
     models: Map<number, ModelGuess[]>;
   };
+  let seasons: SeasonSections;
   try {
     const userId = await currentUserId();
     if (userId === null) {
@@ -65,7 +68,10 @@ export default async function GuessingGame() {
     }
     const now = new Date();
     [view, nickname] = await Promise.all([openGame(userId, now), nicknameOrUnknown(userId)]);
-    others = await readOthers(view, userId, now);
+    [others, seasons] = await Promise.all([
+      readOthers(view, userId, now),
+      readSeasonSectionOf(view, userId, now),
+    ]);
   } catch (error) {
     logger.error({ err: error }, "Reading Arvauspeli failed");
     return (
@@ -80,6 +86,8 @@ export default async function GuessingGame() {
         board={others.board}
         hasNickname={nickname !== null}
         models={others.models}
+        previousSeason={seasons.previous}
+        season={seasons.current}
         shares={others.shares}
         view={view}
       />
