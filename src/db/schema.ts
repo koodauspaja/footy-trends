@@ -691,6 +691,10 @@ export const gameSeasonGuess = pgTable(
   },
   (table) => [
     uniqueIndex("game_season_guess_identity_idx").on(table.userId, table.seasonId, table.kind),
+    // A season's lock, its shares and its leaderboard read by season.
+    index("game_season_guess_season_idx").on(table.seasonId, table.kind),
+    // The hourly run reads only the guesses still open.
+    index("game_season_guess_open_idx").on(table.seasonId).where(sql`${table.settledAt} is null`),
   ]
 );
 

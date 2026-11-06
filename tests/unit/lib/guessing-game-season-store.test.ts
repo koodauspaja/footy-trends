@@ -7,7 +7,9 @@ import { warmModules } from "../../support/warm-module";
  * Arvauspeli's season guess store around its queries: placing and changing a
  * guess, the section's read, the season's answers from its tables, and
  * settling. Each query answers a queued result; the SQL runs against Postgres
- * in `tests/integration/guessing-game-season.test.ts`.
+ * in `tests/integration/guessing-game-season.test.ts`. The season's tables are
+ * stood in for: they come from the standings page's path, with its own TASO
+ * freshness rules.
  *
  * decisions/075-season-guesses.md
  */

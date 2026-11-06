@@ -9,7 +9,8 @@ import { joinGame } from "@/lib/guessing-game-store";
  * Arvauspeli's season guesses against a real Postgres: placing pays once, a
  * change is free, the lock, settling once by the season's tables, and the void
  * with the next season, in seasons of their own. The tables are the standings
- * page's, stood in for here, since reading them asks TASO.
+ * page's, stood in for here: that path reads TASO, with its own freshness
+ * rules, which these tests leave as they are.
  *
  * decisions/075-season-guesses.md
  */

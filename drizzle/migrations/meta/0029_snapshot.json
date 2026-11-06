@@ -1,5 +1,5 @@
 {
-  "id": "9350ee98-54e4-47fb-911a-058c5fe6fedc",
+  "id": "08854334-39f7-4e54-b08e-a19432b6736d",
   "prevId": "5a126b06-1571-4ce0-b21c-19404bbaaad3",
   "version": "7",
   "dialect": "postgresql",
@@ -811,6 +811,43 @@
             }
           ],
           "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "game_season_guess_season_idx": {
+          "name": "game_season_guess_season_idx",
+          "columns": [
+            {
+              "expression": "season_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "game_season_guess_open_idx": {
+          "name": "game_season_guess_open_idx",
+          "columns": [
+            {
+              "expression": "season_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"game_season_guess\".\"settled_at\" is null",
           "concurrently": false,
           "method": "btree",
           "with": {}

@@ -612,6 +612,19 @@ describe("Arvauspeli's tables", () => {
     expect(foreignKey?.reference().foreignTable).toBe(gamePlayer);
   });
 
+  it("indexes season guesses by season and kind, and the open ones for settling", () => {
+    expect(indexNamed(gameSeasonGuess, "game_season_guess_season_idx")).toEqual({
+      unique: false,
+      columns: ["season_id", "kind"],
+      where: undefined,
+    });
+    expect(indexNamed(gameSeasonGuess, "game_season_guess_open_idx")).toEqual({
+      unique: false,
+      columns: ["season_id"],
+      where: "partial",
+    });
+  });
+
   it("keeps a season guess's lock, which it must have, and when it last changed, which it may not", () => {
     const columns = new Map(
       getTableConfig(gameSeasonGuess).columns.map((column) => [column.name, column])
