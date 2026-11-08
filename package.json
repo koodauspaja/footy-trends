@@ -88,7 +88,7 @@
     "esbuild@0.28.2": true,
     "fsevents@2.3.3": true
   },
-  "packageManager": "npm@12.2.1",
+  "packageManager": "npm@12.2.2",
   "overrides": {
     "@esbuild-kit/core-utils": {
       "esbuild": "^0.25.0"
