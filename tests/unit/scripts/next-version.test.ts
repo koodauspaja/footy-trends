@@ -8,7 +8,7 @@ import {
   isMergeSubject,
   isStableVersionTag,
   issueRefsIn,
-  labelsOfIssueResponse,
+  labelsOfReferenceResponse,
   parseVersion,
   selectPreviousTag,
 } from "../../../scripts/next-version";
@@ -21,6 +21,7 @@ import {
  * decisions/217-release-notes-format.md
  * decisions/357-release-domains.md
  * decisions/471-dependency-updates-are-chores.md
+ * decisions/780-release-domains-through-pull-requests.md
  */
 
 const c = (subject: string, body?: string) =>
@@ -302,38 +303,140 @@ describe("domainsFrom", () => {
   });
 });
 
-describe("labelsOfIssueResponse", () => {
-  it("reads the label names off an issue", async () => {
-    expect(labelsOfIssueResponse({ labels: [{ name: "auth" }, { name: "taso" }] })).toEqual([
-      "auth",
-      "taso",
+const labels = (...names: string[]) => ({
+  totalCount: names.length,
+  nodes: names.map((name) => ({ name })),
+});
+const answer = (issueOrPullRequest: unknown) => ({ data: { repository: { issueOrPullRequest } } });
+const issue = (...names: string[]) => answer({ __typename: "Issue", labels: labels(...names) });
+const pullRequest = (...closes: string[][]) =>
+  answer({
+    __typename: "PullRequest",
+    closingIssuesReferences: {
+      totalCount: closes.length,
+      nodes: closes.map((names) => ({ labels: labels(...names) })),
+    },
+  });
+
+describe("labelsOfReferenceResponse", () => {
+  it("reads the label names off an issue", () => {
+    expect(labelsOfReferenceResponse(issue("enhancement", "guessing-game"), 775)).toEqual([
+      "enhancement",
+      "guessing-game",
     ]);
   });
 
-  it("ignores a pull request, which GitHub answers from the same endpoint", async () => {
-    // `/issues/{n}` returns pull requests too, with a 200. This repository's
-    // squash commits name both, issue then pull request, so a labelled pull
-    // request would otherwise contribute domains the issue never had.
+  it("reads a pull request's labels off the issues it closes", () => {
     expect(
-      labelsOfIssueResponse({ pull_request: { url: "…" }, labels: [{ name: "auth" }] })
-    ).toEqual([]);
+      labelsOfReferenceResponse(pullRequest(["enhancement", "predictions"], ["guessing-game"]), 771)
+    ).toEqual(["enhancement", "predictions", "guessing-game"]);
+  });
+
+  it("ignores the pull request's own labels", () => {
+    const payload = answer({
+      __typename: "PullRequest",
+      labels: labels("auth"),
+      closingIssuesReferences: { totalCount: 1, nodes: [{ labels: labels("taso") }] },
+    });
+
+    expect(labelsOfReferenceResponse(payload, 315)).toEqual(["taso"]);
+  });
+
+  it("answers nothing for a pull request that closes no issue", () => {
+    expect(labelsOfReferenceResponse(pullRequest(), 779)).toEqual([]);
+  });
+
+  it("answers nothing for a number that is no issue or pull request", () => {
+    const payload = {
+      data: { repository: { issueOrPullRequest: null } },
+      errors: [
+        {
+          type: "NOT_FOUND",
+          path: ["repository", "issueOrPullRequest"],
+          message: "Could not resolve to an issue or pull request",
+        },
+      ],
+    };
+
+    expect(labelsOfReferenceResponse(payload, 99999)).toEqual([]);
   });
 
   it.each([
-    ["no labels field", {}],
-    ["labels that are not an array", { labels: "auth" }],
-    ["not an object at all", "auth"],
-    ["null", null],
-  ])("answers nothing for %s", async (_case, payload) => {
-    // The response is parsed JSON from a network call; its shape is not ours to
-    // assume.
-    expect(labelsOfIssueResponse(payload)).toEqual([]);
+    [
+      "an error other than not found",
+      {
+        errors: [
+          { type: "NOT_FOUND", path: ["repository", "issueOrPullRequest"] },
+          { type: "RATE_LIMITED", message: "slow down" },
+        ],
+      },
+      /could not answer for #10: .*slow down/,
+    ],
+    [
+      "a repository that cannot be found",
+      {
+        data: { repository: null },
+        errors: [{ type: "NOT_FOUND", path: ["repository"], message: "no such repository" }],
+      },
+      /could not answer for #10: no such repository/,
+    ],
+    [
+      "a not found error without a path",
+      { errors: [{ type: "NOT_FOUND", message: "somewhere" }] },
+      /could not answer for #10: somewhere/,
+    ],
+    [
+      "a label without a name",
+      answer({ __typename: "Issue", labels: { totalCount: 2, nodes: [{ name: "auth" }, {}] } }),
+      /labels of #10: a label without a name/,
+    ],
+    [
+      "a label whose name is not a string",
+      answer({ __typename: "Issue", labels: { totalCount: 1, nodes: [{ name: 7 }] } }),
+      /labels of #10: a label without a name/,
+    ],
+    ["an answer naming nothing", answer(null), /names no issue or pull request/],
+    ["no answer at all", null, /names no issue or pull request/],
+    [
+      "a pull request without its closing issues",
+      answer({ __typename: "PullRequest" }),
+      /issues #10 closes: no list/,
+    ],
+    [
+      "more closing issues than were read",
+      answer({
+        __typename: "PullRequest",
+        closingIssuesReferences: { totalCount: 2, nodes: [{ labels: labels("taso") }] },
+      }),
+      /issues #10 closes: 2 counted, 1 read/,
+    ],
+    [
+      "more labels on a closing issue than were read",
+      answer({
+        __typename: "PullRequest",
+        closingIssuesReferences: {
+          totalCount: 1,
+          nodes: [{ labels: { totalCount: 2, nodes: [] } }],
+        },
+      }),
+      /labels of an issue #10 closes: 2 counted, 0 read/,
+    ],
+    [
+      "more labels on an issue than were read",
+      answer({ __typename: "Issue", labels: { totalCount: 101, nodes: [] } }),
+      /labels of #10: 101 counted, 0 read/,
+    ],
+  ])("throws for %s", (_case, payload, message) => {
+    // A release labelled from part of an answer would say less than it should
+    // with nothing looking wrong.
+    expect(() => labelsOfReferenceResponse(payload, 10)).toThrow(message);
   });
 
-  it("skips a label whose name is missing or not a string", async () => {
-    expect(labelsOfIssueResponse({ labels: [{ name: "auth" }, {}, { name: 7 }] })).toEqual([
-      "auth",
-    ]);
+  it("counts an issue once when a commit names it and the pull request closing it", () => {
+    const direct = labelsOfReferenceResponse(issue("chore", "guessing-game"), 765);
+    const through = labelsOfReferenceResponse(pullRequest(["chore", "guessing-game"]), 773);
+
+    expect(domainsFrom([...direct, ...through])).toEqual(["guessing-game"]);
   });
 });
 
@@ -367,8 +470,8 @@ describe("issueRefsIn", () => {
     ["issue zero, which cannot exist", "fix: a thing (#0)"],
     ["a number too large to be an id", "fix: a thing (#99999999999999999999)"],
   ])("ignores %s rather than asking GitHub about it", async (_case, subject) => {
-    // These reach the network as a URL. A reference that cannot be an issue is
-    // dropped here instead of becoming a request that answers 404.
+    // A reference that cannot be an issue is dropped here instead of costing a
+    // request that can only answer not found.
     const decision = decideVersion([c(subject)], "v1.0.0");
 
     expect(issueRefsIn(decision)).toEqual([]);
