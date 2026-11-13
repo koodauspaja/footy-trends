@@ -7,6 +7,7 @@
  * decisions/292-sonar-zero-open-issues.md
  * decisions/357-release-domains.md
  * decisions/361-release-domains-on-the-pr.md
+ * decisions/780-release-domains-through-pull-requests.md
  */
 import { execFileSync } from "node:child_process";
 import { executablePath, overrideNameFor } from "./executable";
@@ -17,7 +18,8 @@ import {
   formatReleaseNotes,
   isStableVersionTag,
   issueRefsIn,
-  labelsOfIssueResponse,
+  labelsOfReferenceResponse,
+  REFERENCE_LABELS_QUERY,
   selectPreviousTag,
 } from "./next-version";
 
@@ -87,7 +89,10 @@ function commitsBetween(from: string | null, to: string): Commit[] {
     });
 }
 
-const API = "https://api.github.com/repos/koodauspaja/footy-trends";
+const OWNER = "koodauspaja";
+const REPOSITORY = "footy-trends";
+const API = `https://api.github.com/repos/${OWNER}/${REPOSITORY}`;
+const GRAPHQL = "https://api.github.com/graphql";
 
 /**
  * Long enough for a slow answer, short enough that nobody waits on a release.
@@ -172,11 +177,13 @@ async function labelsThatExist(domains: string[], token: string | undefined): Pr
 }
 
 /**
- * The domain labels on every issue this release's commits reference. It throws
- * on failure, so "touches nothing" and "could not be read" stay apart.
+ * The domain labels on every issue this release's commits reference, directly
+ * or through a pull request that closes it. It throws on failure, so "touches
+ * nothing" and "could not be read" stay apart.
  *
  * decisions/357-release-domains.md
  * decisions/361-release-domains-on-the-pr.md
+ * decisions/780-release-domains-through-pull-requests.md
  */
 async function domainsForRelease(decision: ReturnType<typeof decideVersion>): Promise<string[]> {
   const refs = issueRefsIn(decision);
@@ -198,7 +205,8 @@ async function domainsForRelease(decision: ReturnType<typeof decideVersion>): Pr
   try {
     const labels = await Promise.all(
       refs.map(async (ref) => {
-        const response = await fetch(`${API}/issues/${ref}`, {
+        const response = await fetch(GRAPHQL, {
+          method: "POST",
           // A connection that never settles would leave `Promise.all` pending
           // forever, and the notes would never print — the one way this could
           // still stop a release. An abort is caught like any other failure.
@@ -206,15 +214,16 @@ async function domainsForRelease(decision: ReturnType<typeof decideVersion>): Pr
           headers: {
             Accept: "application/vnd.github+json",
             Authorization: `Bearer ${token}`,
-            "X-GitHub-Api-Version": "2022-11-28",
           },
+          body: JSON.stringify({
+            query: REFERENCE_LABELS_QUERY,
+            variables: { owner: OWNER, name: REPOSITORY, number: ref },
+          }),
         });
-        // A 404 is one reference that is deleted or not ours, and is skipped. Anything
-        // else is the lookup failing. A pull request answers 200 here, and
-        // `labelsOfIssueResponse` excludes it.
-        if (response.status === 404) return [];
-        if (!response.ok) throw new Error(`GitHub answered ${response.status} for issue ${ref}`);
-        return labelsOfIssueResponse(await response.json());
+        // A number that is no issue or pull request answers 200 with a
+        // NOT_FOUND error, and `labelsOfReferenceResponse` skips it.
+        if (!response.ok) throw new Error(`GitHub answered ${response.status} for #${ref}`);
+        return labelsOfReferenceResponse(await response.json(), ref);
       })
     );
     return domainsFrom(labels.flat());

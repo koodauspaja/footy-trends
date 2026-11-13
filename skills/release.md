@@ -136,8 +136,9 @@ Merge commits are excluded — a release produces one, and it carries no type.
    the cost of never having to look anything up during a release.
 
    **The parts of the app a release changes are its labels**, read from the
-   domain labels on the issues those commits reference and applied to the pull
-   request by `npm run release:pr`. They answer step 3's question without
+   domain labels on the issues those commits reference, directly or through a
+   pull request that closes them, and applied to the pull request by
+   `npm run release:pr`. They answer step 3's question without
    reading every subject, and unlike a line in the body they are what GitHub
    filters and searches by.
 

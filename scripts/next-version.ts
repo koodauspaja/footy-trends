@@ -9,6 +9,7 @@
  * decisions/357-release-domains.md
  * decisions/361-release-domains-on-the-pr.md
  * decisions/471-dependency-updates-are-chores.md
+ * decisions/780-release-domains-through-pull-requests.md
  */
 
 export type Bump = "major" | "minor" | "patch";
@@ -344,21 +345,88 @@ const KIND_LABELS = new Set([
 ]);
 
 /**
- * The labels on one `/issues/{n}` response, or none when it is a pull request:
- * GitHub answers that path for pull requests too.
+ * The query that answers one referenced number: an issue's labels, or the
+ * labels of the issues a pull request closes, never the pull request's own.
  *
  * decisions/357-release-domains.md
+ * decisions/780-release-domains-through-pull-requests.md
  */
-export function labelsOfIssueResponse(payload: unknown): string[] {
-  if (typeof payload !== "object" || payload === null) return [];
-  const record = payload as { pull_request?: unknown; labels?: unknown };
-  if (record.pull_request !== undefined) return [];
-  if (!Array.isArray(record.labels)) return [];
+export const REFERENCE_LABELS_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    issueOrPullRequest(number: $number) {
+      __typename
+      ... on Issue { labels(first: 100) { totalCount nodes { name } } }
+      ... on PullRequest {
+        closingIssuesReferences(first: 100) {
+          totalCount
+          nodes { labels(first: 100) { totalCount nodes { name } } }
+        }
+      }
+    }
+  }
+}`;
 
-  return record.labels.flatMap((label) => {
-    const name = (label as { name?: unknown }).name;
-    return typeof name === "string" ? [name] : [];
-  });
+type Connection<T> = { totalCount?: unknown; nodes?: T[] };
+
+/**
+ * Every node of a connection, throwing when the answer is not one or holds
+ * fewer nodes than it counts.
+ *
+ * decisions/780-release-domains-through-pull-requests.md
+ */
+function allNodes<T>(connection: Connection<T> | undefined, what: string): T[] {
+  const nodes = connection?.nodes;
+  if (!Array.isArray(nodes)) throw new Error(`${what}: no list in the answer`);
+  if (connection?.totalCount !== nodes.length) {
+    throw new Error(`${what}: ${String(connection?.totalCount)} counted, ${nodes.length} read`);
+  }
+  return nodes;
+}
+
+function labelNames(
+  connection: Connection<{ name?: unknown }> | undefined,
+  what: string
+): string[] {
+  return allNodes(connection, what).flatMap((label) =>
+    typeof label.name === "string" ? [label.name] : []
+  );
+}
+
+type ReferenceNode =
+  | { __typename: "Issue"; labels?: Connection<{ name?: unknown }> }
+  | {
+      __typename: "PullRequest";
+      closingIssuesReferences?: Connection<{ labels?: Connection<{ name?: unknown }> }>;
+    };
+
+/**
+ * The labels one `REFERENCE_LABELS_QUERY` answer gives for `#ref`. A number
+ * that is no issue or pull request gives none; any other failure throws.
+ *
+ * decisions/357-release-domains.md
+ * decisions/780-release-domains-through-pull-requests.md
+ */
+export function labelsOfReferenceResponse(payload: unknown, ref: number): string[] {
+  const response = payload as {
+    data?: { repository?: { issueOrPullRequest?: ReferenceNode | null } | null } | null;
+    errors?: { type?: unknown; message?: unknown }[];
+  } | null;
+
+  const errors = response?.errors ?? [];
+  if (errors.length > 0) {
+    if (errors.every((error) => error.type === "NOT_FOUND")) return [];
+    const messages = errors.map((error) => String(error.message)).join("; ");
+    throw new Error(`GitHub could not answer for #${ref}: ${messages}`);
+  }
+
+  const node = response?.data?.repository?.issueOrPullRequest;
+  if (node?.__typename === "Issue") return labelNames(node.labels, `labels of #${ref}`);
+  if (node?.__typename === "PullRequest") {
+    return allNodes(node.closingIssuesReferences, `issues #${ref} closes`).flatMap((issue) =>
+      labelNames(issue.labels, `labels of an issue #${ref} closes`)
+    );
+  }
+  throw new Error(`GitHub's answer for #${ref} names no issue or pull request`);
 }
 
 /**
