@@ -349,26 +349,51 @@ describe("labelsOfReferenceResponse", () => {
   it("answers nothing for a number that is no issue or pull request", () => {
     const payload = {
       data: { repository: { issueOrPullRequest: null } },
-      errors: [{ type: "NOT_FOUND", message: "Could not resolve to an issue or pull request" }],
+      errors: [
+        {
+          type: "NOT_FOUND",
+          path: ["repository", "issueOrPullRequest"],
+          message: "Could not resolve to an issue or pull request",
+        },
+      ],
     };
 
     expect(labelsOfReferenceResponse(payload, 99999)).toEqual([]);
   });
 
-  it("skips a label whose name is missing or not a string", () => {
-    const payload = answer({
-      __typename: "Issue",
-      labels: { totalCount: 3, nodes: [{ name: "auth" }, {}, { name: 7 }] },
-    });
-
-    expect(labelsOfReferenceResponse(payload, 10)).toEqual(["auth"]);
-  });
-
   it.each([
     [
       "an error other than not found",
-      { errors: [{ type: "NOT_FOUND" }, { type: "RATE_LIMITED", message: "slow down" }] },
+      {
+        errors: [
+          { type: "NOT_FOUND", path: ["repository", "issueOrPullRequest"] },
+          { type: "RATE_LIMITED", message: "slow down" },
+        ],
+      },
       /could not answer for #10: .*slow down/,
+    ],
+    [
+      "a repository that cannot be found",
+      {
+        data: { repository: null },
+        errors: [{ type: "NOT_FOUND", path: ["repository"], message: "no such repository" }],
+      },
+      /could not answer for #10: no such repository/,
+    ],
+    [
+      "a not found error without a path",
+      { errors: [{ type: "NOT_FOUND", message: "somewhere" }] },
+      /could not answer for #10: somewhere/,
+    ],
+    [
+      "a label without a name",
+      answer({ __typename: "Issue", labels: { totalCount: 2, nodes: [{ name: "auth" }, {}] } }),
+      /labels of #10: a label without a name/,
+    ],
+    [
+      "a label whose name is not a string",
+      answer({ __typename: "Issue", labels: { totalCount: 1, nodes: [{ name: 7 }] } }),
+      /labels of #10: a label without a name/,
     ],
     ["an answer naming nothing", answer(null), /names no issue or pull request/],
     ["no answer at all", null, /names no issue or pull request/],
@@ -445,8 +470,8 @@ describe("issueRefsIn", () => {
     ["issue zero, which cannot exist", "fix: a thing (#0)"],
     ["a number too large to be an id", "fix: a thing (#99999999999999999999)"],
   ])("ignores %s rather than asking GitHub about it", async (_case, subject) => {
-    // These reach the network as a GraphQL `Int`. A reference that cannot be an
-    // issue is dropped here instead of becoming a request that fails the release.
+    // A reference that cannot be an issue is dropped here instead of costing a
+    // request that can only answer not found.
     const decision = decideVersion([c(subject)], "v1.0.0");
 
     expect(issueRefsIn(decision)).toEqual([]);

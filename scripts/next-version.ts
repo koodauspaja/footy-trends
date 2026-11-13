@@ -387,9 +387,10 @@ function labelNames(
   connection: Connection<{ name?: unknown }> | undefined,
   what: string
 ): string[] {
-  return allNodes(connection, what).flatMap((label) =>
-    typeof label.name === "string" ? [label.name] : []
-  );
+  return allNodes(connection, what).map((label) => {
+    if (typeof label.name !== "string") throw new Error(`${what}: a label without a name`);
+    return label.name;
+  });
 }
 
 type ReferenceNode =
@@ -409,12 +410,17 @@ type ReferenceNode =
 export function labelsOfReferenceResponse(payload: unknown, ref: number): string[] {
   const response = payload as {
     data?: { repository?: { issueOrPullRequest?: ReferenceNode | null } | null } | null;
-    errors?: { type?: unknown; message?: unknown }[];
+    errors?: { type?: unknown; path?: unknown; message?: unknown }[];
   } | null;
 
   const errors = response?.errors ?? [];
   if (errors.length > 0) {
-    if (errors.every((error) => error.type === "NOT_FOUND")) return [];
+    // Only the reference itself missing: a missing repository is a failure.
+    const referenceMissing = (error: { type?: unknown; path?: unknown }) =>
+      error.type === "NOT_FOUND" &&
+      Array.isArray(error.path) &&
+      error.path.join(".") === "repository.issueOrPullRequest";
+    if (errors.every(referenceMissing)) return [];
     const messages = errors.map((error) => String(error.message)).join("; ");
     throw new Error(`GitHub could not answer for #${ref}: ${messages}`);
   }
