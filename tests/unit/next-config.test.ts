@@ -109,3 +109,16 @@ describe("next.config.ts, security headers", () => {
     expect(config.poweredByHeader).toBe(false);
   });
 });
+
+/**
+ * Server actions keep Next's own 1 MB body limit: the avatar upload, the one
+ * write that needed more, is a route handler.
+ *
+ * decisions/025-custom-avatar.md
+ * decisions/810-avatar-upload-route.md
+ */
+describe("next.config.ts, server actions", () => {
+  it("leaves the body limit at Next's default", () => {
+    expect(config.experimental?.serverActions?.bodySizeLimit).toBeUndefined();
+  });
+});
