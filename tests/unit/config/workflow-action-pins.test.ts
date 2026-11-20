@@ -4,7 +4,8 @@ import { describe, expect, it } from "vitest";
 
 /**
  * Every action a workflow uses is pinned to a full commit hash with its version
- * in a trailing comment, and Renovate is told to keep those hashes current.
+ * in a trailing comment, and Renovate is told to pin any action that arrives on a
+ * tag.
  *
  * decisions/813-pinned-actions.md
  */
