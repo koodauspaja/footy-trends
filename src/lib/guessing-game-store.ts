@@ -17,8 +17,10 @@ import {
   competitionIdForSeason,
 } from "./domestic-competitions";
 import {
+  type AwaitingGuess,
   cheapestOpenPrice,
   decideGuess,
+  type GameView,
   type Guess,
   type GuessDecision,
   guessPrice,
@@ -27,10 +29,12 @@ import {
   parseGuess,
   RARITY_BONUS,
   rarityBonuses,
+  type SettledGuess,
   type Settlement,
   type SettlingMatch,
   seasonGrant,
   settlementOf,
+  type UpcomingMatch,
 } from "./guessing-game";
 import { readModelGuesses } from "./guessing-game-board";
 import { MODEL_REWARD, modelsBeaten } from "./guessing-game-models";
@@ -54,59 +58,6 @@ export type SeasonMatch = {
   homeGoals: number | null;
   awayGoals: number | null;
 };
-
-export type UpcomingMatch = {
-  providerMatchId: number;
-  groupName: string;
-  kickoffAt: Date;
-  homeTeamName: string;
-  awayTeamName: string;
-  price: number;
-  nextRise: { price: number; at: Date } | null;
-  guess: Guess | null;
-  /** The player's guess on it is the floor's free 1X2: changed only after a postponement, and as a 1X2. */
-  free: boolean;
-  /** The kickoff has moved later since the player's guess: its next change is free. */
-  postponed: boolean;
-  /** No paid guess is affordable, and the floor's free 1X2 is open. */
-  floor: boolean;
-};
-
-export type AwaitingGuess = {
-  providerMatchId: number;
-  kickoffAt: Date;
-  homeTeamName: string;
-  awayTeamName: string;
-  guess: Guess;
-};
-
-export type SettledGuess = AwaitingGuess & {
-  /** The result it was judged against; null when it was refunded, or awarded with no score. */
-  homeGoals: number | null;
-  awayGoals: number | null;
-  settlement: Settlement;
-  /** What it paid back: a reward, or a refund of everything paid on it. */
-  reward: number;
-  /** The rarity bonus paid on top, or 0. */
-  bonus: number;
-  /** What beating the models paid, or 0. */
-  modelsReward: number;
-};
-
-export type GameView =
-  | { kind: "no-season"; joined: boolean }
-  | { kind: "between"; nextSeasonId: number; joined: boolean; awaiting: AwaitingGuess[] }
-  | { kind: "not-joined"; seasonId: number; grant: number }
-  | {
-      kind: "playing";
-      seasonId: number;
-      balance: number;
-      upcoming: UpcomingMatch[];
-      awaiting: AwaitingGuess[];
-      settled: SettledGuess[];
-      /** Groups among the upcoming matches: their names show only when there are several. */
-      groups: number;
-    };
 
 export type GuessOutcome =
   | { ok: true; decision: Exclude<GuessDecision, { kind: "refused" }> }

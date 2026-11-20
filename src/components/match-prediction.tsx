@@ -1,6 +1,6 @@
 import Link from "next/link";
+import { ROUNDING_NOTE } from "@/components/analytics-notes";
 import { formatDecimal, percentText } from "@/components/charts/line-chart";
-import { ROUNDING_NOTE } from "@/components/competition-analytics";
 import { ELO_ERROR_MESSAGE } from "@/components/elo-section";
 import { type ScoreGridCell, ScoreGridTable, shadeLevel } from "@/components/score-grid-table";
 import { SignInPrompt } from "@/components/sign-in-prompt";
@@ -14,8 +14,8 @@ import {
   type HomeBaseline,
   isPredictedCup,
 } from "@/lib/home-baseline";
-import { teamDisplayName } from "@/lib/match-detail";
-import { getHomeBaseline, type StoredMatch } from "@/lib/match-service";
+import { type StoredMatch, teamDisplayName } from "@/lib/match-detail";
+import { getHomeBaseline } from "@/lib/match-service";
 import { foldScoreGrid, type PoissonPrediction, predictPoisson } from "@/lib/poisson";
 import { getPoissonFit, type PoissonFitResult } from "@/lib/poisson-service";
 import { qualityHref } from "@/lib/prediction-quality";

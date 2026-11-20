@@ -1,6 +1,6 @@
 import Link from "next/link";
+import { inProgressSeasonLine } from "@/components/analytics-notes";
 import { formatDecimal, percentText } from "@/components/charts/line-chart";
-import { inProgressSeasonLine } from "@/components/competition-analytics";
 import { eloGaveText } from "@/components/season-surprises";
 import { matchCountLabel } from "@/lib/match-count";
 import { teamDisplayName } from "@/lib/match-detail";

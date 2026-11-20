@@ -2,7 +2,8 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SeasonContext } from "@/lib/football-data";
 import type { HomeBaseline } from "@/lib/home-baseline";
-import type { FootballDataMatchRow, MatchPageData } from "@/lib/match-service";
+import type { FootballDataMatchRow } from "@/lib/match-detail";
+import type { MatchPageData } from "@/lib/match-service";
 import { warmModules } from "../../../../../support/warm-module";
 
 /**

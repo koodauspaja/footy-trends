@@ -28,19 +28,16 @@ import {
 import { logger } from "@/lib/logger";
 import {
   declaredWinnerSide,
+  type FootballDataMatchRow,
   formatKickoff,
   formatScore,
   isPlaceholderTeam,
   matchContextLines,
-  teamDisplayName,
-} from "@/lib/match-detail";
-import {
-  type FootballDataMatchRow,
-  getMatchPageData,
-  type PreviousMeetings,
   type StoredMatch,
   type TasoMatchRow,
-} from "@/lib/match-service";
+  teamDisplayName,
+} from "@/lib/match-detail";
+import { getMatchPageData, type PreviousMeetings } from "@/lib/match-service";
 import type { MatchSource } from "@/lib/match-source";
 import {
   type CategoryNames,

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { StoredMatch } from "@/lib/match-service";
+import type { StoredMatch } from "@/lib/match-detail";
 
 /**
  * The service's decisions around its queries: the first stored season answered

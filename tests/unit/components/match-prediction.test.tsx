@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EloRatings } from "@/lib/elo-service";
 import type { HomeBaseline } from "@/lib/home-baseline";
-import type { StoredMatch } from "@/lib/match-service";
+import type { StoredMatch } from "@/lib/match-detail";
 import type { PoissonFitResult } from "@/lib/poisson-service";
 
 /**
@@ -36,7 +36,7 @@ vi.mock("@/components/sign-in-prompt", () => ({
   SignInPrompt: ({ message }: { message: string }) => <p>{message}</p>,
 }));
 
-import { ROUNDING_NOTE } from "@/components/competition-analytics";
+import { ROUNDING_NOTE } from "@/components/analytics-notes";
 import { ELO_ERROR_MESSAGE } from "@/components/elo-section";
 import {
   BASELINE_ROW,

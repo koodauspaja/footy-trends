@@ -50,7 +50,12 @@ import {
 } from "./head-to-head";
 import { type HomeBaseline, homeBaseline, UPCOMING_STATUSES } from "./home-baseline";
 import { logger } from "./logger";
-import { hasPlaceholderTeam } from "./match-detail";
+import {
+  type FootballDataMatchRow,
+  hasPlaceholderTeam,
+  type StoredMatch,
+  type TasoMatchRow,
+} from "./match-detail";
 import { type MatchSource, NATIONAL_TEAM_COMPETITION_PREFIX } from "./match-source";
 import {
   LEFT_TO_PLAY,
@@ -61,19 +66,6 @@ import {
 import { isStoredInteger } from "./provider-ids";
 import { resolveEarliestSeason } from "./seasons";
 import { toFinishedMatches } from "./standings";
-
-export type FootballDataMatchRow = typeof matches.$inferSelect;
-export type TasoMatchRow = typeof tasoMatches.$inferSelect;
-
-/**
- * A stored match, tagged with the table it came from. The page branches on
- * `source`: the two rows are not interchangeable.
- *
- * decisions/019-match-page.md
- */
-export type StoredMatch =
-  | { source: "football-data"; match: FootballDataMatchRow }
-  | { source: "taso"; match: TasoMatchRow };
 
 /**
  * The head-to-head block, or why it is empty. `unavailable` is a match with a

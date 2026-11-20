@@ -25,13 +25,13 @@ import {
 import {
   type Board,
   type BoardEntry,
+  type GameView,
   type Outcome,
   rankBoard,
   type Shares,
   sharesOf,
 } from "./guessing-game";
 import { favouredOutcome, GAME_MODELS, type ModelGuess } from "./guessing-game-models";
-import type { GameView } from "./guessing-game-store";
 import { logger } from "./logger";
 import { POISSON_MODEL } from "./poisson";
 

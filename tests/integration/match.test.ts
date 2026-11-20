@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { matches, tasoMatches } from "@/db/schema";
 import { headToHeadRecord } from "@/lib/head-to-head";
+import type { TasoMatchRow } from "@/lib/match-detail";
 import {
   FOOTBALL_DATA_AWAY_GOALS,
   FOOTBALL_DATA_HOME_GOALS,
@@ -15,7 +16,6 @@ import {
   getOutcomeShares,
   getTeamForm,
   getWorstOpponents,
-  type TasoMatchRow,
 } from "@/lib/match-service";
 import { toFinishedMatches } from "@/lib/standings";
 

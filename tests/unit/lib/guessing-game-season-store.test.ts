@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { gamePlayer, gameSeasonGuess } from "@/db/schema";
-import type { GameView } from "@/lib/guessing-game-store";
+import type { GameView } from "@/lib/guessing-game";
 import { warmModules } from "../../support/warm-module";
 
 /**
