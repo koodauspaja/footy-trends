@@ -1,4 +1,5 @@
 # Why each setting is as it is: decisions/531-configuration-files.md
+# Why it sends a token: decisions/814-health-providers-token.md
 # The TASO key and the salt that signs each request are read from Palloliitto's
 # public frontend, not issued to us, so either can stop working without notice.
 # This checks them on a schedule.

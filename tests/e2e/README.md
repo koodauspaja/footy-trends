@@ -75,8 +75,9 @@ Remove the line from `.env` when TASO answers again; e2e tests against the real
 TASO connection then take this one's place.
 
 `tests/e2e/taso.spec.ts` is the one spec that fails when TASO refuses: it asks the
-suite's own `/api/health?providers=1`, whose TASO check makes a real, signed
-request, and needs `TASO_HASH_SALT`. With `E2E_TASO_STUB=1` the same test only checks that
+suite's own `/api/health?providers=1`, with the token `playwright.config.ts`
+gives the suite's server, whose TASO check makes a real, signed request, and
+needs `TASO_HASH_SALT`. With `E2E_TASO_STUB=1` the same test only checks that
 the request is answered: it does not tell the stand-in from TASO (decisions/681,
 decisions/685).
 
