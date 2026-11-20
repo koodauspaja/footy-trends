@@ -5,7 +5,7 @@ import {
   BOGEY_MINIMUM_MEETINGS,
   type OpponentRecord,
   type OpponentsSeries,
-} from "@/lib/head-to-head";
+} from "@/lib/matches/head-to-head";
 
 /**
  * The group's strings.

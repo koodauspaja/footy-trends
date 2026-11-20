@@ -3,19 +3,19 @@
 import { useRef, useState, useTransition } from "react";
 import { NicknameSettings } from "@/components/nickname-settings";
 import { Notice } from "@/components/notice";
-import { useSession } from "@/lib/auth-client";
-import { removeAvatarAction } from "@/lib/avatar-actions";
-import { MAX_UPLOAD_BYTES } from "@/lib/avatar-limits";
-import { uploadAvatar } from "@/lib/avatar-upload";
-import type { CompetitionOption } from "@/lib/competition-preferences";
-import { type Preferences, REGION_SEGMENTS, type RegionSegment } from "@/lib/regions";
-import { reportClientError } from "@/lib/report-client-error";
+import { removeAvatarAction } from "@/lib/account/avatar-actions";
+import { MAX_UPLOAD_BYTES } from "@/lib/account/avatar-limits";
+import { uploadAvatar } from "@/lib/account/avatar-upload";
 import {
   type ActionResult,
   deleteAccount,
   saveSettings,
   signOutOtherDevices,
-} from "@/lib/settings-actions";
+} from "@/lib/account/settings-actions";
+import { useSession } from "@/lib/auth/auth-client";
+import { reportClientError } from "@/lib/platform/report-client-error";
+import type { CompetitionOption } from "@/lib/preferences/competition-preferences";
+import { type Preferences, REGION_SEGMENTS, type RegionSegment } from "@/lib/preferences/regions";
 
 export type Device = {
   id: string;

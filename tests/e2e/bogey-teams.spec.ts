@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
+import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/auth/e2e-analytics";
 import { openAnalytics } from "./folds";
 
 /**

@@ -1,10 +1,10 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { GuessingGamePage } from "@/components/guessing-game-page";
-import type { Board, GameView, Shares, UpcomingMatch } from "@/lib/guessing-game";
-import { placeGuessAction } from "@/lib/guessing-game-actions";
-import type { ModelGuess } from "@/lib/guessing-game-models";
-import type { SeasonSection } from "@/lib/guessing-game-season-store";
+import type { Board, GameView, Shares, UpcomingMatch } from "@/lib/guessing-game/guessing-game";
+import { placeGuessAction } from "@/lib/guessing-game/guessing-game-actions";
+import type { ModelGuess } from "@/lib/guessing-game/guessing-game-models";
+import type { SeasonSection } from "@/lib/guessing-game/guessing-game-season-store";
 
 /**
  * What `/arvauspeli` shows for each state of the game: the way in, between
@@ -22,13 +22,13 @@ import type { SeasonSection } from "@/lib/guessing-game-season-store";
 const NO_SHARES: ReadonlyMap<number, Shares> = new Map();
 const NO_MODELS: ReadonlyMap<number, ModelGuess[]> = new Map();
 
-vi.mock("@/lib/guessing-game-actions", () => ({
+vi.mock("@/lib/guessing-game/guessing-game-actions", () => ({
   joinGameAction: vi.fn(),
   placeGuessAction: vi.fn(),
   placeSeasonGuessAction: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
-vi.mock("@/lib/section-choice-actions", () => ({ saveSectionChoiceAction: vi.fn() }));
+vi.mock("@/lib/preferences/section-choice-actions", () => ({ saveSectionChoiceAction: vi.fn() }));
 
 const INTRO =
   "Arvaa Veikkausliigan otteluiden tuloksia pelimerkeillä. Pelimerkkejä ei voi ostaa, myydä eikä vaihtaa mihinkään.";

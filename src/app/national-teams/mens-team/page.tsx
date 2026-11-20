@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { NationalTeamPage } from "@/components/national-team-page";
-import { MENS_TEAM } from "@/lib/national-team";
+import { MENS_TEAM } from "@/lib/national-team/national-team";
 
 export const metadata: Metadata = { title: MENS_TEAM.displayName };
 

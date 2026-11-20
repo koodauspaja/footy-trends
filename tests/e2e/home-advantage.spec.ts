@@ -1,8 +1,8 @@
 import { expect, type Page, test } from "@playwright/test";
-import { competitionsInRegion } from "../../src/lib/competitions";
-import { getDomesticCompetitionName } from "../../src/lib/domestic-competitions";
-import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
-import { COMPETITIONS } from "../../src/lib/goals-per-game";
+import { COMPETITIONS } from "../../src/lib/analytics/goals-per-game";
+import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/auth/e2e-analytics";
+import { competitionsInRegion } from "../../src/lib/competitions/competitions";
+import { getDomesticCompetitionName } from "../../src/lib/taso/domestic-competitions";
 import { openFolds } from "./folds";
 
 /**

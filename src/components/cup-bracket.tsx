@@ -5,9 +5,9 @@ import {
   type BracketTie,
   orderRoundsForTree,
   type TieDecision,
-} from "@/lib/cup-bracket";
-import { getStageName, isDrawnStage } from "@/lib/cup-stages";
-import { formatMatchResult } from "@/lib/standings";
+} from "@/lib/competitions/cup-bracket";
+import { getStageName, isDrawnStage } from "@/lib/competitions/cup-stages";
+import { formatMatchResult } from "@/lib/competitions/standings";
 import { matchDateFormatter } from "./match-list-table";
 
 /**

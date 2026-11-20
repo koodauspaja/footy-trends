@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { FavouriteToggle } from "@/components/favourite-toggle";
 import { PageShell } from "@/components/page-shell";
-import { type CompetitionRegion, competitionsInRegion } from "@/lib/competitions";
-import type { RegionSegment } from "@/lib/regions";
+import { type CompetitionRegion, competitionsInRegion } from "@/lib/competitions/competitions";
+import type { RegionSegment } from "@/lib/preferences/regions";
 
 export const PICKER_HEADING = "Valitse kilpailu";
 

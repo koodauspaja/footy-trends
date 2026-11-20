@@ -2,7 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db";
 import { refreshRuns, tasoGroupTeams, tasoMatches, user } from "@/db/schema";
-import type { NormalizedTasoGroupTeam, NormalizedTasoMatch } from "@/lib/taso";
+import type { NormalizedTasoGroupTeam, NormalizedTasoMatch } from "@/lib/taso/taso";
 
 /**
  * The forced refresh against a real Postgres. One rule: a provider that goes
@@ -37,15 +37,15 @@ const probingResolverSpy = async () => {
   return { currentSeason: 2026, defaultSeason: 2026 };
 };
 
-vi.mock("@/lib/cache", () => ({
+vi.mock("@/lib/providers/cache", () => ({
   getCached: vi.fn(),
   // No Redis in the integration job; the clearing itself is unit-tested.
   invalidateCache: vi.fn(async () => true),
   nextGeneration: vi.fn(async () => true),
 }));
 
-vi.mock("@/lib/taso", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/taso")>();
+vi.mock("@/lib/taso/taso", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/taso/taso")>();
   return {
     ...actual,
     getSeasonMatches: vi.fn(async () => {
@@ -60,8 +60,8 @@ vi.mock("@/lib/taso", async (importOriginal) => {
   };
 });
 
-vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/taso-standings-service")>();
+vi.mock("@/lib/taso/taso-standings-service", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/taso/taso-standings-service")>();
   return {
     ...actual,
     // Fixed, so the season range does not depend on TASO being reachable. The
@@ -189,12 +189,12 @@ afterEach(async () => {
 });
 
 async function preview() {
-  const { previewRefresh } = await import("@/lib/force-refresh");
+  const { previewRefresh } = await import("@/lib/refresh/force-refresh");
   return await previewRefresh(CHOICE, SEASON);
 }
 
 async function apply(hash: string) {
-  const { applyRefresh } = await import("@/lib/force-refresh");
+  const { applyRefresh } = await import("@/lib/refresh/force-refresh");
   return await applyRefresh(CHOICE, SEASON, hash, ADMIN_ID);
 }
 
@@ -451,7 +451,7 @@ describe("seasons the app does not hold", () => {
   it("are not offered, so the tool cannot import a season", async () => {
     // Nothing seeded for this season. New seasons arrive through the ordinary
     // sync; this tool corrects seasons we already have.
-    const { listSeasonsFor } = await import("@/lib/force-refresh");
+    const { listSeasonsFor } = await import("@/lib/refresh/force-refresh");
 
     const result = await listSeasonsFor(CHOICE);
 
@@ -468,7 +468,7 @@ describe("seasons the app does not hold", () => {
 
   it("are offered once rows exist for them", async () => {
     await seed([buildMatch()], []);
-    const { listSeasonsFor } = await import("@/lib/force-refresh");
+    const { listSeasonsFor } = await import("@/lib/refresh/force-refresh");
 
     const result = await listSeasonsFor(CHOICE);
 
@@ -481,7 +481,7 @@ describe("seasons the app does not hold", () => {
     // A season can hold standings without matches; correcting a deduction there
     // is exactly what this tool is for.
     await seed([], [buildGroupTeam()]);
-    const { listSeasonsFor } = await import("@/lib/force-refresh");
+    const { listSeasonsFor } = await import("@/lib/refresh/force-refresh");
 
     const result = await listSeasonsFor(CHOICE);
 
@@ -497,7 +497,7 @@ describe("the season ceiling", () => {
     // so a competition held purely as standings must count as held.
     await seed([], [buildGroupTeam()]);
 
-    const { storedTasoSeasons } = await import("@/lib/taso-standings-service");
+    const { storedTasoSeasons } = await import("@/lib/taso/taso-standings-service");
 
     expect([...(await storedTasoSeasons("VL"))]).toContain(SEASON);
   });
@@ -505,7 +505,7 @@ describe("the season ceiling", () => {
   it("sees a season held only as matches", async () => {
     await seed([buildMatch()], []);
 
-    const { storedTasoSeasons } = await import("@/lib/taso-standings-service");
+    const { storedTasoSeasons } = await import("@/lib/taso/taso-standings-service");
 
     expect([...(await storedTasoSeasons("VL"))]).toContain(SEASON);
   });
@@ -538,7 +538,7 @@ describe("the run log", () => {
     if (!previewed.ok) return;
     await apply(previewed.preview.snapshotHash);
 
-    const { listRuns } = await import("@/lib/refresh-runs");
+    const { listRuns } = await import("@/lib/refresh/refresh-runs");
     const rows = (await listRuns()).filter((row) => row.competitionName === "Veikkausliiga");
 
     expect(rows[0]).toMatchObject({

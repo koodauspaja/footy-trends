@@ -11,21 +11,16 @@ import { type MatchListRow, MatchListTable } from "@/components/match-list-table
 import { MatchPrediction } from "@/components/match-prediction";
 import { MatchSurprise } from "@/components/match-surprise";
 import { PageShell } from "@/components/page-shell";
-import { getCompetitionName } from "@/lib/competitions";
-import { toFinnishTasoTeamNames, toFinnishTeamNames } from "@/lib/country-names";
-import {
-  competitionCodeForCategory,
-  getDomesticCompetitionName,
-  isDomesticCup,
-} from "@/lib/domestic-competitions";
-import { getSeasonContext } from "@/lib/football-data";
+import { getCompetitionName } from "@/lib/competitions/competitions";
+import { formatSeasonLabel } from "@/lib/competitions/seasons";
+import { toFinnishTasoTeamNames, toFinnishTeamNames } from "@/lib/football-data/country-names";
+import { getSeasonContext } from "@/lib/football-data/football-data";
 import {
   headToHeadWindow,
   headToHeadWindowSentence,
   type MeetingsLink,
   meetingsLink,
-} from "@/lib/head-to-head";
-import { logger } from "@/lib/logger";
+} from "@/lib/matches/head-to-head";
 import {
   declaredWinnerSide,
   type FootballDataMatchRow,
@@ -36,9 +31,9 @@ import {
   type StoredMatch,
   type TasoMatchRow,
   teamDisplayName,
-} from "@/lib/match-detail";
-import { getMatchPageData, type PreviousMeetings } from "@/lib/match-service";
-import type { MatchSource } from "@/lib/match-source";
+} from "@/lib/matches/match-detail";
+import { getMatchPageData, type PreviousMeetings } from "@/lib/matches/match-service";
+import type { MatchSource } from "@/lib/matches/match-source";
 import {
   type CategoryNames,
   COMPETITION_COLUMN,
@@ -46,10 +41,15 @@ import {
   labelFootballDataRows,
   labelTasoRows,
   resolveNationalCompetitionName,
-} from "@/lib/meeting-labels";
-import type { NationalTeam } from "@/lib/national-team";
-import { parseWholeNumber } from "@/lib/provider-ids";
-import { formatSeasonLabel } from "@/lib/seasons";
+} from "@/lib/matches/meeting-labels";
+import type { NationalTeam } from "@/lib/national-team/national-team";
+import { logger } from "@/lib/platform/logger";
+import { parseWholeNumber } from "@/lib/providers/provider-ids";
+import {
+  competitionCodeForCategory,
+  getDomesticCompetitionName,
+  isDomesticCup,
+} from "@/lib/taso/domestic-competitions";
 
 const MATCH_HEADING = "Ottelu";
 const NOT_FOUND_MESSAGE = "Ottelua ei löytynyt.";

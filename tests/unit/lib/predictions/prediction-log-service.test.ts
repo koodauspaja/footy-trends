@@ -1,0 +1,1200 @@
+import type { SQL } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { HomeBaseline } from "@/lib/predictions/home-baseline";
+
+/**
+ * The run's decisions around its queries: what it refreshes and through what, that
+ * a failure in one competition does not stop the rest, and what it writes. The SQL
+ * is proved against Postgres in `tests/integration/predictions.test.ts`.
+ *
+ * decisions/052-predictions-log.md
+ * decisions/059-cup-predictions.md
+ * decisions/053-elo-ratings.md
+ * decisions/055-poisson-goal-model.md
+ * decisions/057-surprise-index.md
+ * decisions/060-elo-variants.md
+ * decisions/072-match-guesses.md
+ * decisions/074-against-the-models.md
+ * decisions/075-season-guesses.md
+ */
+
+const mocks = vi.hoisted(() => ({
+  fitPoisson: vi.fn(),
+  invalidateCache: vi.fn<(key: string) => Promise<boolean>>(),
+  select: vi.fn(),
+  insertValues: vi.fn(),
+  onConflictDoUpdate: vi.fn(),
+  getFootballDataSeasonMatches: vi.fn(),
+  getTasoSeasonMatches: vi.fn(),
+  synchronizeFootballDataMatches: vi.fn(),
+  synchronizeTasoMatches: vi.fn(),
+  getHomeBaseline: vi.fn<(source: string, code: string) => Promise<HomeBaseline>>(),
+  loggerError: vi.fn(),
+  loggerInfo: vi.fn(),
+  settleGuesses: vi.fn(),
+  settleSeasonGuesses: vi.fn(),
+}));
+
+vi.mock("@/db", () => ({
+  db: {
+    select: () => ({ from: () => ({ where: () => Promise.resolve().then(mocks.select) }) }),
+    insert: () => ({
+      values: (rows: unknown) => {
+        mocks.insertValues(rows);
+        return { onConflictDoUpdate: mocks.onConflictDoUpdate };
+      },
+    }),
+  },
+}));
+vi.mock("@/lib/football-data/football-data", () => ({
+  getSeasonMatches: mocks.getFootballDataSeasonMatches,
+}));
+vi.mock("@/lib/taso/taso", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/taso/taso")>()),
+  getSeasonMatches: mocks.getTasoSeasonMatches,
+}));
+vi.mock("@/lib/football-data/standings-service", () => ({
+  synchronizeMatches: mocks.synchronizeFootballDataMatches,
+}));
+vi.mock("@/lib/taso/taso-standings-service", () => ({
+  synchronizeMatches: mocks.synchronizeTasoMatches,
+}));
+vi.mock("@/lib/matches/match-service", () => ({
+  FOOTBALL_DATA_HOME_GOALS: "home",
+  FOOTBALL_DATA_AWAY_GOALS: "away",
+  getHomeBaseline: mocks.getHomeBaseline,
+}));
+vi.mock("@/lib/platform/logger", () => ({
+  logger: { error: mocks.loggerError, info: mocks.loggerInfo },
+}));
+vi.mock("@/lib/providers/cache", () => ({ invalidateCache: mocks.invalidateCache }));
+vi.mock("@/lib/guessing-game/guessing-game-store", () => ({ settleGuesses: mocks.settleGuesses }));
+vi.mock("@/lib/guessing-game/guessing-game-season-store", () => ({
+  settleSeasonGuesses: mocks.settleSeasonGuesses,
+}));
+
+// Every key a backtest's reports are cached under: each provider's own, then one per competition.
+const DROPPED_KEYS = [
+  ["quality:v3:football-data:backtest"],
+  ...["PL", "ELC", "FL1", "BL1", "SA", "DED", "PPL", "PD", "BSA", "CL"].map((code) => [
+    `quality:v3:football-data:backtest:${code}`,
+  ]),
+  ["quality:v3:taso:backtest"],
+  ...["VL", "M1L", "M1", "M2", "NL", "N1", "P21SM", "P211", "P18SM", "T18SM", "MSC", "NSC"].map(
+    (code) => [`quality:v3:taso:backtest:${code}`]
+  ),
+];
+// The real fit, behind a spy one test makes fail.
+vi.mock("@/lib/predictions/poisson", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/predictions/poisson")>();
+  mocks.fitPoisson.mockImplementation(actual.fitPoisson);
+  return { ...actual, fitPoisson: mocks.fitPoisson };
+});
+
+import { fitPoisson, predictPoisson, utcDay } from "@/lib/predictions/poisson";
+
+import {
+  readFinished,
+  runPredictionBacktest,
+  runPredictionLog,
+  settle,
+} from "@/lib/predictions/prediction-log-service";
+
+const NOW = new Date("2026-10-03T12:00:00Z");
+const HOUR = 60 * 60 * 1000;
+const at = (hours: number) => new Date(NOW.getTime() + hours * HOUR);
+
+const baseline: HomeBaseline = {
+  status: "ok",
+  matches: 100,
+  homeShare: 50,
+  drawShare: 25,
+  awayShare: 25,
+  seasons: { first: 2023, last: 2026 },
+  spansCalendarYears: false,
+};
+
+function footballDataRow(overrides: Record<string, unknown> = {}) {
+  return {
+    code: "PL",
+    seasonId: 2026,
+    providerMatchId: 1,
+    homeTeam: 57,
+    awayTeam: 61,
+    kickoffAt: at(5),
+    status: "TIMED",
+    homeGoals: null,
+    awayGoals: null,
+    ...overrides,
+  };
+}
+
+function tasoRow(overrides: Record<string, unknown> = {}) {
+  return {
+    competitionId: "spljp26",
+    categoryId: "VL",
+    seasonId: 2026,
+    providerMatchId: 2,
+    homeTeam: 1001,
+    awayTeam: 1002,
+    kickoffAt: at(6),
+    status: "SCHEDULED",
+    homeGoals: null,
+    awayGoals: null,
+    ...overrides,
+  };
+}
+
+// The run's reads, in order: the candidates before and after refreshing, then
+// the finished matches its Elo replay and Poisson fit read (none here unless given) —
+// football-data, then TASO, each time — and last the backtest rows already
+// written, which its backtest step reads.
+function stored(
+  footballData: unknown[],
+  taso: unknown[],
+  finished: unknown[][] = [[], []],
+  backtested: unknown[] = []
+) {
+  mocks.select
+    .mockResolvedValueOnce(footballData)
+    .mockResolvedValueOnce(taso)
+    .mockResolvedValueOnce(footballData)
+    .mockResolvedValueOnce(taso)
+    .mockResolvedValueOnce(finished[0])
+    .mockResolvedValueOnce(finished[1])
+    .mockResolvedValueOnce(backtested);
+}
+
+const immediate = { "football-data": vi.fn((work) => work()), taso: vi.fn((work) => work()) };
+
+// The live rows written under one model; the baseline's unless another is
+// named. The backtest step's rows are read with `backtested`.
+function written(model = "home-baseline-v1", kind = "live") {
+  return mocks.insertValues.mock.calls
+    .flatMap(([rows]) => rows as Array<Record<string, unknown>>)
+    .filter((row) => row.model === model && row.kind === kind);
+}
+
+const backtested = (model: string) => written(model, "backtest");
+
+describe("runPredictionLog", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.select.mockReset();
+    mocks.getHomeBaseline.mockReset().mockResolvedValue(baseline);
+    mocks.getFootballDataSeasonMatches.mockReset().mockResolvedValue([{ id: "fd" }]);
+    mocks.getTasoSeasonMatches.mockReset().mockResolvedValue([{ id: "taso" }]);
+    mocks.onConflictDoUpdate.mockReset().mockResolvedValue(undefined);
+    mocks.settleSeasonGuesses
+      .mockReset()
+      .mockResolvedValue({ settled: 0, rewarded: 0, voided: 0, failed: [] });
+    mocks.settleGuesses.mockReset().mockResolvedValue({
+      matches: 0,
+      rewarded: 0,
+      missed: 0,
+      refunded: 0,
+      voided: 0,
+      bonuses: 0,
+      modelWins: 0,
+      failed: [],
+    });
+  });
+
+  it("refreshes each provider's competition through its paced, cached fetch and stores it", async () => {
+    stored([footballDataRow()], [tasoRow()]);
+
+    const report = await runPredictionLog(() => NOW, immediate);
+
+    expect(immediate["football-data"]).toHaveBeenCalledTimes(1);
+    expect(immediate.taso).toHaveBeenCalledTimes(1);
+    expect(mocks.getFootballDataSeasonMatches).toHaveBeenCalledWith("PL", 2026);
+    expect(mocks.synchronizeFootballDataMatches).toHaveBeenCalledWith([{ id: "fd" }]);
+    expect(mocks.getTasoSeasonMatches).toHaveBeenCalledWith("spljp26", "VL", 2026);
+    expect(mocks.synchronizeTasoMatches).toHaveBeenCalledWith([{ id: "taso" }]);
+    // Each match is logged under the baseline and the three Elo models; no
+    // stored match gives Poisson a fit of these competitions.
+    expect(report).toEqual({ refreshed: 2, logged: 8, backtested: 0, settled: 0, failures: [] });
+  });
+
+  it("logs every loggable match under the model, one baseline read per competition", async () => {
+    stored(
+      [footballDataRow(), footballDataRow({ providerMatchId: 3, kickoffAt: at(20) })],
+      [tasoRow()]
+    );
+
+    await runPredictionLog(() => NOW, immediate);
+
+    expect(written()).toEqual([
+      expect.objectContaining({ source: "football-data", providerMatchId: 1, kind: "live" }),
+      expect.objectContaining({ source: "football-data", providerMatchId: 3, kind: "live" }),
+      expect.objectContaining({
+        source: "taso",
+        providerMatchId: 2,
+        competitionCode: "VL",
+        model: "home-baseline-v1",
+        homeProbability: 0.5,
+      }),
+    ]);
+    expect(mocks.getHomeBaseline).toHaveBeenCalledTimes(2);
+    expect(mocks.onConflictDoUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ target: expect.any(Array) })
+    );
+    // A rerun before kickoff keeps Poisson's most likely score current with its
+    // probabilities, each side from its own column.
+    const [upsert] = mocks.onConflictDoUpdate.mock.calls[0] as [{ set: Record<string, SQL> }];
+    const rendered = (value: SQL | undefined) =>
+      value === undefined ? undefined : new PgDialect().sqlToQuery(value).sql;
+    expect(rendered(upsert.set.predictedHomeGoals)).toBe("excluded.predicted_home_goals");
+    expect(rendered(upsert.set.predictedAwayGoals)).toBe("excluded.predicted_away_goals");
+  });
+
+  it("refreshes a competition for a missing result, and writes nothing for it", async () => {
+    stored(
+      [footballDataRow({ kickoffAt: at(-3), status: "IN_PLAY", homeGoals: 1, awayGoals: 0 })],
+      []
+    );
+
+    const report = await runPredictionLog(() => NOW, immediate);
+
+    expect(mocks.getFootballDataSeasonMatches).toHaveBeenCalledTimes(1);
+    expect(report).toEqual({ refreshed: 1, logged: 0, backtested: 0, settled: 0, failures: [] });
+  });
+
+  it("neither refreshes nor logs a finished match with its result stored", async () => {
+    stored(
+      [footballDataRow({ kickoffAt: at(-3), status: "FINISHED", homeGoals: 1, awayGoals: 0 })],
+      []
+    );
+
+    const report = await runPredictionLog(() => NOW, immediate);
+
+    expect(mocks.getFootballDataSeasonMatches).not.toHaveBeenCalled();
+    expect(report).toEqual({ refreshed: 0, logged: 0, backtested: 0, settled: 0, failures: [] });
+  });
+
+  it("files a TASO row by its season's pair, and ignores a row no predicted competition holds", async () => {
+    stored(
+      [],
+      [tasoRow({ competitionId: "Liigacup26", categoryId: "VL" }), tasoRow({ categoryId: "LC" })]
+    );
+
+    const report = await runPredictionLog(() => NOW, immediate);
+
+    expect(mocks.getTasoSeasonMatches).not.toHaveBeenCalled();
+    expect(report.logged).toBe(0);
+  });
+
+  it("carries on past a competition that fails to refresh, and reports it", async () => {
+    stored([footballDataRow()], [tasoRow()]);
+    mocks.getFootballDataSeasonMatches.mockRejectedValue(new Error("429"));
+
+    const report = await runPredictionLog(() => NOW, immediate);
+
+    expect(mocks.synchronizeTasoMatches).toHaveBeenCalled();
+    expect(report).toEqual({
+      refreshed: 1,
+      logged: 8,
+      backtested: 0,
+      settled: 0,
+      failures: ["refresh football-data PL 2026"],
+    });
+    expect(mocks.loggerError).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error), code: "PL" }),
+      "Unable to refresh a competition for predictions"
+    );
+  });
+
+  it("logs the run's summary, failures included", async () => {
+    stored([footballDataRow()], [tasoRow()]);
+    mocks.getFootballDataSeasonMatches.mockRejectedValue(new Error("429"));
+
+    const report = await runPredictionLog(() => NOW, immediate);
+
+    expect(mocks.loggerInfo.mock.calls).toEqual([[report, "Predictions run finished"]]);
+    expect(report.failures).toEqual(["refresh football-data PL 2026"]);
+  });
+
+  it("reports a competition whose baseline fails, and logs the others", async () => {
+    stored([footballDataRow()], [tasoRow()]);
+    mocks.getHomeBaseline.mockImplementation(async (source) =>
+      source === "taso" ? ({ status: "error" } as const) : baseline
+    );
+
+    const report = await runPredictionLog(() => NOW, immediate);
+
+    expect(report.failures).toEqual(["baseline taso:VL"]);
+    expect(written()).toEqual([expect.objectContaining({ source: "football-data" })]);
+  });
+
+  it("writes nothing for a competition with no history yet, and does not call it a failure", async () => {
+    stored([footballDataRow()], []);
+    mocks.getHomeBaseline.mockResolvedValue({ status: "empty" });
+
+    const report = await runPredictionLog(() => NOW, immediate);
+
+    expect(report).toEqual({ refreshed: 1, logged: 0, backtested: 0, settled: 0, failures: [] });
+  });
+
+  it("logs from the stored rows as they are after the refresh", async () => {
+    // Before: an upcoming match. After the refresh: postponed out of the window.
+    mocks.select
+      .mockResolvedValueOnce([footballDataRow()])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([footballDataRow({ status: "POSTPONED" })])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+
+    const report = await runPredictionLog(() => NOW, immediate);
+
+    expect(report).toEqual({ refreshed: 1, logged: 0, backtested: 0, settled: 0, failures: [] });
+  });
+
+  it("skips a match that kicked off while the run was refreshing, and stamps the write time", async () => {
+    stored(
+      [
+        footballDataRow({ kickoffAt: at(1) }),
+        footballDataRow({ providerMatchId: 3, kickoffAt: at(5) }),
+      ],
+      []
+    );
+    const clock = vi.fn().mockReturnValueOnce(NOW).mockReturnValue(at(2));
+
+    await runPredictionLog(clock, immediate);
+
+    expect(written()).toEqual([
+      expect.objectContaining({ providerMatchId: 3, predictedAt: at(2) }),
+    ]);
+    expect(written("elo-v1")).toEqual([expect.objectContaining({ providerMatchId: 3 })]);
+  });
+
+  it("leaves a match that entered the window during the run to the next run", async () => {
+    // At the start 49 hours ahead, outside the window; inside it by the write.
+    stored([footballDataRow({ kickoffAt: at(49) })], []);
+    const clock = vi.fn().mockReturnValueOnce(NOW).mockReturnValue(at(2));
+
+    const report = await runPredictionLog(clock, immediate);
+
+    expect(report.logged).toBe(0);
+    expect(mocks.getHomeBaseline).not.toHaveBeenCalled();
+  });
+
+  it("uses the real clock and its own pacers when given none", async () => {
+    const soon = new Date(Date.now() + 5 * HOUR);
+    stored([footballDataRow({ kickoffAt: soon })], []);
+
+    const report = await runPredictionLog();
+
+    expect(report).toEqual({ refreshed: 1, logged: 4, backtested: 0, settled: 0, failures: [] });
+    expect(written()).toEqual([expect.objectContaining({ kickoffAt: soon })]);
+  });
+
+  it("logs elo-v1 from the current ratings and the baseline's draw share", async () => {
+    // One finished meeting, which team 57 won at home: 57 now rates above 61.
+    const meeting = {
+      code: "PL",
+      seasonId: 2026,
+      providerMatchId: 9,
+      kickoffAt: at(-200),
+      homeTeam: 57,
+      awayTeam: 61,
+      homeGoals: 2,
+      awayGoals: 0,
+    };
+    stored([footballDataRow()], [], [[meeting], []]);
+
+    await runPredictionLog(() => NOW, immediate);
+
+    const shift = 20 * (1 - 1 / (1 + 10 ** (-60 / 400)));
+    const expected = 1 / (1 + 10 ** ((1500 - shift - (1500 + shift + 60)) / 400));
+    expect(written("elo-v1")).toEqual([
+      expect.objectContaining({
+        providerMatchId: 1,
+        kind: "live",
+        drawProbability: 0.25,
+        homeProbability: expect.closeTo(0.75 * expected, 12),
+        awayProbability: expect.closeTo(0.75 * (1 - expected), 12),
+      }),
+    ]);
+  });
+
+  it("logs elo-form-v1 and elo-home-v1 from the same ratings, with form and the home side's own advantage", async () => {
+    // As above: team 57 beat 61 at home, so both have form, and 57 a home advantage above 60.
+    const meeting = {
+      code: "PL",
+      seasonId: 2026,
+      providerMatchId: 9,
+      kickoffAt: at(-200),
+      homeTeam: 57,
+      awayTeam: 61,
+      homeGoals: 2,
+      awayGoals: 0,
+    };
+    stored([footballDataRow()], [], [[meeting], []]);
+
+    await runPredictionLog(() => NOW, immediate);
+
+    const surprise = 1 - 1 / (1 + 10 ** (-60 / 400));
+    const shift = 20 * surprise;
+    const form = 1 / (1 + 10 ** ((1500 - 2 * shift - (1500 + 2 * shift + 60)) / 400));
+    const advantage = 60 + 4 * surprise;
+    const home = 1 / (1 + 10 ** ((1500 - shift - (1500 + shift + advantage)) / 400));
+    for (const [model, expected] of [
+      ["elo-form-v1", form],
+      ["elo-home-v1", home],
+    ] as const) {
+      expect(written(model)).toEqual([
+        expect.objectContaining({
+          providerMatchId: 1,
+          kind: "live",
+          drawProbability: 0.25,
+          homeProbability: expect.closeTo(0.75 * expected, 12),
+          awayProbability: expect.closeTo(0.75 * (1 - expected), 12),
+        }),
+      ]);
+    }
+  });
+
+  it("writes no Elo row of any of the three for a placeholder side, and still logs the baseline", async () => {
+    stored([footballDataRow({ awayTeam: 0 })], []);
+
+    await runPredictionLog(() => NOW, immediate);
+
+    expect(written()).toHaveLength(1);
+    for (const model of ["elo-v1", "elo-form-v1", "elo-home-v1"]) {
+      expect(written(model)).toEqual([]);
+    }
+  });
+
+  it("logs poisson-v1 from a fit of the earlier days' matches, today's left out", async () => {
+    const earlier = {
+      code: "PL",
+      seasonId: 2026,
+      providerMatchId: 9,
+      kickoffAt: at(-200),
+      homeTeam: 57,
+      awayTeam: 61,
+      homeGoals: 2,
+      awayGoals: 0,
+    };
+    // Kicked off this morning, on the run's own UTC day.
+    const today = {
+      ...earlier,
+      providerMatchId: 10,
+      kickoffAt: at(-2),
+      homeGoals: 0,
+      awayGoals: 7,
+    };
+    stored([footballDataRow()], [], [[earlier, today], []]);
+
+    await runPredictionLog(() => NOW, immediate);
+
+    const fit = fitPoisson([{ source: "football-data", ...earlier }], utcDay(NOW));
+    const predicted = predictPoisson(fit, "PL", 57, 61);
+    const expected = predicted?.prediction;
+    expect(expected?.home).toBeGreaterThan(expected?.away as number);
+    expect(written("poisson-v1")).toEqual([
+      {
+        source: "football-data",
+        providerMatchId: 1,
+        competitionCode: "PL",
+        model: "poisson-v1",
+        kind: "live",
+        homeProbability: expected?.home,
+        drawProbability: expected?.draw,
+        awayProbability: expected?.away,
+        predictedAt: NOW,
+        kickoffAt: at(5),
+        predictedHomeGoals: predicted?.score.home,
+        predictedAwayGoals: predicted?.score.away,
+      },
+    ]);
+  });
+
+  it("fits each provider apart", async () => {
+    const meeting = {
+      seasonId: 2026,
+      providerMatchId: 9,
+      kickoffAt: at(-200),
+      homeTeam: 57,
+      awayTeam: 61,
+      homeGoals: 2,
+      awayGoals: 0,
+    };
+    stored(
+      [footballDataRow()],
+      [tasoRow({ homeTeam: 57, awayTeam: 61 })],
+      [
+        [{ code: "PL", ...meeting }],
+        [{ competitionId: "spljp26", categoryId: "VL", ...meeting, homeGoals: 0, awayGoals: 3 }],
+      ]
+    );
+
+    await runPredictionLog(() => NOW, immediate);
+
+    const [footballData, taso] = written("poisson-v1");
+    expect(footballData?.homeProbability).toBeGreaterThan(footballData?.awayProbability as number);
+    expect(taso?.homeProbability).toBeLessThan(taso?.awayProbability as number);
+  });
+
+  it("writes no poisson-v1 row for a placeholder side or a competition the fit has no match of", async () => {
+    const meeting = {
+      code: "PL",
+      seasonId: 2026,
+      providerMatchId: 9,
+      kickoffAt: at(-200),
+      homeTeam: 57,
+      awayTeam: 61,
+      homeGoals: 2,
+      awayGoals: 0,
+    };
+    stored(
+      [footballDataRow({ awayTeam: 0 }), footballDataRow({ code: "CL", providerMatchId: 3 })],
+      [],
+      [[meeting], []]
+    );
+
+    await runPredictionLog(() => NOW, immediate);
+
+    expect(written()).toHaveLength(2);
+    expect(written("poisson-v1")).toEqual([]);
+  });
+
+  it("still writes the other models' rows when the fit fails, logs it and reports it", async () => {
+    stored([footballDataRow()], []);
+    mocks.fitPoisson.mockImplementationOnce(() => {
+      throw new Error("no fit");
+    });
+
+    const report = await runPredictionLog(() => NOW, immediate);
+
+    expect(written()).toHaveLength(1);
+    for (const model of ["elo-v1", "elo-form-v1", "elo-home-v1"]) {
+      expect(written(model)).toHaveLength(1);
+    }
+    expect(written("poisson-v1")).toEqual([]);
+    expect(report.failures).toEqual(["poisson strengths"]);
+    expect(mocks.loggerError).toHaveBeenCalledWith(
+      { err: new Error("no fit") },
+      "Unable to fit the Poisson model for predictions"
+    );
+    expect(mocks.loggerInfo).toHaveBeenCalledWith(
+      { refreshed: 1, logged: 4, backtested: 0, settled: 0, failures: ["poisson strengths"] },
+      "Predictions run finished"
+    );
+  });
+
+  // A Suomen Cup tie at hour 6, and the league matches that rate its sides.
+  const cupTie = (overrides: Record<string, unknown> = {}) =>
+    tasoRow({
+      categoryId: "MSC",
+      providerMatchId: 50,
+      homeTeam: 1001,
+      awayTeam: 1002,
+      ...overrides,
+    });
+  const leagueMatch = (providerMatchId: number, homeTeam: number, awayTeam: number) => ({
+    competitionId: "spljp26",
+    categoryId: "VL",
+    seasonId: 2026,
+    providerMatchId,
+    kickoffAt: new Date("2026-05-01T15:00:00Z"),
+    homeTeam,
+    awayTeam,
+    homeGoals: 1,
+    awayGoals: 0,
+  });
+
+  it("logs a cup tie under every model when the leagues have rated both sides", async () => {
+    // An earlier tie gives the cup its own goal rate, which Poisson needs.
+    const earlierTie = {
+      ...leagueMatch(901, 1002, 1001),
+      categoryId: "MSC",
+      kickoffAt: new Date("2026-06-01T15:00:00Z"),
+    };
+    stored([], [cupTie()], [[], [leagueMatch(900, 1001, 1002), earlierTie]]);
+
+    await runPredictionLog(() => NOW, immediate);
+
+    for (const model of [
+      "home-baseline-v1",
+      "elo-v1",
+      "elo-form-v1",
+      "elo-home-v1",
+      "poisson-v1",
+    ]) {
+      expect(written(model).map((row) => [row.providerMatchId, row.competitionCode])).toEqual([
+        [50, "MSC"],
+      ]);
+    }
+    expect(mocks.getHomeBaseline).toHaveBeenCalledWith("taso", "MSC");
+  });
+
+  it("logs a cup tie under no model when one side has never played a league match", async () => {
+    // Team 1003 is rated; 1002 has played only this cup. The earlier tie gives
+    // Poisson a cup fit, so its own check is the one tested.
+    const earlierTie = {
+      ...leagueMatch(901, 1003, 1001),
+      categoryId: "MSC",
+      kickoffAt: new Date("2026-06-01T15:00:00Z"),
+    };
+    stored(
+      [],
+      [cupTie(), tasoRow({ providerMatchId: 51 })],
+      [[], [leagueMatch(900, 1001, 1003), earlierTie]]
+    );
+
+    await runPredictionLog(() => NOW, immediate);
+
+    for (const model of [
+      "home-baseline-v1",
+      "elo-v1",
+      "elo-form-v1",
+      "elo-home-v1",
+      "poisson-v1",
+    ]) {
+      expect(written(model).map((row) => row.providerMatchId)).toEqual([51]);
+    }
+  });
+
+  it("logs no cup tie, by any model, when the history that rates its sides cannot be read", async () => {
+    mocks.select
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([cupTie(), tasoRow({ providerMatchId: 51 })])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([cupTie(), tasoRow({ providerMatchId: 51 })])
+      .mockRejectedValueOnce(new Error("connection reset"))
+      .mockResolvedValueOnce([]);
+
+    await runPredictionLog(() => NOW, immediate);
+
+    expect(written().map((row) => row.providerMatchId)).toEqual([51]);
+  });
+
+  it("still writes the baseline when the Elo history cannot be read, and reports it", async () => {
+    mocks.select
+      .mockResolvedValueOnce([footballDataRow()])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([footballDataRow()])
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error("connection reset"))
+      .mockResolvedValueOnce([]);
+
+    const report = await runPredictionLog(() => NOW, immediate);
+
+    expect(written()).toHaveLength(1);
+    for (const model of ["elo-v1", "elo-form-v1", "elo-home-v1", "poisson-v1"]) {
+      expect(written(model)).toEqual([]);
+    }
+    // One read feeds both models and the backtest step, so each reports its own loss.
+    expect(report.failures).toEqual(["elo ratings", "poisson strengths", "backtest"]);
+    expect(mocks.loggerError).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      "Unable to read the Elo history for predictions"
+    );
+    expect(mocks.loggerError).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      "Unable to fit the Poisson model for predictions"
+    );
+  });
+
+  it("fails the run when the write fails", async () => {
+    stored([footballDataRow()], []);
+    mocks.onConflictDoUpdate.mockRejectedValue(new Error("connection reset"));
+
+    await expect(runPredictionLog(() => NOW, immediate)).rejects.toThrow("connection reset");
+  });
+
+  describe("its backtest step", () => {
+    // Two finished meetings on different days: the later one has history, so
+    // every model has a backtest row to write for it.
+    const finishedPair = [
+      { code: "PL", seasonId: 2026, providerMatchId: 9, kickoffAt: at(-200) },
+      { code: "PL", seasonId: 2026, providerMatchId: 10, kickoffAt: at(-30) },
+    ].map((match) => ({ ...match, homeTeam: 57, awayTeam: 61, homeGoals: 2, awayGoals: 0 }));
+    const MODELS = ["home-baseline-v1", "elo-v1", "elo-form-v1", "elo-home-v1", "poisson-v1"];
+    const key = (model: string) => ({ source: "football-data", providerMatchId: 10, model });
+
+    it("writes every model's backtest row of a finished match that has none", async () => {
+      stored([], [], [finishedPair, []]);
+      const clock = vi
+        .fn()
+        .mockReturnValue(at(1))
+        .mockReturnValueOnce(NOW)
+        .mockReturnValueOnce(NOW);
+
+      const report = await runPredictionLog(clock, immediate);
+
+      for (const model of MODELS) {
+        expect(backtested(model)).toEqual([
+          expect.objectContaining({
+            source: "football-data",
+            providerMatchId: 10,
+            competitionCode: "PL",
+            kickoffAt: at(-30),
+            predictedAt: at(1),
+          }),
+        ]);
+      }
+      expect(report).toEqual({ refreshed: 0, logged: 0, backtested: 5, settled: 0, failures: [] });
+      expect(mocks.loggerInfo).toHaveBeenCalledWith(report, "Predictions run finished");
+    });
+
+    it("writes them after the live rows", async () => {
+      stored([footballDataRow()], [], [finishedPair, []]);
+
+      const report = await runPredictionLog(() => NOW, immediate);
+
+      const kinds = mocks.insertValues.mock.calls.map(([rows]) => [
+        ...new Set((rows as Array<{ kind: string }>).map((row) => row.kind)),
+      ]);
+      expect(kinds).toEqual([["live"], ["backtest"]]);
+      expect(report).toMatchObject({ logged: 5, backtested: 5 });
+    });
+
+    it("drops the cached backtest reports once it has written", async () => {
+      stored([], [], [finishedPair, []]);
+
+      await runPredictionLog(() => NOW, immediate);
+
+      expect(mocks.invalidateCache.mock.calls).toEqual(DROPPED_KEYS);
+    });
+
+    it("leaves a row that is already written, and writes only the model that lacks one", async () => {
+      stored([], [], [finishedPair, []], [key("home-baseline-v1"), key("poisson-v1")]);
+
+      const report = await runPredictionLog(() => NOW, immediate);
+
+      expect(backtested("home-baseline-v1")).toEqual([]);
+      expect(backtested("poisson-v1")).toEqual([]);
+      for (const model of ["elo-v1", "elo-form-v1", "elo-home-v1"]) {
+        expect(backtested(model)).toHaveLength(1);
+      }
+      expect(report.backtested).toBe(3);
+    });
+
+    it("writes nothing, and drops no cached report, when no row is missing", async () => {
+      stored([], [], [finishedPair, []], MODELS.map(key));
+
+      const report = await runPredictionLog(() => NOW, immediate);
+
+      expect(mocks.insertValues).not.toHaveBeenCalled();
+      expect(mocks.invalidateCache).not.toHaveBeenCalled();
+      expect(report.backtested).toBe(0);
+    });
+
+    it("leaves the live rows written when its write fails, reports it and logs it", async () => {
+      stored([footballDataRow()], [], [finishedPair, []]);
+      mocks.onConflictDoUpdate
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error("connection reset"));
+
+      const report = await runPredictionLog(() => NOW, immediate);
+
+      expect(written()).toHaveLength(1);
+      expect(report).toEqual({
+        refreshed: 1,
+        logged: 5,
+        backtested: 0,
+        settled: 0,
+        failures: ["backtest"],
+      });
+      expect(mocks.loggerError).toHaveBeenCalledWith(
+        { err: new Error("connection reset") },
+        "Unable to write the backtest rows for predictions"
+      );
+      // Some batches may have been stored, so the reports are dropped all the same.
+      expect(mocks.invalidateCache.mock.calls).toEqual(DROPPED_KEYS);
+    });
+
+    it("reports it when the written rows cannot be read, and writes no backtest row", async () => {
+      mocks.select
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce(finishedPair)
+        .mockResolvedValueOnce([])
+        .mockRejectedValueOnce(new Error("connection reset"));
+
+      const report = await runPredictionLog(() => NOW, immediate);
+
+      expect(report).toEqual({
+        refreshed: 0,
+        logged: 0,
+        backtested: 0,
+        settled: 0,
+        failures: ["backtest"],
+      });
+      for (const model of MODELS) expect(backtested(model)).toEqual([]);
+    });
+  });
+  it("settles even when writing the predictions fails", async () => {
+    stored([], [tasoRow()]);
+    mocks.onConflictDoUpdate.mockRejectedValue(new Error("database down"));
+
+    await expect(runPredictionLog(() => NOW, immediate)).rejects.toThrow("database down");
+    expect(mocks.settleGuesses).toHaveBeenCalledWith(NOW);
+  });
+
+  it("is part of the hourly run, after the refresh has stored the results, and its count is the run's", async () => {
+    const order: string[] = [];
+    stored([], [tasoRow()]);
+    mocks.getHomeBaseline.mockResolvedValue(baseline);
+    mocks.getTasoSeasonMatches.mockResolvedValue([{ id: "taso" }]);
+    mocks.synchronizeTasoMatches.mockImplementationOnce(async () => {
+      order.push("refresh");
+    });
+    mocks.settleGuesses.mockImplementationOnce(async () => {
+      order.push("settle");
+      return {
+        matches: 1,
+        rewarded: 2,
+        missed: 1,
+        refunded: 0,
+        voided: 0,
+        bonuses: 0,
+        modelWins: 0,
+        failed: [],
+      };
+    });
+
+    const report = await runPredictionLog(() => NOW, immediate);
+
+    expect(order).toEqual(["refresh", "settle"]);
+    expect(report.settled).toBe(3);
+    expect(mocks.settleGuesses).toHaveBeenCalledWith(NOW);
+  });
+});
+
+describe("runPredictionBacktest", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.select.mockReset();
+    mocks.onConflictDoUpdate.mockReset().mockResolvedValue(undefined);
+    mocks.invalidateCache.mockReset().mockResolvedValue(true);
+  });
+
+  it("drops both providers' cached backtest reports once the rows are written, and no live one", async () => {
+    mocks.select
+      .mockResolvedValueOnce([
+        { code: "PL", ...played(1, 2, 0) },
+        { code: "PL", ...played(2, 1, 1) },
+      ])
+      .mockResolvedValueOnce([]);
+    // The write is held open: nothing may be dropped until it has ended.
+    let finishWrite = () => {};
+    mocks.onConflictDoUpdate.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finishWrite = resolve;
+      })
+    );
+
+    const run = runPredictionBacktest(NOW);
+    await vi.waitFor(() => expect(mocks.onConflictDoUpdate).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mocks.invalidateCache).not.toHaveBeenCalled();
+
+    finishWrite();
+    await run;
+
+    expect(mocks.invalidateCache.mock.calls).toEqual(DROPPED_KEYS);
+  });
+
+  it("still answers with the rows written when a cached report cannot be dropped", async () => {
+    mocks.select.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    mocks.invalidateCache.mockResolvedValue(false);
+
+    await expect(runPredictionBacktest(NOW)).resolves.toBe(0);
+  });
+
+  it("drops the cached reports when the write fails too: some batches may have been stored", async () => {
+    mocks.select
+      .mockResolvedValueOnce([
+        { code: "PL", ...played(1, 2, 0) },
+        { code: "PL", ...played(2, 1, 1) },
+      ])
+      .mockResolvedValueOnce([]);
+    mocks.onConflictDoUpdate.mockRejectedValue(new Error("connection reset"));
+
+    await expect(runPredictionBacktest(NOW)).rejects.toThrow("connection reset");
+    expect(mocks.invalidateCache.mock.calls).toEqual(DROPPED_KEYS);
+  });
+
+  const played = (day: number, home: number, away: number, overrides = {}) => ({
+    providerMatchId: 100 + day,
+    homeTeam: 10 + day,
+    awayTeam: 20 + day,
+    kickoffAt: new Date(Date.UTC(2025, 3, day, 15)),
+    homeGoals: home,
+    awayGoals: away,
+    ...overrides,
+  });
+
+  it("writes a backtest row for every finished match with history, from both providers", async () => {
+    mocks.select
+      .mockResolvedValueOnce([
+        { code: "PL", ...played(1, 2, 0) },
+        { code: "PL", ...played(2, 1, 1) },
+      ])
+      .mockResolvedValueOnce([
+        { competitionId: "spljp25", categoryId: "VL", seasonId: 2025, ...played(3, 0, 1) },
+        { competitionId: "spljp25", categoryId: "VL", seasonId: 2025, ...played(4, 1, 0) },
+        // Not a compared competition's pair.
+        { competitionId: "Liigacup25", categoryId: "VL", seasonId: 2025, ...played(5, 1, 0) },
+      ]);
+
+    const count = await runPredictionBacktest(NOW);
+
+    // Two matches with history, each under all five models.
+    expect(count).toBe(10);
+    for (const model of ["elo-form-v1", "elo-home-v1"]) {
+      expect(backtested(model)).toEqual([
+        expect.objectContaining({
+          source: "football-data",
+          providerMatchId: 102,
+          kind: "backtest",
+        }),
+        expect.objectContaining({ source: "taso", providerMatchId: 104, competitionCode: "VL" }),
+      ]);
+    }
+    expect(backtested("poisson-v1")).toEqual([
+      expect.objectContaining({ source: "football-data", providerMatchId: 102, kind: "backtest" }),
+      expect.objectContaining({ source: "taso", providerMatchId: 104, competitionCode: "VL" }),
+    ]);
+    expect(backtested("elo-v1")).toEqual([
+      expect.objectContaining({ source: "football-data", providerMatchId: 102, kind: "backtest" }),
+      expect.objectContaining({ source: "taso", providerMatchId: 104, competitionCode: "VL" }),
+    ]);
+    expect(backtested("home-baseline-v1")).toEqual([
+      expect.objectContaining({ source: "football-data", providerMatchId: 102, kind: "backtest" }),
+      expect.objectContaining({ source: "taso", providerMatchId: 104, competitionCode: "VL" }),
+    ]);
+  });
+
+  // 1 501 finished matches an hour apart: 1 500 rows under the baseline and under
+  // each of the three Elo models, and 1 477 under Poisson, which predicts none of
+  // the first day's 24.
+  const threeBatchesOfFinished = () =>
+    Array.from({ length: 1_501 }, (_, index) => ({
+      code: "PL",
+      seasonId: 2024,
+      providerMatchId: index,
+      homeTeam: 1 + (index % 20),
+      awayTeam: 21 + (index % 20),
+      kickoffAt: new Date(Date.UTC(2024, 0, 1) + index * HOUR),
+      homeGoals: 1,
+      awayGoals: 0,
+    }));
+
+  it("writes in batches of a thousand", async () => {
+    mocks.select.mockResolvedValueOnce(threeBatchesOfFinished()).mockResolvedValueOnce([]);
+
+    // 7 477 rows, written a thousand at a time.
+    await expect(runPredictionBacktest(NOW)).resolves.toBe(7_477);
+    expect(mocks.insertValues.mock.calls.map(([rows]) => (rows as unknown[]).length)).toEqual([
+      1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 477,
+    ]);
+  });
+
+  it("lets every batch it started settle, then fails the run with the failure that came first", async () => {
+    // Eight batches: the first is still writing and fails in the end, the second
+    // fails at once, the rest are stored.
+    mocks.select.mockResolvedValueOnce(threeBatchesOfFinished()).mockResolvedValueOnce([]);
+    let failFirst = (_reason: Error) => {};
+    const first = new Promise<void>((_resolve, reject) => {
+      failFirst = reject;
+    });
+    mocks.onConflictDoUpdate
+      .mockReturnValueOnce(first)
+      .mockRejectedValueOnce(new Error("connection reset"));
+    const settled = vi.fn();
+
+    const run = runPredictionBacktest(NOW);
+    run.then(settled, settled);
+    await vi.waitFor(() => expect(mocks.onConflictDoUpdate).toHaveBeenCalledTimes(8));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(settled).not.toHaveBeenCalled();
+
+    failFirst(new Error("a later failure"));
+
+    await expect(run).rejects.toThrow("connection reset");
+  });
+});
+
+describe("readFinished", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.select.mockReset();
+  });
+
+  it("reads one provider when asked, and the other not at all", async () => {
+    mocks.select.mockResolvedValueOnce([
+      {
+        competitionId: "spljp25",
+        categoryId: "VL",
+        seasonId: 2025,
+        providerMatchId: 7,
+        kickoffAt: new Date("2025-05-01T15:00:00Z"),
+        homeTeam: 1,
+        awayTeam: 2,
+        homeGoals: 1,
+        awayGoals: 0,
+      },
+    ]);
+
+    const finished = await readFinished(new Set(["taso"]));
+
+    expect(mocks.select).toHaveBeenCalledTimes(1);
+    expect(finished).toEqual([
+      expect.objectContaining({ source: "taso", code: "VL", homeTeam: 1, seasonId: 2025 }),
+    ]);
+  });
+
+  it("marks a Suomen Cup match as a cup tie, and a league match not", async () => {
+    const row = {
+      competitionId: "spljp25",
+      seasonId: 2025,
+      kickoffAt: new Date("2025-05-01T15:00:00Z"),
+      homeTeam: 1,
+      awayTeam: 2,
+      homeGoals: 1,
+      awayGoals: 1,
+    };
+    mocks.select.mockResolvedValueOnce([
+      { ...row, categoryId: "MSC", providerMatchId: 8 },
+      { ...row, categoryId: "NSC", providerMatchId: 9 },
+      { ...row, categoryId: "VL", providerMatchId: 10 },
+      { ...row, categoryId: "LC", providerMatchId: 11 },
+    ]);
+
+    const finished = await readFinished(new Set(["taso"]));
+
+    expect(finished.map((match) => [match.providerMatchId, match.code, match.cup])).toEqual([
+      [8, "MSC", true],
+      [9, "NSC", true],
+      [10, "VL", undefined],
+    ]);
+  });
+
+  it("reads football-data alone the same way", async () => {
+    mocks.select.mockResolvedValueOnce([]);
+
+    await expect(readFinished(new Set(["football-data"]))).resolves.toEqual([]);
+    expect(mocks.select).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("settle", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // A queued answer another test left unread would otherwise answer this one.
+    mocks.settleGuesses.mockReset();
+    mocks.settleSeasonGuesses
+      .mockReset()
+      .mockResolvedValue({ settled: 0, rewarded: 0, voided: 0, failed: [] });
+  });
+
+  it("counts every guess settled, paid, missed, refunded or void, and adds nothing to the failures", async () => {
+    mocks.settleGuesses.mockResolvedValueOnce({
+      matches: 2,
+      rewarded: 3,
+      missed: 4,
+      refunded: 2,
+      voided: 1,
+      bonuses: 0,
+      modelWins: 0,
+      failed: [],
+    });
+    const failures: string[] = [];
+
+    expect(await settle(NOW, failures)).toBe(10);
+    expect(mocks.settleGuesses).toHaveBeenCalledWith(NOW);
+    expect(failures).toEqual([]);
+  });
+
+  it("names each match whose guesses could not be settled", async () => {
+    mocks.settleGuesses.mockResolvedValueOnce({
+      matches: 1,
+      rewarded: 1,
+      missed: 0,
+      refunded: 0,
+      voided: 0,
+      bonuses: 0,
+      modelWins: 0,
+      failed: [41, 42],
+    });
+    const failures: string[] = [];
+
+    expect(await settle(NOW, failures)).toBe(1);
+    expect(failures).toEqual(["settle match 41", "settle match 42"]);
+  });
+
+  it("reports a step that failed outright, and logs it", async () => {
+    mocks.settleGuesses.mockRejectedValueOnce(new Error("database down"));
+    const failures: string[] = [];
+
+    expect(await settle(NOW, failures)).toBe(0);
+    expect(failures).toEqual(["settle"]);
+    expect(mocks.loggerError).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      "Unable to settle Arvauspeli guesses"
+    );
+  });
+
+  it("settles the season guesses after the match guesses, and counts them", async () => {
+    const order: string[] = [];
+    mocks.settleGuesses.mockImplementationOnce(async () => {
+      order.push("matches");
+      return { rewarded: 1, missed: 0, refunded: 0, voided: 0, failed: [] };
+    });
+    mocks.settleSeasonGuesses.mockImplementationOnce(async () => {
+      order.push("seasons");
+      return { settled: 3, rewarded: 2, voided: 1, failed: [] };
+    });
+    const failures: string[] = [];
+
+    expect(await settle(NOW, failures)).toBe(4);
+    expect(order).toEqual(["matches", "seasons"]);
+    expect(mocks.settleSeasonGuesses).toHaveBeenCalledWith(NOW);
+    expect(failures).toEqual([]);
+  });
+
+  it("names each season guess that could not be settled", async () => {
+    mocks.settleGuesses.mockResolvedValueOnce({
+      rewarded: 0,
+      missed: 0,
+      refunded: 0,
+      voided: 0,
+      failed: [],
+    });
+    mocks.settleSeasonGuesses.mockResolvedValueOnce({
+      settled: 0,
+      rewarded: 0,
+      voided: 0,
+      failed: [7, 8],
+    });
+    const failures: string[] = [];
+
+    await settle(NOW, failures);
+
+    expect(failures).toEqual(["settle season guess 7", "settle season guess 8"]);
+  });
+
+  it("settles the season guesses when the match guesses fail, and reports a season step that fails", async () => {
+    mocks.settleGuesses.mockRejectedValueOnce(new Error("database down"));
+    mocks.settleSeasonGuesses.mockRejectedValueOnce(new Error("database down"));
+    const failures: string[] = [];
+
+    expect(await settle(NOW, failures)).toBe(0);
+    expect(mocks.settleSeasonGuesses).toHaveBeenCalledWith(NOW);
+    expect(failures).toEqual(["settle", "settle seasons"]);
+    expect(mocks.loggerError).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      "Unable to settle Arvauspeli season guesses"
+    );
+  });
+});

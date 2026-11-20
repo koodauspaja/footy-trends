@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { CupBracket } from "@/components/cup-bracket";
-import type { BracketRound, BracketTie } from "@/lib/cup-bracket";
+import type { BracketRound, BracketTie } from "@/lib/competitions/cup-bracket";
 
 /**
  * The cup bracket: drawn ties, listed rounds and two-legged aggregates.

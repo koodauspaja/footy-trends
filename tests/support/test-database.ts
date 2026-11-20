@@ -1,7 +1,7 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
-import { parseDatabaseUrl } from "../../src/lib/test-database-name";
+import { parseDatabaseUrl } from "../../src/lib/platform/test-database-name";
 
 /**
  * The database the test suites use, which is not the development one: derived

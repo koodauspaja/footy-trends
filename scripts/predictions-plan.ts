@@ -7,7 +7,7 @@
  * decisions/072-match-guesses.md
  */
 
-import type { PredictionRunReport } from "../src/lib/prediction-log-service";
+import type { PredictionRunReport } from "../src/lib/predictions/prediction-log-service";
 
 export type PredictionCommand = "log" | "backtest" | "settle";
 

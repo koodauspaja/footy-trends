@@ -4,14 +4,14 @@ import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { type Device, type RegionOptions, SettingsPage } from "@/components/settings-page";
 import { SignInPrompt } from "@/components/sign-in-prompt";
-import { auth } from "@/lib/auth";
-import { getAvatar } from "@/lib/avatar";
-import { competitionOptionsFor, fallbackLabelFor } from "@/lib/competition-preferences";
-import { logger } from "@/lib/logger";
-import { getNickname } from "@/lib/nickname-store";
-import { NO_PREFERENCES, toPreferences } from "@/lib/regions";
-import { currentPreferencesRow } from "@/lib/settings-actions";
-import { describeDevice, describeLastUsed } from "@/lib/user-agent";
+import { getAvatar } from "@/lib/account/avatar";
+import { getNickname } from "@/lib/account/nickname-store";
+import { currentPreferencesRow } from "@/lib/account/settings-actions";
+import { describeDevice, describeLastUsed } from "@/lib/account/user-agent";
+import { auth } from "@/lib/auth/auth";
+import { logger } from "@/lib/platform/logger";
+import { competitionOptionsFor, fallbackLabelFor } from "@/lib/preferences/competition-preferences";
+import { NO_PREFERENCES, toPreferences } from "@/lib/preferences/regions";
 
 const HEADING = "Asetukset";
 

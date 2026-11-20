@@ -1,6 +1,6 @@
 import { render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { StoredMatch } from "@/lib/match-detail";
+import type { StoredMatch } from "@/lib/matches/match-detail";
 
 /**
  * The line under a finished match's score: what it says, and that nothing is
@@ -14,8 +14,8 @@ const { canSeeAnalytics, getMatchSurprise } = vi.hoisted(() => ({
   getMatchSurprise: vi.fn<(stored: StoredMatch) => Promise<number | null>>(),
 }));
 
-vi.mock("@/lib/analytics-access", () => ({ canSeeAnalytics }));
-vi.mock("@/lib/surprise-service", () => ({ getMatchSurprise }));
+vi.mock("@/lib/auth/analytics-access", () => ({ canSeeAnalytics }));
+vi.mock("@/lib/predictions/surprise-service", () => ({ getMatchSurprise }));
 
 import { MatchSurprise, matchSurpriseSentence } from "@/components/match-surprise";
 

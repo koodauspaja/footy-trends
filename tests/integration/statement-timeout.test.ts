@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it } from "vitest";
 import { OPPONENTS_ERROR_MESSAGE, opponentsPanel } from "@/components/opponents-section";
 import { db, STATEMENT_TIMEOUT_MS } from "@/db";
-import { getWorstOpponents } from "@/lib/match-service";
+import { getWorstOpponents } from "@/lib/matches/match-service";
 
 /**
  * The app client's statement timeout, against a real Postgres: a statement that

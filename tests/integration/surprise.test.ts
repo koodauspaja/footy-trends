@@ -2,7 +2,11 @@ import { eq, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { matches, predictions, tasoMatches } from "@/db/schema";
-import { getMatchSurprise, getSeasonSurprises, getTeamUpset } from "@/lib/surprise-service";
+import {
+  getMatchSurprise,
+  getSeasonSurprises,
+  getTeamUpset,
+} from "@/lib/predictions/surprise-service";
 
 /**
  * The surprise reads against a real Postgres, set in 1980 and 1981 so the

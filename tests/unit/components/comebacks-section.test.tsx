@@ -16,7 +16,7 @@ import {
   TRAILED_LABEL,
   WON_LABEL,
 } from "@/components/comebacks-section";
-import type { ComebacksSeries } from "@/lib/comebacks";
+import type { ComebacksSeries } from "@/lib/teams/comebacks";
 
 /**
  * The `Kääntyneet ottelut` panel: deficits rescued, leads given away, and the

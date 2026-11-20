@@ -11,8 +11,8 @@ import {
   COMPARISON_ERROR_MESSAGE,
   seasonComparisonPanel,
 } from "@/components/season-comparison-section";
-import { HISTORY_AXIS, SEASON_AXIS } from "@/lib/analytics-axis";
-import { MEASURES, type SeasonComparisonSeries } from "@/lib/season-comparison";
+import { HISTORY_AXIS, SEASON_AXIS } from "@/lib/analytics/analytics-axis";
+import { MEASURES, type SeasonComparisonSeries } from "@/lib/teams/season-comparison";
 
 /**
  * The `Tämä kausi verrattuna` panel, on a club's seasons and on a national

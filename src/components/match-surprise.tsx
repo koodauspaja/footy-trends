@@ -1,7 +1,7 @@
 import { percentText } from "@/components/charts/line-chart";
-import { canSeeAnalytics } from "@/lib/analytics-access";
-import type { StoredMatch } from "@/lib/match-detail";
-import { getMatchSurprise } from "@/lib/surprise-service";
+import { canSeeAnalytics } from "@/lib/auth/analytics-access";
+import type { StoredMatch } from "@/lib/matches/match-detail";
+import { getMatchSurprise } from "@/lib/predictions/surprise-service";
 
 /**
  * `Elo antoi tälle tulokselle 8 %.`: the line under a finished match's score.

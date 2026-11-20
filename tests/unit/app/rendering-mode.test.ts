@@ -132,7 +132,7 @@ function optsOutOfPrerender(source: ts.SourceFile): boolean {
 }
 
 // Every module a file pulls in. `await import("…")` counts: the repository uses
-// it to keep `@/lib/auth` off an import path. `import type` does not: it is
+// it to keep `@/lib/auth/auth` off an import path. `import type` does not: it is
 // erased at compile time, and a false alarm is what gets a guard deleted.
 function moduleSpecifiers(source: ts.SourceFile): string[] {
   const found: string[] = [];

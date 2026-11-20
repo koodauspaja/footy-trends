@@ -25,8 +25,8 @@ Locally, `./scripts/setup` starts Redis with Postgres (012).
 
 | | File |
 |---|---|
-| The client | `src/lib/redis.ts` |
-| The cache every provider call goes through | `src/lib/cache.ts` |
+| The client | `src/lib/platform/redis.ts` |
+| The cache every provider call goes through | `src/lib/providers/cache.ts` |
 | Why rate limits are stored the way they are | `decisions/318-rate-limit-storage.md` |
 
 ---

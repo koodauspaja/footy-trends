@@ -12,7 +12,7 @@ import {
   SURPRISES_NOTE,
   UNPREDICTED_MESSAGE,
 } from "@/components/season-surprises";
-import type { SeasonSurprises, Surprise } from "@/lib/surprise";
+import type { SeasonSurprises, Surprise } from "@/lib/predictions/surprise";
 
 /**
  * A season's biggest surprises as the panel prints them: each row's parts and

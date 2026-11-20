@@ -1,9 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SeasonContext } from "@/lib/football-data";
-import type { HomeBaseline } from "@/lib/home-baseline";
-import type { FootballDataMatchRow } from "@/lib/match-detail";
-import type { MatchPageData } from "@/lib/match-service";
+import type { SeasonContext } from "@/lib/football-data/football-data";
+import type { FootballDataMatchRow } from "@/lib/matches/match-detail";
+import type { MatchPageData } from "@/lib/matches/match-service";
+import type { HomeBaseline } from "@/lib/predictions/home-baseline";
 import { warmModules } from "../../../../../support/warm-module";
 
 /**
@@ -22,28 +22,28 @@ const getHomeBaselineMock = vi.fn<() => Promise<HomeBaseline>>();
 const canSeeAnalyticsMock = vi.fn<() => Promise<boolean>>();
 const getMatchSurpriseMock = vi.fn<() => Promise<number | null>>();
 
-vi.mock("@/lib/match-service", () => ({
+vi.mock("@/lib/matches/match-service", () => ({
   getMatchPageData: getMatchPageDataMock,
   getHomeBaseline: getHomeBaselineMock,
 }));
 
-vi.mock("@/lib/elo-service", () => ({
+vi.mock("@/lib/predictions/elo-service", () => ({
   getEloRatings: async () => ({ status: "ok", ratings: new Map() }),
 }));
 
-vi.mock("@/lib/analytics-access", () => ({
+vi.mock("@/lib/auth/analytics-access", () => ({
   canSeeAnalytics: canSeeAnalyticsMock,
 }));
 
-vi.mock("@/lib/surprise-service", () => ({
+vi.mock("@/lib/predictions/surprise-service", () => ({
   getMatchSurprise: getMatchSurpriseMock,
 }));
 
-vi.mock("@/lib/football-data", () => ({
+vi.mock("@/lib/football-data/football-data", () => ({
   getSeasonContext: getSeasonContextMock,
 }));
 
-vi.mock("@/lib/logger", () => ({
+vi.mock("@/lib/platform/logger", () => ({
   logger: { error: vi.fn() },
 }));
 

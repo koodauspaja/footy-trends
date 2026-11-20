@@ -13,7 +13,7 @@
 // deprecated and stops working in v11.
 import { withSentryConfig } from "@sentry/nextjs/config";
 import type { NextConfig } from "next";
-import { securityHeaders } from "./src/lib/security-headers";
+import { securityHeaders } from "./src/lib/platform/security-headers";
 
 /**
  * The Finnish prefix each head-to-head route is reached by, and the directory

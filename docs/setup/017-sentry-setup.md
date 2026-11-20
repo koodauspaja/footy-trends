@@ -28,7 +28,7 @@ Locally, leave it empty unless you are testing Sentry itself.
 
 Staging sets nothing else, so it traces a tenth of requests, the in-code
 default. What an event may carry is not a variable: `DATA_COLLECTION` in
-`src/lib/sentry-config.ts`, the same everywhere, and no log is sent to Sentry
+`src/lib/platform/sentry-config.ts`, the same everywhere, and no log is sent to Sentry
 (`021-production-environment.md`, Step 5).
 
 ## Step 3 — Verify, after the first deploy
@@ -44,7 +44,7 @@ events*, explains its output).
 | | File |
 |---|---|
 | The three runtimes' configuration | `sentry.server.config.ts`, `sentry.edge.config.ts`, `src/instrumentation-client.ts` |
-| What they read from the environment | `src/lib/sentry-config.ts` |
+| What they read from the environment | `src/lib/platform/sentry-config.ts` |
 | A warning silenced on purpose | `decisions/174-max-listeners-warning.md` |
 
 ---

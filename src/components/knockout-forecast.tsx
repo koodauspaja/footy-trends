@@ -12,15 +12,15 @@ import {
   TITLE_HEADER,
   WIDE_CHANCE_WIDTH,
 } from "@/components/season-forecast";
-import { getStageName, KNOCKOUT_PHASE } from "@/lib/cup-stages";
+import { getStageName, KNOCKOUT_PHASE } from "@/lib/competitions/cup-stages";
 import {
   type KnockoutRow,
   LEAGUE_PHASE_ZONES,
   REACHED_STAGES,
   type TieChance,
-} from "@/lib/knockout-simulation";
-import type { KnockoutForecast } from "@/lib/knockout-simulation-service";
-import type { Chance, ForecastRow } from "@/lib/season-simulation";
+} from "@/lib/predictions/knockout-simulation";
+import type { KnockoutForecast } from "@/lib/predictions/knockout-simulation-service";
+import type { Chance, ForecastRow } from "@/lib/predictions/season-simulation";
 
 /**
  * The panel's own strings; its heading, failure and no-fixtures lines are the

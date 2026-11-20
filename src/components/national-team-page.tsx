@@ -3,13 +3,16 @@ import { FoldMarker } from "@/components/fold-marker";
 import { MatchListTable } from "@/components/match-list-table";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
-import { HISTORY_AXIS } from "@/lib/analytics-axis";
-import { matchCountLabel } from "@/lib/match-count";
-import { upcomingFirst } from "@/lib/match-order";
-import type { NationalTeam } from "@/lib/national-team";
-import { nationalTeamAnalytics } from "@/lib/national-team-analytics";
-import { getNationalTeamYears, type NationalTeamYear } from "@/lib/national-team-service";
-import { getPageSections } from "@/lib/section-choices";
+import { HISTORY_AXIS } from "@/lib/analytics/analytics-axis";
+import { matchCountLabel } from "@/lib/matches/match-count";
+import { upcomingFirst } from "@/lib/matches/match-order";
+import type { NationalTeam } from "@/lib/national-team/national-team";
+import { nationalTeamAnalytics } from "@/lib/national-team/national-team-analytics";
+import {
+  getNationalTeamYears,
+  type NationalTeamYear,
+} from "@/lib/national-team/national-team-service";
+import { getPageSections } from "@/lib/preferences/section-choices";
 
 const EMPTY_MESSAGE = "Otteluita ei ole saatavilla.";
 /**

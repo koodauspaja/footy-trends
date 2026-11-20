@@ -1,6 +1,6 @@
 import { ChartPanel } from "@/components/charts/chart-panel";
 import { FormChart } from "@/components/charts/form-chart";
-import type { FormSeries } from "@/lib/form-series";
+import type { FormSeries } from "@/lib/teams/form-series";
 
 /**
  * The panel's strings.

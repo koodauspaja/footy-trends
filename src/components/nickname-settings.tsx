@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { Notice } from "@/components/notice";
-import { type SaveNicknameResult, saveNicknameAction } from "@/lib/nickname-actions";
-import { reportClientError } from "@/lib/report-client-error";
+import { type SaveNicknameResult, saveNicknameAction } from "@/lib/account/nickname-actions";
+import { reportClientError } from "@/lib/platform/report-client-error";
 
 /**
  * The settings page's `Nimimerkki` section: the user's own nickname, set,

@@ -8,7 +8,7 @@
  */
 import { existsSync } from "node:fs";
 import * as Sentry from "@sentry/nextjs";
-import { DATA_COLLECTION, sampleRateFrom } from "../src/lib/sentry-config";
+import { DATA_COLLECTION, sampleRateFrom } from "../src/lib/platform/sentry-config";
 import {
   buildMarker,
   describeDsn,

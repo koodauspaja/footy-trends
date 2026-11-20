@@ -2,10 +2,10 @@ import { notFound } from "next/navigation";
 import { PageShell } from "@/components/page-shell";
 import { RefreshForm } from "@/components/refresh-form";
 import { RefreshRunList } from "@/components/refresh-run-list";
-import { requireAdmin } from "@/lib/admin-guard";
-import { logger } from "@/lib/logger";
-import { listCompetitionOptions } from "@/lib/refresh-competitions";
-import { listRuns } from "@/lib/refresh-runs";
+import { requireAdmin } from "@/lib/admin/admin-guard";
+import { logger } from "@/lib/platform/logger";
+import { listCompetitionOptions } from "@/lib/refresh/refresh-competitions";
+import { listRuns } from "@/lib/refresh/refresh-runs";
 
 const HEADING = "Kauden uudelleenhaku";
 const INTRO =

@@ -54,7 +54,7 @@ the reader does not want, or a group label that looks like a toggle and is not.
 **The counter.** A new section or `Analyysit` group folds by the rule in
 `specs/071-section-toggles.md`: it renders through `SectionFold` (as a
 `TeamPageFold`, `TableFold` or `GroupFold`), and a remembered one takes its
-key and default from `DEFAULT_OPEN` in `src/lib/section-keys.ts`. Only the
+key and default from `DEFAULT_OPEN` in `src/lib/preferences/section-keys.ts`. Only the
 page's most basic part starts open.
 
 ### 3. Long lists open by default (#698)

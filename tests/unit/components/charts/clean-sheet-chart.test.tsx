@@ -2,7 +2,7 @@ import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { CleanSheetChart, cleanSheetSentence } from "@/components/charts/clean-sheet-chart";
 import { CHART, MARGIN } from "@/components/charts/line-chart";
-import type { CleanSheetPoint } from "@/lib/clean-sheets";
+import type { CleanSheetPoint } from "@/lib/teams/clean-sheets";
 
 /**
  * The clean-sheet chart and its text alternative.

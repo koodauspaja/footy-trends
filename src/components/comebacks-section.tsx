@@ -1,6 +1,6 @@
 import { ChartPanel } from "@/components/charts/chart-panel";
-import type { ComebacksSeries, HalfTimeOutcomes } from "@/lib/comebacks";
-import { matchCountLabel } from "@/lib/match-count";
+import { matchCountLabel } from "@/lib/matches/match-count";
+import type { ComebacksSeries, HalfTimeOutcomes } from "@/lib/teams/comebacks";
 
 /**
  * The panel's strings.

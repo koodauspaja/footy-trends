@@ -20,12 +20,12 @@ const { currentUserId, openGame, readGroup, logger, notFound } = vi.hoisted(() =
   }),
 }));
 
-vi.mock("@/lib/current-user", () => ({ currentUserId }));
-vi.mock("@/lib/guessing-game-store", () => ({ openGame }));
-vi.mock("@/lib/guessing-game-group-store", () => ({ readGroup }));
-vi.mock("@/lib/logger", () => ({ logger }));
-vi.mock("@/lib/guessing-game-group-actions", () => ({}));
-vi.mock("@/lib/auth-client", () => ({ signIn: { social: vi.fn() } }));
+vi.mock("@/lib/auth/current-user", () => ({ currentUserId }));
+vi.mock("@/lib/guessing-game/guessing-game-store", () => ({ openGame }));
+vi.mock("@/lib/guessing-game/guessing-game-group-store", () => ({ readGroup }));
+vi.mock("@/lib/platform/logger", () => ({ logger }));
+vi.mock("@/lib/guessing-game/guessing-game-group-actions", () => ({}));
+vi.mock("@/lib/auth/auth-client", () => ({ signIn: { social: vi.fn() } }));
 vi.mock("next/navigation", () => ({
   notFound,
   usePathname: () => "/arvauspeli/ryhmat/5",

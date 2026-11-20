@@ -13,32 +13,32 @@ import { FORECAST_HEADING, SeasonForecastBody } from "@/components/season-foreca
 import { SeasonSurprisesBody, SURPRISES_HEADING } from "@/components/season-surprises";
 import { SectionFold } from "@/components/section-fold";
 import { SignInPrompt } from "@/components/sign-in-prompt";
-import { canSeeAnalytics } from "@/lib/analytics-access";
 import {
   type GoalsPerGamePoint,
   type GoalsPerGameSeries,
   hasGoalsPerGame,
-} from "@/lib/goals-per-game";
-import { getKnockoutForecast } from "@/lib/knockout-simulation-service";
-import { getGoalsPerGame, getOutcomeShares } from "@/lib/match-service";
-import type { MatchSource } from "@/lib/match-source";
+} from "@/lib/analytics/goals-per-game";
 import {
   type OutcomeRow,
   type OutcomeShares,
   roundedAdvantage,
   type SeasonRange,
-} from "@/lib/outcome-shares";
-import { qualityHref } from "@/lib/prediction-quality";
-import { getSeasonForecast } from "@/lib/season-simulation-service";
-import { formatSeasonLabel } from "@/lib/seasons";
-import { foldFor, type PageSectionsOf } from "@/lib/section-keys";
-import { getSeasonSurprises } from "@/lib/surprise-service";
+} from "@/lib/analytics/outcome-shares";
 import {
   hasTableVolatility,
   type TableVolatilitySeries,
   type VolatilityPoint,
-} from "@/lib/table-volatility";
-import { getTableVolatility } from "@/lib/table-volatility-service";
+} from "@/lib/analytics/table-volatility";
+import { getTableVolatility } from "@/lib/analytics/table-volatility-service";
+import { canSeeAnalytics } from "@/lib/auth/analytics-access";
+import { formatSeasonLabel } from "@/lib/competitions/seasons";
+import { getGoalsPerGame, getOutcomeShares } from "@/lib/matches/match-service";
+import type { MatchSource } from "@/lib/matches/match-source";
+import { getKnockoutForecast } from "@/lib/predictions/knockout-simulation-service";
+import { qualityHref } from "@/lib/predictions/prediction-quality";
+import { getSeasonForecast } from "@/lib/predictions/season-simulation-service";
+import { getSeasonSurprises } from "@/lib/predictions/surprise-service";
+import { foldFor, type PageSectionsOf } from "@/lib/preferences/section-keys";
 
 /**
  * The section's strings.

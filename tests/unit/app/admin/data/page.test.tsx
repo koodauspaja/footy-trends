@@ -25,10 +25,10 @@ const { requireAdmin, listRuns, notFound, logger, state } = vi.hoisted(() => {
   };
 });
 
-vi.mock("@/lib/admin-guard", () => ({ requireAdmin }));
-vi.mock("@/lib/refresh-runs", () => ({ listRuns }));
+vi.mock("@/lib/admin/admin-guard", () => ({ requireAdmin }));
+vi.mock("@/lib/refresh/refresh-runs", () => ({ listRuns }));
 vi.mock("next/navigation", () => ({ notFound }));
-vi.mock("@/lib/logger", () => ({ logger }));
+vi.mock("@/lib/platform/logger", () => ({ logger }));
 // The form is a client component reaching for server actions; the page's job is
 // to gate and to hand it the competition lists, which is what is asserted here.
 vi.mock("@/components/refresh-form", () => ({

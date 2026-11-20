@@ -1,4 +1,4 @@
-import { getStageName } from "@/lib/cup-stages";
+import { getStageName } from "@/lib/competitions/cup-stages";
 
 type StageSelectProps = {
   availableStages: string[];

@@ -1,6 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { NationalTeamMatch, NationalTeamResult } from "@/lib/national-team-service";
+import type {
+  NationalTeamMatch,
+  NationalTeamResult,
+} from "@/lib/national-team/national-team-service";
 
 /**
  * The national-team page's side of `Analyysit`: whether the section is asked for, where it
@@ -13,20 +16,20 @@ import type { NationalTeamMatch, NationalTeamResult } from "@/lib/national-team-
 
 const getNationalTeamYearsMock = vi.fn<() => Promise<NationalTeamResult>>();
 
-vi.mock("@/lib/national-team-service", () => ({
+vi.mock("@/lib/national-team/national-team-service", () => ({
   getNationalTeamYears: getNationalTeamYearsMock,
 }));
 
 const analyticsSectionMock = vi.fn(async (_props: Record<string, unknown>) => (
   <p>analytics section placeholder</p>
 ));
-vi.mock("@/lib/section-choices", () => import("../../support/page-sections"));
+vi.mock("@/lib/preferences/section-choices", () => import("../../support/page-sections"));
 vi.mock("@/components/analytics-section", () => ({
   AnalyticsSection: analyticsSectionMock,
 }));
 
-import { HISTORY_AXIS } from "@/lib/analytics-axis";
-import { FINLAND_TEAM_ID, MENS_TEAM } from "@/lib/national-team";
+import { HISTORY_AXIS } from "@/lib/analytics/analytics-axis";
+import { FINLAND_TEAM_ID, MENS_TEAM } from "@/lib/national-team/national-team";
 import { warmModules } from "../../support/warm-module";
 
 function match(providerMatchId: number, year: number): NationalTeamMatch {

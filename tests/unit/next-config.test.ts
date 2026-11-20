@@ -1,7 +1,7 @@
 import { readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { securityHeaders } from "@/lib/security-headers";
+import { securityHeaders } from "@/lib/platform/security-headers";
 import config from "../../next.config";
 
 /**

@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { QualityReport } from "@/lib/prediction-quality";
-import type { QualityResult } from "@/lib/prediction-quality-service";
+import type { QualityReport } from "@/lib/predictions/prediction-quality";
+import type { QualityResult } from "@/lib/predictions/prediction-quality-service";
 
 /**
  * The `/ennusteet` page: its switches, its tables, the calibration chart, the
@@ -22,8 +22,8 @@ const { canSeeAnalytics, getPredictionQuality } = vi.hoisted(() => ({
     vi.fn<(source: string, kind: string, competition: string | null) => Promise<QualityResult>>(),
 }));
 
-vi.mock("@/lib/analytics-access", () => ({ canSeeAnalytics }));
-vi.mock("@/lib/prediction-quality-service", () => ({
+vi.mock("@/lib/auth/analytics-access", () => ({ canSeeAnalytics }));
+vi.mock("@/lib/predictions/prediction-quality-service", () => ({
   getPredictionQuality,
   qualityCompetitions: (source: string) => (source === "taso" ? ["VL", "M1L", "M1"] : ["PL"]),
 }));

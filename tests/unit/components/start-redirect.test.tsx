@@ -14,7 +14,7 @@ const { sessionState, searchParams, replace } = vi.hoisted(() => ({
   replace: vi.fn(),
 }));
 
-vi.mock("@/lib/auth-client", () => ({ useSession: () => sessionState.current }));
+vi.mock("@/lib/auth/auth-client", () => ({ useSession: () => sessionState.current }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace }),
   useSearchParams: () => searchParams.current,

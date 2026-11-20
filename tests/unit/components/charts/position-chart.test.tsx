@@ -6,7 +6,7 @@ import {
   PositionChart,
   positionSentence,
 } from "@/components/charts/position-chart";
-import type { PositionPoint } from "@/lib/position-series";
+import type { PositionPoint } from "@/lib/teams/position-series";
 
 /**
  * The league-position chart and its text alternative.

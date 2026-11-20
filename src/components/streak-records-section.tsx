@@ -5,8 +5,12 @@ import {
   LONGEST_WINLESS_LABEL,
   LONGEST_WINS_LABEL,
 } from "@/components/streaks-section";
-import type { AnalyticsAxis } from "@/lib/analytics-axis";
-import { hasAnyRecord, type StreakRecord, type StreakRecordsSeries } from "@/lib/streak-records";
+import type { AnalyticsAxis } from "@/lib/analytics/analytics-axis";
+import {
+  hasAnyRecord,
+  type StreakRecord,
+  type StreakRecordsSeries,
+} from "@/lib/teams/streak-records";
 
 /**
  * The panel's strings.

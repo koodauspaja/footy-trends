@@ -7,19 +7,23 @@ import { MatchesControls } from "@/components/matches-controls";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { SameRouteLink } from "@/components/same-route-link";
-import { type CompetitionRegion, isCupCompetition } from "@/lib/competitions";
-import { localiseForRegion } from "@/lib/country-names";
+import { type CompetitionRegion, isCupCompetition } from "@/lib/competitions/competitions";
 import {
   getStageName,
   isTwoLeggedRound,
   listSeasonStages,
   parseStageParam,
   resolveCurrentStage,
-} from "@/lib/cup-stages";
-import type { BasePageContext, CompetitionPageOptions } from "@/lib/page-context";
-import { resolveBasePageContext } from "@/lib/page-context";
-import { listSelectableRounds, parseRoundParam } from "@/lib/rounds";
-import { getCupSeason, getMaxMatchday, getRoundMatches } from "@/lib/standings-service";
+} from "@/lib/competitions/cup-stages";
+import type { BasePageContext, CompetitionPageOptions } from "@/lib/competitions/page-context";
+import { resolveBasePageContext } from "@/lib/competitions/page-context";
+import { listSelectableRounds, parseRoundParam } from "@/lib/competitions/rounds";
+import { localiseForRegion } from "@/lib/football-data/country-names";
+import {
+  getCupSeason,
+  getMaxMatchday,
+  getRoundMatches,
+} from "@/lib/football-data/standings-service";
 
 const ERROR_MESSAGE = "Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
 const EMPTY_MESSAGE = "Otteluita ei ole saatavilla.";

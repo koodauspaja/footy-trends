@@ -2,8 +2,8 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect } from "react";
-import { useSession } from "@/lib/auth-client";
-import { defaultRegionOf } from "@/lib/session-extras";
+import { useSession } from "@/lib/auth/auth-client";
+import { defaultRegionOf } from "@/lib/auth/session-extras";
 
 /**
  * The query parameter that always shows the region picker, whatever is stored.

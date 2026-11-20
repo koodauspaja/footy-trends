@@ -2,10 +2,10 @@ import { and, eq, gte, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { gameGuess, gameLedger, tasoMatches, user } from "@/db/schema";
-import { readBoard, readShares } from "@/lib/guessing-game-board";
-import { joinGame, placeGuess, settleGuesses } from "@/lib/guessing-game-store";
-import { nicknameKey } from "@/lib/nickname";
-import { saveNickname } from "@/lib/nickname-store";
+import { nicknameKey } from "@/lib/account/nickname";
+import { saveNickname } from "@/lib/account/nickname-store";
+import { readBoard, readShares } from "@/lib/guessing-game/guessing-game-board";
+import { joinGame, placeGuess, settleGuesses } from "@/lib/guessing-game/guessing-game-store";
 
 /**
  * Arvauspeli's leaderboard, shares and rarity bonus against a real Postgres:

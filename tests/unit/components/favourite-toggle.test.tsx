@@ -35,13 +35,13 @@ const { session, refetch, toggleTeam, toggleCompetition } = vi.hoisted(() => ({
 
 const { reportClientError } = vi.hoisted(() => ({ reportClientError: vi.fn() }));
 
-vi.mock("@/lib/report-client-error", () => ({ reportClientError }));
+vi.mock("@/lib/platform/report-client-error", () => ({ reportClientError }));
 
 beforeEach(() => {
   reportClientError.mockClear();
 });
 
-vi.mock("@/lib/auth-client", () => ({
+vi.mock("@/lib/auth/auth-client", () => ({
   useSession: () => ({ data: session.data, refetch }),
 }));
 
@@ -57,7 +57,7 @@ function serverNowSays(favourites: { teams?: string[]; competitions?: string[] }
     };
   });
 }
-vi.mock("@/lib/favourite-actions", () => ({
+vi.mock("@/lib/preferences/favourite-actions", () => ({
   toggleFavouriteTeamAction: toggleTeam,
   toggleFavouriteCompetitionAction: toggleCompetition,
 }));

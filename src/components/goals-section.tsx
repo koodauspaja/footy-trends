@@ -8,7 +8,7 @@ import {
   totalsTop,
 } from "@/components/charts/goals-chart";
 import { ticksFor } from "@/components/charts/line-chart";
-import type { GoalsSeries } from "@/lib/goals-series";
+import type { GoalsSeries } from "@/lib/teams/goals-series";
 
 /**
  * The panels' strings.

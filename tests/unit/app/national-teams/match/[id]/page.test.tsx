@@ -1,8 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SeasonContext } from "@/lib/football-data";
-import type { FootballDataMatchRow } from "@/lib/match-detail";
-import type { MatchPageData } from "@/lib/match-service";
+import type { SeasonContext } from "@/lib/football-data/football-data";
+import type { FootballDataMatchRow } from "@/lib/matches/match-detail";
+import type { MatchPageData } from "@/lib/matches/match-service";
 import { warmModules } from "../../../../../support/warm-module";
 
 /**
@@ -14,15 +14,15 @@ import { warmModules } from "../../../../../support/warm-module";
 const getMatchPageDataMock = vi.fn<() => Promise<MatchPageData>>();
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
 
-vi.mock("@/lib/match-service", () => ({
+vi.mock("@/lib/matches/match-service", () => ({
   getMatchPageData: getMatchPageDataMock,
 }));
 
-vi.mock("@/lib/football-data", () => ({
+vi.mock("@/lib/football-data/football-data", () => ({
   getSeasonContext: getSeasonContextMock,
 }));
 
-vi.mock("@/lib/logger", () => ({
+vi.mock("@/lib/platform/logger", () => ({
   logger: { error: vi.fn() },
 }));
 

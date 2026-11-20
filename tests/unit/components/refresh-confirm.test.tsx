@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { RefreshConfirm } from "@/components/refresh-confirm";
-import { NO_CHANGES, REMOVED_MATCHES_SHOWN, type RefreshPreview } from "@/lib/refresh-view";
+import { NO_CHANGES, REMOVED_MATCHES_SHOWN, type RefreshPreview } from "@/lib/refresh/refresh-view";
 
 /**
  * The dialog that stands between a truncated provider answer and a deleted season. A

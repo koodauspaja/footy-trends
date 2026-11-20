@@ -25,9 +25,9 @@ import { PageShell } from "@/components/page-shell";
 import { RowLink } from "@/components/row-link";
 import { ScoreGridTable, shadeLevel } from "@/components/score-grid-table";
 import { SignInPrompt } from "@/components/sign-in-prompt";
-import { canSeeAnalytics } from "@/lib/analytics-access";
-import { toFinnishTasoTeamNames, toFinnishTeamNames } from "@/lib/country-names";
-import { competitionCodeForCategory } from "@/lib/domestic-competitions";
+import { canSeeAnalytics } from "@/lib/auth/analytics-access";
+import { toFinishedMatches } from "@/lib/competitions/standings";
+import { toFinnishTasoTeamNames, toFinnishTeamNames } from "@/lib/football-data/country-names";
 import {
   type AnalysedMeeting,
   type CompetitionGroup,
@@ -42,16 +42,15 @@ import {
   type Scoreline,
   scoreGrid,
   spansCalendarYears,
-} from "@/lib/head-to-head";
-import { baselineCompetition } from "@/lib/home-baseline";
-import { matchCountLabel } from "@/lib/match-count";
+} from "@/lib/matches/head-to-head";
+import { matchCountLabel } from "@/lib/matches/match-count";
 import {
   type FootballDataMatchRow,
   formatKickoff,
   PLACEHOLDER_TEAM_ID,
   type TasoMatchRow,
   teamDisplayName,
-} from "@/lib/match-detail";
+} from "@/lib/matches/match-detail";
 import {
   getCompetitionAverages,
   getHeadToHeadHistory,
@@ -59,19 +58,20 @@ import {
   getTeamForm,
   type HeadToHeadResult,
   type TeamForm,
-} from "@/lib/match-service";
-import type { MatchSource } from "@/lib/match-source";
+} from "@/lib/matches/match-service";
+import type { MatchSource } from "@/lib/matches/match-source";
 import {
   COMPETITION_COLUMN,
   categoryNameLoader,
   type Labelled,
   labelFootballDataRows,
   labelTasoRows,
-} from "@/lib/meeting-labels";
-import type { NationalTeam } from "@/lib/national-team";
-import { comparedCompetitionName } from "@/lib/prediction-quality";
-import { parseWholeNumber } from "@/lib/provider-ids";
-import { toFinishedMatches } from "@/lib/standings";
+} from "@/lib/matches/meeting-labels";
+import type { NationalTeam } from "@/lib/national-team/national-team";
+import { baselineCompetition } from "@/lib/predictions/home-baseline";
+import { comparedCompetitionName } from "@/lib/predictions/prediction-quality";
+import { parseWholeNumber } from "@/lib/providers/provider-ids";
+import { competitionCodeForCategory } from "@/lib/taso/domestic-competitions";
 
 const HEADING = "Kohtaamiset";
 const SUMMARY_HEADING = "Yhteenveto";

@@ -34,17 +34,17 @@ const { getSession, getFavouriteKeys, resolveTeamNames, logger, state } = vi.hoi
 });
 
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
-vi.mock("@/lib/auth", () => ({ auth: { api: { getSession } } }));
-vi.mock("@/lib/favourites", () => ({ getFavouriteKeys, resolveTeamNames }));
-vi.mock("@/lib/logger", () => ({ logger }));
-vi.mock("@/lib/favourite-actions", () => ({
+vi.mock("@/lib/auth/auth", () => ({ auth: { api: { getSession } } }));
+vi.mock("@/lib/preferences/favourites", () => ({ getFavouriteKeys, resolveTeamNames }));
+vi.mock("@/lib/platform/logger", () => ({ logger }));
+vi.mock("@/lib/preferences/favourite-actions", () => ({
   removeFavouriteTeamAction: vi.fn(),
   removeFavouriteCompetitionAction: vi.fn(),
 }));
 // Both halves of the page reach the client: `SignInPrompt` uses `signIn`, and
 // the list refetches the session after a removal so every star in the app
 // catches up.
-vi.mock("@/lib/auth-client", () => ({
+vi.mock("@/lib/auth/auth-client", () => ({
   signIn: { social: vi.fn() },
   useSession: () => ({ data: null, refetch: vi.fn() }),
 }));

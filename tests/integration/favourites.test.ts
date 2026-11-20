@@ -2,15 +2,15 @@ import { eq, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { favoriteCompetition, favoriteTeam, matches, user } from "@/db/schema";
-import { MAX_FAVOURITES_PER_KIND } from "@/lib/favourite-keys";
+import { MAX_FAVOURITES_PER_KIND } from "@/lib/preferences/favourite-keys";
 import {
   getFavouriteKeys,
   removeFavouriteTeam,
   resolveTeamNames,
   toggleFavouriteCompetition,
   toggleFavouriteTeam,
-} from "@/lib/favourites";
-import { getSessionExtrasFor } from "@/lib/preferences";
+} from "@/lib/preferences/favourites";
+import { getSessionExtrasFor } from "@/lib/preferences/preferences";
 
 /**
  * Favourites against a real Postgres: the unique index makes a repeat a no-op,

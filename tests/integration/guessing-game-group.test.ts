@@ -2,8 +2,8 @@ import { eq, gte, inArray, like, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { gameGroup, gameGroupMember, gamePlayer, tasoMatches, user } from "@/db/schema";
-import { readBoard, readBoardEntries } from "@/lib/guessing-game-board";
-import { MAX_GROUPS, MAX_MEMBERS } from "@/lib/guessing-game-group";
+import { readBoard, readBoardEntries } from "@/lib/guessing-game/guessing-game-board";
+import { MAX_GROUPS, MAX_MEMBERS } from "@/lib/guessing-game/guessing-game-group";
 import {
   createGroup,
   deleteGroup,
@@ -15,8 +15,13 @@ import {
   removeMember,
   renameGroup,
   renewInviteLink,
-} from "@/lib/guessing-game-group-store";
-import { joinGame, openGame, placeGuess, settleGuesses } from "@/lib/guessing-game-store";
+} from "@/lib/guessing-game/guessing-game-group-store";
+import {
+  joinGame,
+  openGame,
+  placeGuess,
+  settleGuesses,
+} from "@/lib/guessing-game/guessing-game-store";
 
 /**
  * Arvauspeli's private groups against a real Postgres: the board restricted to

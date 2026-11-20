@@ -2,15 +2,15 @@ import { asc, eq, inArray } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db";
 import { tasoGroupTeams, tasoGroupZones, tasoMatches } from "@/db/schema";
-import type { NormalizedTasoGroupLevel, NormalizedTasoGroupTeam } from "@/lib/taso";
-import { getSeasonGroups } from "@/lib/taso";
+import type { NormalizedTasoGroupLevel, NormalizedTasoGroupTeam } from "@/lib/taso/taso";
+import { getSeasonGroups } from "@/lib/taso/taso";
 import {
   getSeasonStandings,
   synchronizeGroupLevels,
   synchronizeGroupTeams,
   synchronizeMatches,
-} from "@/lib/taso-standings-service";
-import { backfillZones } from "@/lib/zone-backfill";
+} from "@/lib/taso/taso-standings-service";
+import { backfillZones } from "@/lib/taso/zone-backfill";
 
 /**
  * Zone levels against a real Postgres: written with a season's group rows and
@@ -19,8 +19,8 @@ import { backfillZones } from "@/lib/zone-backfill";
  *
  * decisions/063-competition-zones.md
  */
-vi.mock("@/lib/taso", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/taso")>();
+vi.mock("@/lib/taso/taso", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/taso/taso")>();
   return { ...actual, getSeasonMatches: vi.fn(), getSeasonGroups: vi.fn() };
 });
 

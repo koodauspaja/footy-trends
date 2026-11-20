@@ -1,4 +1,4 @@
-import type { GoalsPoint } from "@/lib/goals-series";
+import type { GoalsPoint } from "@/lib/teams/goals-series";
 import { formatDecimal, LineChart, LineLegend, ticksFor } from "./line-chart";
 
 /**

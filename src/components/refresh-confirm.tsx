@@ -6,7 +6,7 @@ import {
   REMOVED_MATCHES_SHOWN,
   type RefreshPreview,
   type RowCounts,
-} from "@/lib/refresh-view";
+} from "@/lib/refresh/refresh-view";
 
 /**
  * "This is how the data would change: do you still want to?" The dialog is

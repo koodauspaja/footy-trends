@@ -5,26 +5,26 @@ import { matches, predictions, tasoMatches } from "@/db/schema";
 
 // No provider request from a test: the refresh fetches nothing new, and what
 // is stored is what the run logs.
-vi.mock("@/lib/football-data", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/football-data")>()),
+vi.mock("@/lib/football-data/football-data", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/football-data/football-data")>()),
   getSeasonMatches: vi.fn(async () => []),
 }));
-vi.mock("@/lib/taso", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/taso")>()),
+vi.mock("@/lib/taso/taso", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/taso/taso")>()),
   getSeasonMatches: vi.fn(async () => []),
 }));
 
-import { expectedHome } from "@/lib/elo";
-import type { StoredMatch } from "@/lib/match-detail";
+import type { StoredMatch } from "@/lib/matches/match-detail";
+import { expectedHome } from "@/lib/predictions/elo";
 import {
   fitPoisson,
   type PoissonMatch,
   type PoissonPrediction,
   predictPoisson,
   utcDay,
-} from "@/lib/poisson";
-import { runPredictionBacktest, runPredictionLog } from "@/lib/prediction-log-service";
-import { getMatchSurprise } from "@/lib/surprise-service";
+} from "@/lib/predictions/poisson";
+import { runPredictionBacktest, runPredictionLog } from "@/lib/predictions/prediction-log-service";
+import { getMatchSurprise } from "@/lib/predictions/surprise-service";
 
 /**
  * The predictions log against a real Postgres. The hourly run is set in 2099

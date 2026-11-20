@@ -1,5 +1,5 @@
 import { type BrowserContext, expect, type Locator, type Page, test } from "@playwright/test";
-import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
+import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/auth/e2e-analytics";
 import { SESSION_COOKIE, storeSignedInReader } from "../support/e2e-session";
 import { fold, isOpen } from "./folds";
 import { waitForSession } from "./session";

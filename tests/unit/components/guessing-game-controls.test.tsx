@@ -17,8 +17,8 @@ const { joinGameAction, placeGuessAction, refresh, reportClientError } = vi.hois
   reportClientError: vi.fn(),
 }));
 
-vi.mock("@/lib/guessing-game-actions", () => ({ joinGameAction, placeGuessAction }));
-vi.mock("@/lib/report-client-error", () => ({ reportClientError }));
+vi.mock("@/lib/guessing-game/guessing-game-actions", () => ({ joinGameAction, placeGuessAction }));
+vi.mock("@/lib/platform/report-client-error", () => ({ reportClientError }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 
 beforeEach(() => {

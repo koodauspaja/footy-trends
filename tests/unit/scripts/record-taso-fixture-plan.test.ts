@@ -18,7 +18,7 @@ import {
   normalizeGroupLevels,
   normalizeGroupTeams,
   normalizeTasoMatch,
-} from "../../../src/lib/taso";
+} from "../../../src/lib/taso/taso";
 
 /**
  * Stored TASO rows turned back into TASO's answers for the e2e stand-in, read

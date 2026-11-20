@@ -1,7 +1,7 @@
 "use client";
 
-import type { Competition } from "@/lib/competitions";
-import type { SeasonOption } from "@/lib/seasons";
+import type { Competition } from "@/lib/competitions/competitions";
+import type { SeasonOption } from "@/lib/competitions/seasons";
 import { CompetitionSelect } from "./competition-select";
 import { RoundSelect } from "./round-select";
 import { SeasonSelect } from "./season-select";

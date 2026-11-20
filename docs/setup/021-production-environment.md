@@ -181,7 +181,7 @@ more once the Sentry configs read their settings from the environment.
 They are in the table above rather than in a "not set here" list, because
 `specs/023-google-oauth-login.md` shipped the sign-in that reads them. This
 section previously said nothing in `src/` read them and to leave them unset;
-that stopped being true when `src/lib/auth.ts` landed, and it fails loudly —
+that stopped being true when `src/lib/auth/auth.ts` landed, and it fails loudly —
 the module throws on a missing variable, naming it, rather than letting the
 break surface when a reader first clicks `Kirjaudu sisään`.
 
@@ -358,7 +358,7 @@ everybody looks at.
 
 These were **code** rather than configuration, so staging and production got the
 same values — the wizard's development ones. All three now read the sample rate
-from the environment via `src/lib/sentry-config.ts`, with `0.1` as the in-code
+from the environment via `src/lib/platform/sentry-config.ts`, with `0.1` as the in-code
 default (decisions/656), and take what an event may carry from the same file's
 `DATA_COLLECTION`, the same in every environment.
 
@@ -379,7 +379,7 @@ the server behaves.
 
 `Number("")` is `0`, so an empty `SENTRY_TRACES_SAMPLE_RATE` — copied from
 `.env.example`, or added in the dashboard without a value — would switch tracing
-off entirely while looking configured. `src/lib/sentry-config.ts` parses these
+off entirely while looking configured. `src/lib/platform/sentry-config.ts` parses these
 rather than trusting `Number`: blank, non-numeric, and anything outside 0–1 all
 fall back to the default.
 
@@ -467,7 +467,7 @@ defence in depth rather than the fix.
 
 ## Step 6 — Set `LOG_LEVEL`
 
-`src/lib/logger.ts` defaults to `info` in production and `debug` elsewhere.
+`src/lib/platform/logger.ts` defaults to `info` in production and `debug` elsewhere.
 
 **Recommended: `info`.** It is worth understanding why this is safe rather than
 assuming it, because "info in production" is usually the wrong answer.
@@ -475,10 +475,10 @@ assuming it, because "info in production" is usually the wrong answer.
 These paths log at `info` through the Pino logger, and none scales with user
 traffic:
 
-- `src/lib/provider-request.ts`, once per *outbound provider request*. This is
+- `src/lib/providers/provider-request.ts`, once per *outbound provider request*. This is
   bounded by **cache misses rather than user traffic** — a busy day does not
   multiply it — but the bound lives in the service layer, not here.
-  `src/lib/taso.ts` and `src/lib/football-data.ts` call the helper directly
+  `src/lib/taso/taso.ts` and `src/lib/football-data/football-data.ts` call the helper directly
   with no caching of their own; `standings-service.ts` and
   `taso-standings-service.ts` are what bound them, through Redis TTL caches,
   matches stored in Postgres and refreshed only when `needsRefresh` says so,
@@ -492,11 +492,11 @@ traffic:
   It needs `HEALTH_PROVIDERS_TOKEN` in a header, so only the daily monitor and
   whoever holds the token can make one (decisions/814).
 
-- `src/lib/admin-users.ts` and `src/lib/refresh-actions.ts`, once per write an
+- `src/lib/admin/admin-users.ts` and `src/lib/refresh/refresh-actions.ts`, once per write an
   admin asks for (decisions/603).
-- `src/lib/prediction-log-service.ts`, once per hourly predictions run
+- `src/lib/predictions/prediction-log-service.ts`, once per hourly predictions run
   (decisions/603).
-- `src/lib/rate-limit-storage.ts`, once when Redis is reachable again after a
+- `src/lib/auth/rate-limit-storage.ts`, once when Redis is reachable again after a
   failure.
 
 Everything else in `src/` logs at `warn` or `error`.

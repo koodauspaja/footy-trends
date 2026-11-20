@@ -1,5 +1,5 @@
 import { SectionFold } from "@/components/section-fold";
-import type { FoldState } from "@/lib/section-keys";
+import type { FoldState } from "@/lib/preferences/section-keys";
 
 /**
  * The match list's heading; its count follows it, `Ottelut (24 ottelua)`.

@@ -4,7 +4,7 @@ import {
   type HeadToHeadPageOptions,
   headToHeadMetadata,
 } from "@/components/head-to-head-page";
-import { MENS_TEAM } from "@/lib/national-team";
+import { MENS_TEAM } from "@/lib/national-team/national-team";
 
 export const dynamic = "force-dynamic";
 

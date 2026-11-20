@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SeasonContext } from "@/lib/football-data";
-import type { CupSeasonResult, RoundMatchesResult } from "@/lib/standings-service";
+import type { SeasonContext } from "@/lib/football-data/football-data";
+import type { CupSeasonResult, RoundMatchesResult } from "@/lib/football-data/standings-service";
 import { warmModules } from "../../../../support/warm-module";
 
 /**
@@ -21,17 +21,17 @@ const getRoundMatchesMock = vi.fn<() => Promise<RoundMatchesResult>>();
 const getCupSeasonMock = vi.fn<() => Promise<CupSeasonResult>>();
 const loggerErrorMock = vi.fn();
 
-vi.mock("@/lib/football-data", () => ({
+vi.mock("@/lib/football-data/football-data", () => ({
   getSeasonContext: getSeasonContextMock,
 }));
 
-vi.mock("@/lib/standings-service", () => ({
+vi.mock("@/lib/football-data/standings-service", () => ({
   getMaxMatchday: getMaxMatchdayMock,
   getRoundMatches: getRoundMatchesMock,
   getCupSeason: getCupSeasonMock,
 }));
 
-vi.mock("@/lib/logger", () => ({
+vi.mock("@/lib/platform/logger", () => ({
   logger: { error: loggerErrorMock },
 }));
 

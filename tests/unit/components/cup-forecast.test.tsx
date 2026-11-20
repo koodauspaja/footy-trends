@@ -14,9 +14,9 @@ import {
   FORECAST_TEAM_HEADER,
   NO_FIXTURES_MESSAGE,
 } from "@/components/season-forecast";
-import type { KnockoutRow, TieChance } from "@/lib/knockout-simulation";
-import type { CupForecastResult } from "@/lib/knockout-simulation-service";
-import type { Chance } from "@/lib/season-simulation";
+import type { KnockoutRow, TieChance } from "@/lib/predictions/knockout-simulation";
+import type { CupForecastResult } from "@/lib/predictions/knockout-simulation-service";
+import type { Chance } from "@/lib/predictions/season-simulation";
 
 /**
  * A Suomen Cup's `Cupin ennuste`: its table from the round of 16, the ties

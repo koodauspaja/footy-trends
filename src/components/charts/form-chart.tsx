@@ -1,4 +1,4 @@
-import type { FormPoint } from "@/lib/form-series";
+import type { FormPoint } from "@/lib/teams/form-series";
 import { formatDecimal, LineChart, ticksFor } from "./line-chart";
 
 /**

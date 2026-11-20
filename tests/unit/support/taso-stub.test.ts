@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   footballDataCompetitionCacheKey,
   footballDataMatchesCacheKey,
-} from "../../../src/lib/football-data";
+} from "../../../src/lib/football-data/football-data";
 import {
   answer,
   keptBetweenRuns,

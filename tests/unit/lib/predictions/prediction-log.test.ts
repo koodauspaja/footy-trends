@@ -1,0 +1,333 @@
+import { describe, expect, it } from "vitest";
+import { threeWay } from "@/lib/predictions/elo";
+import { emptyVariantState, predictUpcomingVariants } from "@/lib/predictions/elo-variants";
+import type { HomeBaseline } from "@/lib/predictions/home-baseline";
+import { type PoissonFit, type PoissonPrediction, predictPoisson } from "@/lib/predictions/poisson";
+import {
+  awaitsResult,
+  eloLiveRow,
+  eloVariantLiveRows,
+  isLoggable,
+  LOG_WINDOW_HOURS,
+  type LogCandidate,
+  liveRow,
+  poissonLiveRow,
+  RESULT_WINDOW_HOURS,
+  refreshTargets,
+} from "@/lib/predictions/prediction-log";
+
+/**
+ * The predictions log: its windows, which matches are logged and refreshed, and
+ * the rows written.
+ *
+ * decisions/052-predictions-log.md
+ * decisions/053-elo-ratings.md
+ * decisions/055-poisson-goal-model.md
+ * decisions/060-elo-variants.md
+ */
+
+const NOW = new Date("2026-10-03T12:00:00Z");
+const HOUR = 60 * 60 * 1000;
+const at = (hours: number) => new Date(NOW.getTime() + hours * HOUR);
+
+// A football-data match unless the overrides make it a TASO one, pair and all.
+function candidate(overrides: Record<string, unknown> = {}): LogCandidate {
+  return {
+    source: "football-data",
+    code: "PL",
+    seasonId: 2026,
+    providerMatchId: 1,
+    kickoffAt: at(10),
+    status: "TIMED",
+    hasResult: false,
+    ...overrides,
+  } as LogCandidate;
+}
+
+describe("the windows", () => {
+  it("logs 48 hours ahead and fetches results for 24 hours after kickoff", () => {
+    expect(LOG_WINDOW_HOURS).toBe(48);
+    expect(RESULT_WINDOW_HOURS).toBe(24);
+  });
+});
+
+describe("isLoggable", () => {
+  it("logs a scheduled or timed match inside the window, up to its last millisecond", () => {
+    expect(isLoggable(candidate({ status: "SCHEDULED" }), NOW)).toBe(true);
+    expect(isLoggable(candidate({ status: "TIMED" }), NOW)).toBe(true);
+    expect(isLoggable(candidate({ kickoffAt: at(48) }), NOW)).toBe(true);
+    expect(isLoggable(candidate({ kickoffAt: new Date(NOW.getTime() + 1) }), NOW)).toBe(true);
+  });
+
+  it("does not log a match beyond the window", () => {
+    expect(isLoggable(candidate({ kickoffAt: new Date(at(48).getTime() + 1) }), NOW)).toBe(false);
+  });
+
+  it("never logs a passed kickoff, whatever the status says", () => {
+    expect(isLoggable(candidate({ kickoffAt: NOW }), NOW)).toBe(false);
+    expect(isLoggable(candidate({ kickoffAt: at(-1), status: "SCHEDULED" }), NOW)).toBe(false);
+  });
+
+  it.each(["IN_PLAY", "FINISHED", "POSTPONED", "CANCELLED", "Live"])(
+    "does not log a %s match",
+    (status) => {
+      expect(isLoggable(candidate({ status }), NOW)).toBe(false);
+    }
+  );
+});
+
+describe("awaitsResult", () => {
+  it("wants the result of a match that kicked off within the last 24 hours", () => {
+    expect(awaitsResult(candidate({ kickoffAt: NOW, status: "IN_PLAY" }), NOW)).toBe(true);
+    expect(awaitsResult(candidate({ kickoffAt: at(-3), status: "SCHEDULED" }), NOW)).toBe(true);
+    expect(awaitsResult(candidate({ kickoffAt: new Date(at(-24).getTime() + 1) }), NOW)).toBe(true);
+  });
+
+  it("stops after 24 hours, before kickoff, and once the result is stored", () => {
+    expect(awaitsResult(candidate({ kickoffAt: at(-24) }), NOW)).toBe(false);
+    expect(awaitsResult(candidate({ kickoffAt: at(1) }), NOW)).toBe(false);
+    expect(awaitsResult(candidate({ kickoffAt: at(-3), hasResult: true }), NOW)).toBe(false);
+  });
+});
+
+describe("refreshTargets", () => {
+  it("refreshes a competition once, whether for an upcoming match, a missing result or both", () => {
+    const targets = refreshTargets(
+      [
+        candidate({ providerMatchId: 1, kickoffAt: at(5) }),
+        candidate({ providerMatchId: 2, kickoffAt: at(-2), status: "IN_PLAY" }),
+        candidate({ providerMatchId: 3, kickoffAt: at(30) }),
+      ],
+      NOW
+    );
+
+    expect(targets).toEqual([
+      {
+        source: "football-data",
+        code: "PL",
+        seasonId: 2026,
+      },
+    ]);
+  });
+
+  it("refreshes a competition with only a missing result", () => {
+    expect(
+      refreshTargets([candidate({ kickoffAt: at(-3), status: "FINISHED", hasResult: false })], NOW)
+    ).toHaveLength(1);
+  });
+
+  it("does not refresh a competition with nothing to log and no result to fetch", () => {
+    expect(
+      refreshTargets(
+        [
+          candidate({ kickoffAt: at(-3), status: "FINISHED", hasResult: true }),
+          candidate({ kickoffAt: at(60) }),
+          candidate({ kickoffAt: at(-30) }),
+        ],
+        NOW
+      )
+    ).toEqual([]);
+  });
+
+  it("keeps each TASO season pair and each season apart", () => {
+    const tasoMatch = (overrides: Record<string, unknown>) =>
+      candidate({
+        source: "taso",
+        code: "P21SM",
+        competitionId: "spljp26",
+        categoryId: "P21SM",
+        ...overrides,
+      });
+    const targets = refreshTargets(
+      [
+        tasoMatch({ providerMatchId: 1 }),
+        tasoMatch({ providerMatchId: 2 }),
+        tasoMatch({ providerMatchId: 3, code: "VL", categoryId: "VL" }),
+        candidate({ providerMatchId: 4, seasonId: 2025 }),
+        candidate({ providerMatchId: 5 }),
+      ],
+      NOW
+    );
+
+    expect(targets.map((target) => `${target.code}:${target.seasonId}`)).toEqual([
+      "P21SM:2026",
+      "VL:2026",
+      "PL:2025",
+      "PL:2026",
+    ]);
+    expect(targets[0]).toMatchObject({ competitionId: "spljp26", categoryId: "P21SM" });
+  });
+});
+
+describe("liveRow", () => {
+  const baseline: HomeBaseline = {
+    status: "ok",
+    matches: 200,
+    homeShare: 45,
+    drawShare: 25,
+    awayShare: 30,
+    seasons: { first: 2023, last: 2026 },
+    spansCalendarYears: true,
+  };
+
+  it("writes the baseline's shares as probabilities, against the match's kickoff", () => {
+    expect(liveRow(candidate({ providerMatchId: 7 }), baseline, "home-baseline-v1", NOW)).toEqual({
+      source: "football-data",
+      providerMatchId: 7,
+      competitionCode: "PL",
+      model: "home-baseline-v1",
+      kind: "live",
+      homeProbability: 0.45,
+      drawProbability: 0.25,
+      awayProbability: 0.3,
+      predictedAt: NOW,
+      kickoffAt: at(10),
+    });
+  });
+
+  it("writes nothing when the baseline has no percentages or failed", () => {
+    expect(liveRow(candidate(), { status: "empty" }, "home-baseline-v1", NOW)).toBeNull();
+    expect(liveRow(candidate(), { status: "error" }, "home-baseline-v1", NOW)).toBeNull();
+  });
+});
+
+describe("eloLiveRow", () => {
+  const baseline: HomeBaseline = {
+    status: "ok",
+    matches: 100,
+    homeShare: 45,
+    drawShare: 25,
+    awayShare: 30,
+    seasons: { first: 2023, last: 2026 },
+    spansCalendarYears: false,
+  };
+  const match = candidate({ homeTeam: 11, awayTeam: 22, seasonId: 2026 });
+
+  it("predicts from the ratings at the match's season, regressed into a new one", () => {
+    const ratings = new Map([[11, { rating: 1650, seasonId: 2025 }]]);
+
+    const row = eloLiveRow(match, ratings, baseline, NOW);
+
+    // 1650 last season is 1600 this one; 22 has never played, so 1500.
+    const expected = threeWay(1600, 1500, 0.25);
+    expect(row).toEqual({
+      source: "football-data",
+      providerMatchId: 1,
+      competitionCode: "PL",
+      model: "elo-v1",
+      kind: "live",
+      homeProbability: expect.closeTo(expected.home, 12),
+      drawProbability: 0.25,
+      awayProbability: expect.closeTo(expected.away, 12),
+      predictedAt: NOW,
+      kickoffAt: at(10),
+    });
+  });
+
+  it("writes nothing without a draw share, or for a placeholder side", () => {
+    expect(eloLiveRow(match, new Map(), { status: "empty" }, NOW)).toBeNull();
+    expect(eloLiveRow(match, new Map(), { status: "error" }, NOW)).toBeNull();
+    expect(eloLiveRow({ ...match, homeTeam: 0 }, new Map(), baseline, NOW)).toBeNull();
+  });
+});
+
+describe("poissonLiveRow", () => {
+  const fit: PoissonFit = {
+    competitions: new Map([
+      ["PL", { base: 0.2, drawFactor: 1.1 }],
+      ["CL", { base: 0.9, drawFactor: 1 }],
+    ]),
+    home: 0.3,
+    attack: new Map([[11, 0.4]]),
+    defence: new Map([[22, 0.2]]),
+  };
+  const match = candidate({ homeTeam: 11, awayTeam: 22, seasonId: 2026 });
+
+  it("predicts from the fit, in the match's own competition and its sides in their places", () => {
+    const row = poissonLiveRow(match, fit, NOW);
+
+    const predicted = predictPoisson(fit, "PL", 11, 22) as PoissonPrediction;
+    const expected = predicted.prediction;
+    expect(row).toEqual({
+      source: "football-data",
+      providerMatchId: 1,
+      competitionCode: "PL",
+      model: "poisson-v1",
+      kind: "live",
+      homeProbability: expected.home,
+      drawProbability: expected.draw,
+      awayProbability: expected.away,
+      predictedAt: NOW,
+      kickoffAt: at(10),
+      // Its most likely score, the match page's `Ennuste`: Arvauspeli's guess for the model.
+      predictedHomeGoals: predicted.score.home,
+      predictedAwayGoals: predicted.score.away,
+    });
+    // The strong attack at home against the weak defence: a clear favourite.
+    expect(expected.home).toBeGreaterThan(0.6);
+    expect(expected.home + expected.draw + expected.away).toBeCloseTo(1, 12);
+  });
+
+  it("writes nothing for a placeholder side, or a competition the fit has no match of", () => {
+    expect(poissonLiveRow({ ...match, awayTeam: 0 }, fit, NOW)).toBeNull();
+    expect(poissonLiveRow({ ...match, code: "SA" }, fit, NOW)).toBeNull();
+  });
+});
+
+describe("eloVariantLiveRows", () => {
+  const baseline: HomeBaseline = {
+    status: "ok",
+    matches: 100,
+    homeShare: 45,
+    drawShare: 25,
+    awayShare: 30,
+    seasons: { first: 2023, last: 2026 },
+    spansCalendarYears: false,
+  };
+  const match = candidate({ homeTeam: 11, awayTeam: 22, seasonId: 2026, kickoffAt: at(7) });
+  const ratings = new Map([[11, { rating: 1650, seasonId: 2026 }]]);
+  const state = emptyVariantState();
+  state.form.set(11, { seasonId: 2026, surprises: [0.4, -0.1] });
+  state.home.set(11, { advantage: 110, seasonId: 2026 });
+
+  it("writes one live row for each variant, from the ratings, the state and the baseline's draw share", () => {
+    const rows = eloVariantLiveRows(match, ratings, state, baseline, NOW);
+
+    const expected = predictUpcomingVariants(ratings, state, match, 0.25);
+    const common = {
+      source: "football-data",
+      providerMatchId: 1,
+      competitionCode: "PL",
+      kind: "live",
+      drawProbability: 0.25,
+      predictedAt: NOW,
+      kickoffAt: at(7),
+    };
+    expect(rows).toEqual([
+      {
+        ...common,
+        model: "elo-form-v1",
+        homeProbability: expected?.form.home,
+        awayProbability: expected?.form.away,
+      },
+      {
+        ...common,
+        model: "elo-home-v1",
+        homeProbability: expected?.home.home,
+        awayProbability: expected?.home.away,
+      },
+    ]);
+    // The two are not the same model's figures under two names.
+    expect(rows[0]?.homeProbability).not.toBeCloseTo(rows[1]?.homeProbability as number, 6);
+  });
+
+  it("writes none without a draw share", () => {
+    expect(eloVariantLiveRows(match, ratings, state, { status: "empty" }, NOW)).toEqual([]);
+  });
+
+  it("writes none for a placeholder side", () => {
+    expect(
+      eloVariantLiveRows(candidate({ homeTeam: 11, awayTeam: 0 }), ratings, state, baseline, NOW)
+    ).toEqual([]);
+  });
+});

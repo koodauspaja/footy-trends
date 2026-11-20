@@ -9,16 +9,16 @@ import {
   type TeamPageData,
   teamPageMetadata,
 } from "@/components/team-page";
+import { resolveDomesticPageContext } from "@/lib/competitions/domestic-page-context";
+import { getWorstOpponents } from "@/lib/matches/match-service";
+import { getTeamElo } from "@/lib/predictions/elo-service";
+import { parseWholeNumber } from "@/lib/providers/provider-ids";
 import {
   earliestSeasonFor,
   getDomesticCompetitionName,
   isDomesticCup,
   parseDomesticCompetitionParam,
-} from "@/lib/domestic-competitions";
-import { resolveDomesticPageContext } from "@/lib/domestic-page-context";
-import { getTeamElo } from "@/lib/elo-service";
-import { getWorstOpponents } from "@/lib/match-service";
-import { parseWholeNumber } from "@/lib/provider-ids";
+} from "@/lib/taso/domestic-competitions";
 import {
   getTeamMatches,
   getTeamPanelMatches,
@@ -27,10 +27,10 @@ import {
   getTeamSeasonSummary,
   getTeamStreakRecords,
   type TeamMatchesResult,
-} from "@/lib/taso-standings-service";
-import type { TeamContextFilter, TeamPageSource } from "@/lib/team-context";
-import { resolveTeamDefaults, seasonCandidate } from "@/lib/team-page-context";
-import { teamPanelLoaders } from "@/lib/team-panels";
+} from "@/lib/taso/taso-standings-service";
+import type { TeamContextFilter, TeamPageSource } from "@/lib/teams/team-context";
+import { resolveTeamDefaults, seasonCandidate } from "@/lib/teams/team-page-context";
+import { teamPanelLoaders } from "@/lib/teams/team-panels";
 
 export const dynamic = "force-dynamic";
 

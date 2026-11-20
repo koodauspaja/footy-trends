@@ -13,14 +13,14 @@ import {
   getCompetitionFormat,
   getCompetitionName,
   parseCompetitionParam,
-} from "@/lib/competitions";
-import { toFinnishCountryName, toFinnishTeamNames } from "@/lib/country-names";
-import { getTeamElo } from "@/lib/elo-service";
-import type { NormalizedProviderMatch } from "@/lib/football-data";
-import { getWorstOpponents } from "@/lib/match-service";
-import { type CompetitionPageOptions, resolveBasePageContext } from "@/lib/page-context";
-import { parseWholeNumber } from "@/lib/provider-ids";
-import { formatSeasonLabel, resolveEarliestSeason } from "@/lib/seasons";
+} from "@/lib/competitions/competitions";
+import {
+  type CompetitionPageOptions,
+  resolveBasePageContext,
+} from "@/lib/competitions/page-context";
+import { formatSeasonLabel, resolveEarliestSeason } from "@/lib/competitions/seasons";
+import { toFinnishCountryName, toFinnishTeamNames } from "@/lib/football-data/country-names";
+import type { NormalizedProviderMatch } from "@/lib/football-data/football-data";
 import {
   getTeamMatches,
   getTeamPanelMatches,
@@ -28,10 +28,13 @@ import {
   getTeamSeasonComparison,
   getTeamSeasonSummary,
   getTeamStreakRecords,
-} from "@/lib/standings-service";
-import type { TeamContextFilter } from "@/lib/team-context";
-import { resolveTeamDefaults, seasonCandidate } from "@/lib/team-page-context";
-import { teamPanelLoaders } from "@/lib/team-panels";
+} from "@/lib/football-data/standings-service";
+import { getWorstOpponents } from "@/lib/matches/match-service";
+import { getTeamElo } from "@/lib/predictions/elo-service";
+import { parseWholeNumber } from "@/lib/providers/provider-ids";
+import type { TeamContextFilter } from "@/lib/teams/team-context";
+import { resolveTeamDefaults, seasonCandidate } from "@/lib/teams/team-page-context";
+import { teamPanelLoaders } from "@/lib/teams/team-panels";
 
 /**
  * A team page's own `params`, on top of the shared region options.

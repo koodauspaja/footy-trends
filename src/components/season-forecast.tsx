@@ -1,8 +1,13 @@
 import Link from "next/link";
 import { formatDecimal, percentText } from "@/components/charts/line-chart";
 import { QUALITY_LINK } from "@/components/match-prediction";
-import type { Zone } from "@/lib/competition-zones";
-import type { Chance, ForecastLayout, ForecastRow, SeasonForecast } from "@/lib/season-simulation";
+import type {
+  Chance,
+  ForecastLayout,
+  ForecastRow,
+  SeasonForecast,
+} from "@/lib/predictions/season-simulation";
+import type { Zone } from "@/lib/taso/competition-zones";
 
 /**
  * The panel's strings.

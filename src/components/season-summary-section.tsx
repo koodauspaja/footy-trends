@@ -2,8 +2,8 @@ import Link from "next/link";
 import { inProgressSeasonLine } from "@/components/analytics-notes";
 import { formatDecimal, percentText } from "@/components/charts/line-chart";
 import { eloGaveText } from "@/components/season-surprises";
-import { matchCountLabel } from "@/lib/match-count";
-import { teamDisplayName } from "@/lib/match-detail";
+import { matchCountLabel } from "@/lib/matches/match-count";
+import { teamDisplayName } from "@/lib/matches/match-detail";
 import {
   type CleanSheetFact,
   POINTS_DECIMALS,
@@ -13,8 +13,8 @@ import {
   type SideFact,
   type SummaryFact,
   type UpsetFact,
-} from "@/lib/season-summary";
-import type { StreakKind } from "@/lib/streaks";
+} from "@/lib/teams/season-summary";
+import type { StreakKind } from "@/lib/teams/streaks";
 
 /**
  * The block's strings. The heading is its group's: the block has no second one.

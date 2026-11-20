@@ -35,8 +35,8 @@ const { actions, push, refresh, reportClientError } = vi.hoisted(() => ({
   reportClientError: vi.fn(),
 }));
 
-vi.mock("@/lib/guessing-game-group-actions", () => actions);
-vi.mock("@/lib/report-client-error", () => ({ reportClientError }));
+vi.mock("@/lib/guessing-game/guessing-game-group-actions", () => actions);
+vi.mock("@/lib/platform/report-client-error", () => ({ reportClientError }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push, refresh }) }));
 
 const TOKEN = "a".repeat(43);

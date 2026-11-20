@@ -1,4 +1,4 @@
-import type { SeasonOption } from "@/lib/seasons";
+import type { SeasonOption } from "@/lib/competitions/seasons";
 
 type SeasonSelectProps = {
   seasons: SeasonOption[];

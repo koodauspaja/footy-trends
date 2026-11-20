@@ -2,23 +2,23 @@ import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EloPanelData } from "@/components/elo-section";
 import type { SeasonSummaryPanelData } from "@/components/season-summary-section";
-import type { CleanSheetSeries } from "@/lib/clean-sheets";
-import type { ComebacksSeries } from "@/lib/comebacks";
-import type { TeamEloSeries } from "@/lib/elo-service";
-import type { SeasonContext } from "@/lib/football-data";
-import type { FormSeries } from "@/lib/form-series";
-import type { GoalsSeries } from "@/lib/goals-series";
-import type { OpponentsSeries } from "@/lib/head-to-head";
-import type { HomeAwaySeries } from "@/lib/home-away";
-import type { PositionSeries } from "@/lib/position-series";
-import type { SeasonComparisonSeries } from "@/lib/season-comparison";
-import type { SeasonSummarySeries } from "@/lib/season-summary";
-import type { TeamMatchesResult } from "@/lib/standings-service";
-import type { StreakRecordsSeries } from "@/lib/streak-records";
-import type { StreaksSeries } from "@/lib/streaks";
-import type { TeamContextResult } from "@/lib/team-context";
-import type { TeamPanelMatches } from "@/lib/team-panels";
-import type { TeamNameResult, TeamSeasonsResult } from "@/lib/team-seasons";
+import type { SeasonContext } from "@/lib/football-data/football-data";
+import type { TeamMatchesResult } from "@/lib/football-data/standings-service";
+import type { OpponentsSeries } from "@/lib/matches/head-to-head";
+import type { TeamEloSeries } from "@/lib/predictions/elo-service";
+import type { CleanSheetSeries } from "@/lib/teams/clean-sheets";
+import type { ComebacksSeries } from "@/lib/teams/comebacks";
+import type { FormSeries } from "@/lib/teams/form-series";
+import type { GoalsSeries } from "@/lib/teams/goals-series";
+import type { HomeAwaySeries } from "@/lib/teams/home-away";
+import type { PositionSeries } from "@/lib/teams/position-series";
+import type { SeasonComparisonSeries } from "@/lib/teams/season-comparison";
+import type { SeasonSummarySeries } from "@/lib/teams/season-summary";
+import type { StreakRecordsSeries } from "@/lib/teams/streak-records";
+import type { StreaksSeries } from "@/lib/teams/streaks";
+import type { TeamContextResult } from "@/lib/teams/team-context";
+import type { TeamPanelMatches } from "@/lib/teams/team-panels";
+import type { TeamNameResult, TeamSeasonsResult } from "@/lib/teams/team-seasons";
 import { warmModules } from "../../../../../support/warm-module";
 
 /**
@@ -54,10 +54,10 @@ import { warmModules } from "../../../../../support/warm-module";
 // not load in a unit test: its cleanup timer outlives the file's jsdom. Signed
 // out unless a test signs in.
 const { session } = vi.hoisted(() => ({ session: { data: null as unknown } }));
-vi.mock("@/lib/auth-client", () => ({
+vi.mock("@/lib/auth/auth-client", () => ({
   useSession: () => ({ data: session.data, refetch: vi.fn() }),
 }));
-vi.mock("@/lib/section-choices", () => import("../../../../../support/page-sections"));
+vi.mock("@/lib/preferences/section-choices", () => import("../../../../../support/page-sections"));
 
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
 const getTeamMatchesMock = vi.fn<() => Promise<TeamMatchesResult>>();
@@ -100,12 +100,12 @@ const analyticsSectionMock = vi.fn(
   }) => "analytics section placeholder"
 );
 const getTeamEloMock = vi.fn(async (): Promise<TeamEloSeries> => ({ status: "empty" }));
-vi.mock("@/lib/elo-service", () => ({ getTeamElo: getTeamEloMock }));
+vi.mock("@/lib/predictions/elo-service", () => ({ getTeamElo: getTeamEloMock }));
 const getWorstOpponentsMock = vi.fn(
   async (): Promise<OpponentsSeries> => ({ status: "ok", rows: [], windowSentence: "" })
 );
-vi.mock("@/lib/match-service", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/match-service")>()),
+vi.mock("@/lib/matches/match-service", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/matches/match-service")>()),
   getWorstOpponents: getWorstOpponentsMock,
 }));
 
@@ -114,11 +114,11 @@ vi.mock("@/components/analytics-section", () => ({
 }));
 const loggerErrorMock = vi.fn();
 
-vi.mock("@/lib/football-data", () => ({
+vi.mock("@/lib/football-data/football-data", () => ({
   getSeasonContext: getSeasonContextMock,
 }));
 
-vi.mock("@/lib/standings-service", () => ({
+vi.mock("@/lib/football-data/standings-service", () => ({
   getTeamMatches: getTeamMatchesMock,
   getTeamPanelMatches: getTeamPanelMatchesMock,
   getTeamSeasonComparison: getTeamSeasonComparisonMock,
@@ -127,7 +127,7 @@ vi.mock("@/lib/standings-service", () => ({
   getTeamPositionSeries: getTeamPositionSeriesMock,
 }));
 
-vi.mock("@/lib/logger", () => ({
+vi.mock("@/lib/platform/logger", () => ({
   logger: { error: loggerErrorMock },
 }));
 
@@ -155,12 +155,12 @@ const getTeamSeasonsMock = vi.fn(async (): Promise<TeamSeasonsResult> => ({ stat
 
 const getTeamNameMock = vi.fn(async (): Promise<TeamNameResult> => ({ status: "not_found" }));
 
-vi.mock("@/lib/team-seasons", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/team-seasons")>();
+vi.mock("@/lib/teams/team-seasons", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/teams/team-seasons")>();
   return { ...actual, getTeamSeasons: getTeamSeasonsMock, getTeamName: getTeamNameMock };
 });
 
-vi.mock("@/lib/team-context", () => ({ getTeamContext: getTeamContextMock }));
+vi.mock("@/lib/teams/team-context", () => ({ getTeamContext: getTeamContextMock }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
