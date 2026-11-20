@@ -91,7 +91,7 @@ function fromThisSite(request: Request): boolean {
   const originHost = origin === null ? undefined : URL.parse(origin)?.host;
   const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
   const host = forwardedHost || request.headers.get("host");
-  return originHost !== undefined && originHost === host;
+  return originHost === host;
 }
 
 /**

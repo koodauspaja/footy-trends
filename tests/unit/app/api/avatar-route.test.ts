@@ -93,7 +93,7 @@ const SITE = "footy-trends.example.com";
 
 /** A body that counts how many chunks were pulled from it. */
 function countingBody(chunks: Uint8Array[]) {
-  const pulled = { count: 0 };
+  const pulled = { count: 0, cancelled: false };
   const body = new ReadableStream<Uint8Array>(
     {
       pull(controller) {
