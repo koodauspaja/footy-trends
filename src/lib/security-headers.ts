@@ -25,10 +25,8 @@ export function cspReportUri(dsn: string | undefined): string | null {
 }
 
 /**
- * The policy, one directive per entry. Inline scripts and styles stay allowed
- * because Next's own bootstrap is inline and the cached pages cannot carry a
- * per-request nonce. Images may come from any HTTPS host, because crests and
- * avatars do.
+ * The policy, one directive per entry: inline scripts and styles allowed for
+ * Next's bootstrap, images from any HTTPS host for crests and avatars.
  *
  * decisions/808-security-headers.md
  */
