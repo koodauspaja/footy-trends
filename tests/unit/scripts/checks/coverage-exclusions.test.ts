@@ -1,0 +1,130 @@
+import { existsSync, readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+import { parseSonarProperty } from "../../../../scripts/checks/coverage-gaps-plan";
+
+/**
+ * The comment above `sonar.coverage.exclusions` says why each entry is there,
+ * in groups, with a count for each. A count in prose drifts, so the counts are
+ * written in a form a test can read, and this is the test.
+ *
+ * decisions/403-coverage-exclusions-that-earn-it.md
+ */
+
+const PROPERTIES = readFileSync("sonar-project.properties", "utf8");
+
+// Files that construct a client or migrate as soon as they are imported.
+const CONNECTS_AT_IMPORT = new Set(["src/db/migrate.ts", "src/lib/platform/redis.ts"]);
+
+function isToolingConfiguration(entry: string): boolean {
+  return (
+    entry.endsWith(".config.ts") || entry.endsWith(".config.mjs") || entry === "vitest.setup.ts"
+  );
+}
+
+// `# exclusion-count: <name> <number>` lines from the comment.
+function statedCounts(): Record<string, number> {
+  const stated: Record<string, number> = {};
+
+  for (const match of PROPERTIES.matchAll(/exclusion-count:\s*([\w-]+)\s+(\d+)/g)) {
+    const [, name = "", value = ""] = match;
+    stated[name] = Number(value);
+  }
+
+  return stated;
+}
+
+type Group = "connects-at-import" | "tested-runner-half" | "tooling-configuration";
+type Counts = Record<Group, number> & { total: number };
+
+const GROUPS: Group[] = ["connects-at-import", "tested-runner-half", "tooling-configuration"];
+
+function actualCounts(): Counts {
+  const entries = parseSonarProperty(PROPERTIES, "sonar.coverage.exclusions");
+  const configuration = entries.filter(isToolingConfiguration);
+  const connecting = entries.filter((entry) => CONNECTS_AT_IMPORT.has(entry));
+
+  return {
+    total: entries.length,
+    "connects-at-import": connecting.length,
+    "tooling-configuration": configuration.length,
+    "tested-runner-half": entries.length - configuration.length - connecting.length,
+  };
+}
+
+describe("the coverage exclusion list", () => {
+  it("holds as many entries as its comment says", () => {
+    expect(actualCounts().total).toBe(statedCounts().total);
+  });
+
+  it.each(GROUPS)("has the number of %s entries its comment claims", (group) => {
+    expect(actualCounts()[group]).toBe(statedCounts()[group]);
+  });
+
+  it("accounts for every entry, leaving none in no group at all", () => {
+    const counts = actualCounts();
+
+    const grouped = GROUPS.reduce((sum, group) => sum + counts[group], 0);
+
+    expect(grouped).toBe(counts.total);
+  });
+
+  // The list itself, so that changing it is a deliberate act with a diff here too.
+  // Counts alone let one entry be swapped for another in the same group, and an
+  // exclusion that appears unremarked is how a file stops being measured.
+  const EXPECTED = [
+    // Open a connection, or migrate, at import.
+    "src/db/migrate.ts",
+    "src/lib/platform/redis.ts",
+    // Runners whose decisions live in a tested `*-plan.ts` half.
+    "scripts/backfill/backfill.ts",
+    "scripts/backfill/backfill-run.ts",
+    "scripts/e2e/e2e-freshness.ts",
+    "scripts/checks/coverage-gaps.ts",
+    "scripts/db/generate-migration.ts",
+    "scripts/release/release-version.ts",
+    "scripts/release/release-pr.ts",
+    "scripts/db/grant-admin.ts",
+    "scripts/db/grant-admin-run.ts",
+    "scripts/environments/verify-sentry.ts",
+    "scripts/checks/review-findings.ts",
+    "scripts/db/with-test-db.ts",
+    "scripts/local/services-run.ts",
+    "scripts/local/ensure-services.ts",
+    "scripts/db/db-reset.ts",
+    "scripts/predictions/predictions.ts",
+    "scripts/environments/railway-environment.ts",
+    "scripts/e2e/record-taso-fixture.ts",
+    // The tooling's own configuration.
+    "drizzle.config.ts",
+    "next.config.ts",
+    "playwright.config.ts",
+    "playwright.ux.config.ts",
+    "postcss.config.mjs",
+    "sentry.edge.config.ts",
+    "sentry.server.config.ts",
+    "vitest.config.ts",
+    "vitest.setup.ts",
+  ];
+
+  it("excludes exactly these files, and no others", () => {
+    const entries = parseSonarProperty(PROPERTIES, "sonar.coverage.exclusions");
+
+    expect([...entries].sort()).toEqual([...EXPECTED].sort());
+  });
+
+  it("excludes nothing that no longer exists", () => {
+    // A coverage exclusion for a file that does not exist is how a real gap
+    // hides later: the entry looks considered, and covers nothing.
+    const missing = parseSonarProperty(PROPERTIES, "sonar.coverage.exclusions").filter(
+      (entry) => !existsSync(entry)
+    );
+
+    expect(missing).toEqual([]);
+  });
+
+  it("states a count for each group, so a silent removal cannot pass", () => {
+    // A missing line would otherwise make its assertion compare undefined with
+    // undefined, which passes and proves nothing.
+    expect(Object.keys(statedCounts()).sort()).toEqual([...GROUPS, "total"].sort());
+  });
+});

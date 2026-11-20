@@ -1,5 +1,5 @@
 import Redis from "ioredis";
-import { e2eAppPort, e2eRedisPort } from "../../scripts/e2e-target";
+import { e2eAppPort, e2eRedisPort } from "../../scripts/e2e/e2e-target";
 import { parseDatabaseUrl } from "../../src/lib/platform/test-database-name";
 import { standInRedis } from "./taso-stub";
 

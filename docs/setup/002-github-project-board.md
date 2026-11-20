@@ -34,7 +34,7 @@ does not exist for them.
 
 **The capitalisation is part of the name.** GitHub matches a status by its
 exact name, so a board built with `In progress` will not be found by tooling
-looking for `In Progress` — and `scripts/release-pr.ts` reads the options by
+looking for `In Progress` — and `scripts/release/release-pr.ts` reads the options by
 name. These are the names the live board uses.
 
 `Ready` is the gate the whole workflow turns on: it is the point where a human

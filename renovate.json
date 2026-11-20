@@ -15,7 +15,7 @@
       "customType": "regex",
       "description": [
         "README.md and INSTALL.md both state the npm version package.json pins, so Renovate updates them in the same pull request it bumps the pin in.",
-        "tests/unit/scripts/setup-plan.test.ts fails when a document and the pin disagree, and tests/unit/config/renovate-npm-docs.test.ts checks these patterns still match what those documents say.",
+        "tests/unit/scripts/local/setup-plan.test.ts fails when a document and the pin disagree, and tests/unit/config/renovate-npm-docs.test.ts checks these patterns still match what those documents say.",
         "Without this, every npm update opened a red pull request that needed a hand-written commit: #400 (12.0.1 against 12.0.2) and #456 (12.0.2 against 12.1.0)."
       ],
       "managerFilePatterns": ["/^README\\.md$/", "/^INSTALL\\.md$/"],
@@ -39,7 +39,7 @@
       "description": [
         "TypeScript stays on 6.x until its JS API settles.",
         "TypeScript 7 ships no in-process parser: the package root is lib/version.cjs, and the AST surface under typescript/unstable/* carries the is* predicates, SyntaxKind and ScriptTarget but nothing that turns source text into a tree — no createSourceFile, no forEachChild, no transpileModule. The only route to an AST is a client/server API that spawns the native binary and answers with remote node handles.",
-        "Three tests read our own source as an AST and cannot use that: tests/unit/app/rendering-mode.test.ts, tests/unit/app/theme-tokens.test.ts and tests/unit/scripts/backfill-run.test.ts.",
+        "Three tests read our own source as an AST and cannot use that: tests/unit/app/rendering-mode.test.ts, tests/unit/app/theme-tokens.test.ts and tests/unit/scripts/backfill/backfill-run.test.ts.",
         "The API is namespaced 'unstable' on purpose, so code written against it now may need rewriting anyway. Nothing ships tsc, so being a major behind on it costs little.",
         "Lift this when TypeScript publishes a stable JS API with a parser, or when those three tests move to a parser of their own (swc or oxc). See #43."
       ],

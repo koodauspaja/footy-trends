@@ -48,7 +48,7 @@ new environment.
 
 - **In your own organisation,** do 025's Step 1 first: `.railway/railway.ts`
   names the repository the site deploys from. If you rename the web service
-  there, change `WEB_SERVICE` in `scripts/railway-environment-plan.ts` to
+  there, change `WEB_SERVICE` in `scripts/environments/railway-environment-plan.ts` to
   match, and the name in its tests.
 - **The CLI is looked for** in `/usr/bin`, `/usr/local/bin` and
   `/opt/homebrew/bin`. Installed elsewhere:

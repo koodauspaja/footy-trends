@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { type Browser, expect, type Page, test } from "@playwright/test";
 import postgres from "postgres";
-import { e2eAppPort } from "../../scripts/e2e-target";
+import { e2eAppPort } from "../../scripts/e2e/e2e-target";
 import { SESSION_COOKIE, storeSignedInReader } from "../support/e2e-session";
 import { testDatabaseUrl } from "../support/test-database";
 

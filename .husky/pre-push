@@ -7,4 +7,4 @@ if [ ! -x node_modules/.bin/tsx ]; then
   exit 0
 fi
 
-node_modules/.bin/tsx scripts/e2e-freshness.ts
+node_modules/.bin/tsx scripts/e2e/e2e-freshness.ts

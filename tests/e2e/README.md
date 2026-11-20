@@ -27,7 +27,7 @@ if the test does not share the database.
 | Redis | database 1 on the server `REDIS_URL` names; with `E2E_TASO_STUB=1`, a container of its own (below). Specs drop cache entries through `dropCached` in `tests/support/e2e-redis.ts` |
 
 `tests/integration` uses a database of its own, `<your database>_integration_test`,
-through `scripts/with-test-db.ts`. It creates and deletes rows, and used to do
+through `scripts/db/with-test-db.ts`. It creates and deletes rows, and used to do
 that in whatever database the developer was signed into; kept apart from this
 one, a test interrupted before its cleanup leaves nothing the TASO recorder,
 which reads this database, would record.
@@ -209,7 +209,7 @@ cover it.
 
 ### A narrowed run writes no freshness marker
 
-`scripts/e2e-freshness-reporter.ts` records a run only when it **passed,
+`scripts/e2e/e2e-freshness-reporter.ts` records a run only when it **passed,
 covered every spec file and built the server it ran against** — no `-g`, no file
 path, no shard, no `--grep-invert`, and no `E2E_TARGET`.
 So a debugging session leaves the pre-push hook exactly as it found it, and the
@@ -295,7 +295,7 @@ does not need it: the hook passes that on its own.
 
 ### Only a full run counts
 
-The marker is written by a Playwright reporter (`scripts/e2e-freshness-reporter.ts`)
+The marker is written by a Playwright reporter (`scripts/e2e/e2e-freshness-reporter.ts`)
 wired into `playwright.config.ts`, and only when the run both **passed** and
 covered **every spec file**. `--grep`, `--shard`, and naming a spec on the
 command line all leave the marker untouched, because a marker from a filtered
@@ -315,7 +315,7 @@ appends a script's extra arguments to the end of the whole command, so
 `npm run test:e2e -- --grep x` would have handed `--grep x` to the marker
 writer instead of to Playwright.
 
-The decision logic lives in `scripts/e2e-freshness-plan.ts`, kept free of the
+The decision logic lives in `scripts/e2e/e2e-freshness-plan.ts`, kept free of the
 filesystem and `docker` so it is unit-tested directly.
 
 ## What's covered

@@ -40,7 +40,7 @@
   comment and a comment inside a function are covered by the declaration they
   sit in, or by the header. History (how it used to work, which pull request
   found it, what a reviewer said) goes in the record, never the comment, and no comment cites an issue or
-  pull request number. `tests/unit/scripts/comment-rules.test.ts` fails on a new
+  pull request number. `tests/unit/scripts/checks/comment-rules.test.ts` fails on a new
   citation, on a cited record that does not exist, on a doc comment stacked
   on another, and on a test name that cites an issue, a spec or a spec section or is
   not written as a string (`decisions/584-test-names-carry-no-citations.md`). Comments not yet in this shape are trimmed file by file, by the
@@ -70,7 +70,7 @@
   `Ready` itself it quotes the sentence it is acting on, so the evidence is
   visible rather than in its head.
 - **Every new source file is imported by a test, or excluded with a reason.**
-  `npm run test:unit` fails otherwise — `scripts/coverage-gaps.ts` compares the
+  `npm run test:unit` fails otherwise — `scripts/checks/coverage-gaps.ts` compares the
   source tree against the coverage report and names anything missing, then
   checks lcov for a condition never taken. Neither is the same as low coverage:
   `vitest --coverage` measures only what a test *imports*, so a file nothing

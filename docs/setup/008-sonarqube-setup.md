@@ -35,7 +35,7 @@ a failing gate fails the check.
 |---|---|
 | The workflow | `.github/workflows/sonarcloud.yml` |
 | What is analysed, and what is excluded from coverage and why | `sonar-project.properties` |
-| The check that fails before Sonar would: a source file no test imports | `scripts/coverage-gaps.ts`, run by `npm run test:unit` |
+| The check that fails before Sonar would: a source file no test imports | `scripts/checks/coverage-gaps.ts`, run by `npm run test:unit` |
 
 ### Deriving the coverage exclusions
 

@@ -96,7 +96,7 @@ describe("the integration suite's globalSetup", () => {
   });
 
   it("lets through the database npm run test:integration hands it", () => {
-    // What `scripts/with-test-db.ts` sets: the derived database, and the test
+    // What `scripts/db/with-test-db.ts` sets: the derived database, and the test
     // database it was derived from.
     vi.stubEnv("TEST_DATABASE_URL", TEST);
     vi.stubEnv("DATABASE_URL", INTEGRATION);

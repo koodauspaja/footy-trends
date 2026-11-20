@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import Redis from "ioredis";
 import postgres from "postgres";
-import { e2eAppPort, e2eRedisPort } from "../../scripts/e2e-target";
+import { e2eAppPort, e2eRedisPort } from "../../scripts/e2e/e2e-target";
 import { keptBetweenRuns, standInDatabaseUrl, standInRedis } from "../support/taso-stub";
 import { ensureTestDatabase } from "../support/test-database";
 import {
