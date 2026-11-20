@@ -1,6 +1,6 @@
 import { percentText } from "@/components/charts/line-chart";
 import { canSeeAnalytics } from "@/lib/analytics-access";
-import type { StoredMatch } from "@/lib/match-service";
+import type { StoredMatch } from "@/lib/match-detail";
 import { getMatchSurprise } from "@/lib/surprise-service";
 
 /**

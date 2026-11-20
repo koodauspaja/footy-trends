@@ -25,7 +25,14 @@ import {
 import { SeasonGuessForm } from "@/components/guessing-game-season-form";
 import { PANEL_HEADING, TABLE_HEADING } from "@/components/heading-classes";
 import { Notice } from "@/components/notice";
-import { type Board, type Shares, STARTING_BALANCE } from "@/lib/guessing-game";
+import {
+  type AwaitingGuess,
+  type Board,
+  type GameView,
+  type Shares,
+  STARTING_BALANCE,
+  type UpcomingMatch,
+} from "@/lib/guessing-game";
 import type { GroupSummary } from "@/lib/guessing-game-group-store";
 import type { ModelGuess } from "@/lib/guessing-game-models";
 import {
@@ -35,7 +42,6 @@ import {
   type SeasonKind,
 } from "@/lib/guessing-game-season";
 import type { PickShares, SeasonSection, ShownSeasonGuess } from "@/lib/guessing-game-season-store";
-import type { AwaitingGuess, GameView, UpcomingMatch } from "@/lib/guessing-game-store";
 import { matchCountLabel } from "@/lib/match-count";
 import { formatKickoff } from "@/lib/match-detail";
 

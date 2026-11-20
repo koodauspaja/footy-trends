@@ -54,6 +54,11 @@ vi.mock("@/components/sign-in-prompt", () => ({
   SignInPrompt: ({ message }: { message: string }) => <p>{message}</p>,
 }));
 
+import {
+  IN_PROGRESS_NOTE,
+  inProgressSeasonLine,
+  ROUNDING_NOTE,
+} from "@/components/analytics-notes";
 import { ANALYTICS_HEADING, SIGNED_OUT_MESSAGE } from "@/components/analytics-section";
 import {
   advantageText,
@@ -62,12 +67,9 @@ import {
   GOALS_PER_GAME_HEADING,
   HOME_ADVANTAGE_ERROR_MESSAGE,
   HOME_ADVANTAGE_HEADING,
-  IN_PROGRESS_NOTE,
-  inProgressSeasonLine,
   leftOutSentence,
   MID_SEASON_NOTE,
   NO_OWN_MATCHES_MESSAGE,
-  ROUNDING_NOTE,
   SEASON_BY_SEASON_HEADING,
   SIDE_BY_SIDE_HEADING,
   STORED_SEASONS_NOTE,

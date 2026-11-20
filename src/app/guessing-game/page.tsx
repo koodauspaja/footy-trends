@@ -4,12 +4,12 @@ import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { SignInPrompt } from "@/components/sign-in-prompt";
 import { currentUserId } from "@/lib/current-user";
-import type { Board, Shares } from "@/lib/guessing-game";
+import type { Board, GameView, Shares } from "@/lib/guessing-game";
 import { boardSeason, readOthers } from "@/lib/guessing-game-board";
 import { type GroupSummary, readGroupsOf } from "@/lib/guessing-game-group-store";
 import type { ModelGuess } from "@/lib/guessing-game-models";
 import { readSeasonSectionOf, type SeasonSections } from "@/lib/guessing-game-season-store";
-import { type GameView, openGame } from "@/lib/guessing-game-store";
+import { openGame } from "@/lib/guessing-game-store";
 import { logger } from "@/lib/logger";
 import { getNickname } from "@/lib/nickname-store";
 

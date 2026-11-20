@@ -10,7 +10,7 @@
 
 import { competitionForSeasonPair } from "./domestic-competitions";
 import { COMPETITIONS } from "./goals-per-game";
-import type { StoredMatch } from "./match-service";
+import type { StoredMatch } from "./match-detail";
 import type { MatchSource } from "./match-source";
 import type { SeasonOutcomes, SeasonRange } from "./outcome-shares";
 

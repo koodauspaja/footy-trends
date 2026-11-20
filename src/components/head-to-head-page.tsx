@@ -45,15 +45,19 @@ import {
 } from "@/lib/head-to-head";
 import { baselineCompetition } from "@/lib/home-baseline";
 import { matchCountLabel } from "@/lib/match-count";
-import { formatKickoff, PLACEHOLDER_TEAM_ID, teamDisplayName } from "@/lib/match-detail";
 import {
   type FootballDataMatchRow,
+  formatKickoff,
+  PLACEHOLDER_TEAM_ID,
+  type TasoMatchRow,
+  teamDisplayName,
+} from "@/lib/match-detail";
+import {
   getCompetitionAverages,
   getHeadToHeadHistory,
   getNextMeeting,
   getTeamForm,
   type HeadToHeadResult,
-  type TasoMatchRow,
   type TeamForm,
 } from "@/lib/match-service";
 import type { MatchSource } from "@/lib/match-source";

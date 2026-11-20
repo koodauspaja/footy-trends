@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { MatchPageData, TasoMatchRow } from "@/lib/match-service";
+import type { TasoMatchRow } from "@/lib/match-detail";
+import type { MatchPageData } from "@/lib/match-service";
 import { warmModules } from "../../../support/warm-module";
 
 /**

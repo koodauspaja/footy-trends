@@ -1,11 +1,10 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { GuessingGamePage } from "@/components/guessing-game-page";
-import type { Board, Shares } from "@/lib/guessing-game";
+import type { Board, GameView, Shares, UpcomingMatch } from "@/lib/guessing-game";
 import { placeGuessAction } from "@/lib/guessing-game-actions";
 import type { ModelGuess } from "@/lib/guessing-game-models";
 import type { SeasonSection } from "@/lib/guessing-game-season-store";
-import type { GameView, UpcomingMatch } from "@/lib/guessing-game-store";
 
 /**
  * What `/arvauspeli` shows for each state of the game: the way in, between

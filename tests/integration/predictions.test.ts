@@ -15,7 +15,7 @@ vi.mock("@/lib/taso", async (importOriginal) => ({
 }));
 
 import { expectedHome } from "@/lib/elo";
-import type { StoredMatch } from "@/lib/match-service";
+import type { StoredMatch } from "@/lib/match-detail";
 import {
   fitPoisson,
   type PoissonMatch,

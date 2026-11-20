@@ -11,11 +11,11 @@ import { db } from "@/db";
 import { matches, predictions, tasoMatches } from "@/db/schema";
 import { ELO_MODEL } from "./elo";
 import { logger } from "./logger";
+import type { StoredMatch } from "./match-detail";
 import {
   FOOTBALL_DATA_AWAY_GOALS,
   FOOTBALL_DATA_HOME_GOALS,
   getPlayedSeasons,
-  type StoredMatch,
 } from "./match-service";
 import type { MatchSource } from "./match-source";
 import {

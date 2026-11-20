@@ -1,3 +1,8 @@
+import {
+  IN_PROGRESS_NOTE,
+  inProgressSeasonLine,
+  ROUNDING_NOTE,
+} from "@/components/analytics-notes";
 import { ANALYTICS_HEADING, SIGNED_OUT_MESSAGE } from "@/components/analytics-section";
 import { ChartPanel } from "@/components/charts/chart-panel";
 import { formatDecimal, LineChart, percentText } from "@/components/charts/line-chart";
@@ -53,7 +58,6 @@ export const TOO_FEW_SEASONS_MESSAGE =
 export const GOALS_PER_GAME_ERROR_MESSAGE =
   "Maalikeskiarvoja ei voitu laskea. Yritä myöhemmin uudelleen.";
 export const STORED_SEASONS_NOTE = "Perustuu tallennettuihin kausiin.";
-export const IN_PROGRESS_NOTE = "(kesken)";
 export const VOLATILITY_HEADING = "Sijoitusten vaihtelu";
 export const VOLATILITY_TOO_FEW_MESSAGE =
   "Sijoitusten vaihtelu näytetään, kun kilpailusta on vähintään kaksi päättynyttä kautta.";
@@ -64,8 +68,6 @@ export const SIDE_BY_SIDE_HEADING = "Kilpailut rinnakkain";
 export const HOME_ADVANTAGE_HEADING = "Kotietu ja tasapelit";
 export const HOME_ADVANTAGE_ERROR_MESSAGE = "Kotietua ei voitu laskea. Yritä myöhemmin uudelleen.";
 export const NO_OWN_MATCHES_MESSAGE = "Kilpailusta ei ole tallennettuja otteluita näiltä kausilta.";
-export const ROUNDING_NOTE =
-  "Osuudet on pyöristetty, joten niiden summa voi poiketa 100 prosentista.";
 
 const SECTION_ID = "competition-analytics";
 const THIS_SEASON_ID = "competition-analytics-this-season";
@@ -83,15 +85,6 @@ const HOME_ADVANTAGE_ID = "home-advantage";
  * decisions/048-league-goals-per-game-trend.md
  */
 type SeasonLabel = (seasonId: number) => string;
-
-/**
- * The line naming the season in progress above its surprises.
- *
- * decisions/057-surprise-index.md
- */
-export function inProgressSeasonLine(label: string): string {
-  return `Kausi ${label} ${IN_PROGRESS_NOTE}`;
-}
 
 /**
  * A season left out by the five-match minimum, named under the chart.

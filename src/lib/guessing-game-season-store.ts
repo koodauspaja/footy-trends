@@ -2,7 +2,7 @@ import { and, asc, eq, isNull, min, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { gameLedger, gamePlayer, gameSeasonGuess, tasoMatches } from "@/db/schema";
 import { categoryIdForSeason, competitionIdForSeason } from "./domestic-competitions";
-import { SHARES_MIN_GUESSES } from "./guessing-game";
+import { type GameView, SHARES_MIN_GUESSES } from "./guessing-game";
 import {
   finalPlaces,
   judgeByPlaces,
@@ -20,7 +20,6 @@ import {
   type Client,
   COMPETITION,
   ensureGrant,
-  type GameView,
   latestSeason,
   REGULAR_SEASON_GROUP,
   type SeasonMatch,

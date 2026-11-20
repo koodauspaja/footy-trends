@@ -6,7 +6,7 @@ import {
   homeBaseline,
   isPredictedCup,
 } from "@/lib/home-baseline";
-import type { FootballDataMatchRow, StoredMatch, TasoMatchRow } from "@/lib/match-service";
+import type { FootballDataMatchRow, StoredMatch, TasoMatchRow } from "@/lib/match-detail";
 import type { SeasonOutcomes } from "@/lib/outcome-shares";
 
 /**

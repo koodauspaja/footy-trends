@@ -1,6 +1,6 @@
 import { render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { StoredMatch } from "@/lib/match-service";
+import type { StoredMatch } from "@/lib/match-detail";
 
 /**
  * The line under a finished match's score: what it says, and that nothing is

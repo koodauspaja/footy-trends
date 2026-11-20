@@ -9,7 +9,7 @@
 import { getCompetitionName } from "./competitions";
 import { competitionCodeForCategory, getDomesticCompetitionName } from "./domestic-competitions";
 import { logger } from "./logger";
-import type { FootballDataMatchRow, TasoMatchRow } from "./match-service";
+import type { FootballDataMatchRow, TasoMatchRow } from "./match-detail";
 import {
   competitionLabel,
   MENS_TEAM,

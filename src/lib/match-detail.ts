@@ -5,6 +5,7 @@
  * decisions/019-match-page.md
  */
 
+import type { matches, tasoMatches } from "@/db/schema";
 import {
   GROUP_STAGE,
   getGroupName,
@@ -13,6 +14,19 @@ import {
   REGULAR_SEASON,
 } from "./cup-stages";
 import { formatMatchResult } from "./standings";
+
+export type FootballDataMatchRow = typeof matches.$inferSelect;
+export type TasoMatchRow = typeof tasoMatches.$inferSelect;
+
+/**
+ * A stored match, tagged with the table it came from. The page branches on
+ * `source`: the two rows are not interchangeable.
+ *
+ * decisions/019-match-page.md
+ */
+export type StoredMatch =
+  | { source: "football-data"; match: FootballDataMatchRow }
+  | { source: "taso"; match: TasoMatchRow };
 
 /**
  * The provider id TASO stores for a bracket slot never resolved to a club. Not

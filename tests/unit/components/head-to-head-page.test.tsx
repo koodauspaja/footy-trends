@@ -1,12 +1,10 @@
 import { render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { FootballDataMatchRow, StoredMatch, TasoMatchRow } from "@/lib/match-detail";
 import type {
   CompetitionAverages,
-  FootballDataMatchRow,
   HeadToHeadResult,
   NextMeeting,
-  StoredMatch,
-  TasoMatchRow,
   TeamForm,
 } from "@/lib/match-service";
 import type { MatchSource } from "@/lib/match-source";
