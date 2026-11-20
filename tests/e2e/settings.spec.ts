@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 import { SESSION_COOKIE, storeSignedInReader } from "../support/e2e-session";
 import { openAccountMenu, signedInAs, waitForSession } from "./session";
@@ -11,6 +13,7 @@ import { openAccountMenu, signedInAs, waitForSession } from "./session";
  * decisions/025-custom-avatar.md
  * decisions/269-colour-roles.md
  * decisions/719-file-input-in-finnish.md
+ * decisions/810-avatar-upload-route.md
  */
 
 test.describe("Settings, signed out", () => {
@@ -182,6 +185,48 @@ test.describe("The profile picture, signed in", () => {
     });
 
     await expect(page.getByText("kuva.png")).toBeVisible();
+  });
+
+  test("uploads a chosen photo and shows it in place of the old picture", async ({
+    page,
+    baseURL,
+  }) => {
+    await page
+      .context()
+      .addCookies([{ name: SESSION_COOKIE, value: reader.cookie, url: baseURL as string }]);
+    await page.goto("/asetukset");
+
+    const chooser = page.waitForEvent("filechooser");
+    await page.getByRole("button", { name: "Valitse kuva" }).click();
+    await (await chooser).setFiles(path.join("tests", "fixtures", "avatar", "landscape.jpg"));
+    const upload = page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/avatar/me") && response.request().method() === "POST"
+    );
+    await page.getByRole("button", { name: "Tallenna kuva" }).click();
+
+    expect((await upload).status()).toBe(200);
+    await expect(page.getByText("Profiilikuva päivitetty.")).toBeVisible();
+    const picture = page.locator('img[src^="/api/avatar/me?v="]').first();
+    await expect(picture).toBeVisible();
+    // Loaded, not only placed: a broken image has no natural width.
+    await expect
+      .poll(() => picture.evaluate((image: HTMLImageElement) => image.naturalWidth))
+      .toBeGreaterThan(0);
+  });
+
+  test("refuses an upload sent from another site, session cookie and all", async ({ request }) => {
+    const response = await request.post("/api/avatar/me", {
+      headers: {
+        origin: "https://elsewhere.example.com",
+        cookie: `${SESSION_COOKIE}=${reader.cookie}`,
+        "content-type": "application/octet-stream",
+      },
+      data: readFileSync(path.join("tests", "fixtures", "avatar", "landscape.jpg")),
+    });
+
+    expect(response.status()).toBe(403);
+    expect(await response.json()).toEqual({ ok: false, reason: "failed" });
   });
 });
 
