@@ -107,10 +107,11 @@ By name; no value is in the repository. The lists are in `.railway/railway.ts`.
 | `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` | set | set | per environment |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | set | set | from that environment's Google project |
 | `FOOTBALL_DATA_API_KEY`, `TASO_API_KEY` | set | set | **the same key in both** |
-| `TASO_HASH_SALT` | absent | absent | signs each TASO request when set; absent sends them unsigned, which TASO refuses since 2026-10-15. Temporary, until official access (decisions/681) |
+| `TASO_HASH_SALT` | set | set | signs each TASO request when set; absent sends them unsigned, which TASO refuses since 2026-10-15. Temporary, until official access (decisions/681) |
 | `FOOTBALL_DATA_EARLIEST_SEASON`, `FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS` | `2023`, `3600` | `2023`, `3600` | how far back history is stored, and how old stored matches may be before a refresh |
 | `AXIOM_TOKEN`, `AXIOM_DATASET` | dataset `footy-trends` | dataset `footy-trends-prod` | a token per environment |
 | `NEXT_PUBLIC_SENTRY_DSN` | set | set | per environment |
+| `HEALTH_PROVIDERS_TOKEN` | set | set | **its own in each**; without it in a request's header, `?providers=1` makes no TASO call. Production's is also the Actions secret (decisions/814) |
 | `LOG_LEVEL` | `info` | `info` | why `info` is safe: `docs/setup/021` |
 | `AUTH_ALLOWED_EMAILS` | set | absent | unset means anyone may sign in |
 | `AUTH_CLIENT_IP_HEADERS`, `AUTH_TRUSTED_PROXIES` | present, **empty on purpose** | absent | the default, `x-real-ip`, is right behind Railway's edge (decisions/309) |
@@ -272,7 +273,7 @@ repos/:owner/:repo/rulesets` and its neighbours.
 | `ci.yml` | push to `main`, pull requests to `main` | unit (typecheck, lint, unit, shuffled unit), production build (`next build` with placeholder variables, the Axiom ones included), integration (Postgres 18 and Redis 8 as services), issue checkboxes | only for `OWNER_USERNAME`, `COLLABORATOR_USERNAME` and `renovate[bot]` |
 | `sonarcloud.yml` | the same | scan, with coverage; the job waits for the quality gate | the same allowlist |
 | `release.yml` | pull requests to `release`, push to `release`, by hand | unit, integration, **e2e against a production build**, then tag and publish on a push | uses the two provider keys; e2e runs nowhere else in CI |
-| `taso-key-check.yml` | daily 06:00 UTC, by hand | asks production's `/api/health?providers=1` whether TASO still answers | #113 |
+| `taso-key-check.yml` | daily 06:00 UTC, by hand | asks production's `/api/health?providers=1`, with the token, whether TASO still answers | #113, decisions/814 |
 | `railway-environment.yml` | by hand, with a name and a branch | `npm run railway:environment`: a new Railway environment, from nothing to a site that answers `/api/health` | runs in the GitHub Environment `railway-provisioning`, so it waits for a required reviewer; one run at a time (decisions/522) |
 
 - **Every workflow's token is `contents: read`**, and a job widens only what it
@@ -291,7 +292,7 @@ repos/:owner/:repo/rulesets` and its neighbours.
 
 Actions variables: `OWNER_USERNAME`, `COLLABORATOR_USERNAME`,
 `FIRST_RELEASE_VERSION`. Secrets: `SONAR_TOKEN`, `FOOTBALL_DATA_API_KEY`,
-`TASO_API_KEY`, `TASO_HASH_SALT` once set, which the release workflow's e2e and PR environments read (decisions/681), and `CI_POSTGRES_PASSWORD`, the password of the Postgres
+`TASO_API_KEY`, `TASO_HASH_SALT` once set, which the release workflow's e2e and PR environments read (decisions/681), `HEALTH_PROVIDERS_TOKEN`, production's value, which `taso-key-check.yml` sends (decisions/814), and `CI_POSTGRES_PASSWORD`, the password of the Postgres
 container a workflow run creates (any random value; nothing outside a run uses it). `SONAR_ORGANIZATION` and `SONAR_PROJECT_KEY` also exist as
 secrets and nothing reads them: the values are in `sonar-project.properties`.
 Workflows from forks need approval for all outside contributors.
@@ -346,7 +347,7 @@ Organization project `Footy Trends` (number 2), private. Status: `Backlog`,
 |---|---|---|
 | Errors | Sentry: `sentry.server.config.ts`, `sentry.edge.config.ts`, `src/instrumentation-client.ts`, all reading `src/lib/sentry-config.ts` | three files, and the browser needs a `NEXT_PUBLIC_` copy of the sample rate. A blank variable means unset, not zero. A failure a client component catches goes to Sentry, not Axiom, through `reportClientError`, tagged `where` (decisions/604) |
 | Logs | Pino with the `@axiomhq/pino` transport (`src/lib/logger.ts`), one dataset per environment | **Policy (2026-10-04): deploy-time failures show in Railway's log; everything the app does goes to Axiom.** With Axiom configured, the app's logger writes to Axiom only, so Railway's log holds the build, the migrations and Next's startup lines, and nothing from the running app. `info` logs once per outbound provider request and once per health check, so volume follows cache misses, not traffic (`docs/setup/021`). An admin's write (a role change, a deletion, a forced refresh) and each hourly predictions run are one `info` line each, with ids and never an address. A refused sign-in is a `warn` with no fields (decisions/603). Logging is a feature requirement: a spec says what the feature logs (`skills/write-spec.md`, item 8), and the pass before a review checks it (`skills/self-review.md`, section 11). |
-| Health | `/api/health`; `?providers=1` also asks TASO | `?providers=1` is an uncached provider call: not for a short-interval monitor |
+| Health | `/api/health`; `?providers=1` also asks TASO, given the token | an uncached provider call, so it needs `HEALTH_PROVIDERS_TOKEN` in the `x-health-providers-token` header; without it the answer has no `checks.taso` (decisions/814) |
 | CSP reports | the Sentry project of the build's `NEXT_PUBLIC_SENTRY_DSN`, as security events | sent only by builds with a DSN, so not by e2e or CI (decisions/656). The address is fixed at build time (decisions/808) |
 
 ## Response headers

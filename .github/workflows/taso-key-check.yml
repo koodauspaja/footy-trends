@@ -29,13 +29,18 @@ jobs:
       - name: Ask production whether its TASO key still works
         env:
           HEALTH_URL: https://footy-trends.up.railway.app/api/health?providers=1
+          # Production's own copy is the web service's variable of the same
+          # name. Without the token the endpoint never calls TASO.
+          HEALTH_PROVIDERS_TOKEN: ${{ secrets.HEALTH_PROVIDERS_TOKEN }}
         run: |
           set -euo pipefail
 
           # `--fail-with-body` so a non-2xx still prints what came back: the
           # body is where the reason is, and a bare exit code sends whoever
-          # reads this to reproduce it by hand.
-          if ! body=$(curl -sS --fail-with-body --max-time 30 "$HEALTH_URL"); then
+          # reads this to reproduce it by hand. The token goes in through
+          # stdin, never on the command line.
+          if ! body=$(printf 'x-health-providers-token: %s\n' "$HEALTH_PROVIDERS_TOKEN" \
+            | curl -sS --fail-with-body --max-time 30 -H @- "$HEALTH_URL"); then
             echo "The health endpoint itself did not answer:"
             echo "$body"
             exit 1
@@ -44,6 +49,13 @@ jobs:
           echo "$body" | jq .
 
           taso=$(echo "$body" | jq -r '.checks.taso // "absent"')
+          if [ "$taso" = "absent" ]; then
+            echo
+            echo "::error::Production made no TASO check: it did not accept the token."
+            echo "The secret HEALTH_PROVIDERS_TOKEN and the web service's variable of"
+            echo "the same name must hold one value (docs/setup/018-health-check.md)."
+            exit 1
+          fi
           if [ "$taso" != "ok" ]; then
             echo
             echo "::error::TASO check reported '$taso'."

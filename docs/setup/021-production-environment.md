@@ -163,6 +163,7 @@ more once the Sentry configs read their settings from the environment.
 | `FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS` | manual | |
 | `TASO_API_KEY` | manual | **Shared with staging**, and scraped — see *TASO key* below |
 | `TASO_HASH_SALT` | manual | **Shared with staging**; signs TASO requests, also on the `predictions` service — 020, decisions/681 |
+| `HEALTH_PROVIDERS_TOKEN` | manual | `openssl rand -hex 32`, **its own** rather than staging's; the same value as the Actions secret of that name — 018, decisions/814 |
 | `GOOGLE_CLIENT_ID` | manual | From the **production** Google Cloud project — a different project from the one local and staging use. Do 014's production half now: `docs/setup/014-google-oauth-setup.md` |
 | `GOOGLE_CLIENT_SECRET` | manual | Same project as above. Shown once at creation; see 014 |
 | `BETTER_AUTH_SECRET` | manual | `openssl rand -base64 32`, **its own** rather than staging's. Changing it invalidates every session cookie |
@@ -486,12 +487,10 @@ traffic:
   `healthcheckPath` only while gating a new deployment and stops once the
   deploy is live, so this is per-deploy volume plus whatever hits it by hand.
 
-  Note the one deliberate hole in the paragraph above: `?providers=1` calls
-  `getCurrentSeason` straight from `taso.ts`, bypassing the service-layer
-  cache, so each such request is a real uncached TASO call and its own info
-  log. That is why it is opt-in rather than part of the default probe — but it
-  does mean a scripted monitor hitting `?providers=1` on a short interval would
-  turn an unbounded provider call into a per-interval one.
+  `?providers=1` calls `getCurrentSeason` straight from `taso.ts`, bypassing
+  the service-layer cache, so each such request is a real uncached TASO call.
+  It needs `HEALTH_PROVIDERS_TOKEN` in a header, so only the daily monitor and
+  whoever holds the token can make one (decisions/814).
 
 - `src/lib/admin-users.ts` and `src/lib/refresh-actions.ts`, once per write an
   admin asks for (decisions/603).
@@ -577,9 +576,8 @@ curl -s https://<production-service>.up.railway.app/api/health | jq
 ```
 
 Expect `status: "ok"`, with `checks.database` and `checks.redis` both `"ok"` —
-they sit under `checks`, not at the top level. Add `?providers=1` to include a
-live TASO check; it is opt-in precisely because a probe should not call a
-provider on every request.
+they sit under `checks`, not at the top level. Add `?providers=1` and the
+token header to include a live TASO check (018).
 
 Then confirm the isolation actually holds:
 
