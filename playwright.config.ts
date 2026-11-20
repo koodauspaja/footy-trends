@@ -13,6 +13,7 @@
  * decisions/672-e2e-without-the-provider.md
  * decisions/674-e2e-on-an-empty-database.md
  * decisions/615-e2e-own-redis.md
+ * decisions/814-health-providers-token.md
  */
 
 import { existsSync } from "node:fs";
@@ -27,6 +28,7 @@ import {
   withoutSentry,
 } from "./scripts/e2e-target";
 import { E2E_ANALYTICS_FLAG } from "./src/lib/e2e-analytics";
+import { HEALTH_PROVIDERS_TOKEN } from "./src/lib/health-providers";
 import { e2eRedisUrl } from "./tests/support/e2e-redis";
 import { standInDatabaseUrl, standInRedis } from "./tests/support/taso-stub";
 import { testDatabaseUrl } from "./tests/support/test-database";
@@ -36,6 +38,10 @@ import { testDatabaseUrl } from "./tests/support/test-database";
 if (existsSync(".env")) {
   process.loadEnvFile(".env");
 }
+
+// The suite's own token for the provider check: its server inherits it, and the
+// TASO spec sends it.
+process.env[HEALTH_PROVIDERS_TOKEN] = "e2e-health-providers-token";
 
 // Locally this needs Postgres and Redis running and both provider keys in
 // `.env`. In CI it runs only from `release.yml`, never on a pull request
