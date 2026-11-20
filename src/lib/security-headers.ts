@@ -15,13 +15,9 @@ export type Header = { key: string; value: string };
  * decisions/808-security-headers.md
  */
 export function cspReportUri(dsn: string | undefined): string | null {
-  if (dsn === undefined || dsn.trim() === "") return null;
-  let url: URL;
-  try {
-    url = new URL(dsn.trim());
-  } catch {
-    return null;
-  }
+  // The parser drops surrounding spaces itself, and answers a blank with null.
+  const url = dsn === undefined ? null : URL.parse(dsn);
+  if (url === null) return null;
   const project = url.pathname.replace(/^\/+|\/+$/g, "");
   if (url.protocol !== "https:" || url.username === "" || !/^\d+$/.test(project)) return null;
   return `https://${url.host}/api/${project}/security/?sentry_key=${url.username}`;
