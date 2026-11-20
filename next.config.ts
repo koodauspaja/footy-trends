@@ -1,18 +1,20 @@
 /**
  * Next's configuration: the route table behind every Finnish URL, the
- * server-action body limit, and Sentry's build settings.
+ * security headers, the server-action body limit, and Sentry's build settings.
  *
  * decisions/012-finnish-urls-english-code.md
  * decisions/025-custom-avatar.md
  * decisions/042-head-to-head-view.md
  * decisions/293-sentry-config-subpath.md
  * decisions/527-one-route-table.md
+ * decisions/808-security-headers.md
  */
 
 // From `@sentry/nextjs/config`, not the package root, whose export is
 // deprecated and stops working in v11.
 import { withSentryConfig } from "@sentry/nextjs/config";
 import type { NextConfig } from "next";
+import { securityHeaders } from "./src/lib/security-headers";
 
 /**
  * The Finnish prefix each head-to-head route is reached by, and the directory
@@ -126,6 +128,14 @@ const OTHER_SPELLINGS: ReadonlyArray<readonly [source: string, url: string]> = [
 ];
 
 const nextConfig: NextConfig = {
+  // Says nothing a reader needs, and names the framework to anyone probing.
+  poweredByHeader: false,
+
+  // Evaluated at build time, like the browser's inlined DSN.
+  headers() {
+    return Promise.resolve([{ source: "/:path*", headers: securityHeaders(process.env) }]);
+  },
+
   // Public URLs are Finnish; the App Router folders are English. `ROUTES` is
   // the only place the two meet — the browser always shows the Finnish path.
   rewrites() {
