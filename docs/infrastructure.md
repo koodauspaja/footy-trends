@@ -278,6 +278,10 @@ repos/:owner/:repo/rulesets` and its neighbours.
 - **Every workflow's token is `contents: read`**, and a job widens only what it
   needs: the issue-checkbox job reads issues and pull requests, the Sonar job
   reads pull requests, the release's tag job writes contents.
+- **Every action is pinned to a full commit hash**, with its release in a
+  trailing comment, and Renovate keeps the hashes current
+  (`helpers:pinGitHubActionDigests`). A `uses:` on a tag fails
+  `tests/unit/config/workflow-action-pins.test.ts` (decisions/813).
 - **Every job has a timeout**, three to four times its longest recent run
   (measured 2026-10-05).
 - **A pull request's newer run cancels its older one** in `ci.yml`,
@@ -333,7 +337,7 @@ Organization project `Footy Trends` (number 2), private. Status: `Backlog`,
 | Sourcery | rules in its dashboard, mirrored and explained in `REVIEW_RULES.md`; `.sourcery.yaml` only enables the defaults | Pro plan: 300 000 diff characters per pull request, 1 500 000 per seat per rolling 7 days. Out of budget it posts a notice and its check-run reads `skipped`, which a required check accepts. A later push gets the quick check, a review whose whole body is `### Sourcery assessment` and `**Approved.**`, which is not a full review; `npm run check:sourcery -- <PR>` says which the head has, and a bare `@sourcery-ai review` comment forces a full one (`docs/setup/004`, `skills/open-pr.md`) |
 | SonarCloud | `sonar-project.properties`, `sonarcloud.yml` | indexes the whole repository, so a source file no test imports scores 0%; `npm run test:unit` fails on such a file first (CLAUDE.md). The gate judges new code only, and the built-in profile gains rules without notice, so open issues can appear on `main` with the gate green. One rule, `await` in a loop, is ignored in five named files, and no security rule is ignored anywhere (`decisions/592-sonar-zero-open-issues-again.md`) |
 | Secret scanning | repository settings, section **Secret Protection** (`gh api repos/:owner/:repo --jq .security_and_analysis`) | scanning and push protection on since 2026-11-20; a push carrying a recognised key is rejected with `GH013`, and the rejection links to a page where the pusher can still allow the key by giving a reason, so it stops a mistake, not a pusher who means it. Non-provider patterns and validity checks stay `disabled`: the organisation is on the Free plan, and the API accepts a request to enable them with a 200 and changes nothing. The first scan of the history found no alerts (`decisions/809-secret-scanning.md`) |
-| Renovate | `renovate.json` | Mondays before 07:00 Helsinki, at most 10 open, no automerge. TypeScript is held below 7 (#43) |
+| Renovate | `renovate.json` | Mondays before 07:00 Helsinki, at most 10 open, no automerge. TypeScript is held below 7 (#43). It keeps the actions' pinned hashes current and pins any action that arrives on a tag (decisions/813) |
 | Local gate | `npm run verify`, the pre-commit hook (lint, typecheck) and the pre-push hook (a fresh e2e run, against a production build, unless the push changes only `specs/`, `decisions/`, `docs/`, `skills/` or root `.md` files) | the stages are checked against the workflows by a unit test |
 
 ## Observability
