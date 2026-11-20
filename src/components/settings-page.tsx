@@ -351,7 +351,7 @@ function ProfilePicture({
                   announce(null, outcome.reason);
                 }
               } catch (error) {
-                // A rejected invocation gets the generic notice: what it means is not
+                // A rejected upload gets the generic notice: what it means is not
                 // knowable from here.
                 reportClientError(error, "avatar.save");
                 announce(null, "failed");

@@ -56,14 +56,14 @@ export async function GET(): Promise<Response> {
   }
 }
 
+type Refusal = Extract<SaveAvatarResult, { ok: false }>["reason"];
+
 /**
  * The HTTP status each answer carries. The body says the same, and is what
  * the settings page reads.
  *
  * decisions/810-avatar-upload-route.md
  */
-type Refusal = Extract<SaveAvatarResult, { ok: false }>["reason"];
-
 const STATUS: Record<"saved" | "foreign-origin" | "signed-out" | Refusal, number> = {
   saved: 200,
   "foreign-origin": 403,
