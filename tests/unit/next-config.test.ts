@@ -1,6 +1,7 @@
 import { readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { securityHeaders } from "@/lib/security-headers";
 import config from "../../next.config";
 
 /**
@@ -88,5 +89,23 @@ describe("next.config.ts, Finnish URLs over English folders", () => {
     const { redirects } = await evaluated();
 
     expect(redirects).toContainEqual({ source, destination, permanent: true });
+  });
+});
+
+/**
+ * Every route carries the security headers, and the response does not name the
+ * framework.
+ *
+ * decisions/808-security-headers.md
+ */
+describe("next.config.ts, security headers", () => {
+  it("sends the security headers on every path", async () => {
+    expect(await config.headers?.()).toEqual([
+      { source: "/:path*", headers: securityHeaders(process.env) },
+    ]);
+  });
+
+  it("does not send x-powered-by", () => {
+    expect(config.poweredByHeader).toBe(false);
   });
 });
