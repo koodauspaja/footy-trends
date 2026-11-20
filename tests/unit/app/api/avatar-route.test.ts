@@ -21,13 +21,13 @@ const { getSession, getAvatar, saveAvatar, processAvatar, revalidatePath, logger
 
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("next/cache", () => ({ revalidatePath }));
-vi.mock("@/lib/auth", () => ({ auth: { api: { getSession } } }));
-vi.mock("@/lib/avatar", () => ({ getAvatar, saveAvatar }));
-vi.mock("@/lib/avatar-image", () => ({ processAvatar }));
-vi.mock("@/lib/logger", () => ({ logger }));
+vi.mock("@/lib/auth/auth", () => ({ auth: { api: { getSession } } }));
+vi.mock("@/lib/account/avatar", () => ({ getAvatar, saveAvatar }));
+vi.mock("@/lib/account/avatar-image", () => ({ processAvatar }));
+vi.mock("@/lib/platform/logger", () => ({ logger }));
 
 const { GET, POST } = await import("@/app/api/avatar/me/route");
-const { MAX_UPLOAD_BYTES } = await import("@/lib/avatar-limits");
+const { MAX_UPLOAD_BYTES } = await import("@/lib/account/avatar-limits");
 
 const BYTES = Buffer.from([0x52, 0x49, 0x46, 0x46]);
 

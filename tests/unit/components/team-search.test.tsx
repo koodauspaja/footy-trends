@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TeamSearch } from "@/components/team-search";
 
 /**
- * The search field. `@/lib/auth-client` is mocked because the real client's
+ * The search field. `@/lib/auth/auth-client` is mocked because the real client's
  * cleanup runs after this file's jsdom is gone.
  *
  * decisions/027-team-search.md
@@ -18,14 +18,14 @@ const { sessionState, searchTeamsAction } = vi.hoisted(() => ({
 
 const { reportClientError } = vi.hoisted(() => ({ reportClientError: vi.fn() }));
 
-vi.mock("@/lib/report-client-error", () => ({ reportClientError }));
+vi.mock("@/lib/platform/report-client-error", () => ({ reportClientError }));
 
 beforeEach(() => {
   reportClientError.mockClear();
 });
 
-vi.mock("@/lib/auth-client", () => ({ useSession: () => sessionState.current }));
-vi.mock("@/lib/team-search-actions", () => ({ searchTeamsAction }));
+vi.mock("@/lib/auth/auth-client", () => ({ useSession: () => sessionState.current }));
+vi.mock("@/lib/teams/team-search-actions", () => ({ searchTeamsAction }));
 
 const team = (over: Partial<Record<string, unknown>> = {}) => ({
   source: "taso",

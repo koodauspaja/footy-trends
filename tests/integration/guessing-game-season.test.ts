@@ -2,8 +2,11 @@ import { and, eq, gte, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db";
 import { gameLedger, gameSeasonGuess, tasoMatches, user } from "@/db/schema";
-import { placeSeasonGuess, settleSeasonGuesses } from "@/lib/guessing-game-season-store";
-import { joinGame } from "@/lib/guessing-game-store";
+import {
+  placeSeasonGuess,
+  settleSeasonGuesses,
+} from "@/lib/guessing-game/guessing-game-season-store";
+import { joinGame } from "@/lib/guessing-game/guessing-game-store";
 
 /**
  * Arvauspeli's season guesses against a real Postgres: placing pays once, a
@@ -16,7 +19,7 @@ import { joinGame } from "@/lib/guessing-game-store";
  */
 
 const { standings } = vi.hoisted(() => ({ standings: vi.fn() }));
-vi.mock("@/lib/taso-standings-service", () => ({ getSeasonStandings: standings }));
+vi.mock("@/lib/taso/taso-standings-service", () => ({ getSeasonStandings: standings }));
 
 const SEASON = 2094;
 const NOW = new Date("2094-03-01T12:00:00Z");

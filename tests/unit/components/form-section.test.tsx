@@ -6,7 +6,7 @@ import {
   formPanel,
   TOO_FEW_MESSAGE,
 } from "@/components/form-section";
-import type { FormSeries } from "@/lib/form-series";
+import type { FormSeries } from "@/lib/teams/form-series";
 
 /**
  * The form panel.

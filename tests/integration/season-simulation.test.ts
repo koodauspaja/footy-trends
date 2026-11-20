@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { matches, tasoGroupTeams, tasoGroupZones, tasoMatches } from "@/db/schema";
 
 // No Redis in the integration job: every read reaches Postgres.
-vi.mock("@/lib/cache", () => ({
+vi.mock("@/lib/providers/cache", () => ({
   getCached: vi.fn(async (_key: string, _ttl: number, fetcher: () => Promise<unknown>) =>
     fetcher()
   ),
@@ -22,7 +22,7 @@ vi.mock("@/lib/cache", () => ({
   ),
 }));
 
-import { getSeasonForecast } from "@/lib/season-simulation-service";
+import { getSeasonForecast } from "@/lib/predictions/season-simulation-service";
 
 /**
  * The season forecast's reads against a real Postgres, for both providers.

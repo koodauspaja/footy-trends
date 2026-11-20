@@ -6,7 +6,7 @@ import {
   HOME_AWAY_HEADING,
   homeAwayPanel,
 } from "@/components/home-away-section";
-import type { HomeAwaySeries, SideStats } from "@/lib/home-away";
+import type { HomeAwaySeries, SideStats } from "@/lib/teams/home-away";
 
 /**
  * The `Koti- ja vierastilastot` panel.

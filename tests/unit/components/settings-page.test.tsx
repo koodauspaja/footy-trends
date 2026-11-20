@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { type Device, type RegionOptions, SettingsPage } from "@/components/settings-page";
-import { NO_PREFERENCES, type Preferences } from "@/lib/regions";
+import { NO_PREFERENCES, type Preferences } from "@/lib/preferences/regions";
 
 /**
  * The settings page a signed-in reader sees: preferences, the picture, devices
@@ -40,19 +40,25 @@ const { uploadAvatar, removeAvatarAction } = vi.hoisted(() => ({
 
 const { reportClientError } = vi.hoisted(() => ({ reportClientError: vi.fn() }));
 
-vi.mock("@/lib/report-client-error", () => ({ reportClientError }));
+vi.mock("@/lib/platform/report-client-error", () => ({ reportClientError }));
 
 beforeEach(() => {
   reportClientError.mockClear();
 });
 
-vi.mock("@/lib/settings-actions", () => ({ saveSettings, signOutOtherDevices, deleteAccount }));
-vi.mock("@/lib/avatar-actions", () => ({ removeAvatarAction }));
-vi.mock("@/lib/avatar-upload", () => ({ uploadAvatar }));
-vi.mock("@/lib/nickname-actions", () => ({ saveNicknameAction: vi.fn() }));
+vi.mock("@/lib/account/settings-actions", () => ({
+  saveSettings,
+  signOutOtherDevices,
+  deleteAccount,
+}));
+vi.mock("@/lib/account/avatar-actions", () => ({ removeAvatarAction }));
+vi.mock("@/lib/account/avatar-upload", () => ({ uploadAvatar }));
+vi.mock("@/lib/account/nickname-actions", () => ({ saveNicknameAction: vi.fn() }));
 // Wrapped, so the component gets a promise of its own: a mock handles the
 // rejection of the one it returns, which would hide one the component ignored.
-vi.mock("@/lib/auth-client", () => ({ useSession: () => ({ refetch: async () => refetch() }) }));
+vi.mock("@/lib/auth/auth-client", () => ({
+  useSession: () => ({ refetch: async () => refetch() }),
+}));
 
 const REGION_OPTIONS: RegionOptions[] = [
   {

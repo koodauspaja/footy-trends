@@ -10,32 +10,32 @@
 import { and, eq, sql } from "drizzle-orm";
 import { closeDatabase, db } from "../src/db";
 import { matches, tasoGroupTeams, tasoGroupZones, tasoMatches } from "../src/db/schema";
-import { SUPPORTED_COMPETITIONS } from "../src/lib/competitions";
+import { SUPPORTED_COMPETITIONS } from "../src/lib/competitions/competitions";
+import {
+  getSeasonMatches as getFootballDataMatches,
+  getSeasonContext,
+} from "../src/lib/football-data/football-data";
+import { synchronizeMatches as synchronizeFootballDataMatches } from "../src/lib/football-data/standings-service";
+import { redis } from "../src/lib/platform/redis";
+import { createPacer, FOOTBALL_DATA_PER_MINUTE, TASO_PER_MINUTE } from "../src/lib/providers/pacer";
 import {
   categoryIdForSeason,
   competitionIdForSeason,
   DOMESTIC_COMPETITIONS,
   earliestSeasonFor as tasoEarliestSeasonFor,
-} from "../src/lib/domestic-competitions";
-import {
-  getSeasonMatches as getFootballDataMatches,
-  getSeasonContext,
-} from "../src/lib/football-data";
-import { createPacer, FOOTBALL_DATA_PER_MINUTE, TASO_PER_MINUTE } from "../src/lib/pacer";
-import { redis } from "../src/lib/redis";
-import { synchronizeMatches as synchronizeFootballDataMatches } from "../src/lib/standings-service";
+} from "../src/lib/taso/domestic-competitions";
 import {
   getCurrentSeason,
   getSeasonGroups,
   getSeasonMatches as getTasoMatches,
   normalizeGroupLevels,
   normalizeGroupTeams,
-} from "../src/lib/taso";
+} from "../src/lib/taso/taso";
 import {
   synchronizeGroupTeams,
   synchronizeMatches as synchronizeTasoMatches,
-} from "../src/lib/taso-standings-service";
-import { backfillZones, ZONE_BACKFILL_PER_MINUTE } from "../src/lib/zone-backfill";
+} from "../src/lib/taso/taso-standings-service";
+import { backfillZones, ZONE_BACKFILL_PER_MINUTE } from "../src/lib/taso/zone-backfill";
 import { canSkip, describeError, tasoSeasonsFor } from "./backfill-plan";
 
 function out(line = ""): void {

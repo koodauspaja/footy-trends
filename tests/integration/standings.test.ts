@@ -2,9 +2,9 @@ import { and, eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db";
 import { matches } from "@/db/schema";
-import type { NormalizedProviderMatch } from "@/lib/football-data";
-import { redis } from "@/lib/redis";
-import { calculateStandings } from "@/lib/standings";
+import { calculateStandings } from "@/lib/competitions/standings";
+import type { NormalizedProviderMatch } from "@/lib/football-data/football-data";
+import { redis } from "@/lib/platform/redis";
 
 /**
  * The football-data sync and the reads over its rows, against a real Postgres.
@@ -19,7 +19,7 @@ import { calculateStandings } from "@/lib/standings";
  * decisions/039-streak-records.md
  */
 
-vi.mock("@/lib/football-data", () => ({
+vi.mock("@/lib/football-data/football-data", () => ({
   getSeasonMatches: vi.fn(),
 }));
 
@@ -91,7 +91,7 @@ describe("standings integration", () => {
   });
 
   it("persists synchronized matches and calculates standings from the stored rows", async () => {
-    const { synchronizeMatches } = await import("@/lib/standings-service");
+    const { synchronizeMatches } = await import("@/lib/football-data/standings-service");
     const providerMatches = [buildMatch()];
 
     await synchronizeMatches(providerMatches);
@@ -107,7 +107,7 @@ describe("standings integration", () => {
   });
 
   it("does not duplicate a match when the same provider response is synchronized twice", async () => {
-    const { synchronizeMatches } = await import("@/lib/standings-service");
+    const { synchronizeMatches } = await import("@/lib/football-data/standings-service");
     const providerMatch = buildMatch({ homeGoals: 3, awayGoals: 0 });
 
     await synchronizeMatches([providerMatch]);
@@ -123,7 +123,7 @@ describe("standings integration", () => {
   });
 
   it("round-trips the half-time score, a goalless first half included", async () => {
-    const { synchronizeMatches } = await import("@/lib/standings-service");
+    const { synchronizeMatches } = await import("@/lib/football-data/standings-service");
     const goalless = buildMatch({ providerMatchId: 900011, halfTimeHome: 0, halfTimeAway: 0 });
     const behind = buildMatch({ providerMatchId: 900012, halfTimeHome: 0, halfTimeAway: 1 });
 
@@ -146,7 +146,7 @@ describe("standings integration", () => {
   it("fills in a half-time score a later sync brings, which is what the backfill does", async () => {
     // Rows stored before the half-time columns have `null` here; `--refetch`
     // re-reads the season so the sync can write what the provider gives now.
-    const { synchronizeMatches } = await import("@/lib/standings-service");
+    const { synchronizeMatches } = await import("@/lib/football-data/standings-service");
     const providerMatch = buildMatch({ halfTimeHome: null, halfTimeAway: null });
 
     await synchronizeMatches([providerMatch]);
@@ -162,10 +162,12 @@ describe("standings integration", () => {
   });
 
   it("falls back to stored standings when the provider refresh fails", async () => {
-    const { getSeasonMatches } = await import("@/lib/football-data");
+    const { getSeasonMatches } = await import("@/lib/football-data/football-data");
     vi.mocked(getSeasonMatches).mockRejectedValue(new Error("provider unavailable"));
 
-    const { synchronizeMatches, getStandings } = await import("@/lib/standings-service");
+    const { synchronizeMatches, getStandings } = await import(
+      "@/lib/football-data/standings-service"
+    );
     const providerMatch = buildMatch();
     await synchronizeMatches([providerMatch]);
     await db
@@ -180,11 +182,11 @@ describe("standings integration", () => {
   });
 
   it("returns cached Redis standings without querying stored matches or the provider", async () => {
-    const { getSeasonMatches } = await import("@/lib/football-data");
+    const { getSeasonMatches } = await import("@/lib/football-data/football-data");
     const cachedStandings = calculateStandings(toPlayedMatches([buildMatch()]));
     await redis.setex(cacheKey, 60, JSON.stringify(cachedStandings));
 
-    const { getStandings } = await import("@/lib/standings-service");
+    const { getStandings } = await import("@/lib/football-data/standings-service");
     const result = await getStandings({ competitionCode, seasonId, activeSeasonId: seasonId });
 
     expect(result).toEqual({ status: "ok", standings: cachedStandings });
@@ -192,8 +194,10 @@ describe("standings integration", () => {
   });
 
   it("uses fresh stored matches without calling the provider", async () => {
-    const { getSeasonMatches } = await import("@/lib/football-data");
-    const { synchronizeMatches, getStandings } = await import("@/lib/standings-service");
+    const { getSeasonMatches } = await import("@/lib/football-data/football-data");
+    const { synchronizeMatches, getStandings } = await import(
+      "@/lib/football-data/standings-service"
+    );
     await synchronizeMatches([buildMatch()]);
 
     const result = await getStandings({ competitionCode, seasonId, activeSeasonId: seasonId });
@@ -204,8 +208,10 @@ describe("standings integration", () => {
   });
 
   it("compares a season with the club's others, asking the provider nothing", async () => {
-    const { getSeasonMatches } = await import("@/lib/football-data");
-    const { synchronizeMatches, getTeamSeasonComparison } = await import("@/lib/standings-service");
+    const { getSeasonMatches } = await import("@/lib/football-data/football-data");
+    const { synchronizeMatches, getTeamSeasonComparison } = await import(
+      "@/lib/football-data/standings-service"
+    );
 
     // Two stored seasons of the same competition: the club wins its match in
     // the selected one and loses it in the other, so a baseline that included
@@ -236,8 +242,10 @@ describe("standings integration", () => {
   });
 
   it("reads streak records across stored seasons, asking the provider nothing", async () => {
-    const { getSeasonMatches } = await import("@/lib/football-data");
-    const { synchronizeMatches, getTeamStreakRecords } = await import("@/lib/standings-service");
+    const { getSeasonMatches } = await import("@/lib/football-data/football-data");
+    const { synchronizeMatches, getTeamStreakRecords } = await import(
+      "@/lib/football-data/standings-service"
+    );
 
     // Two consecutive seasons of one competition, each a win for team 9001:
     // the run crosses the boundary and the record is two, named by both.
@@ -285,11 +293,11 @@ describe("standings integration", () => {
   });
 
   it("backfills a season that has no stored matches", async () => {
-    const { getSeasonMatches } = await import("@/lib/football-data");
+    const { getSeasonMatches } = await import("@/lib/football-data/football-data");
     const providerMatches = [buildMatch()];
     vi.mocked(getSeasonMatches).mockResolvedValue(providerMatches);
 
-    const { getStandings } = await import("@/lib/standings-service");
+    const { getStandings } = await import("@/lib/football-data/standings-service");
     const result = await getStandings({
       competitionCode,
       seasonId,
@@ -308,8 +316,10 @@ describe("standings integration", () => {
   });
 
   it("never refetches a past season that already has stored matches, however stale", async () => {
-    const { getSeasonMatches } = await import("@/lib/football-data");
-    const { synchronizeMatches, getStandings } = await import("@/lib/standings-service");
+    const { getSeasonMatches } = await import("@/lib/football-data/football-data");
+    const { synchronizeMatches, getStandings } = await import(
+      "@/lib/football-data/standings-service"
+    );
     const providerMatch = buildMatch();
     await synchronizeMatches([providerMatch]);
     await db
@@ -329,10 +339,10 @@ describe("standings integration", () => {
   });
 
   it("reports an empty season when the provider has no matches at all", async () => {
-    const { getSeasonMatches } = await import("@/lib/football-data");
+    const { getSeasonMatches } = await import("@/lib/football-data/football-data");
     vi.mocked(getSeasonMatches).mockResolvedValue([]);
 
-    const { getStandings } = await import("@/lib/standings-service");
+    const { getStandings } = await import("@/lib/football-data/standings-service");
     const result = await getStandings({
       competitionCode,
       seasonId,
@@ -344,7 +354,7 @@ describe("standings integration", () => {
 
   it("stores a finished and an unplayed match side by side, and shows the unplayed team as a zero-stats row", async () => {
     const { synchronizeMatches, getStandings, getTeamMatches } = await import(
-      "@/lib/standings-service"
+      "@/lib/football-data/standings-service"
     );
     const finished = buildMatch();
     const upcoming = buildMatch({
@@ -382,7 +392,9 @@ describe("standings integration", () => {
   });
 
   it("getRoundMatches filters stored rows to one round, sorted by kickoff time", async () => {
-    const { synchronizeMatches, getRoundMatches } = await import("@/lib/standings-service");
+    const { synchronizeMatches, getRoundMatches } = await import(
+      "@/lib/football-data/standings-service"
+    );
     await synchronizeMatches([
       buildMatch({
         providerMatchId: 900001,
@@ -411,7 +423,7 @@ describe("standings integration", () => {
   });
 
   it("persists and retrieves an upcoming season's fixture list, all unplayed, showing every team at zero stats", async () => {
-    const { getSeasonMatches } = await import("@/lib/football-data");
+    const { getSeasonMatches } = await import("@/lib/football-data/football-data");
     const upcomingMatches = [
       buildMatch({
         status: "SCHEDULED",
@@ -435,7 +447,7 @@ describe("standings integration", () => {
     ];
     vi.mocked(getSeasonMatches).mockResolvedValue(upcomingMatches);
 
-    const { getRoundMatches, getStandings } = await import("@/lib/standings-service");
+    const { getRoundMatches, getStandings } = await import("@/lib/football-data/standings-service");
     // The season requested is newer than the "active" one passed in: a
     // not-yet-started season is an ordinary season sync to the data layer.
     const earlierActiveSeasonId = seasonId - 1;
@@ -472,7 +484,7 @@ describe("standings integration", () => {
 
   it("keeps two competitions' matches and standings for the same season fully separate", async () => {
     const { synchronizeMatches, getStandings, getTeamMatches } = await import(
-      "@/lib/standings-service"
+      "@/lib/football-data/standings-service"
     );
     await synchronizeMatches([buildMatch()]);
     await synchronizeMatches([

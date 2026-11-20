@@ -9,19 +9,19 @@ import { PageShell } from "@/components/page-shell";
 import { FoldsFor } from "@/components/section-fold";
 import { TeamMatchesOutcome } from "@/components/team-matches-outcome";
 import { MATCHES_HEADING, TeamPageFold } from "@/components/team-page-fold";
-import { SEASON_AXIS } from "@/lib/analytics-axis";
-import type { FavouriteSource } from "@/lib/favourite-keys";
-import type { OpponentsSeries } from "@/lib/head-to-head";
-import { matchCountLabel } from "@/lib/match-count";
-import { upcomingFirst } from "@/lib/match-order";
-import type { PositionSeries } from "@/lib/position-series";
-import type { SeasonComparisonSeries } from "@/lib/season-comparison";
-import type { SeasonSummarySeries } from "@/lib/season-summary";
-import { getPageSections } from "@/lib/section-choices";
-import { foldFor } from "@/lib/section-keys";
-import type { StreakRecordsSeries } from "@/lib/streak-records";
-import type { TeamPageSource } from "@/lib/team-context";
-import type { TeamPanelLoaders } from "@/lib/team-panels";
+import { SEASON_AXIS } from "@/lib/analytics/analytics-axis";
+import type { OpponentsSeries } from "@/lib/matches/head-to-head";
+import { matchCountLabel } from "@/lib/matches/match-count";
+import { upcomingFirst } from "@/lib/matches/match-order";
+import type { FavouriteSource } from "@/lib/preferences/favourite-keys";
+import { getPageSections } from "@/lib/preferences/section-choices";
+import { foldFor } from "@/lib/preferences/section-keys";
+import type { PositionSeries } from "@/lib/teams/position-series";
+import type { SeasonComparisonSeries } from "@/lib/teams/season-comparison";
+import type { SeasonSummarySeries } from "@/lib/teams/season-summary";
+import type { StreakRecordsSeries } from "@/lib/teams/streak-records";
+import type { TeamPageSource } from "@/lib/teams/team-context";
+import type { TeamPanelLoaders } from "@/lib/teams/team-panels";
 import {
   getTeamName,
   getTeamSeasons,
@@ -30,7 +30,7 @@ import {
   type TeamSeasonsResult,
   type TeamSeasonsView,
   teamSeasonsView,
-} from "@/lib/team-seasons";
+} from "@/lib/teams/team-seasons";
 
 /**
  * A club's page, whichever provider its matches come from. What differs

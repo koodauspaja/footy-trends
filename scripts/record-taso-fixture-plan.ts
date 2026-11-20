@@ -1,4 +1,4 @@
-import { NATIONAL_TEAM_COMPETITION_PREFIX } from "../src/lib/match-source";
+import { NATIONAL_TEAM_COMPETITION_PREFIX } from "../src/lib/matches/match-source";
 import {
   LEVELS_PER_GROUP,
   SEASON_COMPETITION_ID,
@@ -6,7 +6,7 @@ import {
   type TasoGroup,
   type TasoGroupTeam,
   type TasoProviderMatch,
-} from "../src/lib/taso";
+} from "../src/lib/taso/taso";
 
 /**
  * Turns stored TASO rows back into the answers TASO gave for them, for the e2e

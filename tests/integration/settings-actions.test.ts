@@ -2,9 +2,9 @@ import { eq, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db";
 import { user, userPreferences } from "@/db/schema";
-import { preferredCompetitionFor } from "@/lib/competition-preferences";
-import { getPreferencesFor, getSessionExtrasFor } from "@/lib/preferences";
-import { saveSettings } from "@/lib/settings-actions";
+import { saveSettings } from "@/lib/account/settings-actions";
+import { preferredCompetitionFor } from "@/lib/preferences/competition-preferences";
+import { getPreferencesFor, getSessionExtrasFor } from "@/lib/preferences/preferences";
 
 /**
  * The settings' write path and read path together, against a real Postgres:
@@ -18,7 +18,7 @@ const USER_ID = "itest-actions-user";
 
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("@/lib/auth", () => ({
+vi.mock("@/lib/auth/auth", () => ({
   auth: { api: { getSession: async () => ({ user: { id: USER_ID } }) } },
 }));
 

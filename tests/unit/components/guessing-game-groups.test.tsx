@@ -1,8 +1,8 @@
 import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GroupPageView, GroupsSection, InviteView } from "@/components/guessing-game-groups";
-import { rankBoard } from "@/lib/guessing-game";
-import type { GroupMatch, GroupPage } from "@/lib/guessing-game-group-store";
+import { rankBoard } from "@/lib/guessing-game/guessing-game";
+import type { GroupMatch, GroupPage } from "@/lib/guessing-game/guessing-game-group-store";
 
 /**
  * Arvauspeli's groups as a reader sees them: `Ryhmät` on `/arvauspeli`, a
@@ -13,7 +13,7 @@ import type { GroupMatch, GroupPage } from "@/lib/guessing-game-group-store";
  * decisions/079-group-members-guesses.md
  */
 
-vi.mock("@/lib/guessing-game-group-actions", () => ({
+vi.mock("@/lib/guessing-game/guessing-game-group-actions", () => ({
   createGroupAction: vi.fn(),
   joinGroupAction: vi.fn(),
   leaveGroupAction: vi.fn(),
@@ -22,8 +22,8 @@ vi.mock("@/lib/guessing-game-group-actions", () => ({
   renewInviteLinkAction: vi.fn(),
   deleteGroupAction: vi.fn(),
 }));
-vi.mock("@/lib/auth-client", () => ({ signIn: { social: vi.fn() } }));
-vi.mock("@/lib/section-choice-actions", () => ({ saveSectionChoiceAction: vi.fn() }));
+vi.mock("@/lib/auth/auth-client", () => ({ signIn: { social: vi.fn() } }));
+vi.mock("@/lib/preferences/section-choice-actions", () => ({ saveSectionChoiceAction: vi.fn() }));
 vi.mock("next/navigation", () => ({
   usePathname: () => "/arvauspeli/liity/x",
   useSearchParams: () => new URLSearchParams(),

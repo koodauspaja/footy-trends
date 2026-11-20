@@ -10,7 +10,7 @@ import {
   userAvatar,
   userPreferences,
 } from "@/db/schema";
-import { changeRole, deleteUser, listUsers } from "@/lib/admin-users";
+import { changeRole, deleteUser, listUsers } from "@/lib/admin/admin-users";
 
 /**
  * Administration against a real Postgres: the cascade, the last-admin guard
@@ -159,7 +159,7 @@ describe("listUsers", () => {
 
   it("counts every user, not just the page", async () => {
     const { total, users } = await listUsers(1);
-    const { USERS_PER_PAGE } = await import("@/lib/admin-user-view");
+    const { USERS_PER_PAGE } = await import("@/lib/admin/admin-user-view");
 
     // The three this file seeded, at least. Not an exact number: other
     // integration files insert their own users, and they share a database.

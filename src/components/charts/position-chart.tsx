@@ -1,4 +1,4 @@
-import type { PositionPoint } from "@/lib/position-series";
+import type { PositionPoint } from "@/lib/teams/position-series";
 import { LineChart, ticksFor } from "./line-chart";
 
 /**

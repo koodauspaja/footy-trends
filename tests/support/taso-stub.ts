@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import type { RecordedFixture } from "../../scripts/record-taso-fixture-plan";
-import { parseDatabaseUrl } from "../../src/lib/test-database-name";
+import { parseDatabaseUrl } from "../../src/lib/platform/test-database-name";
 
 /**
  * What the e2e suite's stand-in for TASO answers, as a pure function of the

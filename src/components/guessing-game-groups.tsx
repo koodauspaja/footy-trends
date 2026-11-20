@@ -29,16 +29,16 @@ import {
 import { PANEL_HEADING, TABLE_HEADING } from "@/components/heading-classes";
 import { SameRouteLink } from "@/components/same-route-link";
 import { SignInPrompt } from "@/components/sign-in-prompt";
-import { MATCHES_SHOWN, MAX_GROUPS } from "@/lib/guessing-game-group";
-import { groupPath } from "@/lib/guessing-game-group-paths";
+import { MATCHES_SHOWN, MAX_GROUPS } from "@/lib/guessing-game/guessing-game-group";
+import { groupPath } from "@/lib/guessing-game/guessing-game-group-paths";
 import type {
   GroupMatch,
   GroupPage,
   GroupSummary,
   Invite,
   MemberGuesses,
-} from "@/lib/guessing-game-group-store";
-import { formatKickoff } from "@/lib/match-detail";
+} from "@/lib/guessing-game/guessing-game-group-store";
+import { formatKickoff } from "@/lib/matches/match-detail";
 
 function memberCount(count: number): string {
   return count === 1 ? "1 jäsen" : `${count} jäsentä`;

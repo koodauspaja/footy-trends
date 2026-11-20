@@ -1,10 +1,10 @@
-import { integrationDatabaseRefusal } from "../../src/lib/test-database-name";
+import { integrationDatabaseRefusal } from "../../src/lib/platform/test-database-name";
 import { integrationDatabaseUrl } from "./test-database";
 
 /**
  * The integration suite's `globalSetup`: refuses the whole run, once and before
  * any test file loads, unless `DATABASE_URL` is exactly the database
- * `integrationDatabaseUrl` derives. The rule is in `src/lib/test-database-name.ts`.
+ * `integrationDatabaseUrl` derives. The rule is in `src/lib/platform/test-database-name.ts`.
  *
  * decisions/479-integration-suite-database-guard.md
  * decisions/674-e2e-on-an-empty-database.md

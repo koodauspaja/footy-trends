@@ -5,8 +5,8 @@ import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { RenamedNotice } from "@/components/renamed-notice";
 import { TasoSeasonOnlyControls } from "@/components/taso-season-only-controls";
-import { resolveDomesticPageContext } from "@/lib/domestic-page-context";
-import { getSeasonMatchList } from "@/lib/taso-standings-service";
+import { resolveDomesticPageContext } from "@/lib/competitions/domestic-page-context";
+import { getSeasonMatchList } from "@/lib/taso/taso-standings-service";
 
 export const dynamic = "force-dynamic";
 

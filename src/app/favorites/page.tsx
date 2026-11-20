@@ -8,12 +8,15 @@ import {
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { SignInPrompt } from "@/components/sign-in-prompt";
-import { auth } from "@/lib/auth";
-import { competitionNameFor, competitionOptionsFor } from "@/lib/competition-preferences";
-import { parseCompetitionKey, parseTeamKey } from "@/lib/favourite-keys";
-import { getFavouriteKeys, resolveTeamNames } from "@/lib/favourites";
-import { logger } from "@/lib/logger";
-import { REGION_SEGMENTS, type RegionSegment } from "@/lib/regions";
+import { auth } from "@/lib/auth/auth";
+import { logger } from "@/lib/platform/logger";
+import {
+  competitionNameFor,
+  competitionOptionsFor,
+} from "@/lib/preferences/competition-preferences";
+import { parseCompetitionKey, parseTeamKey } from "@/lib/preferences/favourite-keys";
+import { getFavouriteKeys, resolveTeamNames } from "@/lib/preferences/favourites";
+import { REGION_SEGMENTS, type RegionSegment } from "@/lib/preferences/regions";
 
 const HEADING = "Suosikit";
 

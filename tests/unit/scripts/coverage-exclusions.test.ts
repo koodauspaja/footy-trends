@@ -13,7 +13,7 @@ import { parseSonarProperty } from "../../../scripts/coverage-gaps-plan";
 const PROPERTIES = readFileSync("sonar-project.properties", "utf8");
 
 // Files that construct a client or migrate as soon as they are imported.
-const CONNECTS_AT_IMPORT = new Set(["src/db/migrate.ts", "src/lib/redis.ts"]);
+const CONNECTS_AT_IMPORT = new Set(["src/db/migrate.ts", "src/lib/platform/redis.ts"]);
 
 function isToolingConfiguration(entry: string): boolean {
   return (
@@ -74,7 +74,7 @@ describe("the coverage exclusion list", () => {
   const EXPECTED = [
     // Open a connection, or migrate, at import.
     "src/db/migrate.ts",
-    "src/lib/redis.ts",
+    "src/lib/platform/redis.ts",
     // Runners whose decisions live in a tested `*-plan.ts` half.
     "scripts/backfill.ts",
     "scripts/backfill-run.ts",

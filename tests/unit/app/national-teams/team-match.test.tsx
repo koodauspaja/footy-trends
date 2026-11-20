@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { TasoMatchRow } from "@/lib/match-detail";
-import type { MatchPageData } from "@/lib/match-service";
+import type { TasoMatchRow } from "@/lib/matches/match-detail";
+import type { MatchPageData } from "@/lib/matches/match-service";
 import { warmModules } from "../../../support/warm-module";
 
 /**
@@ -21,15 +21,15 @@ const getSeasonCategoryNameMapMock =
     ) => Promise<Record<string, string>>
   >();
 
-vi.mock("@/lib/match-service", () => ({
+vi.mock("@/lib/matches/match-service", () => ({
   getMatchPageData: getMatchPageDataMock,
 }));
 
-vi.mock("@/lib/taso-standings-service", () => ({
+vi.mock("@/lib/taso/taso-standings-service", () => ({
   getSeasonCategoryNameMap: getSeasonCategoryNameMapMock,
 }));
 
-vi.mock("@/lib/logger", () => ({
+vi.mock("@/lib/platform/logger", () => ({
   logger: { error: vi.fn() },
 }));
 

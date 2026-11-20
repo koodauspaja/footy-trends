@@ -1,11 +1,11 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
-import { getAvatar, saveAvatar } from "@/lib/avatar";
-import { processAvatar } from "@/lib/avatar-image";
-import { MAX_UPLOAD_BYTES, type SaveAvatarResult } from "@/lib/avatar-limits";
-import { currentUserId } from "@/lib/current-user";
-import { logger } from "@/lib/logger";
+import { getAvatar, saveAvatar } from "@/lib/account/avatar";
+import { processAvatar } from "@/lib/account/avatar-image";
+import { MAX_UPLOAD_BYTES, type SaveAvatarResult } from "@/lib/account/avatar-limits";
+import { auth } from "@/lib/auth/auth";
+import { currentUserId } from "@/lib/auth/current-user";
+import { logger } from "@/lib/platform/logger";
 
 /**
  * The reader's own stored avatar: served on GET, replaced on POST. `/me`, not

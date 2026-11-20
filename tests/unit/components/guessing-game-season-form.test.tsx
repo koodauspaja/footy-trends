@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { formTeams, SeasonGuessForm } from "@/components/guessing-game-season-form";
-import type { SeasonKind } from "@/lib/guessing-game-season";
+import type { SeasonKind } from "@/lib/guessing-game/guessing-game-season";
 
 /**
  * A season guess form as a player uses it: a team, six teams or the whole
@@ -17,8 +17,8 @@ const { placeSeasonGuessAction, refresh, reportClientError } = vi.hoisted(() => 
   reportClientError: vi.fn(),
 }));
 
-vi.mock("@/lib/guessing-game-actions", () => ({ placeSeasonGuessAction }));
-vi.mock("@/lib/report-client-error", () => ({ reportClientError }));
+vi.mock("@/lib/guessing-game/guessing-game-actions", () => ({ placeSeasonGuessAction }));
+vi.mock("@/lib/platform/report-client-error", () => ({ reportClientError }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 
 const TEAMS = Array.from({ length: 12 }, (_, index) => ({

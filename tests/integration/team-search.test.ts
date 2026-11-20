@@ -2,7 +2,7 @@ import { and, gte, inArray, lte } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { matches, tasoMatches } from "@/db/schema";
-import { MAX_RESULTS, searchTeams } from "@/lib/team-search";
+import { MAX_RESULTS, searchTeams } from "@/lib/teams/team-search";
 
 /**
  * Team search against a real Postgres: Finnish letters fold in the database, a

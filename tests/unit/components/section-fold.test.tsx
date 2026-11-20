@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { FoldState, RememberedSection } from "@/lib/section-keys";
+import type { FoldState, RememberedSection } from "@/lib/preferences/section-keys";
 
 /**
  * A fold: a region named by its heading, in a `<details>` that starts as it is
@@ -15,8 +15,8 @@ const { saveSectionChoiceAction, reportClientError } = vi.hoisted(() => ({
   reportClientError: vi.fn(),
 }));
 
-vi.mock("@/lib/section-choice-actions", () => ({ saveSectionChoiceAction }));
-vi.mock("@/lib/report-client-error", () => ({ reportClientError }));
+vi.mock("@/lib/preferences/section-choice-actions", () => ({ saveSectionChoiceAction }));
+vi.mock("@/lib/platform/report-client-error", () => ({ reportClientError }));
 
 const { SectionFold } = await import("@/components/section-fold");
 

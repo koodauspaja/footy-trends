@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { allowedSignInEmails } from "@/lib/sign-in-allowlist";
+import { allowedSignInEmails } from "@/lib/auth/sign-in-allowlist";
 import { PROTECTED_ENVIRONMENT_IDS } from "../../../.railway/databases";
 import {
   collision,

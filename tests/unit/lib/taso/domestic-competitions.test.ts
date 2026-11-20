@@ -1,0 +1,320 @@
+import { describe, expect, it } from "vitest";
+import {
+  categoryIdForSeason,
+  categoryIdsFor,
+  competitionCodeForCategory,
+  competitionForSeasonPair,
+  competitionIdForSeason,
+  cupFormatFor,
+  DEFAULT_DOMESTIC_COMPETITION_CODE,
+  DOMESTIC_COMPETITIONS,
+  earliestSeasonFor,
+  getDomesticCompetitionName,
+  isDomesticCup,
+  parseDomesticCompetitionParam,
+  publishesZones,
+  ZONE_COMPETITION_CODES,
+} from "@/lib/taso/domestic-competitions";
+
+/**
+ * The Finnish competitions: the default one and how the `kilpailu` parameter is
+ * read, their categories and competition ids by season, their earliest seasons,
+ * the cups and their formats, and which competition a season pair belongs to.
+ *
+ * decisions/012-finnish-urls-english-code.md
+ * decisions/013-more-finnish-competitions.md
+ * decisions/015-finnish-cups.md
+ * decisions/043-liigacup.md
+ * decisions/051-home-win-baseline.md
+ * decisions/063-competition-zones.md
+ */
+
+describe("domestic competitions", () => {
+  it("defaults to Veikkausliiga", () => {
+    expect(DEFAULT_DOMESTIC_COMPETITION_CODE).toBe("VL");
+    expect(DOMESTIC_COMPETITIONS.map((c) => c.code)).toContain("VL");
+  });
+
+  it("lists the fourteen competitions, leagues in tier order then the cups", () => {
+    expect(DOMESTIC_COMPETITIONS.map((competition) => competition.code)).toEqual([
+      "VL",
+      "M1L",
+      "M1",
+      "M2",
+      "NL",
+      "N1",
+      "P21SM",
+      "P211",
+      "P18SM",
+      "T18SM",
+      "MSC",
+      "NSC",
+      "LC",
+      "M1LCUP",
+    ]);
+  });
+
+  it("names each competition as TASO currently does", () => {
+    expect(DOMESTIC_COMPETITIONS.map((competition) => competition.name)).toEqual([
+      "Veikkausliiga",
+      "Ykkösliiga",
+      "Ykkönen",
+      "Miesten Kakkonen",
+      "Briotech Kansallinen Liiga",
+      "Kansallinen Ykkönen",
+      "P21 SM",
+      "P21 Ykkönen",
+      "P18 SM",
+      "T18 SM",
+      "Miesten Suomen Cup",
+      "Naisten Suomen Cup",
+      "Liigacup",
+      "Ykkösliigacup",
+    ]);
+  });
+
+  it("returns a competition's Finnish name", () => {
+    expect(getDomesticCompetitionName("VL")).toBe("Veikkausliiga");
+  });
+
+  it("falls back to the raw code for an unknown competition", () => {
+    expect(getDomesticCompetitionName("XX")).toBe("XX");
+  });
+
+  it("parses an absent kilpailu param", () => {
+    expect(parseDomesticCompetitionParam(undefined)).toEqual({ kind: "absent" });
+  });
+
+  it("parses a valid kilpailu param", () => {
+    expect(parseDomesticCompetitionParam("VL")).toEqual({ kind: "valid", code: "VL" });
+  });
+
+  it("rejects an unknown or non-string kilpailu param", () => {
+    expect(parseDomesticCompetitionParam("XX")).toEqual({ kind: "invalid" });
+    expect(parseDomesticCompetitionParam(["VL"])).toEqual({ kind: "invalid" });
+  });
+
+  it("keeps every competition's category ranges ordered newest first", () => {
+    // `categoryIdForSeason` returns the first range starting at or below the
+    // season, which is only the right answer while the list descends.
+    for (const competition of DOMESTIC_COMPETITIONS) {
+      const seasons = competition.categories.map((category) => category.fromSeason);
+      expect(seasons, competition.code).toEqual([...seasons].sort((left, right) => right - left));
+    }
+  });
+});
+
+describe("categoryIdForSeason", () => {
+  it("resolves a competition that has always had one category id", () => {
+    expect(categoryIdForSeason("VL", 2026)).toBe("VL");
+    expect(categoryIdForSeason("VL", 2015)).toBe("VL");
+  });
+
+  it("follows a junior competition back through its predecessor ids", () => {
+    // Each era is a different category_id in TASO, confirmed against
+    // getCategories for every season.
+    expect(categoryIdForSeason("P21SM", 2026)).toBe("P21SM");
+    expect(categoryIdForSeason("P21SM", 2025)).toBe("P20SM");
+    expect(categoryIdForSeason("P21SM", 2017)).toBe("P20SM");
+    expect(categoryIdForSeason("P21SM", 2016)).toBe("ASM");
+    expect(categoryIdForSeason("P21SM", 2015)).toBe("ASM");
+  });
+
+  it("resolves every junior competition at both of its boundaries", () => {
+    const boundaries: [string, number, string][] = [
+      ["P211", 2026, "P211"],
+      ["P211", 2025, "P201"],
+      ["P211", 2017, "P201"],
+      ["P211", 2016, "APY"],
+      ["P18SM", 2026, "P18SM"],
+      ["P18SM", 2025, "P17SM"],
+      ["P18SM", 2017, "P17SM"],
+      ["P18SM", 2016, "BSM"],
+      // T18 SM kept its id from 2017 on, so it has one boundary, not two.
+      ["T18SM", 2017, "T18SM"],
+      ["T18SM", 2016, "BTSM"],
+    ];
+
+    for (const [code, season, expected] of boundaries) {
+      expect(categoryIdForSeason(code, season), `${code} ${season}`).toBe(expected);
+    }
+  });
+
+  it("resolves Ykkösliiga only from the season it was created", () => {
+    expect(categoryIdForSeason("M1L", 2024)).toBe("M1L");
+    // Below its floor, which the season selector never offers.
+    expect(categoryIdForSeason("M1L", 2023)).toBe("M1L");
+  });
+
+  it("answers with the oldest category for a season below the competition's floor", () => {
+    // Unreachable through the UI — the season selector shares that floor —
+    // so this only pins down that the helper stays total.
+    expect(categoryIdForSeason("VL", 2014)).toBe("VL");
+  });
+
+  it("answers with the code itself for an unknown competition", () => {
+    expect(categoryIdForSeason("XX", 2026)).toBe("XX");
+  });
+});
+
+describe("earliestSeasonFor", () => {
+  it("returns the oldest season a competition covers", () => {
+    expect(earliestSeasonFor("VL")).toBe(2015);
+  });
+
+  it("floors Ykkösliiga at 2024, since it did not exist before", () => {
+    expect(earliestSeasonFor("M1L")).toBe(2024);
+  });
+
+  it("floors a junior competition at its oldest predecessor, not its own id", () => {
+    expect(earliestSeasonFor("P21SM")).toBe(2015);
+    expect(earliestSeasonFor("T18SM")).toBe(2015);
+  });
+
+  it("falls back to the provider-wide floor for an unknown competition", () => {
+    // A bad `kilpailu` value must not widen the range past what TASO serves.
+    expect(earliestSeasonFor("XX")).toBe(2015);
+  });
+});
+
+describe("categoryIdsFor", () => {
+  it("returns every id a competition has been published under, newest first", () => {
+    expect(categoryIdsFor("P21SM")).toEqual(["P21SM", "P20SM", "ASM"]);
+    expect(categoryIdsFor("T18SM")).toEqual(["T18SM", "BTSM"]);
+  });
+
+  it("returns the single id for a competition that never changed", () => {
+    expect(categoryIdsFor("VL")).toEqual(["VL"]);
+  });
+
+  it("falls back to the code itself for an unknown competition", () => {
+    expect(categoryIdsFor("XX")).toEqual(["XX"]);
+  });
+});
+
+describe("competitionIdForSeason", () => {
+  it("puts every ordinary competition in the season umbrella", () => {
+    expect(competitionIdForSeason("VL", 2026)).toBe("spljp26");
+    expect(competitionIdForSeason("MSC", 2025)).toBe("spljp25");
+    expect(competitionIdForSeason("NSC", 2015)).toBe("spljp15");
+  });
+
+  it("gives Ykkösliigacup its own competition id", () => {
+    // It is a competition in its own right, not a category in the umbrella.
+    expect(competitionIdForSeason("M1LCUP", 2026)).toBe("M1LCUP26");
+    expect(competitionIdForSeason("M1LCUP", 2024)).toBe("M1LCUP24");
+  });
+
+  it("falls back to the umbrella for an unknown code", () => {
+    expect(competitionIdForSeason("XYZ", 2026)).toBe("spljp26");
+  });
+});
+
+describe("the cup competitions", () => {
+  it("reaches back to the provider floor for both Suomen Cups", () => {
+    expect(earliestSeasonFor("MSC")).toBe(2015);
+    expect(earliestSeasonFor("NSC")).toBe(2015);
+    expect(categoryIdForSeason("MSC", 2015)).toBe("MSC");
+    expect(categoryIdForSeason("NSC", 2026)).toBe("NSC");
+  });
+
+  it("floors Ykkösliigacup at 2024, the first season TASO publishes", () => {
+    // M1LCUP22, M1LCUP23 and M1LCUP27 all return zero categories.
+    expect(earliestSeasonFor("M1LCUP")).toBe(2024);
+  });
+
+  it("accepts all three as kilpailu values", () => {
+    for (const code of ["MSC", "NSC", "M1LCUP"]) {
+      expect(parseDomesticCompetitionParam(code)).toEqual({ kind: "valid", code });
+    }
+  });
+});
+
+describe("Liigacup", () => {
+  it("is its own competition, published as Liigacup{YY}", () => {
+    expect(competitionIdForSeason("LC", 2023)).toBe("Liigacup23");
+    expect(competitionIdForSeason("LC", 2026)).toBe("Liigacup26");
+  });
+
+  it("reads 2023 from LC2023 and every later season from LC", () => {
+    expect(categoryIdForSeason("LC", 2023)).toBe("LC2023");
+    expect(categoryIdForSeason("LC", 2024)).toBe("LC");
+    expect(categoryIdForSeason("LC", 2026)).toBe("LC");
+    expect(categoryIdsFor("LC")).toEqual(["LC", "LC2023"]);
+  });
+
+  it("starts at 2023 — the isolated 2015 season is left out on purpose", () => {
+    expect(earliestSeasonFor("LC")).toBe(2023);
+  });
+
+  it("maps both of its category ids back to it", () => {
+    expect(competitionCodeForCategory("LC")).toBe("LC");
+    expect(competitionCodeForCategory("LC2023")).toBe("LC");
+  });
+
+  it("is a cup, accepted as a kilpailu value", () => {
+    expect(isDomesticCup("LC")).toBe(true);
+    expect(parseDomesticCompetitionParam("LC")).toEqual({ kind: "valid", code: "LC" });
+  });
+});
+
+describe("cupFormatFor", () => {
+  it("gives the two league cups groups and a playoff", () => {
+    expect(cupFormatFor("LC")).toBe("groups-and-playoff");
+    expect(cupFormatFor("M1LCUP")).toBe("groups-and-playoff");
+  });
+
+  it("leaves both Suomen Cups as knockout cups", () => {
+    expect(cupFormatFor("MSC")).toBe("knockout");
+    expect(cupFormatFor("NSC")).toBe("knockout");
+  });
+
+  it("answers knockout for a league or an unknown code", () => {
+    expect(cupFormatFor("VL")).toBe("knockout");
+    expect(cupFormatFor("XX")).toBe("knockout");
+  });
+});
+
+describe("competitionForSeasonPair", () => {
+  const codes = ["VL", "P21SM", "LC"];
+
+  it("names the competition whose registry holds this exact pair for the season", () => {
+    expect(competitionForSeasonPair(codes, "spljp26", "VL", 2026)).toBe("VL");
+    expect(competitionForSeasonPair(codes, "spljp15", "VL", 2015)).toBe("VL");
+    expect(competitionForSeasonPair(codes, "spljp25", "P20SM", 2025)).toBe("P21SM");
+    expect(competitionForSeasonPair(codes, "Liigacup25", "LC", 2025)).toBe("LC");
+  });
+
+  it("answers null for a pair no listed competition holds that season", () => {
+    // The old junior id in the new era; a cup under a league's category.
+    expect(competitionForSeasonPair(codes, "spljp26", "P20SM", 2026)).toBeNull();
+    expect(competitionForSeasonPair(codes, "Liigacup25", "P20SM", 2025)).toBeNull();
+    // Another season's umbrella.
+    expect(competitionForSeasonPair(codes, "spljp25", "VL", 2026)).toBeNull();
+    // A competition that is not among the codes asked about.
+    expect(competitionForSeasonPair(codes, "spljp26", "M1", 2026)).toBeNull();
+  });
+});
+
+describe("publishesZones", () => {
+  it("covers the men's top three tiers and the women's top two", () => {
+    expect(ZONE_COMPETITION_CODES).toEqual(["VL", "M1L", "M1", "NL", "N1"]);
+    for (const categoryId of ["VL", "M1L", "M1", "NL", "N1"]) {
+      expect(publishesZones(categoryId)).toBe(true);
+    }
+  });
+
+  it("leaves out Miesten Kakkonen, the junior competitions in every era, and the cups", () => {
+    const others = DOMESTIC_COMPETITIONS.filter(
+      (competition) => !ZONE_COMPETITION_CODES.includes(competition.code)
+    ).flatMap((competition) => categoryIdsFor(competition.code));
+
+    expect(others).toContain("M2");
+    expect(others).toContain("P20SM");
+    expect(others.filter(publishesZones)).toEqual([]);
+  });
+
+  it("answers no for a category the registry does not hold", () => {
+    expect(publishesZones("XX")).toBe(false);
+  });
+});

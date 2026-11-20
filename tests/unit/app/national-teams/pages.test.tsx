@@ -1,9 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SeasonContext } from "@/lib/football-data";
-import type { CupSeasonResult, TeamMatchesResult } from "@/lib/standings-service";
-import type { TeamContextResult } from "@/lib/team-context";
-import type { TeamNameResult, TeamSeasonsResult } from "@/lib/team-seasons";
+import type { SeasonContext } from "@/lib/football-data/football-data";
+import type { CupSeasonResult, TeamMatchesResult } from "@/lib/football-data/standings-service";
+import type { TeamContextResult } from "@/lib/teams/team-context";
+import type { TeamNameResult, TeamSeasonsResult } from "@/lib/teams/team-seasons";
 import { warmModules } from "../../../support/warm-module";
 
 /**
@@ -20,24 +20,24 @@ import { warmModules } from "../../../support/warm-module";
 // The favourite star in this tree calls `useSession`, and the real client must
 // not load in a unit test: its cleanup timer outlives the file's jsdom. Signed
 // out is what these tests assume.
-vi.mock("@/lib/auth-client", () => ({
+vi.mock("@/lib/auth/auth-client", () => ({
   useSession: () => ({ data: null, refetch: vi.fn() }),
 }));
-vi.mock("@/lib/section-choices", () => import("../../../support/page-sections"));
+vi.mock("@/lib/preferences/section-choices", () => import("../../../support/page-sections"));
 
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
 const getCupSeasonMock = vi.fn<() => Promise<CupSeasonResult>>();
 const getTeamMatchesMock = vi.fn<() => Promise<TeamMatchesResult>>();
 const getMaxMatchdayMock = vi.fn<() => Promise<number | null>>();
 
-vi.mock("@/lib/standings-service", () => ({
+vi.mock("@/lib/football-data/standings-service", () => ({
   getCupSeason: getCupSeasonMock,
   getTeamMatches: getTeamMatchesMock,
   getMaxMatchday: getMaxMatchdayMock,
   getStandings: vi.fn(),
 }));
-vi.mock("@/lib/football-data", () => ({ getSeasonContext: getSeasonContextMock }));
-vi.mock("@/lib/logger", () => ({ logger: { error: vi.fn() } }));
+vi.mock("@/lib/football-data/football-data", () => ({ getSeasonContext: getSeasonContextMock }));
+vi.mock("@/lib/platform/logger", () => ({ logger: { error: vi.fn() } }));
 const TEAM_CONTEXT_COMPETITION = "WC";
 const TEAM_CONTEXT_SEASON = 2026;
 // The team exists, in the competition these tests already assume.
@@ -62,12 +62,12 @@ const getTeamSeasonsMock = vi.fn(async (): Promise<TeamSeasonsResult> => ({ stat
 
 const getTeamNameMock = vi.fn(async (): Promise<TeamNameResult> => ({ status: "not_found" }));
 
-vi.mock("@/lib/team-seasons", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/team-seasons")>();
+vi.mock("@/lib/teams/team-seasons", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/teams/team-seasons")>();
   return { ...actual, getTeamSeasons: getTeamSeasonsMock, getTeamName: getTeamNameMock };
 });
 
-vi.mock("@/lib/team-context", () => ({ getTeamContext: getTeamContextMock }));
+vi.mock("@/lib/teams/team-context", () => ({ getTeamContext: getTeamContextMock }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),

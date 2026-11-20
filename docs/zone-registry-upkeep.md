@@ -1,6 +1,6 @@
 # Upkeep: the foreign leagues' zone registry
 
-`src/lib/zone-registry.ts` holds, per league and season, the places the table
+`src/lib/football-data/zone-registry.ts` holds, per league and season, the places the table
 marks: European places, promotion, play-offs and relegation. football-data
 publishes none, so a person keeps them. A season with no entry shows no zones
 and nothing fails, so nobody is told when one is missing.

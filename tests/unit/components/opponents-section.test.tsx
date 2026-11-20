@@ -7,7 +7,7 @@ import {
   opponentsPanel,
   THRESHOLD_NOTE,
 } from "@/components/opponents-section";
-import type { OpponentsSeries } from "@/lib/head-to-head";
+import type { OpponentsSeries } from "@/lib/matches/head-to-head";
 
 /**
  * The `Vaikeimmat vastustajat` panel. Which opponents qualify, and in what

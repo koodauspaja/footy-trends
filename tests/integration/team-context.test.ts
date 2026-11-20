@@ -2,7 +2,7 @@ import { inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { matches, tasoMatches } from "@/db/schema";
-import { getTeamContext } from "@/lib/team-context";
+import { getTeamContext } from "@/lib/teams/team-context";
 
 /**
  * The resolution query against a real Postgres: which stored match decides a

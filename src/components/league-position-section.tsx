@@ -1,6 +1,6 @@
 import { ChartPanel } from "@/components/charts/chart-panel";
 import { PositionChart } from "@/components/charts/position-chart";
-import type { PositionSeries } from "@/lib/position-series";
+import type { PositionSeries } from "@/lib/teams/position-series";
 
 /**
  * The panel's strings.

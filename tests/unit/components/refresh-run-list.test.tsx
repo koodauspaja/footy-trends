@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { RefreshRunList } from "@/components/refresh-run-list";
-import type { RefreshRunView } from "@/lib/refresh-view";
+import type { RefreshRunView } from "@/lib/refresh/refresh-view";
 
 /**
  * The audit log as an admin reads it.

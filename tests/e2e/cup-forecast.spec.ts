@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import postgres from "postgres";
-import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
+import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/auth/e2e-analytics";
 import { dropCached } from "../support/e2e-redis";
 import { testDatabaseUrl } from "../support/test-database";
 import { openFolds } from "./folds";

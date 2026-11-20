@@ -3,12 +3,12 @@
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/
 
 import * as Sentry from "@sentry/nextjs";
-import { DATA_COLLECTION, filterSpanQueries, sampleRateFrom } from "@/lib/sentry-config";
+import { DATA_COLLECTION, filterSpanQueries, sampleRateFrom } from "@/lib/platform/sentry-config";
 
 /**
  * `NEXT_PUBLIC_`-prefixed, because anything read in the browser is inlined into
  * the bundle at build time. Unset, it takes its default in
- * `src/lib/sentry-config.ts`.
+ * `src/lib/platform/sentry-config.ts`.
  *
  * decisions/140-sentry-production-configuration.md
  * decisions/656-e2e-sends-nothing-to-sentry.md

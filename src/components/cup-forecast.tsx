@@ -7,10 +7,10 @@ import {
   FORECAST_ERROR_MESSAGE,
   NO_FIXTURES_MESSAGE,
 } from "@/components/season-forecast";
-import type { KnockoutRow, TieChance } from "@/lib/knockout-simulation";
-import type { CupForecastResult } from "@/lib/knockout-simulation-service";
-import type { Chance } from "@/lib/season-simulation";
-import type { FoldState } from "@/lib/section-keys";
+import type { KnockoutRow, TieChance } from "@/lib/predictions/knockout-simulation";
+import type { CupForecastResult } from "@/lib/predictions/knockout-simulation-service";
+import type { Chance } from "@/lib/predictions/season-simulation";
+import type { FoldState } from "@/lib/preferences/section-keys";
 
 /**
  * The section's strings; its failure and no-fixtures lines are the season

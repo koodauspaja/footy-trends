@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NicknameSettings } from "@/components/nickname-settings";
-import type { SaveNicknameResult } from "@/lib/nickname-actions";
+import type { SaveNicknameResult } from "@/lib/account/nickname-actions";
 
 /**
  * The settings page's nickname section: what it shows, what a save says, and
@@ -15,8 +15,8 @@ const { saveNicknameAction, reportClientError } = vi.hoisted(() => ({
   reportClientError: vi.fn(),
 }));
 
-vi.mock("@/lib/nickname-actions", () => ({ saveNicknameAction }));
-vi.mock("@/lib/report-client-error", () => ({ reportClientError }));
+vi.mock("@/lib/account/nickname-actions", () => ({ saveNicknameAction }));
+vi.mock("@/lib/platform/report-client-error", () => ({ reportClientError }));
 
 function renderSection(stored: { nickname: string | null } | null = { nickname: null }) {
   return render(

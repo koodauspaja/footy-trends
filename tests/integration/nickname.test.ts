@@ -2,9 +2,9 @@ import { eq, inArray, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { user, userNickname } from "@/db/schema";
-import { listUsers } from "@/lib/admin-users";
-import { nicknameKey } from "@/lib/nickname";
-import { clearNickname, getNickname, saveNickname } from "@/lib/nickname-store";
+import { nicknameKey } from "@/lib/account/nickname";
+import { clearNickname, getNickname, saveNickname } from "@/lib/account/nickname-store";
+import { listUsers } from "@/lib/admin/admin-users";
 
 /**
  * The nickname against a real Postgres: one user per key, whatever the case,

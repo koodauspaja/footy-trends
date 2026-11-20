@@ -2,9 +2,9 @@
 
 import { createContext, type ReactNode, type SyntheticEvent, useContext, useState } from "react";
 import { FoldMarker } from "@/components/fold-marker";
-import { reportClientError } from "@/lib/report-client-error";
-import { saveSectionChoiceAction } from "@/lib/section-choice-actions";
-import type { FoldState } from "@/lib/section-keys";
+import { reportClientError } from "@/lib/platform/report-client-error";
+import { saveSectionChoiceAction } from "@/lib/preferences/section-choice-actions";
+import type { FoldState } from "@/lib/preferences/section-keys";
 
 /**
  * What the page shows, such as its competition, season and round. A fold under

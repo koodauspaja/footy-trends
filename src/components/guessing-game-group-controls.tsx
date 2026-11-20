@@ -20,9 +20,9 @@ import {
   removeMemberAction,
   renameGroupAction,
   renewInviteLinkAction,
-} from "@/lib/guessing-game-group-actions";
-import { groupPath, invitePath } from "@/lib/guessing-game-group-paths";
-import { reportClientError } from "@/lib/report-client-error";
+} from "@/lib/guessing-game/guessing-game-group-actions";
+import { groupPath, invitePath } from "@/lib/guessing-game/guessing-game-group-paths";
+import { reportClientError } from "@/lib/platform/report-client-error";
 
 const BUTTON =
   "rounded border border-border px-3 py-2 text-sm hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50";

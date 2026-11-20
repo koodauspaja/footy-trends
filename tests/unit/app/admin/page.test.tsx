@@ -19,10 +19,10 @@ const { requireAdmin, listUsers, notFound, logger } = vi.hoisted(() => ({
   logger: { error: vi.fn() },
 }));
 
-vi.mock("@/lib/admin-guard", () => ({ requireAdmin }));
-vi.mock("@/lib/admin-users", () => ({ listUsers }));
+vi.mock("@/lib/admin/admin-guard", () => ({ requireAdmin }));
+vi.mock("@/lib/admin/admin-users", () => ({ listUsers }));
 vi.mock("next/navigation", () => ({ notFound }));
-vi.mock("@/lib/logger", () => ({ logger }));
+vi.mock("@/lib/platform/logger", () => ({ logger }));
 // The table is a client component with its own tests; this file is about the
 // route's gate and what it hands over.
 vi.mock("@/components/admin-user-table", () => ({

@@ -1,20 +1,20 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { useSession } from "@/lib/auth-client";
+import { useSession } from "@/lib/auth/auth-client";
+import { favouriteKeysOf } from "@/lib/auth/session-extras";
+import { reportClientError } from "@/lib/platform/report-client-error";
 import {
   toggleFavouriteCompetitionAction,
   toggleFavouriteTeamAction,
-} from "@/lib/favourite-actions";
-import { competitionKey, type FavouriteSource, teamKey } from "@/lib/favourite-keys";
-import type { RegionSegment } from "@/lib/regions";
-import { reportClientError } from "@/lib/report-client-error";
-import { favouriteKeysOf } from "@/lib/session-extras";
+} from "@/lib/preferences/favourite-actions";
+import { competitionKey, type FavouriteSource, teamKey } from "@/lib/preferences/favourite-keys";
+import type { RegionSegment } from "@/lib/preferences/regions";
 
 /**
  * The one control for favouriting anything, on every surface. A client
  * component reading the session the browser already has. A unit test that
- * renders anything containing it mocks `@/lib/auth-client`, or runs the real
+ * renders anything containing it mocks `@/lib/auth/auth-client`, or runs the real
  * client's cleanup as `session-hydration.test.tsx` does.
  *
  * decisions/026-favourites.md

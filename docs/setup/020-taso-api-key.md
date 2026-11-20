@@ -35,7 +35,7 @@ every server-to-server request too:
 | `Origin` | `https://tulospalvelu.palloliitto.fi` |
 | `User-Agent` | A real desktop browser UA string |
 
-`Referer`/`Origin`/`User-Agent` are fixed constants in `src/lib/taso.ts`,
+`Referer`/`Origin`/`User-Agent` are fixed constants in `src/lib/taso/taso.ts`,
 not secrets — the key and the signing salt (Step 3b) need environment variables.
 
 ---

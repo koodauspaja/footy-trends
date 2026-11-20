@@ -1,10 +1,10 @@
 import { percentText } from "@/components/charts/line-chart";
 import { matchDateFormatter } from "@/components/match-list-table";
 import { RowLink } from "@/components/row-link";
-import { teamDisplayName } from "@/lib/match-detail";
-import type { MatchSource } from "@/lib/match-source";
-import { formatMatchResult } from "@/lib/standings";
-import type { SeasonSurprises, Surprise } from "@/lib/surprise";
+import { formatMatchResult } from "@/lib/competitions/standings";
+import { teamDisplayName } from "@/lib/matches/match-detail";
+import type { MatchSource } from "@/lib/matches/match-source";
+import type { SeasonSurprises, Surprise } from "@/lib/predictions/surprise";
 
 /**
  * The panel's strings.

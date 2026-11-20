@@ -1,8 +1,8 @@
 import { ChartPanel } from "@/components/charts/chart-panel";
 import { SeasonComparisonChart } from "@/components/charts/season-comparison-chart";
 import { NO_MATCHES_MESSAGE } from "@/components/goals-section";
-import type { AnalyticsAxis } from "@/lib/analytics-axis";
-import type { SeasonComparisonSeries } from "@/lib/season-comparison";
+import type { AnalyticsAxis } from "@/lib/analytics/analytics-axis";
+import type { SeasonComparisonSeries } from "@/lib/teams/season-comparison";
 
 /**
  * The panel's strings that name no period. The heading, the baseline line and

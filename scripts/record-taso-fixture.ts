@@ -11,7 +11,7 @@ import { inspect } from "node:util";
 import { gunzipSync, gzipSync } from "node:zlib";
 import Redis from "ioredis";
 import postgres from "postgres";
-import { EARLIEST_TASO_SEASON, tasoCategoryNamesCacheKey } from "../src/lib/taso";
+import { EARLIEST_TASO_SEASON, tasoCategoryNamesCacheKey } from "../src/lib/taso/taso";
 import { CATEGORY_ID, COMPETITION_ID, SEASON } from "../tests/e2e/fixtures/veikkausliiga-2017";
 import { liveRunRedisUrl } from "../tests/support/e2e-redis";
 import { databaseNameFor, testDatabaseUrl } from "../tests/support/test-database";

@@ -1,4 +1,4 @@
-import type { Competition } from "@/lib/competitions";
+import type { Competition } from "@/lib/competitions/competitions";
 
 type CompetitionSelectProps = {
   competitions: Competition[];

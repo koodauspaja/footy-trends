@@ -3,14 +3,14 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { Notice } from "@/components/notice";
-import { useSession } from "@/lib/auth-client";
+import { useSession } from "@/lib/auth/auth-client";
+import { reportClientError } from "@/lib/platform/report-client-error";
 import {
   removeFavouriteCompetitionAction,
   removeFavouriteTeamAction,
-} from "@/lib/favourite-actions";
-import type { FavouriteSource } from "@/lib/favourite-keys";
-import type { RegionSegment } from "@/lib/regions";
-import { reportClientError } from "@/lib/report-client-error";
+} from "@/lib/preferences/favourite-actions";
+import type { FavouriteSource } from "@/lib/preferences/favourite-keys";
+import type { RegionSegment } from "@/lib/preferences/regions";
 
 /**
  * `/suosikit` for a signed-in reader. The lists arrive resolved from the

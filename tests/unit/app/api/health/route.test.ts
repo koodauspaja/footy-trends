@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { HEALTH_PROVIDERS_HEADER, HEALTH_PROVIDERS_TOKEN } from "@/lib/health-providers";
+import { HEALTH_PROVIDERS_HEADER, HEALTH_PROVIDERS_TOKEN } from "@/lib/platform/health-providers";
 import { warmModules } from "../../../../support/warm-module";
 
 /**
@@ -26,17 +26,17 @@ vi.mock("@/db", () => ({
   },
 }));
 
-vi.mock("@/lib/redis", () => ({
+vi.mock("@/lib/platform/redis", () => ({
   redis: {
     ping: pingMock,
   },
 }));
 
-vi.mock("@/lib/taso", () => ({
+vi.mock("@/lib/taso/taso", () => ({
   getCurrentSeason: getCurrentSeasonMock,
 }));
 
-vi.mock("@/lib/logger", () => ({
+vi.mock("@/lib/platform/logger", () => ({
   logger: {
     error: loggerErrorMock,
     warn: loggerWarnMock,

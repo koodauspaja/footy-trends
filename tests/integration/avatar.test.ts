@@ -2,8 +2,8 @@ import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { user, userAvatar } from "@/db/schema";
-import { deleteAvatar, getAvatar, saveAvatar } from "@/lib/avatar";
-import { getSessionExtrasFor } from "@/lib/preferences";
+import { deleteAvatar, getAvatar, saveAvatar } from "@/lib/account/avatar";
+import { getSessionExtrasFor } from "@/lib/preferences/preferences";
 
 /**
  * The avatar round trip against a real Postgres: `bytea` survives the driver

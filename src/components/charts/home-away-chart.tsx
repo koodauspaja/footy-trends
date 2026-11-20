@@ -1,11 +1,11 @@
+import { matchCountLabel } from "@/lib/matches/match-count";
 import {
   concededPerMatch,
   pointsPerMatch,
   type SideStats,
   scoredPerMatch,
   winPercentage,
-} from "@/lib/home-away";
-import { matchCountLabel } from "@/lib/match-count";
+} from "@/lib/teams/home-away";
 import { BarChart, BarLegend, type BarRow } from "./bar-chart";
 import { formatDecimal, percentText } from "./line-chart";
 

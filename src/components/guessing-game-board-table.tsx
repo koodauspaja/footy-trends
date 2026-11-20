@@ -7,7 +7,7 @@
  * decisions/078-private-groups.md
  */
 
-import type { Board, BoardRow } from "@/lib/guessing-game";
+import type { Board, BoardRow } from "@/lib/guessing-game/guessing-game";
 
 const tokens = new Intl.NumberFormat("fi-FI");
 

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { HEALTH_PROVIDERS_HEADER, HEALTH_PROVIDERS_TOKEN } from "@/lib/health-providers";
+import { HEALTH_PROVIDERS_HEADER, HEALTH_PROVIDERS_TOKEN } from "@/lib/platform/health-providers";
 
 /**
  * The suite's server gets an answer to the TASO request the health check makes.

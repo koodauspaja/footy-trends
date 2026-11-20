@@ -11,11 +11,11 @@
 
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
-import { forwardingShape } from "@/lib/forwarding";
-import { providersCheckAllowed } from "@/lib/health-providers";
-import { logger } from "@/lib/logger";
-import { redis } from "@/lib/redis";
-import { getCurrentSeason } from "@/lib/taso";
+import { forwardingShape } from "@/lib/platform/forwarding";
+import { providersCheckAllowed } from "@/lib/platform/health-providers";
+import { logger } from "@/lib/platform/logger";
+import { redis } from "@/lib/platform/redis";
+import { getCurrentSeason } from "@/lib/taso/taso";
 
 export const dynamic = "force-dynamic";
 

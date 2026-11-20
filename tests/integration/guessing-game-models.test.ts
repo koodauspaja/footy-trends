@@ -2,8 +2,8 @@ import { and, eq, gte, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { gameGuess, gameLedger, predictions, tasoMatches, user } from "@/db/schema";
-import { readModelGuesses } from "@/lib/guessing-game-board";
-import { joinGame, placeGuess, settleGuesses } from "@/lib/guessing-game-store";
+import { readModelGuesses } from "@/lib/guessing-game/guessing-game-board";
+import { joinGame, placeGuess, settleGuesses } from "@/lib/guessing-game/guessing-game-store";
 
 /**
  * Arvauspeli against the models with a real Postgres: the models' live rows as

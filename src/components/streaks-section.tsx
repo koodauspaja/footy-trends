@@ -1,5 +1,5 @@
 import { ChartPanel } from "@/components/charts/chart-panel";
-import type { CurrentStreak, Streak, StreaksSeries } from "@/lib/streaks";
+import type { CurrentStreak, Streak, StreaksSeries } from "@/lib/teams/streaks";
 
 /**
  * The panel's strings.

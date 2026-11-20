@@ -2,7 +2,7 @@ import { eq, inArray } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { account, session, user, userPreferences } from "@/db/schema";
-import { getPreferencesFor } from "@/lib/preferences";
+import { getPreferencesFor } from "@/lib/preferences/preferences";
 
 /**
  * The preferences table against a real Postgres: the constraints the settings

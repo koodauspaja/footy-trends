@@ -7,7 +7,7 @@
  * decisions/062-scoreline-probability-grid.md
  */
 
-import { SCORE_GRID_CAP } from "@/lib/head-to-head";
+import { SCORE_GRID_CAP } from "@/lib/matches/head-to-head";
 
 /**
  * An axis label: the number of goals, or `5+` for the capped last row and column.

@@ -4,11 +4,11 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { AccountMenu } from "@/components/account-menu";
 import { Notice } from "@/components/notice";
-import { signIn, signOut, useSession } from "@/lib/auth-client";
-import { reportClientError } from "@/lib/report-client-error";
-import { ERROR_PARAM, returnPath, withError } from "@/lib/return-path";
-import { avatarSourceOf, isAdminSession } from "@/lib/session-extras";
-import { SIGN_IN_NOT_ALLOWED } from "@/lib/sign-in-refusal";
+import { signIn, signOut, useSession } from "@/lib/auth/auth-client";
+import { ERROR_PARAM, returnPath, withError } from "@/lib/auth/return-path";
+import { avatarSourceOf, isAdminSession } from "@/lib/auth/session-extras";
+import { SIGN_IN_NOT_ALLOWED } from "@/lib/auth/sign-in-refusal";
+import { reportClientError } from "@/lib/platform/report-client-error";
 
 // `shrink-0` keeps the button its full width when a long name shares the row.
 const BUTTON_CLASS = "shrink-0 text-sm hover:underline";

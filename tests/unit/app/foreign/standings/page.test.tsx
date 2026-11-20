@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SeasonContext } from "@/lib/football-data";
-import type { CupSeasonResult, StandingsResult } from "@/lib/standings-service";
+import type { SeasonContext } from "@/lib/football-data/football-data";
+import type { CupSeasonResult, StandingsResult } from "@/lib/football-data/standings-service";
 import { warmModules } from "../../../../support/warm-module";
 
 /**
@@ -19,7 +19,7 @@ import { warmModules } from "../../../../support/warm-module";
 // The favourite star in this tree calls `useSession`, and the real client must
 // not load in a unit test: its cleanup timer outlives the file's jsdom. Signed
 // out is what these tests assume.
-vi.mock("@/lib/auth-client", () => ({
+vi.mock("@/lib/auth/auth-client", () => ({
   useSession: () => ({ data: null, refetch: vi.fn() }),
 }));
 
@@ -29,18 +29,18 @@ const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
 const getCupSeasonMock = vi.fn<() => Promise<CupSeasonResult>>();
 const loggerErrorMock = vi.fn();
 
-vi.mock("@/lib/section-choices", () => import("../../../../support/page-sections"));
-vi.mock("@/lib/standings-service", () => ({
+vi.mock("@/lib/preferences/section-choices", () => import("../../../../support/page-sections"));
+vi.mock("@/lib/football-data/standings-service", () => ({
   getStandings: getStandingsMock,
   getMaxMatchday: getMaxMatchdayMock,
   getCupSeason: getCupSeasonMock,
 }));
 
-vi.mock("@/lib/football-data", () => ({
+vi.mock("@/lib/football-data/football-data", () => ({
   getSeasonContext: getSeasonContextMock,
 }));
 
-vi.mock("@/lib/logger", () => ({
+vi.mock("@/lib/platform/logger", () => ({
   logger: { error: loggerErrorMock },
 }));
 

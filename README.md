@@ -49,7 +49,8 @@ If you are starting a feature, write a spec in `specs/NNN-feature-name.md` first
 ### Key directories
 
 - `src/app` — pages, layouts and route handlers
-- `src/lib` — data services, the cache, the models, shared utilities
+- `src/lib` — data services, the cache, the models, shared utilities, in a
+  folder per domain (`taso/`, `guessing-game/`, `predictions/`, …)
 - `src/db` — the database client and schema; migrations in `drizzle/`
 - `specs/`, `decisions/` — what each feature is, and how it was built
 - `skills/` — the workflows `CLAUDE.md` refers to

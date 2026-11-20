@@ -2,7 +2,7 @@ import { inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { matches, tasoMatches } from "@/db/schema";
-import { getTeamName, getTeamSeasons } from "@/lib/team-seasons";
+import { getTeamName, getTeamSeasons } from "@/lib/teams/team-seasons";
 
 /**
  * The grouped query against a real Postgres: which competitions and seasons a

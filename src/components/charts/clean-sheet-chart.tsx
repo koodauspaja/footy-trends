@@ -1,4 +1,4 @@
-import type { CleanSheetPoint } from "@/lib/clean-sheets";
+import type { CleanSheetPoint } from "@/lib/teams/clean-sheets";
 import { LineChart, percentText, ticksFor } from "./line-chart";
 
 /**

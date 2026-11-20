@@ -1,5 +1,5 @@
-import type { AnalyticsAxis } from "@/lib/analytics-axis";
-import type { ComparisonRow, Measure } from "@/lib/season-comparison";
+import type { AnalyticsAxis } from "@/lib/analytics/analytics-axis";
+import type { ComparisonRow, Measure } from "@/lib/teams/season-comparison";
 import { BarChart, BarLegend, type BarRow } from "./bar-chart";
 import { formatDecimal, percentText } from "./line-chart";
 

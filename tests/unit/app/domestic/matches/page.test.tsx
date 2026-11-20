@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { NormalizedTasoMatch } from "@/lib/taso";
-import type { SeasonMatchesResult } from "@/lib/taso-standings-service";
+import type { NormalizedTasoMatch } from "@/lib/taso/taso";
+import type { SeasonMatchesResult } from "@/lib/taso/taso-standings-service";
 import { warmModules } from "../../../../support/warm-module";
 
 /**
@@ -24,8 +24,8 @@ const resolveTasoSeasonContextMock = vi.hoisted(() =>
 // the configured competition name.
 const getSeasonCategoryNameMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 
-vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/taso-standings-service")>();
+vi.mock("@/lib/taso/taso-standings-service", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/taso/taso-standings-service")>();
   return {
     ...actual,
     getSeasonMatchList: getSeasonMatchListMock,

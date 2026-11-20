@@ -1,8 +1,8 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { KnockoutRow, TieChance } from "@/lib/knockout-simulation";
-import type { KnockoutForecast } from "@/lib/knockout-simulation-service";
-import type { Chance, ForecastRow } from "@/lib/season-simulation";
+import type { KnockoutRow, TieChance } from "@/lib/predictions/knockout-simulation";
+import type { KnockoutForecast } from "@/lib/predictions/knockout-simulation-service";
+import type { Chance, ForecastRow } from "@/lib/predictions/season-simulation";
 
 /**
  * The Champions League's forecast panel: its two tables, the ties still to be

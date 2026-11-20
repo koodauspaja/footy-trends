@@ -40,9 +40,9 @@ async function main(): Promise<void> {
   process.env.DATABASE_URL = connectionString;
 
   const { closeDatabase } = await import("../src/db");
-  const { redis } = await import("../src/lib/redis");
+  const { redis } = await import("../src/lib/platform/redis");
   const { runPredictionBacktest, runPredictionLog, settle } = await import(
-    "../src/lib/prediction-log-service"
+    "../src/lib/predictions/prediction-log-service"
   );
   try {
     if (command === "backtest") {

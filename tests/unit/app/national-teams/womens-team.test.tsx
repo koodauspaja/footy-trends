@@ -1,6 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { NationalTeamResult, NationalTeamYear } from "@/lib/national-team-service";
+import type {
+  NationalTeamResult,
+  NationalTeamYear,
+} from "@/lib/national-team/national-team-service";
 import { warmModules } from "../../../support/warm-module";
 
 /**
@@ -14,8 +17,8 @@ import { warmModules } from "../../../support/warm-module";
 
 const getNationalTeamYearsMock = vi.fn<() => Promise<NationalTeamResult>>();
 
-vi.mock("@/lib/section-choices", () => import("../../../support/page-sections"));
-vi.mock("@/lib/national-team-service", () => ({
+vi.mock("@/lib/preferences/section-choices", () => import("../../../support/page-sections"));
+vi.mock("@/lib/national-team/national-team-service", () => ({
   getNationalTeamYears: getNationalTeamYearsMock,
 }));
 

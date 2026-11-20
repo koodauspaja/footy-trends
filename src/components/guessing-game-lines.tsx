@@ -11,9 +11,9 @@
  */
 
 import { modelLabel } from "@/components/prediction-quality-page";
-import type { Guess, Settlement } from "@/lib/guessing-game";
-import type { ModelGuess } from "@/lib/guessing-game-models";
-import type { Paid } from "@/lib/guessing-game-store";
+import type { Guess, Settlement } from "@/lib/guessing-game/guessing-game";
+import type { ModelGuess } from "@/lib/guessing-game/guessing-game-models";
+import type { Paid } from "@/lib/guessing-game/guessing-game-store";
 
 export function formatGuess(guess: Guess): string {
   return guess.kind === "outcome" ? guess.outcome : `${guess.homeGoals}–${guess.awayGoals}`;

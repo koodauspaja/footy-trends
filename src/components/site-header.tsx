@@ -5,9 +5,9 @@ import { usePathname } from "next/navigation";
 import { AuthControls, AuthNotice } from "@/components/auth-controls";
 import { SHOW_PICKER_PARAM } from "@/components/start-redirect";
 import { TeamSearch } from "@/components/team-search";
-import { useSession } from "@/lib/auth-client";
-import { regionCrumbFor } from "@/lib/breadcrumb";
-import { defaultRegionOf } from "@/lib/session-extras";
+import { useSession } from "@/lib/auth/auth-client";
+import { defaultRegionOf } from "@/lib/auth/session-extras";
+import { regionCrumbFor } from "@/lib/competitions/breadcrumb";
 
 /**
  * `Etusivu / Kotimaa`: the front page, then the region the reader is inside.

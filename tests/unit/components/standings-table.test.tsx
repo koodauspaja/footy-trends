@@ -16,7 +16,7 @@ import { StandingsLegend, type StandingsRow, StandingsTable } from "@/components
 // The favourite star in this tree calls `useSession`, and the real client must
 // not load in a unit test: its cleanup timer outlives the file's jsdom. Signed
 // out is what these tests assume.
-vi.mock("@/lib/auth-client", () => ({
+vi.mock("@/lib/auth/auth-client", () => ({
   useSession: () => ({ data: null, refetch: vi.fn() }),
 }));
 

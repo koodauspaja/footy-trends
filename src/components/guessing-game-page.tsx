@@ -32,18 +32,22 @@ import {
   type Shares,
   STARTING_BALANCE,
   type UpcomingMatch,
-} from "@/lib/guessing-game";
-import type { GroupSummary } from "@/lib/guessing-game-group-store";
-import type { ModelGuess } from "@/lib/guessing-game-models";
+} from "@/lib/guessing-game/guessing-game";
+import type { GroupSummary } from "@/lib/guessing-game/guessing-game-group-store";
+import type { ModelGuess } from "@/lib/guessing-game/guessing-game-models";
 import {
   SEASON_KINDS,
   SEASON_PRICES,
   SEASON_REWARDS,
   type SeasonKind,
-} from "@/lib/guessing-game-season";
-import type { PickShares, SeasonSection, ShownSeasonGuess } from "@/lib/guessing-game-season-store";
-import { matchCountLabel } from "@/lib/match-count";
-import { formatKickoff } from "@/lib/match-detail";
+} from "@/lib/guessing-game/guessing-game-season";
+import type {
+  PickShares,
+  SeasonSection,
+  ShownSeasonGuess,
+} from "@/lib/guessing-game/guessing-game-season-store";
+import { matchCountLabel } from "@/lib/matches/match-count";
+import { formatKickoff } from "@/lib/matches/match-detail";
 
 const dayFormatter = new Intl.DateTimeFormat("fi-FI", {
   timeZone: "Europe/Helsinki",

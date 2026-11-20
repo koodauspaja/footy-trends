@@ -1,6 +1,6 @@
 import { GROUP_HEADING, TABLE_HEADING } from "@/components/heading-classes";
 import { SectionFold } from "@/components/section-fold";
-import type { FoldState } from "@/lib/section-keys";
+import type { FoldState } from "@/lib/preferences/section-keys";
 
 /**
  * A standings table's fold, which always starts open and is never remembered:

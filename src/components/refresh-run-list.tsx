@@ -1,4 +1,4 @@
-import type { RefreshFailureReason, RefreshRunView, RowCounts } from "@/lib/refresh-view";
+import type { RefreshFailureReason, RefreshRunView, RowCounts } from "@/lib/refresh/refresh-view";
 
 /**
  * What has been refreshed before. A server component: it renders data and

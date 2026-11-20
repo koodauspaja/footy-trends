@@ -20,7 +20,7 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import type { TasoWinner } from "@/lib/taso";
+import type { TasoWinner } from "@/lib/taso/taso";
 
 /**
  * The columns `matches` and `tasoMatches` share. A function, because Drizzle's

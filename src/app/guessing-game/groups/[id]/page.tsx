@@ -4,12 +4,12 @@ import { GroupPageView } from "@/components/guessing-game-groups";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { SignInPrompt } from "@/components/sign-in-prompt";
-import { currentUserId } from "@/lib/current-user";
-import { boardSeason } from "@/lib/guessing-game-board";
-import { parseGroupId, parseMatchesShown } from "@/lib/guessing-game-group";
-import { type GroupPage, readGroup } from "@/lib/guessing-game-group-store";
-import { openGame } from "@/lib/guessing-game-store";
-import { logger } from "@/lib/logger";
+import { currentUserId } from "@/lib/auth/current-user";
+import { boardSeason } from "@/lib/guessing-game/guessing-game-board";
+import { parseGroupId, parseMatchesShown } from "@/lib/guessing-game/guessing-game-group";
+import { type GroupPage, readGroup } from "@/lib/guessing-game/guessing-game-group-store";
+import { openGame } from "@/lib/guessing-game/guessing-game-store";
+import { logger } from "@/lib/platform/logger";
 
 export const metadata: Metadata = { title: "Arvauspelin ryhmä" };
 

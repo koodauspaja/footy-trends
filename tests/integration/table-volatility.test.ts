@@ -2,8 +2,8 @@ import { inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { matches, tasoMatches } from "@/db/schema";
-import { getSeasonMovements } from "@/lib/standings-service";
-import { getTasoSeasonMovements } from "@/lib/taso-standings-service";
+import { getSeasonMovements } from "@/lib/football-data/standings-service";
+import { getTasoSeasonMovements } from "@/lib/taso/taso-standings-service";
 
 /**
  * The season reads behind `Sijoitusten vaihtelu` against a real Postgres: only completed

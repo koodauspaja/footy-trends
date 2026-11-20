@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
-import type { ZoneKind } from "@/lib/competition-zones";
+import type { ZoneKind } from "@/lib/taso/competition-zones";
 
 /**
  * The width scale every table column is sized from. Fixed widths are what make

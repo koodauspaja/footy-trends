@@ -27,8 +27,8 @@ import {
   startUpTimeoutMs,
   withoutSentry,
 } from "./scripts/e2e-target";
-import { E2E_ANALYTICS_FLAG } from "./src/lib/e2e-analytics";
-import { HEALTH_PROVIDERS_TOKEN } from "./src/lib/health-providers";
+import { E2E_ANALYTICS_FLAG } from "./src/lib/auth/e2e-analytics";
+import { HEALTH_PROVIDERS_TOKEN } from "./src/lib/platform/health-providers";
 import { e2eRedisUrl } from "./tests/support/e2e-redis";
 import { standInDatabaseUrl, standInRedis } from "./tests/support/taso-stub";
 import { testDatabaseUrl } from "./tests/support/test-database";
@@ -142,7 +142,7 @@ export default defineConfig({
     : [["list"], ["./scripts/e2e-freshness-reporter.ts"]],
   // The browser must be more patient than the server it is waiting for: the
   // larger of the two render timeouts plus 5 s. If `RENDER_TIMEOUT_MS` in
-  // `src/lib/taso.ts` or `src/lib/football-data.ts` rises, this rises with it.
+  // `src/lib/taso/taso.ts` or `src/lib/football-data/football-data.ts` rises, this rises with it.
   expect: { timeout: Math.max(10_000, 8_000) + 5_000 },
   use: {
     baseURL: BASE_URL,
@@ -164,7 +164,7 @@ export default defineConfig({
       reuseExistingServer: false,
       // The test database, not the developer's, and no Sentry DSN; everything else
       // is inherited. The analytics flag works only against a `_test` database,
-      // which this also sets: see `src/lib/e2e-analytics.ts`.
+      // which this also sets: see `src/lib/auth/e2e-analytics.ts`.
       env: withoutSentry({
         ...process.env,
         DATABASE_URL: testDatabaseUrl(),

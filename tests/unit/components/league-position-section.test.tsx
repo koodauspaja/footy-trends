@@ -7,7 +7,7 @@ import {
   positionPanel,
   SPLIT_NOTE,
 } from "@/components/league-position-section";
-import type { PositionSeries } from "@/lib/position-series";
+import type { PositionSeries } from "@/lib/teams/position-series";
 
 /**
  * The league-position panel.

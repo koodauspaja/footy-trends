@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RefreshForm } from "@/components/refresh-form";
-import { NO_CHANGES, type RefreshPreview } from "@/lib/refresh-view";
+import { NO_CHANGES, type RefreshPreview } from "@/lib/refresh/refresh-view";
 
 /**
  * The forced refresh as an admin drives it. The actions are mocked: what
@@ -27,13 +27,13 @@ const { seasonsAction, previewAction, applyAction, state } = vi.hoisted(() => {
 
 const { reportClientError } = vi.hoisted(() => ({ reportClientError: vi.fn() }));
 
-vi.mock("@/lib/report-client-error", () => ({ reportClientError }));
+vi.mock("@/lib/platform/report-client-error", () => ({ reportClientError }));
 
 beforeEach(() => {
   reportClientError.mockClear();
 });
 
-vi.mock("@/lib/refresh-actions", () => ({
+vi.mock("@/lib/refresh/refresh-actions", () => ({
   seasonsForCompetitionAction: seasonsAction,
   previewRefreshAction: previewAction,
   applyRefreshAction: applyAction,

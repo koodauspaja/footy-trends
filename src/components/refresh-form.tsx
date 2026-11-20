@@ -2,18 +2,18 @@
 
 import { useCallback, useEffect, useId, useRef, useState, useTransition } from "react";
 import { RefreshConfirm } from "@/components/refresh-confirm";
+import { reportClientError } from "@/lib/platform/report-client-error";
 import {
   applyRefreshAction,
   previewRefreshAction,
   seasonsForCompetitionAction,
-} from "@/lib/refresh-actions";
+} from "@/lib/refresh/refresh-actions";
 import type {
   CompetitionOption,
   RefreshFailureReason,
   RefreshPreview,
   SeasonChoice,
-} from "@/lib/refresh-view";
-import { reportClientError } from "@/lib/report-client-error";
+} from "@/lib/refresh/refresh-view";
 
 /**
  * The forced season refresh's form. A client component: it imports
