@@ -29,8 +29,11 @@ Secrets and credentials
 - Never commit API keys, secrets, or credentials. Use environment variables
   (e.g. `FOOTBALL_DATA_API_KEY`) and `.env.example` to document names.
 - Block 4 asks only about secrets the pull request introduces or modifies — a
-  rule sees changed lines, so it cannot vouch for files nobody touched. There
-  is no repo-wide secret scanner here; that gap is real and unclaimed.
+  rule sees changed lines, so it cannot vouch for files nobody touched. GitHub
+  secret scanning covers the whole history, and push protection every push,
+  but only for keys of providers it recognises: a private key or a database
+  connection string goes unchecked on the Free plan (`docs/infrastructure.md`,
+  Review and analysis).
 
 Testing
 - New features require tests in `tests/`. Tests must cover happy paths and the
