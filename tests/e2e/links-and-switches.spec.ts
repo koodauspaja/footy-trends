@@ -1,6 +1,6 @@
 import { expect, type Locator, test } from "@playwright/test";
 import postgres from "postgres";
-import { e2eAppPort } from "../../scripts/e2e-target";
+import { e2eAppPort } from "../../scripts/e2e/e2e-target";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/auth/e2e-analytics";
 import { SESSION_COOKIE, storeSignedInReader } from "../support/e2e-session";
 import { testDatabaseUrl } from "../support/test-database";

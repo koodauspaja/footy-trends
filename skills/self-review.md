@@ -70,7 +70,7 @@ fifth existed.
 it is for in one to three lines, then links the decision records behind it, and
 the history goes in the record (`CLAUDE.md`,
 `decisions/531-comments-say-what-code-is-for.md`).
-`tests/unit/scripts/comment-rules.test.ts` fails on a doc comment stacked on
+`tests/unit/scripts/checks/comment-rules.test.ts` fails on a doc comment stacked on
 another, which is how a comment ends up on the wrong function.
 
 Then, any commit that changes behaviour searches for the old

@@ -26,7 +26,7 @@ import {
   serverCommand,
   startUpTimeoutMs,
   withoutSentry,
-} from "./scripts/e2e-target";
+} from "./scripts/e2e/e2e-target";
 import { E2E_ANALYTICS_FLAG } from "./src/lib/auth/e2e-analytics";
 import { HEALTH_PROVIDERS_TOKEN } from "./src/lib/platform/health-providers";
 import { e2eRedisUrl } from "./tests/support/e2e-redis";
@@ -138,8 +138,8 @@ export default defineConfig({
   // The HTML report is what release.yml uploads as an artifact. The freshness
   // reporter records a passing full run for the pre-push hook to read.
   reporter: process.env.CI
-    ? [["list"], ["html", { open: "never" }], ["./scripts/e2e-freshness-reporter.ts"]]
-    : [["list"], ["./scripts/e2e-freshness-reporter.ts"]],
+    ? [["list"], ["html", { open: "never" }], ["./scripts/e2e/e2e-freshness-reporter.ts"]]
+    : [["list"], ["./scripts/e2e/e2e-freshness-reporter.ts"]],
   // The browser must be more patient than the server it is waiting for: the
   // larger of the two render timeouts plus 5 s. If `RENDER_TIMEOUT_MS` in
   // `src/lib/taso/taso.ts` or `src/lib/football-data/football-data.ts` rises, this rises with it.

@@ -32,7 +32,7 @@ A few decisions baked into this config worth knowing:
 | `automerge` | false | Every update goes through Sourcery + SonarCloud review — nothing merges unreviewed |
 | `timezone` | Europe/Helsinki | Schedule fires at a sensible local time |
 | `lockFileMaintenance` | enabled | Refreshes transitive deps the manifest alone never moves |
-| `customManagers` | The stated npm version | README.md and INSTALL.md repeat the `packageManager` pin, and `tests/unit/scripts/setup-plan.test.ts` fails when they disagree with it. The manager bumps them in the same PR — see `tests/unit/config/renovate-npm-docs.test.ts` (#461) |
+| `customManagers` | The stated npm version | README.md and INSTALL.md repeat the `packageManager` pin, and `tests/unit/scripts/local/setup-plan.test.ts` fails when they disagree with it. The manager bumps them in the same PR — see `tests/unit/config/renovate-npm-docs.test.ts` (#461) |
 | `packageRules` | TypeScript `<7` | TypeScript 7 ships no in-process parser, and three tests read our own source as an AST. The config carries the full reason; see #43 |
 
 ---

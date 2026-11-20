@@ -321,7 +321,7 @@ commit is the version.
 Organization project `Footy Trends` (number 2), private. Status: `Backlog`,
 `Ready`, `In Progress`, `In Review`, `Done`.
 
-- **The names are read by code.** `scripts/release-pr-plan.ts` finds the status
+- **The names are read by code.** `scripts/release/release-pr-plan.ts` finds the status
   options by name; renaming a column breaks `npm run release:pr`.
 - **Nothing adds an issue to the board.** Every new issue is added by hand and
   set to `Backlog`. Merging a pull request moves its card to `Done`.
@@ -393,9 +393,9 @@ A change to the thing on the left needs the script on the right checked.
 
 | Thing | Script |
 |---|---|
-| The board's status names | `scripts/release-pr-plan.ts` |
-| The local services in `docker-compose.yml` | `scripts/services-plan.ts`, `scripts/ensure-services.ts` |
-| The test databases' names: `_test` for e2e, `_integration_test` for integration | `scripts/with-test-db.ts`, the integration suite's global setup |
-| The checkbox and reason shape on issues | `scripts/issue-boxes-plan.ts` |
-| Conventional commit subjects | `scripts/next-version.ts`, the release notes |
+| The board's status names | `scripts/release/release-pr-plan.ts` |
+| The local services in `docker-compose.yml` | `scripts/local/services-plan.ts`, `scripts/local/ensure-services.ts` |
+| The test databases' names: `_test` for e2e, `_integration_test` for integration | `scripts/db/with-test-db.ts`, the integration suite's global setup |
+| The checkbox and reason shape on issues | `scripts/checks/issue-boxes-plan.ts` |
+| Conventional commit subjects | `scripts/release/next-version.ts`, the release notes |
 | CI's stages | `npm run verify`, compared with the workflows by a unit test |

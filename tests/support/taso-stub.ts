@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
-import type { RecordedFixture } from "../../scripts/record-taso-fixture-plan";
+import type { RecordedFixture } from "../../scripts/e2e/record-taso-fixture-plan";
 import { parseDatabaseUrl } from "../../src/lib/platform/test-database-name";
 
 /**

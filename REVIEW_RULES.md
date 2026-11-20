@@ -55,7 +55,7 @@ Comments
   ```
 
 - History lives in `decisions/`, not in comments, and no comment cites an issue
-  or pull request number. `tests/unit/scripts/comment-rules.test.ts` holds the
+  or pull request number. `tests/unit/scripts/checks/comment-rules.test.ts` holds the
   deterministic part: no new number, no cited record that does not exist, no
   doc comment stacked on another, and no test name that cites an issue, a spec
   or a spec section or is not written as a string. Block 7 judges the rest. See

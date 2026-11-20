@@ -24,7 +24,7 @@ Everything after the merge — tag, release notes, deploy — happens on its own
 
 ## How the version is decided
 
-`scripts/next-version.ts` reads the conventional commit subjects in the
+`scripts/release/next-version.ts` reads the conventional commit subjects in the
 promotion range and applies semver:
 
 | In the range | Bump |
