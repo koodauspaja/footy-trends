@@ -13,12 +13,19 @@ checks ran, for the one action that needed it.
 | The body is the chosen file's bytes as they are, `application/octet-stream`, not a form | `request.formData()` reads the whole body before anything can count it. A plain body is read chunk by chunk, so the cap stops reading at the chunk that passes 8 MB and cancels the rest |
 | The cap is the stream count alone, with no `Content-Length` check | One rule in one place. A length header can be absent or wrong, and the count decides either way |
 | The origin check compares `Origin` with the request's host, `x-forwarded-host` first, as Next's server-action check does | That check is what protected the upload as an action. It works behind Railway's proxy, where server actions already pass it, and on any local port. `BETTER_AUTH_URL`, which the issue named, is `http://localhost:3000` in CI and release while e2e serves on 3001, so it would refuse every upload there |
+| The origin's scheme is not compared, only its host | Next's own check compares hosts alone. An `http://` page on this host would need someone injecting into plain HTTP, which HSTS stops (decisions/808), and the session cookie is `SameSite=Lax`, which under schemeful same-site is not sent from `http://` to `https://`. Reading the scheme behind Railway's proxy would mean trusting `x-forwarded-proto` too |
+| The body read has no deadline of its own | Node's `requestTimeout`, 300 s by default and left alone by `next start`, closes a request whose body has not arrived by then, as it did for the server action |
+| Chunks are kept as they arrive and joined once | Next's own action body parser does the same. A chunk is one socket read, so reaching millions of them means millions of separate reads, which is the slow drip the timeout above ends |
 | A request with no `Origin`, or `null`, is refused | Next lets one through with a warning. Every current browser sends `Origin` on a `POST`, so only a hand-made request lacks it, and this one carries a session cookie |
 | Origin first, then the session, then the body | A foreign request reaches nothing, and a signed-out caller's bytes are never read |
 | Each answer has a status, 200, 400, 401, 403, 413, 415, 422 or 500, and a JSON body of the same `SaveAvatarResult` the action returned | The page reads the body, so its Finnish notices are unchanged. The status is for logs and anything else reading the route. Answers are `no-store` |
 | `uploadAvatar` throws on an answer it cannot read, a proxy's error page for one | The page's `catch` already reports to Sentry and shows the generic notice for a rejected upload. Reading an unknown answer as `failed` would show the same notice and report nothing |
 | `saveAvatarAction` is removed, and `removeAvatarAction` stays an action | Removing carries no body. Two paths to upload would be two rules to keep in step |
 | A refused origin is a `warn` line with no fields | It is new behaviour, and the line says it happened without carrying an address or a host |
+
+`specs/025-custom-avatar.md` now opens its *Writing* and *1 MB wall* sections
+with a pointer here, and its edge-case, limits, criteria and files rows say what
+changed.
 
 The cost the spec named stands: the upload is now the one write on the settings
 page that is not a server action. Its other reason, that a route handler has no

@@ -62,6 +62,7 @@ type Refusal = Extract<SaveAvatarResult, { ok: false }>["reason"];
  * The HTTP status each answer carries. The body says the same, and is what
  * the settings page reads.
  *
+ * decisions/025-custom-avatar.md
  * decisions/810-avatar-upload-route.md
  */
 const STATUS: Record<"saved" | "foreign-origin" | "signed-out" | Refusal, number> = {
@@ -84,6 +85,7 @@ function answer(result: SaveAvatarResult, status: number): Response {
  * host it was sent to, read as Next reads it for a server action. A request
  * without an `Origin` is refused, which no browser's POST is.
  *
+ * decisions/025-custom-avatar.md
  * decisions/810-avatar-upload-route.md
  */
 function fromThisSite(request: Request): boolean {
@@ -97,6 +99,7 @@ function fromThisSite(request: Request): boolean {
 /**
  * The body, read until it passes the cap: past it the rest is never read.
  *
+ * decisions/025-custom-avatar.md
  * decisions/810-avatar-upload-route.md
  */
 async function readCapped(request: Request): Promise<Buffer | "too-large"> {
@@ -120,6 +123,7 @@ async function readCapped(request: Request): Promise<Buffer | "too-large"> {
  * Replaces the reader's picture with the body's bytes, which are the chosen
  * file as it is: no form encoding, so the cap applies while it streams.
  *
+ * decisions/025-custom-avatar.md
  * decisions/810-avatar-upload-route.md
  */
 export async function POST(request: Request): Promise<Response> {

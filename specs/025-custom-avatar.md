@@ -189,6 +189,13 @@ one round trip rather than growing by one per field added.
 
 ### Writing — server actions
 
+**Changed by `decisions/810-avatar-upload-route.md`.** The upload is now
+`POST /api/avatar/me`, a route handler. It checks `Origin` against the request's
+host, as Next does for an action, and stops reading the body at 8 MB. It answers
+the same `{ ok, version }` or `{ ok: false, reason }`. Removing stays a server
+action, and Next's server-action body limit is back at its default. What follows
+is the reasoning this spec shipped with.
+
 New `src/lib/avatar-actions.ts`, separate from `settings-actions.ts` so that
 `sharp` is not pulled into the module every other settings write goes through.
 
@@ -217,6 +224,9 @@ A discriminated reason rather than a message, because the strings are Finnish UI
 copy and belong in the component, not in a server module.
 
 ### The 1 MB wall in front of all of this
+
+**No longer in front of the upload** since `decisions/810-avatar-upload-route.md`:
+a route handler has no such limit, and the route enforces the 8 MB cap itself.
 
 Next enforces a body limit on **server actions** — `1024 * 1024` bytes, read
 straight out of `action-handler.js` in the version this repo pins. Over it, the
@@ -284,7 +294,7 @@ already revalidates.
 | Animated WebP | First frame stored, silently. It is a 28px avatar. |
 | Portrait or panoramic photo | Centre square, per `fit: "cover"` |
 | Transparent PNG | Preserved — WebP carries alpha |
-| A file past the *configured* body limit (over 10 MB) | The action is rejected by Next before it runs. The client's `catch` maps a rejection on this path to the size notice, because it is the only thing it can be — the client already refused anything over 8 MB. |
+| A body past 8 MB sent to the route | Answered `413` with `{ ok: false, reason: "too-large" }`, the rest of the body never read (`decisions/810-avatar-upload-route.md`). The client has already refused anything over 8 MB before sending. |
 | Upload while the session expired | `{ ok: false, reason: "failed" }` → generic notice; the header will already have fallen back to `Kirjaudu sisään` |
 | Remove when no custom avatar exists | Succeeds and changes nothing; the button is not rendered in that state anyway |
 | Custom removed, Google `image` is null | Menu falls back to the name, which is 024's existing behaviour |
@@ -297,7 +307,7 @@ already revalidates.
 
 | | |
 |---|---|
-| Upload cap | 8 MB, with Next's server-action body limit raised to 10 MB |
+| Upload cap | 8 MB, enforced by the upload route as the body arrives (`decisions/810-avatar-upload-route.md`) |
 | Accepted in | JPEG, PNG, WebP, HEIC |
 | Stored as | WebP, 256×256, quality 80 |
 | Stored size, worst case | **21 kB** — measured, see below |
@@ -414,8 +424,8 @@ being:
 - [ ] A photo carrying EXIF orientation is stored the right way up, and the
       stored bytes contain no EXIF block.
 - [ ] A 3 MB photograph — over Next's default server-action limit and under the
-      app's cap — uploads successfully. Without the `bodySizeLimit` change this
-      fails, which is the whole reason the setting is in this spec.
+      app's cap — uploads successfully. Since `decisions/810-avatar-upload-route.md`
+      the upload is a route handler, which that limit does not reach.
 - [ ] A 9 MB image is refused with `Kuva on liian suuri. Enimmäiskoko on 8 Mt.`
       and nothing is written.
 - [ ] A file that is not JPEG, PNG, WebP or HEIC — including one renamed to `.png` —
@@ -471,11 +481,11 @@ above, and by a manual staging check listed on the issue.
 | `specs/025-custom-avatar.md` | this |
 | `decisions/025-custom-avatar.md` | new, written while building |
 | `package.json` | promote `sharp` to a direct dependency (already present via `next`) |
-| `next.config.ts` | `experimental.serverActions.bodySizeLimit: "10mb"` |
+| `next.config.ts` | `experimental.serverActions.bodySizeLimit: "10mb"`, removed again by `decisions/810-avatar-upload-route.md` |
 | `src/db/schema.ts` | `user_avatar` |
 | `drizzle/` | generated migration |
 | `src/lib/avatar-image.ts` | new — validation and re-encoding, no database |
-| `src/lib/avatar-actions.ts` | new — `saveAvatar`, `removeAvatar` |
+| `src/lib/avatar-actions.ts` | new — `saveAvatar`, `removeAvatar`. The upload moved to `src/app/api/avatar/me/route.ts` in `decisions/810-avatar-upload-route.md` |
 | `src/lib/avatar.ts` | new — reads and writes the row, and warns when the table grows past its share of the database |
 | `src/lib/preferences.ts` | one query returning region **and** avatar version |
 | `src/lib/auth.ts` | `customSession` gains `avatarVersion` |

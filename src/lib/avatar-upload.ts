@@ -3,6 +3,7 @@ import type { SaveAvatarResult } from "@/lib/avatar-limits";
 /**
  * Where the settings page sends a chosen picture.
  *
+ * decisions/025-custom-avatar.md
  * decisions/810-avatar-upload-route.md
  */
 export const AVATAR_UPLOAD_PATH = "/api/avatar/me";
@@ -25,6 +26,7 @@ function isReason(value: unknown): value is Reason {
  * The route's answer, or null for anything else: a proxy's error page, an
  * empty body, a shape this code does not know.
  *
+ * decisions/025-custom-avatar.md
  * decisions/810-avatar-upload-route.md
  */
 export function readUploadAnswer(body: unknown): SaveAvatarResult | null {
@@ -41,6 +43,7 @@ export function readUploadAnswer(body: unknown): SaveAvatarResult | null {
  * Sends the file's bytes as they are. Throws when the request fails or the
  * answer cannot be read, so the caller reports it as it does any failure.
  *
+ * decisions/025-custom-avatar.md
  * decisions/810-avatar-upload-route.md
  */
 export async function uploadAvatar(file: File): Promise<SaveAvatarResult> {

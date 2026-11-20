@@ -5,6 +5,7 @@ import { AVATAR_UPLOAD_PATH, readUploadAnswer, uploadAvatar } from "@/lib/avatar
  * The settings page's half of the avatar upload: the request, and reading its
  * answer.
  *
+ * decisions/025-custom-avatar.md
  * decisions/810-avatar-upload-route.md
  */
 
