@@ -18,8 +18,9 @@ export function cspReportUri(dsn: string | undefined): string | null {
   // The parser drops surrounding spaces itself, and answers a blank with null.
   const url = dsn === undefined ? null : URL.parse(dsn);
   if (url === null) return null;
-  const project = url.pathname.replace(/^\/+|\/+$/g, "");
-  if (url.protocol !== "https:" || url.username === "" || !/^\d+$/.test(project)) return null;
+  const [project, ...rest] = url.pathname.split("/").filter((segment) => segment !== "");
+  if (url.protocol !== "https:" || url.username === "" || project === undefined) return null;
+  if (rest.length > 0 || !/^\d+$/.test(project)) return null;
   return `https://${url.host}/api/${project}/security/?sentry_key=${url.username}`;
 }
 
@@ -58,10 +59,7 @@ export function contentSecurityPolicy(options: {
  *
  * decisions/808-security-headers.md
  */
-export function securityHeaders(env: {
-  NODE_ENV?: string | undefined;
-  NEXT_PUBLIC_SENTRY_DSN?: string | undefined;
-}): Header[] {
+export function securityHeaders(env: Readonly<Record<string, string | undefined>>): Header[] {
   return [
     // Two years. No `includeSubDomains`: the host is Railway's, and this app
     // speaks for no name below it.

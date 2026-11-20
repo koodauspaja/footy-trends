@@ -35,6 +35,7 @@ describe("cspReportUri", () => {
     ["over plain HTTP", "http://0123abcd@o4507.ingest.de.sentry.io/4508"],
     ["with no project", "https://0123abcd@o4507.ingest.de.sentry.io/"],
     ["with a path before the project", "https://0123abcd@sentry.example.com/sentry/4508"],
+    ["with a path after the project", "https://0123abcd@o4507.ingest.de.sentry.io/4508/extra"],
   ])("names no endpoint for a DSN that is %s", (_case, dsn) => {
     expect(cspReportUri(dsn)).toBeNull();
   });
