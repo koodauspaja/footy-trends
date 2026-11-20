@@ -21,8 +21,12 @@ export const HEALTH_PROVIDERS_HEADER = "x-health-providers-token";
  */
 export const HEALTH_PROVIDERS_TOKEN = "HEALTH_PROVIDERS_TOKEN";
 
-// Hashed first, so the two sides are the same length and the comparison takes
-// the same time whatever was sent.
+/**
+ * A value hashed, so the two sides of the comparison are the same length and it
+ * takes the same time whatever was sent.
+ *
+ * decisions/814-health-providers-token.md
+ */
 function digest(value: string): Buffer {
   return createHash("sha256").update(value).digest();
 }
