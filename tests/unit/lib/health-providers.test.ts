@@ -24,6 +24,12 @@ describe("providersCheckAllowed", () => {
     );
   });
 
+  it("allows the token when the variable holds it with a trailing newline", () => {
+    expect(
+      providersCheckAllowed(headersWith(TOKEN), { [HEALTH_PROVIDERS_TOKEN]: `${TOKEN}\n` })
+    ).toBe(true);
+  });
+
   it("refuses a request without the header", () => {
     expect(providersCheckAllowed(headersWith(), { [HEALTH_PROVIDERS_TOKEN]: TOKEN })).toBe(false);
   });
