@@ -1,9 +1,8 @@
 /**
  * Next's configuration: the route table behind every Finnish URL, the
- * security headers, the server-action body limit, and Sentry's build settings.
+ * security headers, and Sentry's build settings.
  *
  * decisions/012-finnish-urls-english-code.md
- * decisions/025-custom-avatar.md
  * decisions/042-head-to-head-view.md
  * decisions/293-sentry-config-subpath.md
  * decisions/527-one-route-table.md
@@ -153,14 +152,6 @@ const nextConfig: NextConfig = {
         ...OTHER_SPELLINGS,
       ].map(([source, destination]) => ({ source, destination, permanent: true }))
     );
-  },
-
-  experimental: {
-    serverActions: {
-      // Raised from Next's default of 1 MB for the avatar upload, whose own cap is
-      // 8 MB: Next rejects an oversized action body before the action runs.
-      bodySizeLimit: "10mb",
-    },
   },
 };
 

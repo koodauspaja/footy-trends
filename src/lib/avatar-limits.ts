@@ -22,10 +22,10 @@ export const AVATAR_SIZE = 256;
 export const AVATAR_CONTENT_TYPE = "image/webp";
 
 /**
- * 8 MB. `next.config.ts` raises Next's own server-action body limit above it,
- * so this cap is the one the reader meets.
+ * 8 MB: the most the upload route reads of a body before refusing it.
  *
  * decisions/025-custom-avatar.md
+ * decisions/810-avatar-upload-route.md
  */
 export const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 
@@ -35,3 +35,14 @@ export const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
  * decisions/025-custom-avatar.md
  */
 export type AvatarRejection = "missing" | "too-large" | "unsupported" | "unreadable";
+
+/**
+ * What an upload answers: the new picture's cache token, or why it was refused.
+ * `failed` is everything the reader cannot fix by choosing another file.
+ *
+ * decisions/025-custom-avatar.md
+ * decisions/810-avatar-upload-route.md
+ */
+export type SaveAvatarResult =
+  | { ok: true; version: string }
+  | { ok: false; reason: AvatarRejection | "failed" };
