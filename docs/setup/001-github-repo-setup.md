@@ -3,7 +3,7 @@
 ## Goal
 
 Your own copy of the repository on GitHub, with Actions limited to the people
-who work on it.
+who work on it and pushes checked for keys.
 
 This project: organisation `koodauspaja`, repository `footy-trends`, public.
 
@@ -52,6 +52,13 @@ Repository → **Settings** → **Actions** → **General** → **Fork pull requ
 workflows from outside collaborators** → **Require approval for all outside
 collaborators**.
 
+## Step 5 — Turn on secret scanning and push protection
+
+Repository → **Settings**, section **Secret Protection**: enable **Secret
+scanning**, then **Push protection**. Both are free on a public
+repository. On the Free plan, **Generic patterns** and **Validity checks**
+cannot be turned on.
+
 ---
 
 ## Done when
@@ -60,6 +67,8 @@ collaborators**.
 - [ ] Your collaborator has Write access
 - [ ] `OWNER_USERNAME` and `COLLABORATOR_USERNAME` are set as repository variables
 - [ ] Fork pull request workflows need approval
+- [ ] `gh api repos/:owner/:repo --jq .security_and_analysis` shows
+      `secret_scanning` and `secret_scanning_push_protection` `enabled`
 
 ## Next
 
