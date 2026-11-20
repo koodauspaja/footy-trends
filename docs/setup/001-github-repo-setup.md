@@ -3,7 +3,7 @@
 ## Goal
 
 Your own copy of the repository on GitHub, with Actions limited to the people
-who work on it.
+who work on it and pushes checked for keys.
 
 This project: organisation `koodauspaja`, repository `footy-trends`, public.
 
@@ -11,14 +11,24 @@ This project: organisation `koodauspaja`, repository `footy-trends`, public.
 
 ## Step 1 — Create the repository
 
-Create an empty repository in your organisation and push a clone of this one
-to it:
+Create an empty repository in your organisation, turn on its secret checks,
+and only then push a clone of this one to it, so the first push is checked
+too:
 
 ```bash
 git clone https://github.com/koodauspaja/footy-trends.git
 cd footy-trends
 git remote rename origin source
-gh repo create <your-org>/<your-repo> --public --source . --remote origin --push
+gh repo create <your-org>/<your-repo> --public --source . --remote origin
+```
+
+Repository → **Settings**, section **Secret Protection**: enable **Secret
+scanning**, then **Push protection**. Both are free on a public repository. On
+the Free plan, **Generic patterns** and **Validity checks** cannot be turned
+on.
+
+```bash
+git push -u origin main
 ```
 
 Everything the later steps refer to arrives with the clone: the application,
@@ -60,6 +70,8 @@ collaborators**.
 - [ ] Your collaborator has Write access
 - [ ] `OWNER_USERNAME` and `COLLABORATOR_USERNAME` are set as repository variables
 - [ ] Fork pull request workflows need approval
+- [ ] `gh api repos/:owner/:repo --jq .security_and_analysis` shows
+      `secret_scanning` and `secret_scanning_push_protection` `enabled`
 
 ## Next
 
