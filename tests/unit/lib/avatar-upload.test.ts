@@ -26,6 +26,7 @@ describe("readUploadAnswer", () => {
 
   it.each([
     ["nothing", null],
+    ["no body at all", undefined],
     ["text", "Bad Gateway"],
     ["a saved answer without a version", { ok: true }],
     ["a version that is not a string", { ok: true, version: 1 }],

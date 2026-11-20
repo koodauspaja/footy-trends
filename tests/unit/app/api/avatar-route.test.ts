@@ -102,8 +102,11 @@ function countingBody(chunks: Uint8Array[]) {
         if (chunk === undefined) controller.close();
         else controller.enqueue(chunk);
       },
-      // Nothing pulled ahead: every pull is one the route asked for.
+      cancel() {
+        pulled.cancelled = true;
+      },
     },
+    // Nothing pulled ahead: every pull is one the route asked for.
     { highWaterMark: 0 }
   );
   return { body, pulled };
@@ -153,6 +156,8 @@ describe("POST /api/avatar/me", () => {
     expect(await response.json()).toEqual({ ok: false, reason: "too-large" });
     // Eight megabytes fit, the ninth passes the cap, and nothing after it is pulled.
     expect(pulled.count).toBe(9);
+    // And the stream is told to stop, so its source is released.
+    expect(pulled.cancelled).toBe(true);
     expect(processAvatar).not.toHaveBeenCalled();
     expect(saveAvatar).not.toHaveBeenCalled();
   });
