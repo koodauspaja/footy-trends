@@ -42,6 +42,7 @@ export function contentSecurityPolicy(options: {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self'",
+    // Sentry's browser events go through the same-origin tunnel, `/monitoring`.
     "connect-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",
