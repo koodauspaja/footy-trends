@@ -36,6 +36,7 @@ export const VERIFY_STAGES: readonly Stage[] = [
  * decisions/568-e2e-against-a-production-build.md
  * decisions/522-railway-environment-from-code.md
  * decisions/807-database-backup.md
+ * decisions/841-commit-subject-gate.md
  */
 export const NOT_A_STAGE: Readonly<Record<string, string>> = {
   "db:migrate":
@@ -47,6 +48,8 @@ export const NOT_A_STAGE: Readonly<Record<string, string>> = {
     "cuts the tag once every gate is green; it is the release itself, not a check of it",
   "check:boxes":
     "reads the issues a pull request closes, so there is nothing for it to read until one exists (#463)",
+  "check:commits":
+    "the commit-msg hook checks each subject as the commit is made; CI checks the pull request's commits again",
   "railway:environment":
     "creates a Railway environment, started by hand; it is an action on the infrastructure, not a check of the code",
   backup:

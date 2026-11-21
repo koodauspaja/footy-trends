@@ -30,6 +30,7 @@
     "release:version": "tsx scripts/release/release-version.ts",
     "review:findings": "tsx scripts/checks/review-findings.ts",
     "check:boxes": "tsx scripts/checks/issue-boxes.ts",
+    "check:commits": "tsx scripts/hooks/commit-subjects.ts",
     "check:sourcery": "tsx scripts/checks/sourcery-review.ts",
     "setup": "tsx scripts/local/setup-main.ts",
     "start": "next start",

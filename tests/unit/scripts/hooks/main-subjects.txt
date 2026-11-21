@@ -1,0 +1,611 @@
+chore: push and pull request rules enforced by hooks (#806) (#840)
+chore: back up the production database daily, encrypted, to B2 (#807) (#833)
+fix: team search keeps one order for teams whose newest matches kick off together (#834) (#836)
+fix: matches that kick off together keep one order, in the cup forecast and four match lists (#832) (#835)
+chore(deps): update tailwindcss monorepo to v4.3.5 (#782)
+chore(deps): update dependency npm to v12.2.3 (#799)
+chore(deps): update vitest monorepo to v5.1.1 (#800)
+chore: each environment's build uploads source maps to its own Sentry project (#830) (#831)
+chore: drop Sentry's automaticVercelMonitors, which does nothing on Railway (#812) (#827)
+refactor: taso-standings-service.ts and guessing-game-store.ts split by job (#816) (#826)
+refactor: scripts/ in a folder per job, tests/unit/scripts mirroring it (#816) (#825)
+refactor: src/lib in a folder per domain, tests/unit/lib mirroring it (#816) (#824)
+chore: the health endpoint's TASO check needs a token (#814) (#823)
+chore: avatar upload through a route handler, so server actions keep Next's 1 MB limit (#810) (#822)
+chore: pin GitHub's own actions to commit hashes, kept current by Renovate (#813) (#821)
+chore: break the three import cycles and turn on noImportCycles (#811) (#820)
+chore: secret scanning and push protection on (#809) (#819)
+chore: security headers on every response, with a report-only CSP (#808) (#818)
+chore(deps): update dependency @biomejs/biome to v2.6.8 (#797)
+chore(deps): update dependency @playwright/test to v1.65.1 (#798)
+chore(deps): update dependency jsdom to v31.0.1 (#788)
+chore(deps): update dependency railway to v3.17.0 (#793)
+chore(deps): update dependency @biomejs/biome to v2.6.7 (#787)
+fix(deps): update dependency postgres to v4.1.1 (#791)
+chore(deps): update dependency @vitejs/plugin-react to v6.3.0 (#792)
+fix(deps): update dependency next to v16.4.6 (#790)
+fix(deps): update dependency @sentry/nextjs to v11.12.0 (#795)
+chore(deps): update sonarsource/sonarqube-scan-action action to v8.5.0 (#794)
+chore: a release's domains reach through its pull requests (#780) (#796)
+chore(deps): update dependency @biomejs/biome to v2.6.6 (#750)
+chore(deps): update dependency @playwright/test to v1.65.0 (#783)
+fix(deps): update dependency @sentry/nextjs to v11.11.0 (#784)
+fix(deps): update dependency postgres to v4.1.0 (#785)
+chore(deps): update dependency jsdom to v31 (#786)
+chore(deps): update dependency npm to v12.2.2 (#781)
+fix(deps): update dependency next to v16.4.5 (#753)
+fix(deps): update dependency better-auth to v1.7.18 (#749)
+docs!: Arvauspeli takes the app to 2.0.0 (#777) (#778)
+chore(deps): update tailwindcss monorepo to v4.3.4 (#752)
+feat: 079 — Arvauspeli: members' guesses on a group's page (#776)
+feat: 078 — Arvauspeli: private groups (#774)
+chore: remove stale allowScripts entries and dead overrides (#765) (#773)
+feat: 075 — Arvauspeli: season guesses (#772)
+feat: 074 — Arvauspeli: against the models (#771)
+feat: 073 — Arvauspeli: leaderboard (#769)
+chore: the coverage gaps check skips a checkout nested in this one (#770)
+fix: 766 — Arvauspeli: the floor opens below the cheapest open price (#768)
+feat: 077 — A nickname the user sets up and edits (#767)
+chore(deps): update vitest monorepo to v5.1.0 (#755)
+chore(deps): update dependency @vitejs/plugin-react to v6.2.1 (#754)
+feat: 076 — Arvauspeli: matches that do not go as listed (#762)
+feat: 072 — Arvauspeli: match guesses and the token balance (#761)
+chore(deps): update sonarsource/sonarqube-scan-action action to v8.4.1 (#751)
+fix(deps): update dependency postgres to v4 (#747)
+chore(deps): update node.js to v26 (#741)
+fix(deps): update dependency @sentry/nextjs to v11.10.0 (#713)
+chore: TypeScript 7 is adopted with 7.1, as a full upgrade (#650) (#745)
+chore(deps): update dependency @biomejs/biome to v2.6.4 (#712)
+fix(deps): update dependency better-auth to v1.7.14 (#738)
+chore(deps): update sonarsource/sonarqube-scan-action action to v8.4.0 (#740)
+chore(deps): lock file maintenance (#742)
+fix(deps): update dependency next to v16.4.3 (#739)
+chore: the links e2e spec seeds its upcoming match and reads the seeded 2017 season (#735) (#736)
+chore: the review rules let any document quote Finnish UI copy, as CLAUDE.md does (#732)
+chore: zod 4.6.7 and vite 8.3.5 in the lockfile, clearing npm audit's two high advisories (#731)
+feat: 071 — Hide and show a page's sections (#730)
+chore: one Finnish match-count helper in its own module (#723) (#729)
+chore: headings and spacing, so a panel, a table's label and an empty line each look like what they are (#696) (#728)
+fix(deps): update dependency better-auth to v1.7.12 (#671)
+chore: links underlined in their text's colour from one rule, and switches as segmented controls (#701) (#726)
+chore: spec 021's long-name row says a name wraps, and the phone tests check the left edge too (#699) (#727)
+chore: tables on a phone keep their key column in view, and a box that still scrolls shadows its edge (#699) (#725)
+chore: charts legible on a phone, kept at their reading width (#700) (#724)
+chore: a cup's latest round starts open and every earlier round closed, each keeping its count (#698) (#722)
+fix: the profile picture's file control is Finnish in every browser (#719) (#721)
+chore: a match list's matchup links to the match where its names are plain (#715) (#720)
+chore: a match page names its teams once, its meetings line says before this match, and an average position has no ordinal period (#703) (#718)
+fix: the season's surprises say no prediction has been made yet, not that no match was played (#702) (#717)
+chore: each kind of page puts its sections in the agreed order, its most basic part first (#714) (#716)
+fix(deps): update dependency next to v16.4.2 (#711)
+chore(deps): update dependency npm to v12.2.1 (#710)
+fix: Kausi lyhyesti's end-to-end club is placed by seeded rows only, so the release run passes on an empty database (#708) (#709)
+docs: the knockout simulations' cost inside Railway, measured in staging (#517) (#706)
+test: check the e2e session cookie against better-auth's makeSignature, not better-call (#705)
+chore: a UX sweep of every page, its findings filed, and skills/ui-review.md to keep pages in shape (#695) (#704)
+chore: the forecasts' cache keys carry their season's generation, so a forced refresh can't be undone by a late write (#691) (#694)
+feat: 067 — Knockout simulation: the Suomen Cups (#692)
+fix: a match with a null side is skipped, so the rest of its season is stored (#690) (#693)
+feat: 067 — Knockout simulation: the engine and the Champions League (#689)
+feat: 070 — Kausi lyhyesti: the league position fact (#688)
+feat: 069 — Kausi lyhyesti: the clean-sheet fact (#687)
+fix: the TASO spec defines a test with the stand-in too, so a stand-in run records its freshness marker (#685) (#686)
+chore: TASO requests are signed from TASO_HASH_SALT when it is set, until official access (#681) (#683)
+chore: a season refresh's older snapshot may be written last (#678) (#682)
+chore: the e2e suite's own Redis, and one helper for the specs' cache deletes (#615) (#680)
+feat: 068 — Choosing which models /ennusteet's charts draw (#668)
+chore: e2e passes on an empty database with the TASO stand-in (#674) (#679)
+feat: 066 — Kausi lyhyesti: a team's season in up to three sentences (#662)
+chore(deps): update dependency jsdom to v30.1.3 (#670)
+chore(deps): update dependency railway to v3.16.0 (#655)
+fix(deps): update react monorepo to v19.3.1 (#654)
+chore(deps): update vitest monorepo to v5.0.5 (#653)
+chore(deps): update dependency @playwright/test to v1.64.1 (#652)
+fix: the avatar reload test waits for the save button before clicking it again (#675) (#677)
+chore: every statement on the app's database client times out after 10 s (#665) (#676)
+chore: a push of only specs and docs skips the e2e freshness check, and the check watches everything else (#661) (#667)
+chore: an opt-in stand-in for TASO, so e2e runs while TASO refuses our requests (#672) (#673)
+fix: the TASO integration tests clear their fixtures around every test, so no season is left behind for e2e (#666) (#669)
+chore: @sentry/nextjs 11, with what an event carries stated in full (#565) (#658)
+chore: e2e runs send nothing to Sentry, and the default trace rate is a tenth (#656) (#657)
+feat: 060 — Elo variants: recent form, and each team's own home advantage (#651)
+feat: 065 — Zones for the foreign leagues: Europe, promotion and relegation (#649)
+feat: 064 — Season simulation: each team's chance of the real zones (#635) (#648)
+feat: 059 — Predictions for cup competitions (#516) (#647)
+fix: a stored TASO table behind the results is answered with our own (#644) (#645)
+feat: competition zones per season (#518) (#642)
+feat: scoreline probability grid for an upcoming match (#514) (#641)
+chore: Kauden ennuste names the groups it leaves out (#638) (#640)
+feat: season simulation — who is likely to win, go up, or go down (#347) (#627)
+fix: a table TASO serves as unplayed is answered with our own (#628) (#630)
+test: five e2e tests of a split group read a finished season (#636) (#637)
+chore: Kilpailut rinnakkain on a standings page starts folded (#629) (#633)
+test: the Kakkonen split test reads 2024, whose tables no longer move (#631)
+feat: the next meeting of a rivalry, predicted (#480) (#625)
+fix(deps): update dependency @sentry/nextjs to v10.76.2 (#617)
+fix(deps): update dependency drizzle-orm to v0.45.4 (#618)
+feat: surprise index — the biggest upsets, by what Elo expected (#354) (#623)
+chore(deps): update dependency railway to v3.13.1 (#620)
+chore(deps): update dependency @playwright/test to v1.64.0 (#619)
+chore: patch the transitive dependency advisories in the lock file: brace-expansion, source-map-js, fast-uri (#622) (#624)
+fix(deps): update dependency next to v16.4.0 (#621)
+chore(deps): update dependency @vitejs/plugin-react to v6.1.2 (#616)
+chore(deps): update dependency jsdom to v30.1.2 (#541)
+feat: prediction quality by competition — which model works where (#353) (#614)
+feat: a Poisson goal model — expected goals, the most likely score and a third row in Ennuste (#345) (#613)
+chore: the Railway environment command waits for the first deploy to end before its own (#611)
+chore: the Railway environment workflow names its project to the CLI and links nothing (#610)
+chore: a new Railway environment from one command, its keys from GitHub secrets (#522) (#609)
+chore: a failure a client component catches is reported to Sentry (#604) (#608)
+chore: logging is a requirement in the spec checklist, the template and the self-review pass (#538) (#607)
+chore: admin writes, refused sign-ins and the predictions run leave a record (#603) (#606)
+chore: one transaction type, one placeholder team id and one round dropdown (#532) (#605)
+chore: the end-to-end suite runs against a production build before a merge (#568) (#602)
+chore: check:sourcery passes a documentation-only push Sourcery left no review on (#600) (#601)
+fix: a TASO season fallback built from a failure is not cached (#534) (#599)
+chore: check:sourcery says which kind of Sourcery review a head has (#597) (#598)
+chore: the quick check is not a full review, and the author's review comes first (#559) (#596)
+fix: a predictions run that cannot reach the database says so and exits 1 (#571) (#594)
+fix: the star and the team search read the sign-in state as the header does (#535) (#595)
+chore: Sonar back to zero open issues on main (#592) (#593)
+chore: test names carry no issue or spec citations (#584) (#591)
+chore: the rest of the library's unit tests say what each test protects (#531) (#590)
+chore: forty of the library's unit tests say what each test protects (#531) (#589)
+chore: the scripts' unit tests say what each test protects (#531) (#588)
+chore: the components' unit tests, and twelve others, say what each test protects (#531) (#587)
+chore: the pages' unit tests say what each test protects (#531) (#586)
+chore: the end-to-end tests' comments say what each spec protects (#531) (#585)
+chore: the integration tests' comments say what each test protects (#531) (#583)
+chore: scripts and configuration files say what the code is for (#531) (#582)
+chore: the last seventy-six files of src say what the code is for (#531) (#581)
+chore: forty more files' comments say what the code is for (#531) (#580)
+chore: nineteen more files' comments say what the code is for (#531) (#579)
+chore: eighteen more files' comments say what the code is for (#531) (#578)
+chore: seventeen more files' comments say what the code is for (#531) (#577)
+chore: twelve more files' comments say what the code is for (#531) (#576)
+chore: ten more files' comments say what the code is for (#531) (#573)
+fix: the Axiom transport is given a path, and CI builds for production (#574) (#575)
+fix(deps): update dependency pino to v10.4.0 (#549)
+chore: schema, auth, head-to-head, match-service and three more files' comments say what the code is for (#531) (#572)
+chore: taso.ts and taso-standings-service.ts comments say what the code is for (#531) (#570)
+chore: comments say what the code is for, and their reasons move to decision records (#531) (#569)
+fix: a link that stays on the same route is never prefetched, at all four places that have one (#567)
+chore: one builder for the team panels, and the Finnish club page through the shared one (#530) (#558)
+chore: a missing DATABASE_URL fails with a message naming it, and never falls back to PGHOST (#536) (#561)
+chore: let staging's web service sleep when idle (#551) (#564)
+fix(deps): update dependency @sentry/nextjs to v10.76.0 (#548)
+chore: permissions, timeouts and concurrency for the CI and Sonar workflows (#537) (#563)
+chore(deps): update dependency @types/node to v25.9.9 (#540)
+chore: the unit run fails below 100% coverage (#562)
+fix: the not-found and error pages are in Finnish (#533) (#560)
+chore: one parser for whole numbers in URLs (#529) (#557)
+fix: SQL takes a shoot-out out of a score only when both sides are stored, as the tables do (#528) (#556)
+fix: every English folder path redirects to its Finnish URL, from one route table (#527) (#555)
+fix: a Finnish club's page has the favourite star (#526) (#554)
+chore: start Next directly, so a replaced deployment shuts down cleanly instead of showing CRASHED (#525) (#553)
+chore: setup docs for two readers — a procedure from zero, and an infrastructure map for decisions (#524) (#552)
+chore: Railway's settings as Infrastructure as Code, before the railway.toml cutoff (#521) (#523)
+feat: how good the predictions have been — accuracy, Brier, log-loss, calibration (#350) (#519)
+fix(deps): update dependency better-auth to v1.7.7 (#543)
+fix(deps): update dependency next to v16.3.8 (#544)
+fix(deps): update dependency sharp to v0.35.5 (#545)
+chore(deps): update dependency npm to v12.2.0 (#546)
+chore(deps): update sonarsource/sonarqube-scan-action action to v8.3.0 (#547)
+chore(deps): update vitest monorepo to v5.0.3 (#542)
+chore(deps): update dependency @biomejs/biome to v2.5.15 (#539)
+feat: Elo ratings, a strength for every team and a prediction from it (#344) (#513)
+chore: drop package.json's version, which the git tag replaced (#511)
+docs: skip next build in the predictions cron service (#512)
+feat: predictions log, every prediction recorded before kickoff (#349) (#508)
+chore: mount GlobalError as a document in its test (#503) (#507)
+chore: remove competitionIdFromSeason, unused since #476 (#505) (#506)
+feat: home-win baseline, a competition's own history as a prediction (#343) (#504)
+test: store the seasons the table-movement e2e reads before reading them (#501) (#502)
+fix: print a match list's score as the match page does (#498) (#499)
+fix: read every analytic's football-data score after extra time (#495) (#497)
+fix: count a football-data match's goals after extra time, not its shoot-out (#492) (#496)
+feat: table volatility, how much a league's table moves after mid-season (#342) (#494)
+feat: home advantage and draw rate, compared across competitions (#339) (#493)
+feat: goals per game across a competition's seasons (#341) (#491)
+chore: stop prefetching links repeated per data row (#489) (#490)
+test: assert the rule, not the stored data, in two e2e cases (#485) (#486)
+feat: the rivalry — both teams' current form beside their history (#355) (#483)
+feat: comebacks and blown leads only where the half-time score is known (#473) (#482)
+chore: refuse to run the integration suite against a non-test database (#479) (#481)
+feat: bogey teams on the team page (#333) (#478)
+feat: scorelines and goal averages between two teams (#337) (#477)
+feat: Liigacup, with group tables and a drawn playoff (#474) (#476)
+feat: the full head-to-head between two teams (#336) (#475)
+chore(deps): update vitest monorepo to v5.0.2 (#465)
+chore: file dependency updates as chores, not bugs (#471)
+chore: make the integration suite deterministic (#467) (#469)
+chore: fail the handoff when an issue's boxes are bare (#463) (#468)
+fix(deps): update dependency better-auth to v1.7.6 (#466)
+feat: analytics for the national teams (#459) (#464)
+chore: let Renovate update the npm version our documents state (#461) (#462)
+chore(deps): update npm to v12.1.0 (#456)
+feat: analytics for cup competitions (#425) (#460)
+fix(deps): update dependency next to v16.3.6 (#455)
+fix(deps): update dependency @sentry/nextjs to v10.75.3 (#453)
+chore(deps): update dependency jsdom to v30.1.1 (#452)
+chore: group the Analyysit panels (#424) (#457)
+fix(deps): update dependency drizzle-orm to v0.45.3 (#454)
+chore(deps): update dependency drizzle-kit to v0.31.11 (#451)
+fix(deps): update dependency tsx to v4.23.15 (#437)
+chore(deps): update dependency @types/node to v25.9.8 (#431)
+feat: streak records across stored seasons (#447) (#450)
+feat: this season against the club's other seasons (#448) (#449)
+chore: line chart text sized for a phone (#441) (#442)
+fix(deps): update dependency @sentry/nextjs to v10.75.0 (#439)
+chore(deps): update dependency jsdom to v30.1.0 (#438)
+fix(deps): update dependency better-auth to v1.7.5 (#436)
+chore(deps): update sonarsource/sonarqube-scan-action action to v8.2.2 (#433)
+chore(deps): update vitest monorepo to v5.0.1 (#434)
+chore(deps): update dependency @biomejs/biome to v2.5.14 (#430)
+feat: leads given away, beside the deficits rescued (#429) (#435)
+feat: comebacks from a half-time deficit (#335) (#432)
+feat: streaks on the team page (#332) (#428)
+feat: clean sheets over a season on the team page (#334) (#427)
+fix: wait for the button, not the alert, in the refusal-cleared test (#422)
+chore: the same fold marker on the Huuhkajat years and cup rounds (#419) (#421)
+feat: home vs away on the team page (#329) (#420)
+chore: fold the team page's match list and Analyysit away (#416) (#418)
+feat: goals scored vs conceded on the team page (#328) (#417)
+feat: rolling form trend on the team page (#327) (#415)
+chore: mark league-position points where the team did not play (#413) (#414)
+feat: league position by matchday on the team page (#331) (#412)
+chore: shrink the coverage exclusion list to the files that earn it (#411)
+chore: one command for the gate, and a way to debug one e2e spec (#410)
+chore: one command from a fresh clone to a running app, and an INSTALL.md (#409)
+chore: make the safe reset the easy one, and the destructive one deliberate (#407)
+fix: refuse to reset a database that is not the one compose creates (#404) (#405)
+chore: make every local command that needs the database start it (#399) (#402)
+chore: give the analytics backlog a subject axis, and document it (#398)
+chore: point the setup doc and spec 029 at the migration files that exist (#395) (#397)
+fix(deps): update dependency next to v16.3.5 (#380)
+chore: give the refusal-cleared assertion a budget that fits a loaded runner (#388) (#393)
+chore: hold TypeScript on 6.x until its JS API has a parser (#392)
+chore(deps): update vitest monorepo to v5 (#288)
+chore: re-measure the review classes, and add the two that were missing (#390) (#391)
+chore: scope Sourcery review rules to the files they ask about (#386) (#389)
+fix(deps): update react monorepo to v19.3.0 (#383)
+fix(deps): update dependency @sentry/nextjs to v10.74.0 (#382)
+chore: stop charging one test for the whole file's module transform (#384) (#387)
+chore: fail the unit suite when a source file has no test at all (#385)
+fix(deps): update dependency better-auth to v1.7.4 (#379)
+chore(deps): update dependency @types/node to v25.9.6 (#378)
+chore(deps): update dependency @biomejs/biome to v2.5.13 (#377)
+feat: force-refresh a stored season, the admin page (#150) (#381)
+chore: give every migration a name that says what it does (#376)
+feat: force-refresh a stored season, the engine (#150) (#375)
+chore: give the team search its own header row (#373)
+chore(deps): update dependency fast-uri to v4 (#287)
+chore: grant admin with a script, not hand-written SQL (#371)
+feat: let an admin see and manage the app's users (#119)
+feat: give the app a role, and one place that checks it (#119)
+docs: make the instructions say how we actually work (#368)
+revert: take spec 028 back off main (#367)
+docs: stop the TASO timeout claiming a mechanism I never verified
+fix: bound the provider requests a page render makes (#363)
+chore: put the release's domains on the release PR, as labels and on the board (#361)
+chore: say which domains a release touches (#357) (#359)
+chore: send TASO's Finland to Huuhkajat or Helmarit (#325) (#358)
+feat: let a signed-in reader find a team by name (#247) (#326)
+docs: correct the claim that a list change needs no redeploy (#314) (#323)
+chore: restrict sign-in to an allowlist where one is configured (#314) (#322)
+chore: declare tsx, which the deploy invokes directly (#317) (#321)
+chore: keep rate-limit counters in Redis, not one instance's memory (#318) (#320)
+fix: give the heaviest import a timeout that fits its cost (#316) (#319)
+fix: trust only the header the edge is measured to overwrite (#309) (#315)
+fix: resolve the client IP, so rate limiting stops sharing one bucket (#309) (#312)
+chore: make the sentence-final period explicit beside a link (#313)
+fix: measure what the proxy sends before configuring for it (#309) (#311)
+chore: document the two OAuth projects, not one (#264) (#310)
+chore: publish terms of service, and the attribution we owe (#303) (#308)
+chore: publish a privacy policy, and a footer to reach it from (#302) (#306)
+fix: give the test suites their own database, and a real bug they hid (#304) (#305)
+chore: make the unit suite independent of its declaration order (#299) (#300)
+feat: let a reader keep favourite teams and competitions (#118) (#298)
+chore: stop the Oracle PL/SQL analyzer claiming our Postgres migrations (#296) (#297)
+chore: take Sonar to zero open issues on main (#292) (#295)
+chore: import withSentryConfig from its new subpath (#293) (#294)
+chore: write down what reviews keep finding, and make the tally repeatable (#290) (#291)
+feat: choose your own profile picture (#268) (#289)
+fix(deps): update dependency @sentry/nextjs to v10.73.0 (#286)
+chore(deps): update dependency @playwright/test to v1.63.0 (#263)
+chore: give every colour a role that follows the theme (#269) (#283)
+chore: validate group ids at both ends of the range (#284) (#285)
+chore: say so when a continuation group has no carry-over entry (#281) (#282)
+chore: stop unit tests printing application logs (#278) (#279)
+fix: show the saved value in the settings dropdowns (#271) (#275)
+fix: read group standings from an endpoint TASO still serves (#272) (#276)
+chore: patch three transitive dependency advisories (#277) (#280)
+fix: make the account menu legible in dark mode (#273) (#274)
+chore(deps): update dependency @biomejs/biome to v2.5.12 (#260)
+feat: give a signed-in reader settings of their own (#117) (#270)
+fix: stop a spent sign-in error surviving the next attempt (#266) (#267)
+feat: let a reader sign in with their Google account (#116) (#265)
+chore(deps): update dependency @types/react-dom to v19.2.7 (#261)
+fix(deps): update dependency next to v16.3.4 (#262)
+chore: analyse the whole repository, on a supported scanner (#258)
+fix: stop the e2e suite assuming one database's contents (#256) (#257)
+feat: tell a club apart from a club that does not exist (#87) (#254)
+feat: give every table its columns from one shared scale (#202) (#253)
+chore: name the competition in the head-to-head list (#251) (#252)
+feat: resolve a team page from the team's own newest match (#246) (#249)
+feat: add the match page (#71) (#248)
+chore(deps): update dependency tsx to v4.23.13 (#224)
+chore(deps): update dependency @biomejs/biome to v2.5.11 (#144)
+chore(deps): update dependency @testing-library/react to v16.3.3 (#223)
+fix(deps): update dependency next to v16.3.3 (#225)
+chore(deps): update dependency @vitejs/plugin-react to v6.1.1 (#226)
+fix: compare content, not where git keeps it (#242) (#244)
+chore: rebase stale branches instead of merging, and keep strict on main (#236) (#241)
+chore: monitor the scraped TASO key, and close a hole in the probe (#113) (#243)
+chore: say "spec number" in the branch-naming rule (#172) (#240)
+chore: add a script that proves Sentry receives events from production (#230) (#239)
+fix: take the backfill's current TASO season from the provider, not the clock (#219) (#238)
+fix: notice deleted files in the e2e freshness check (#220) (#237)
+chore: run e2e serially locally too, not only in CI (#227) (#235)
+chore: make the Sourcery merge gate survive both its failure modes (#233) (#234)
+docs: stop telling operators to replace the shared provider keys (#231) (#232)
+docs: record that the provider API keys are shared with staging (#214) (#229)
+docs: record that Wait for CI gates, but recovery is manual (#215) (#228)
+chore: record why release does not require an up-to-date branch (#221) (#222)
+chore: generate release notes in the agreed format (#217) (#218)
+chore(deps): update dependency @types/react-dom to v19.2.5 (#145)
+chore: repair the allowScripts allowlist, which had drifted (#210) (#212)
+chore: add a region breadcrumb to the site header (#207) (#209)
+chore: stop tracking next-env.d.ts, which flips between dev and build (#211) (#213)
+chore: block pushes that no passing e2e run covers (#84) (#208)
+test: pin the tab title to the selected season (#170) (#206)
+feat: settle Sentry's production configuration (#140) (#204)
+feat: skip competition-seasons the backfill has already stored (#169) (#205)
+feat: report the running commit at /api/health (#85) (#203)
+fix: cache TASO reads, so an empty answer is not asked again forever (#200) (#201)
+fix: wait out a rate limit instead of showing an error page (#197) (#198)
+fix: make concurrent group syncs safe on a cold table (#196) (#199)
+fix: stop a first release's notes understating it (#85) (#195)
+feat: let FIRST_RELEASE_VERSION name the first release (#85) (#193)
+feat: add a one-shot production backfill (#169) (#192)
+fix: make the round links change the page, not just the URL (#189) (#191)
+ci: add the release pipeline, with the version derived from its commits (#85) (#190)
+docs: add the production environment setup guide (#140) (#188)
+docs: repair the listener probe for Next 16.3.2 (#176) (#187)
+fix: stop the loading state naming a table most pages lack (#179) (#186)
+test: wait for the rounds before measuring the cup page (#178) (#185)
+feat: add the Helmarit page and share it with Huuhkajat (#167) (#184)
+fix: stop the Huuhkajat page being prerendered at build time (#182) (#183)
+fix: render the years that loaded instead of blanking the page (#180) (#181)
+feat: add the Huuhkajat page under Maajoukkueet (#166) (#177)
+chore: silence the per-request MaxListenersExceededWarning (#174) (#175)
+feat: add the Maajoukkueet region with the World Cup and Euro (#165) (#173)
+feat: add the Finnish cups with a drawn bracket (#164) (#171)
+feat: add Champions League with league phase, stages and bracket (#68) (#168)
+chore: document stacked-PR issue linking in the open-pr skill (#159) (#163)
+chore: match the branch-protection doc to reality, require ticking issue boxes (#162)
+chore: run unit tests without service containers (#160)
+chore: correct the documented Sourcery limits to the Pro plan (#157)
+feat: validate 77 carry-over entries for the Finnish competitions (#156)
+feat: add the nine remaining Finnish competitions (#155)
+feat: apply starting_points and decide group rendering by result (#154)
+feat: make TASO storage category-aware (#151)
+chore: freeze the clock for the needsRefresh boundary tests (#149)
+feat: make every URL Finnish and every identifier English (#143)
+chore(deps): update vitest monorepo to v4.1.11 (#146)
+fix(deps): update dependency next to v16.3.2 (#147)
+chore: identify and document the MaxListenersExceededWarning (#139)
+chore: align the team page's provider-failure copy with what it shows (#128) (#138)
+chore: document the Sourcery review gate and who may review (#137)
+chore: clear the remaining SonarCloud findings on main (#136)
+fix: renumber split-group rounds that restart instead of continuing (#134)
+chore: validate every carry-over config entry against real TASO data (#132)
+feat: discover the current Veikkausliiga season from TASO (#131)
+feat: render playoff groups as match lists instead of standings tables (#130)
+feat: add Veikkausliiga UI pages and region picker (part 2/2) (#122)
+Merge pull request #121 from koodauspaja/feature/009-veikkausliiga
+refactor: fix SonarCloud Quality Gate failures on PR #121
+refactor: remove duplicate/unused TASO cache TTL constants, addressing Sourcery review on PR #121
+fix: add trailing newlines to drizzle migration meta files for lint
+feat: add TASO data layer for Veikkausliiga standings (#88)
+Merge pull request #120 from koodauspaja/feature/008-winless-teams-in-standings
+test: cover POSTPONED explicitly for the winless-team roster acceptance criterion
+docs: record manual verification against real dev server and live data
+refactor: address Sourcery review on PR #120
+test: update integration tests to match the new winless-team behavior
+feat: show winless teams in the standings table with zero stats (#111)
+Merge pull request #112 from koodauspaja/feature/007-back-navigation
+refactor: extract shared resolveBasePageContext, addressing Sourcery review
+Merge pull request #115 from koodauspaja/chore/sonar-quality-gate-wait
+Merge pull request #114 from koodauspaja/chore/dedupe-page-metadata-fetches
+chore: make the Quality Gate result actually fail CI
+refactor: dedupe generateMetadata/page-component fetches, fix duplication
+feat: add persistent header and back navigation to standings
+docs: add spec for back navigation
+Merge pull request #110 from koodauspaja/bug/104-competition-aware-page-titles
+test: cover the ok-with-no-matches branch in team page metadata
+fix: make browser tab titles competition- and page-aware
+Merge pull request #97 from koodauspaja/renovate/biomejs-biome-2.x
+Merge pull request #100 from koodauspaja/renovate/nextjs-monorepo
+Merge pull request #101 from koodauspaja/renovate/axiomhq-pino-2.x
+fix: update allowScripts entry for sharp's version bump
+fix(deps): update dependency next to v16.3.1
+Merge pull request #109 from koodauspaja/chore/fix-transitive-vulnerabilities
+Merge pull request #108 from koodauspaja/chore/renovate-lockfile-maintenance
+Merge pull request #107 from koodauspaja/chore/pin-sonarcloud-action
+fix(deps): resolve transitive vulnerabilities in brace-expansion, fast-uri, nanoid
+chore: enable Renovate lock file maintenance
+fix(ci): pin SonarSource/sonarcloud-github-action to a commit SHA
+Merge pull request #106 from koodauspaja/chore/bug-workflow-skill
+Merge pull request #105 from koodauspaja/chore/auto-add-issues-to-board
+docs: clarify regression-test step for non-behavioral bugs
+docs: fix awkward wording per Sourcery review
+docs: add a bug workflow skill, no spec required
+docs: require every issue type to be added to the project board on creation
+Merge pull request #102 from koodauspaja/feature/006b-other-competitions-ui-v2
+test: decouple home page test from link order, add BL1 e2e coverage
+feat: add competition picker, /sarjataulukko, and Kilpailu selectors
+Merge pull request #92 from koodauspaja/feature/006a-competitions-data-layer
+fix(deps): update dependency @axiomhq/pino to v2
+fix(deps): update dependency @sentry/nextjs to v10.70.0 (#99)
+chore(deps): update dependency @testing-library/jest-dom to v7.0.1 (#98)
+chore: raise Renovate's concurrent PR limit from 3 to 10 (#96)
+chore(deps): update dependency @biomejs/biome to v2.5.8
+chore(deps): update dependency tsx to v4.23.12 (#48)
+fix(deps): update dependency ioredis to v6 (#51)
+docs: check diff size against Sourcery's limits before opening a PR (#95)
+feat: parameterize standings/matches data layer by competition code
+chore: set GitHub Issue Type alongside labels on every issue template (#90)
+chore: add e2e tests (#83)
+feat: add listing matches for a selected season (#82)
+feat: add listing matches for a selected team (#79)
+docs: require a descriptive --name for db:generate migrations (#80)
+feat: add standings after selected round (#78)
+docs: require feature issues to be Ready before implementation starts (#77)
+chore: add API request logging for health checks and football-data.org calls (#75)
+docs: move chore board card through In Progress and In Review (#76)
+chore: commit shared Claude Code settings, ignore local overrides (#74)
+docs: require chore issues to be Ready before implementation starts (#73)
+docs: require a closing keyword so PRs always link to their issue (#64) (#65)
+chore: run integration tests in CI (#62) (#63)
+chore: bring unit test coverage to 100% (#61)
+Merge pull request #59 from koodauspaja/feature/002-season-selector-and-backfill
+fix: load .env in vitest so integration tests can reach postgres (#57)
+feat: add season selector and lazy backfill (#57)
+fix: force dynamic rendering on the home page (#58)
+chore: assert provider cache TTLs in football-data tests (#56)
+Merge pull request #55 from koodauspaja/feature/001-premier-league-standings
+fix: address Sourcery review findings on PR #55
+feat: add Premier League match-based standings (#54)
+docs: don't auto-close issues from PRs
+Merge pull request #53 from koodauspaja/chore/007-reorganize-tests
+chore: reorganize tests by type (#7)
+Merge pull request #52 from koodauspaja/chore/add-chore-workflow-skill
+chore: add chore workflow skill
+docs: clarify feature-spec workflow
+Merge pull request #50 from koodauspaja/renovate/react-monorepo
+chore(deps): update react monorepo
+Merge pull request #49 from koodauspaja/renovate/npm-12.x
+Merge pull request #47 from koodauspaja/renovate/vitejs-plugin-react-6.x
+chore(deps): update npm to v12.0.2
+Merge pull request #42 from koodauspaja/renovate/jsdom-30.x
+chore(deps): update dependency @vitejs/plugin-react to v6.0.5
+Merge pull request #31 from koodauspaja/renovate/biomejs-biome-2.x
+Merge pull request #39 from koodauspaja/renovate/sentry-javascript-monorepo
+chore(deps): update dependency jsdom to v30
+fix(deps): update dependency @sentry/nextjs to v10.69.0
+chore(deps): update dependency @biomejs/biome to v2.5.6
+Merge pull request #46 from koodauspaja/chore/update-claude-rule-sets
+docs: clarify ai-assisted feature workflow
+Merge pull request #41 from koodauspaja/renovate/major-testing-library-monorepo
+Merge pull request #38 from koodauspaja/renovate/react-monorepo
+Merge pull request #37 from koodauspaja/renovate/nextjs-monorepo
+Merge pull request #35 from koodauspaja/renovate/vitejs-plugin-react-6.x
+Merge pull request #45 from koodauspaja/chore/spec-writing-feature-openers
+docs: add spec and issue workflow skills
+Merge pull request #44 from koodauspaja/renovate/npm-12.x
+docs: align setup docs with npm 12
+Merge pull request #40 from koodauspaja/renovate/actions-setup-node-7.x
+chore(deps): update npm to v12
+chore(deps): update dependency @testing-library/jest-dom to v7
+chore(deps): update actions/setup-node action to v7
+fix(deps): update react monorepo to v19.2.8
+fix(deps): update dependency next to v16.2.12
+chore(deps): update dependency @vitejs/plugin-react to v6.0.4
+Merge pull request #36 from koodauspaja/renovate/vitest-monorepo
+chore(deps): update vitest monorepo to v4.1.10
+Merge pull request #34 from koodauspaja/renovate/tailwindcss-monorepo
+chore(deps): update tailwindcss monorepo to v4.3.3
+Merge pull request #33 from koodauspaja/renovate/tsx-4.x
+chore(deps): update dependency tsx to v4.23.1
+Merge pull request #32 from koodauspaja/renovate/node-25.x
+chore(deps): update dependency @types/node to v25.9.5
+Merge pull request #28 from koodauspaja/renovate/axiomhq-pino-1.x
+Merge pull request #26 from koodauspaja/renovate/tsx-4.x
+fix(deps): update dependency @axiomhq/pino to v1.8.0
+Merge pull request #29 from koodauspaja/renovate/sentry-javascript-monorepo
+Merge pull request #24 from koodauspaja/renovate/nextjs-monorepo
+Merge pull request #25 from koodauspaja/renovate/biomejs-biome-2.x
+docs(skill): add write-spec checklist for spec authors
+docs: add REVIEW_RULES.md canonical review rules (UI Finnish, code English)
+docs(sourcery): require Finnish for user-facing UI in Block 2
+chore: migrate biome config to use preset (fix deprecation)
+chore: add accessible titles to public SVGs (fix lint)
+Merge pull request #27 from koodauspaja/renovate/npm-11.x
+chore(deps): update dependency tsx to v4.23.0
+Merge pull request #30 from koodauspaja/renovate/actions-checkout-7.x
+chore(deps): update dependency @biomejs/biome to v2.5.2
+Merge pull request #23 from koodauspaja/renovate/tailwindcss-monorepo
+Merge pull request #22 from koodauspaja/renovate/vitejs-plugin-react-6.x
+chore(deps): update actions/checkout action to v7
+fix(deps): update dependency @sentry/nextjs to v10.63.0
+chore(deps): update npm to v11.18.0
+fix(deps): update dependency next to v16.2.10
+chore(deps): update tailwindcss monorepo to v4.3.2
+chore(deps): update dependency @vitejs/plugin-react to v6.0.3
+Merge pull request #20 from koodauspaja/renovate/node-25.x
+Merge pull request #21 from koodauspaja/renovate/vitest-monorepo
+chore(deps): update vitest monorepo to v4.1.9
+chore(deps): update dependency @types/node to v25.9.4
+Merge pull request #17 from koodauspaja/renovate/tailwindcss-monorepo
+Merge pull request #19 from koodauspaja/renovate/ioredis-5.x
+fix(deps): update dependency ioredis to v5.11.1
+Merge pull request #18 from koodauspaja/renovate/nextjs-monorepo
+Merge pull request #16 from koodauspaja/renovate/node-25.x
+fix(deps): update nextjs monorepo to v16.2.9
+chore(deps): update tailwindcss monorepo to v4.3.1
+chore(deps): update dependency @types/node to v25.9.3
+Merge pull request #8 from koodauspaja/renovate/node-25.x
+chore(deps): update dependency @types/node to v25.9.2
+Merge pull request #9 from koodauspaja/renovate/react-monorepo
+Merge pull request #12 from koodauspaja/renovate/postgres-18.x
+Merge pull request #15 from koodauspaja/chore/remove-deprecated-ioredis-types
+chore: remove deprecated @types/ioredis (types bundled in ioredis)
+Merge pull request #10 from koodauspaja/renovate/actions-checkout-6.x
+Merge pull request #11 from koodauspaja/renovate/actions-setup-node-6.x
+Merge pull request #13 from koodauspaja/renovate/redis-8.x
+chore(deps): update redis docker tag to v8
+chore(deps): update postgres docker tag to v18
+chore(deps): update actions/setup-node action to v6
+chore(deps): update actions/checkout action to v6
+chore(deps): update react monorepo to v19.2.17
+Merge pull request #6 from koodauspaja/chore/sonar-coverage-targeting
+test: expand cache edge-case and Redis interaction coverage
+chore: add issue template for maintenance tasks
+chore: improve Sonar new-code coverage targeting
+Merge pull request #5 from koodauspaja/chore/npm-ci-and-logging
+chore: address review feedback for CI, logging, and tests
+chore: add logging and pin npm
+fix: correct Railway config schema
+chore: add Railway config as code
+chore: add health check endpoint
+fix: provide the Sentry DNS as variable
+chore: add Sentry error monitoring
+chore: ignore coverage directory
+chore: ignore .next build directory
+chore: add Redis client and cache utility
+fix: make db migrations no-op before first generated migration
+fix: apply lint fixes
+chore: set up Drizzle ORM and migration workflow
+fix: align Biome schema with installed CLI
+fix: apply Biome Tailwind parser, format tsconfig and passNoTests
+chore: update setup documentation on status checks
+chore: update Node version in workflows
+chore: ignore tsconfig.tsbuildinfo
+chore: ignore tsconfig.tsbuildinfo
+chore: add CI workflow
+chore: initialise Next.js project with strict TypeScript and Biome
+chore: reorder setup docs
+chore: add Renovate config
+chore: add Axiom env vars to .env.example
+chore: add SonarCloud analysis workflow
+chore: add .env.example
+chore: test Railway auto-deploy
+chore: update Railway setup instructions
+chore: add Sourcery config
+chore: update Sourcery setup instructions
+docs: remove Finnish language setting from Sourcery setup
+chore: add open-pr skill and update setup instructions
+chore: add PR template
+chore: add issue templates
+chore: initial repo structure and setup docs
