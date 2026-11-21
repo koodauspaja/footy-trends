@@ -9,6 +9,8 @@
  * decisions/041-national-team-analytics.md
  */
 
+import { byKickoffThenId } from "../matches/match-order";
+
 /**
  * Finland, as TASO names it, identically for both teams.
  *
@@ -180,21 +182,6 @@ export function normalizeFinlandId<
     return { ...match, awayTeamProviderId: FINLAND_TEAM_ID };
   }
   return match;
-}
-
-/**
- * Chronological within a year, `match_id` breaking a tie so the order does not
- * shift between renders of the same data.
- *
- * decisions/017-huuhkajat.md
- * decisions/018-helmarit.md
- */
-export function byKickoffThenId<T extends { kickoffAt: Date; providerMatchId: number }>(
-  left: T,
-  right: T
-): number {
-  const byKickoff = left.kickoffAt.getTime() - right.kickoffAt.getTime();
-  return byKickoff === 0 ? left.providerMatchId - right.providerMatchId : byKickoff;
 }
 
 /**

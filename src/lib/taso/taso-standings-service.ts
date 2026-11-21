@@ -19,6 +19,7 @@ import {
 } from "../analytics/table-volatility";
 import { leagueGroupOrder } from "../competitions/group-order";
 import { selectTeamMatches, type TeamStanding } from "../competitions/standings";
+import { byKickoffThenId } from "../matches/match-order";
 import { logger } from "../platform/logger";
 import { parseWholeNumber } from "../providers/provider-ids";
 import type { RankedRow } from "../teams/position-series";
@@ -435,9 +436,10 @@ export async function getSeasonTables(
 }
 
 /**
- * Every match for the season, across every group, sorted by kickoff time.
+ * Every match for the season, across every group, by kickoff and then match id.
  *
  * decisions/009-veikkausliiga.md
+ * decisions/832-cup-forecast-tie-order.md
  */
 export async function getSeasonMatchList(
   categoryId: string,
@@ -457,9 +459,7 @@ export async function getSeasonMatchList(
     }
     return {
       status: "ok",
-      matches: [...seasonMatches].sort(
-        (left, right) => left.kickoffAt.getTime() - right.kickoffAt.getTime()
-      ),
+      matches: [...seasonMatches].sort(byKickoffThenId),
     };
   } catch (error) {
     logger.error(

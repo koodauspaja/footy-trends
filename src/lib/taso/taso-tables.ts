@@ -10,6 +10,7 @@
 import type { tasoGroupTeams, tasoGroupZones, tasoMatches } from "@/db/schema";
 import { isRoundRobin } from "../competitions/cup-rounds";
 import { calculateStandings, type TeamStanding } from "../competitions/standings";
+import { byKickoffThenId } from "../matches/match-order";
 import { teamsInGroupsAbove } from "../teams/position-series";
 import { competitionCodeForCategory, cupFormatFor, isDomesticCup } from "./domestic-competitions";
 import type { NormalizedTasoMatch } from "./taso";
@@ -180,14 +181,14 @@ function toPassThroughStanding(team: StoredGroupTeam, index: number): TasoTeamSt
 }
 
 /**
- * One group's own matches, chronological: what a group with no table shows.
+ * One group's own matches, chronological, the match id breaking a tie: what a
+ * group with no table shows.
  *
  * decisions/010-playoff-group-match-list.md
+ * decisions/832-cup-forecast-tie-order.md
  */
 function selectGroupMatches(seasonMatches: MatchRow[], groupId: number): MatchRow[] {
-  return seasonMatches
-    .filter((match) => match.groupId === groupId)
-    .sort((left, right) => left.kickoffAt.getTime() - right.kickoffAt.getTime());
+  return seasonMatches.filter((match) => match.groupId === groupId).sort(byKickoffThenId);
 }
 
 /**

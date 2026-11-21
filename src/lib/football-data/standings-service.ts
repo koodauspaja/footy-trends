@@ -15,6 +15,7 @@ import {
   type TeamStanding,
   toFinishedMatches,
 } from "../competitions/standings";
+import { byKickoffThenId } from "../matches/match-order";
 import { logger } from "../platform/logger";
 import { redis } from "../platform/redis";
 import { type PositionSeries, singleTableSeries } from "../teams/position-series";
@@ -421,10 +422,11 @@ export const getTeamMatches = cache(async function getTeamMatches(
 });
 
 /**
- * Every match of one round of a season, through the same sync; without a
- * `round`, the season's current one.
+ * Every match of one round of a season, through the same sync, by kickoff and
+ * then match id; without a `round`, the season's current one.
  *
  * decisions/005-listing-matches-for-selected-season.md
+ * decisions/832-cup-forecast-tie-order.md
  */
 export async function getRoundMatches(
   competitionCode: string,
@@ -452,7 +454,7 @@ export async function getRoundMatches(
     const resolvedRound = round ?? resolveCurrentRound(seasonMatches, maxMatchday);
     const roundMatches = seasonMatches
       .filter((match) => match.matchday === resolvedRound)
-      .sort((left, right) => left.kickoffAt.getTime() - right.kickoffAt.getTime());
+      .sort(byKickoffThenId);
 
     return { status: "ok", round: resolvedRound, matches: roundMatches };
   } catch (error) {

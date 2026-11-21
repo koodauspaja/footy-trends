@@ -701,6 +701,27 @@ describe("getSeasonStandings", () => {
     expect(group?.kind).toBe("match-list");
   });
 
+  it("lists a cup round's matches that kick off together by match id, whatever order they were read in", async () => {
+    const round = { groupId: 1, groupName: "Neljäs kierros", matchday: null };
+    mockStoredMatches([
+      match({ ...round, providerMatchId: 5 }),
+      match({ ...round, providerMatchId: 3 }),
+    ]);
+
+    const result = await getSeasonStandings(
+      "MSC",
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON,
+      undefined
+    );
+
+    const group = result.status === "ok" ? result.groups.find((g) => g.groupId === 1) : undefined;
+    expect(group?.kind === "match-list" && group.matches.map((m) => m.providerMatchId)).toEqual([
+      3, 5,
+    ]);
+  });
+
   describe("a cup of groups then a playoff", () => {
     // A three-team round-robin in group 1, played over rounds 1-3 as TASO
     // numbers a group stage, and a semi-finals-and-final group 2.
@@ -1258,6 +1279,19 @@ describe("getSeasonMatchList", () => {
     );
 
     expect(result.status === "ok" && result.matches.map((m) => m.providerMatchId)).toEqual([1, 2]);
+  });
+
+  it("lists matches that kick off together by match id, whatever order they were read in", async () => {
+    mockStoredMatches([match({ providerMatchId: 5 }), match({ providerMatchId: 3 })]);
+
+    const result = await getSeasonMatchList(
+      CATEGORY_ID,
+      COMPETITION_ID,
+      PAST_SEASON,
+      ACTIVE_SEASON
+    );
+
+    expect(result.status === "ok" && result.matches.map((m) => m.providerMatchId)).toEqual([3, 5]);
   });
 
   it("reports empty when the season truly has no matches", async () => {

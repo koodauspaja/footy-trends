@@ -24,6 +24,7 @@ import {
   getMaxMatchday,
   getRoundMatches,
 } from "@/lib/football-data/standings-service";
+import { byKickoffThenId } from "@/lib/matches/match-order";
 
 const ERROR_MESSAGE = "Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
 const EMPTY_MESSAGE = "Otteluita ei ole saatavilla.";
@@ -42,6 +43,12 @@ export async function matchesMetadata({
   return { title: `${resolved.competitionName} ${resolved.seasonLabel}` };
 }
 
+/**
+ * A cup's matches page: one stage's matches, by kickoff and then match id.
+ *
+ * decisions/014-champions-league.md
+ * decisions/832-cup-forecast-tie-order.md
+ */
 async function renderCupMatches({
   resolved,
   params,
@@ -66,7 +73,7 @@ async function renderCupMatches({
 
   const stageMatches = seasonMatches
     .filter((match) => match.stage === selectedStage)
-    .sort((left, right) => left.kickoffAt.getTime() - right.kickoffAt.getTime());
+    .sort(byKickoffThenId);
 
   const heading =
     selectedStage === undefined
