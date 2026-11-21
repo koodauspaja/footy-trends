@@ -76,7 +76,9 @@ export function countsFromPsql(output: string): Counts {
  * decisions/807-database-backup.md
  */
 export function compareCounts(expected: Counts, actual: Counts): string[] {
-  const tables = [...new Set([...Object.keys(expected), ...Object.keys(actual)])].sort();
+  const tables = [...new Set([...Object.keys(expected), ...Object.keys(actual)])].sort(
+    (left, right) => left.localeCompare(right)
+  );
   return tables.flatMap((table) => {
     const want = expected[table];
     const got = actual[table];
@@ -107,7 +109,7 @@ export function latestBackup(fileNames: readonly string[]): string | null {
     .filter((name) => name.endsWith(`/${DUMP_FILE}`))
     .map((name) => name.slice(0, -(DUMP_FILE.length + 1)))
     .filter((folder) => names.has(`${folder}/${COUNTS_FILE}`))
-    .sort();
+    .sort((left, right) => left.localeCompare(right));
   return folders.at(-1) ?? null;
 }
 
