@@ -107,8 +107,8 @@ vi.mock("@/lib/football-data/standings-service", async (importOriginal) => {
   return { ...actual, synchronizeMatches: synchronizeForeignMatches };
 });
 
-vi.mock("@/lib/taso/taso-standings-service", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/taso/taso-standings-service")>();
+vi.mock("@/lib/taso/taso-seasons", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/taso/taso-seasons")>();
   return {
     ...actual,
     resolveTasoSeasonContext,
@@ -116,6 +116,12 @@ vi.mock("@/lib/taso/taso-standings-service", async (importOriginal) => {
       if (state.seasonListThrows) throw new Error("TASO unavailable");
       return { currentSeason: 2026, newestStored: 2026 };
     }),
+  };
+});
+vi.mock("@/lib/taso/taso-sync", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/taso/taso-sync")>();
+  return {
+    ...actual,
     synchronizeMatches: synchronizeTasoMatches,
     synchronizeGroupTeams,
   };

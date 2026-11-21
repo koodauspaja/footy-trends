@@ -14,7 +14,8 @@ import {
   ZONE_COMPETITION_CODES,
 } from "./domestic-competitions";
 import { getSeasonGroups, normalizeGroupLevels } from "./taso";
-import { storedTasoSeasons, synchronizeGroupLevels } from "./taso-standings-service";
+import { storedTasoSeasons } from "./taso-seasons";
+import { synchronizeGroupLevels } from "./taso-sync";
 
 /**
  * One TASO request every three seconds: slower than the full backfill's pace,

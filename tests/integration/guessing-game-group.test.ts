@@ -16,12 +16,8 @@ import {
   renameGroup,
   renewInviteLink,
 } from "@/lib/guessing-game/guessing-game-group-store";
-import {
-  joinGame,
-  openGame,
-  placeGuess,
-  settleGuesses,
-} from "@/lib/guessing-game/guessing-game-store";
+import { settleGuesses } from "@/lib/guessing-game/guessing-game-settle";
+import { joinGame, openGame, placeGuess } from "@/lib/guessing-game/guessing-game-store";
 
 /**
  * Arvauspeli's private groups against a real Postgres: the board restricted to

@@ -23,7 +23,8 @@ vi.mock("@/lib/taso/taso", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/taso/taso")>()),
   getSeasonGroups,
 }));
-vi.mock("@/lib/taso/taso-standings-service", () => ({ storedTasoSeasons, synchronizeGroupLevels }));
+vi.mock("@/lib/taso/taso-seasons", () => ({ storedTasoSeasons }));
+vi.mock("@/lib/taso/taso-sync", () => ({ synchronizeGroupLevels }));
 
 const LEVELLED = {
   group_id: "1",

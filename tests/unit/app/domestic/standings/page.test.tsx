@@ -2,10 +2,8 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CupForecastResult } from "@/lib/predictions/knockout-simulation-service";
 import type { NormalizedTasoMatch } from "@/lib/taso/taso";
-import type {
-  GroupStandingsResult,
-  SeasonStandingsResult,
-} from "@/lib/taso/taso-standings-service";
+import type { SeasonStandingsResult } from "@/lib/taso/taso-standings-service";
+import type { GroupStandingsResult } from "@/lib/taso/taso-tables";
 import { resetStoredSections, storedSections } from "../../../../support/page-sections";
 import { warmModules } from "../../../../support/warm-module";
 
@@ -51,8 +49,14 @@ vi.mock("@/lib/taso/taso-standings-service", async (importOriginal) => {
   return {
     ...actual,
     listSeasonRounds: listSeasonRoundsMock,
-    getSeasonCategoryName: getSeasonCategoryNameMock,
     getSeasonStandings: getSeasonStandingsMock,
+  };
+});
+vi.mock("@/lib/taso/taso-seasons", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/taso/taso-seasons")>();
+  return {
+    ...actual,
+    getSeasonCategoryName: getSeasonCategoryNameMock,
     resolveTasoSeasonContext: resolveTasoSeasonContextMock,
   };
 });

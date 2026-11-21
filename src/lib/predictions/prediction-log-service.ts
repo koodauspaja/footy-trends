@@ -17,7 +17,7 @@ import { matches, predictions, tasoMatches } from "@/db/schema";
 import { getSeasonMatches as getFootballDataSeasonMatches } from "../football-data/football-data";
 import { synchronizeMatches as synchronizeFootballDataMatches } from "../football-data/standings-service";
 import { settleSeasonGuesses } from "../guessing-game/guessing-game-season-store";
-import { settleGuesses } from "../guessing-game/guessing-game-store";
+import { settleGuesses } from "../guessing-game/guessing-game-settle";
 import {
   FOOTBALL_DATA_AWAY_GOALS,
   FOOTBALL_DATA_HOME_GOALS,
@@ -34,7 +34,7 @@ import {
 } from "../providers/pacer";
 import { categoryIdsFor, competitionForSeasonPair } from "../taso/domestic-competitions";
 import { getSeasonMatches as getTasoSeasonMatches } from "../taso/taso";
-import { synchronizeMatches as synchronizeTasoMatches } from "../taso/taso-standings-service";
+import { synchronizeMatches as synchronizeTasoMatches } from "../taso/taso-sync";
 import { isRated, type TeamRating } from "./elo";
 import { replayVariants, type VariantState } from "./elo-variants";
 import { HOME_BASELINE_MODEL, isPredictedCup, PREDICTED_COMPETITIONS } from "./home-baseline";

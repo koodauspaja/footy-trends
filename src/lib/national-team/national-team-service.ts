@@ -1,7 +1,8 @@
 import { toFinnishTasoTeamNames } from "../football-data/country-names";
 import { logger } from "../platform/logger";
 import type { NormalizedTasoMatch } from "../taso/taso";
-import { getSeasonCategoryNameMap, getSeasonMatchList } from "../taso/taso-standings-service";
+import { getSeasonCategoryNameMap } from "../taso/taso-seasons";
+import { getSeasonMatchList } from "../taso/taso-standings-service";
 import {
   groupByPlayedYear,
   isFinlandMatch,

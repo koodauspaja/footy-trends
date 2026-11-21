@@ -74,9 +74,10 @@ const { readModelGuesses } = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/guessing-game/guessing-game-board", () => ({ readModelGuesses }));
 
-const { joinGame, openGame, placeGuess, settleGuesses, single } = await import(
+const { joinGame, openGame, placeGuess, single } = await import(
   "@/lib/guessing-game/guessing-game-store"
 );
+const { settleGuesses } = await import("@/lib/guessing-game/guessing-game-settle");
 
 warmModules(() => import("@/lib/guessing-game/guessing-game-store"));
 

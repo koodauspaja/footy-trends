@@ -16,11 +16,8 @@ import { logger } from "../platform/logger";
 import { getComputedUnlessDegraded } from "../providers/cache";
 import { categoryIdForSeason, competitionIdForSeason } from "../taso/domestic-competitions";
 import type { NormalizedTasoMatch } from "../taso/taso";
-import {
-  getSeasonTables,
-  type SeasonTable,
-  storedSeasonSides,
-} from "../taso/taso-standings-service";
+import { storedSeasonSides } from "../taso/taso-seasons";
+import { getSeasonTables, type SeasonTable } from "../taso/taso-standings-service";
 import {
   type ChampionsLeagueForecast,
   type CupForecast,

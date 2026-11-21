@@ -2,30 +2,36 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { tasoGroupTeams, tasoGroupZones } from "@/db/schema";
 import { calculateStandings, type NormalizedMatch } from "@/lib/competitions/standings";
 import type { NormalizedTasoMatch } from "@/lib/taso/taso";
+import { hasCarryOver } from "@/lib/taso/taso-carry-over";
 import {
   getSeasonCategoryName,
   getSeasonCategoryNameMap,
+  resolveTasoSeasonContext,
+  storedSeasonSides,
+} from "@/lib/taso/taso-seasons";
+import {
   getSeasonMatchList,
   getSeasonStandings,
   getSeasonTables,
   getTasoSeasonMovements,
   getTeamMatches,
+  listSeasonRounds,
+  listSelectableTasoRounds,
+  parseTasoRoundParam,
+} from "@/lib/taso/taso-standings-service";
+import {
+  needsRefresh,
+  synchronizeGroupLevels,
+  synchronizeGroupTeams,
+  synchronizeMatches,
+} from "@/lib/taso/taso-sync";
+import {
   getTeamPanelMatches,
   getTeamPositionSeries,
   getTeamSeasonComparison,
   getTeamSeasonSummary,
   getTeamStreakRecords,
-  hasCarryOver,
-  listSeasonRounds,
-  listSelectableTasoRounds,
-  needsRefresh,
-  parseTasoRoundParam,
-  resolveTasoSeasonContext,
-  storedSeasonSides,
-  synchronizeGroupLevels,
-  synchronizeGroupTeams,
-  synchronizeMatches,
-} from "@/lib/taso/taso-standings-service";
+} from "@/lib/taso/taso-team-panels";
 import { teamPanelLoaders } from "@/lib/teams/team-panels";
 
 /**

@@ -41,6 +41,8 @@ vi.mock("@/lib/football-data/standings-service", () => ({
 }));
 vi.mock("@/lib/taso/taso-standings-service", () => ({
   getSeasonTables: mocks.getSeasonTables,
+}));
+vi.mock("@/lib/taso/taso-carry-over", () => ({
   hasCarryOver: mocks.hasCarryOver,
 }));
 vi.mock("@/lib/platform/logger", () => ({ logger: { error: mocks.loggerError } }));

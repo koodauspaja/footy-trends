@@ -143,11 +143,23 @@ vi.mock("@/lib/taso/taso-standings-service", async (importOriginal) => {
   return {
     ...actual,
     getTeamMatches: getTeamMatchesMock,
+  };
+});
+vi.mock("@/lib/taso/taso-team-panels", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/taso/taso-team-panels")>();
+  return {
+    ...actual,
     getTeamPanelMatches: getTeamPanelMatchesMock,
     getTeamSeasonComparison: getTeamSeasonComparisonMock,
     getTeamSeasonSummary: getTeamSeasonSummaryMock,
     getTeamStreakRecords: getTeamStreakRecordsMock,
     getTeamPositionSeries: getTeamPositionSeriesMock,
+  };
+});
+vi.mock("@/lib/taso/taso-seasons", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/taso/taso-seasons")>();
+  return {
+    ...actual,
     getSeasonCategoryName: getSeasonCategoryNameMock,
     resolveTasoSeasonContext: resolveTasoSeasonContextMock,
   };

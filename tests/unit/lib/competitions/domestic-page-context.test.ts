@@ -25,8 +25,8 @@ const { resolveTasoSeasonContextMock, getSeasonCategoryNameMock, getViewerPrefer
 
 // A signed-in reader's stored default.
 vi.mock("@/lib/auth/viewer", () => ({ getViewerPreferences }));
-vi.mock("@/lib/taso/taso-standings-service", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/taso/taso-standings-service")>();
+vi.mock("@/lib/taso/taso-seasons", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/taso/taso-seasons")>();
   return {
     ...actual,
     resolveTasoSeasonContext: resolveTasoSeasonContextMock,

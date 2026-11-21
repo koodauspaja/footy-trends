@@ -19,15 +19,14 @@ import {
   isDomesticCup,
   parseDomesticCompetitionParam,
 } from "@/lib/taso/domestic-competitions";
+import { getTeamMatches, type TeamMatchesResult } from "@/lib/taso/taso-standings-service";
 import {
-  getTeamMatches,
   getTeamPanelMatches,
   getTeamPositionSeries,
   getTeamSeasonComparison,
   getTeamSeasonSummary,
   getTeamStreakRecords,
-  type TeamMatchesResult,
-} from "@/lib/taso/taso-standings-service";
+} from "@/lib/taso/taso-team-panels";
 import type { TeamContextFilter, TeamPageSource } from "@/lib/teams/team-context";
 import { resolveTeamDefaults, seasonCandidate } from "@/lib/teams/team-page-context";
 import { teamPanelLoaders } from "@/lib/teams/team-panels";

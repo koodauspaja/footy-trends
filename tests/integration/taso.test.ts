@@ -5,11 +5,8 @@ import { tasoGroupTeams, tasoMatches } from "@/db/schema";
 import { calculateStandings } from "@/lib/competitions/standings";
 import { categoryIdForSeason, competitionIdForSeason } from "@/lib/taso/domestic-competitions";
 import type { NormalizedTasoMatch } from "@/lib/taso/taso";
-import {
-  storedSeasonSides,
-  synchronizeGroupTeams,
-  synchronizeMatches,
-} from "@/lib/taso/taso-standings-service";
+import { storedSeasonSides } from "@/lib/taso/taso-seasons";
+import { synchronizeGroupTeams, synchronizeMatches } from "@/lib/taso/taso-sync";
 
 /**
  * The TASO sync and the reads over its rows, against a real Postgres. Carry-over
@@ -155,7 +152,7 @@ describe("clearFixtures", () => {
 
 describe("taso integration", () => {
   it("persists synchronized matches, readable back with the same shape calculateStandings expects", async () => {
-    const { synchronizeMatches } = await import("@/lib/taso/taso-standings-service");
+    const { synchronizeMatches } = await import("@/lib/taso/taso-sync");
     const providerMatches = [buildMatch()];
 
     await synchronizeMatches(providerMatches);
@@ -173,7 +170,7 @@ describe("taso integration", () => {
   });
 
   it("does not duplicate a match when the same provider response is synchronized twice", async () => {
-    const { synchronizeMatches } = await import("@/lib/taso/taso-standings-service");
+    const { synchronizeMatches } = await import("@/lib/taso/taso-sync");
     const providerMatch = buildMatch({ homeGoals: 3, awayGoals: 0 });
 
     await synchronizeMatches([providerMatch]);
@@ -189,7 +186,7 @@ describe("taso integration", () => {
   });
 
   it("stores TASO's own status, and a resync replaces it", async () => {
-    const { synchronizeMatches } = await import("@/lib/taso/taso-standings-service");
+    const { synchronizeMatches } = await import("@/lib/taso/taso-sync");
     const providerMatch = buildMatch({ providerStatus: "Played" });
 
     await synchronizeMatches([providerMatch]);
@@ -203,7 +200,7 @@ describe("taso integration", () => {
   });
 
   it("round-trips the half-time score, a goalless first half included", async () => {
-    const { synchronizeMatches } = await import("@/lib/taso/taso-standings-service");
+    const { synchronizeMatches } = await import("@/lib/taso/taso-sync");
     const goalless = buildMatch({ providerMatchId: 901011, halfTimeHome: 0, halfTimeAway: 0 });
     const behind = buildMatch({ providerMatchId: 901012, halfTimeHome: 0, halfTimeAway: 1 });
 
@@ -228,7 +225,7 @@ describe("taso integration", () => {
   it("fills in a half-time score a later sync brings, which is what the backfill does", async () => {
     // TASO gives no half-time score for some matches, and rows stored before the
     // columns existed have `null` here.
-    const { synchronizeMatches } = await import("@/lib/taso/taso-standings-service");
+    const { synchronizeMatches } = await import("@/lib/taso/taso-sync");
     const providerMatch = buildMatch({ halfTimeHome: null, halfTimeAway: null });
 
     await synchronizeMatches([providerMatch]);
@@ -246,7 +243,8 @@ describe("taso integration", () => {
   // One `competition_id` is the whole season umbrella, and `group_id` is only
   // unique within a category.
   it("keeps two categories' identically-numbered groups apart", async () => {
-    const { synchronizeMatches, getSeasonStandings, getSeasonMatchList } = await import(
+    const { synchronizeMatches } = await import("@/lib/taso/taso-sync");
+    const { getSeasonStandings, getSeasonMatchList } = await import(
       "@/lib/taso/taso-standings-service"
     );
     const otherCategoryId = "M2";
@@ -308,9 +306,8 @@ describe("taso integration", () => {
   });
 
   it("own-calculates the origin group from stored matches, round-filtered", async () => {
-    const { synchronizeMatches, getSeasonStandings } = await import(
-      "@/lib/taso/taso-standings-service"
-    );
+    const { synchronizeMatches } = await import("@/lib/taso/taso-sync");
+    const { getSeasonStandings } = await import("@/lib/taso/taso-standings-service");
     await synchronizeMatches([
       buildMatch({ providerMatchId: 901001, matchday: 1 }),
       buildMatch({
@@ -350,7 +347,8 @@ describe("taso integration", () => {
   });
 
   it("shows a scheduled-only team as a zero-stats row via roster seeding, same as football-data.org standings", async () => {
-    const { synchronizeMatches, getSeasonStandings, getTeamMatches } = await import(
+    const { synchronizeMatches } = await import("@/lib/taso/taso-sync");
+    const { getSeasonStandings, getTeamMatches } = await import(
       "@/lib/taso/taso-standings-service"
     );
     const finished = buildMatch();
@@ -387,9 +385,8 @@ describe("taso integration", () => {
   });
 
   it("lists a team's matches chronologically across groups it appeared in", async () => {
-    const { synchronizeMatches, getTeamMatches } = await import(
-      "@/lib/taso/taso-standings-service"
-    );
+    const { synchronizeMatches } = await import("@/lib/taso/taso-sync");
+    const { getTeamMatches } = await import("@/lib/taso/taso-standings-service");
     await synchronizeMatches([
       buildMatch({
         providerMatchId: 901002,
@@ -419,9 +416,8 @@ describe("taso integration", () => {
   });
 
   it("getSeasonMatchList returns every group's matches with group_name attached, sorted by kickoff", async () => {
-    const { synchronizeMatches, getSeasonMatchList } = await import(
-      "@/lib/taso/taso-standings-service"
-    );
+    const { synchronizeMatches } = await import("@/lib/taso/taso-sync");
+    const { getSeasonMatchList } = await import("@/lib/taso/taso-standings-service");
     await synchronizeMatches([
       buildMatch({
         providerMatchId: 901002,
@@ -469,9 +465,8 @@ describe("taso integration", () => {
 
   it("never refetches a past season that already has stored matches, however stale", async () => {
     const { getSeasonMatches } = await import("@/lib/taso/taso");
-    const { synchronizeMatches, getSeasonStandings } = await import(
-      "@/lib/taso/taso-standings-service"
-    );
+    const { synchronizeMatches } = await import("@/lib/taso/taso-sync");
+    const { getSeasonStandings } = await import("@/lib/taso/taso-standings-service");
     await synchronizeMatches([buildMatch()]);
 
     const result = await getSeasonStandings(
@@ -655,7 +650,7 @@ describe("a stored TASO table behind the stored results", () => {
   // United beat City, then the two draw: ours has United at 4 points and City at
   // 1, two matches each. TASO's stored rows are from before the draw.
   async function storeSeason(rows: Array<{ team: number; played: number; points: number }>) {
-    const { synchronizeMatches } = await import("@/lib/taso/taso-standings-service");
+    const { synchronizeMatches } = await import("@/lib/taso/taso-sync");
     await synchronizeMatches([
       buildMatch({
         providerMatchId: 9011031,

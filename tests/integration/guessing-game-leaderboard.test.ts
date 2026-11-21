@@ -5,7 +5,8 @@ import { gameGuess, gameLedger, tasoMatches, user } from "@/db/schema";
 import { nicknameKey } from "@/lib/account/nickname";
 import { saveNickname } from "@/lib/account/nickname-store";
 import { readBoard, readShares } from "@/lib/guessing-game/guessing-game-board";
-import { joinGame, placeGuess, settleGuesses } from "@/lib/guessing-game/guessing-game-store";
+import { settleGuesses } from "@/lib/guessing-game/guessing-game-settle";
+import { joinGame, placeGuess } from "@/lib/guessing-game/guessing-game-store";
 
 /**
  * Arvauspeli's leaderboard, shares and rarity bonus against a real Postgres:

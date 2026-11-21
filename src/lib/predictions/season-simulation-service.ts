@@ -17,7 +17,8 @@ import type { MatchSource } from "../matches/match-source";
 import { logger } from "../platform/logger";
 import { getComputedUnlessDegraded } from "../providers/cache";
 import { categoryIdForSeason, competitionIdForSeason } from "../taso/domestic-competitions";
-import { getSeasonTables, hasCarryOver } from "../taso/taso-standings-service";
+import { hasCarryOver } from "../taso/taso-carry-over";
+import { getSeasonTables } from "../taso/taso-standings-service";
 import { predictPoisson } from "./poisson";
 import { getPoissonFit } from "./poisson-service";
 import {
