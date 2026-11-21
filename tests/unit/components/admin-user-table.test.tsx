@@ -11,6 +11,7 @@ import type { AdminUser } from "@/lib/admin/admin-user-view";
  * decisions/028-admin-tools-and-roles.md
  * decisions/408-refusal-cleared-waits-for-the-button.md
  * decisions/077-nickname.md
+ * decisions/847-quiet-unit-run.md
  */
 
 const { promoteUserAction, demoteUserAction, deleteUserAction, clearNicknameAction } = vi.hoisted(

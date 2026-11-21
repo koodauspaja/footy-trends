@@ -9,6 +9,7 @@ import { AccountMenu } from "@/components/account-menu";
  * decisions/024-account-settings.md
  * decisions/026-favourites.md
  * decisions/028-admin-tools-and-roles.md
+ * decisions/847-quiet-unit-run.md
  */
 
 const onSignOut = vi.fn();

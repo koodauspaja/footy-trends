@@ -14,6 +14,7 @@ import { warmModules } from "../../../../../support/warm-module";
  * decisions/051-home-win-baseline.md
  * decisions/057-surprise-index.md
  * decisions/703-unambiguous-lines.md
+ * decisions/847-quiet-unit-run.md
  */
 
 const getMatchPageDataMock = vi.fn<() => Promise<MatchPageData>>();
@@ -31,8 +32,8 @@ vi.mock("@/lib/predictions/elo-service", () => ({
   getEloRatings: async () => ({ status: "ok", ratings: new Map() }),
 }));
 
-// The fit reads Redis and Postgres, which a unit test has neither of. Its
-// error result is what the page got from them before this mock existed.
+// The fit reads Redis and Postgres, which a unit test has neither of: without
+// them it answers with an error, as here.
 vi.mock("@/lib/predictions/poisson-service", () => ({
   getPoissonFit: async () => ({ status: "error" }),
 }));

@@ -10,6 +10,7 @@
  * decisions/400-one-command-setup.md
  * decisions/467-deterministic-integration-suite.md
  * decisions/479-integration-suite-database-guard.md
+ * decisions/847-quiet-unit-run.md
  */
 
 import { existsSync, readFileSync } from "node:fs";
@@ -52,7 +53,11 @@ export default defineConfig({
           name: "unit",
           environment: "node",
           include: ["tests/unit/**/*.test.ts"],
-          setupFiles: ["./vitest.setup.ts", "./tests/support/unit-env.ts"],
+          setupFiles: [
+            "./vitest.setup.ts",
+            "./tests/support/unit-env.ts",
+            "./tests/support/console-only-output.ts",
+          ],
         },
       },
       {
@@ -61,7 +66,11 @@ export default defineConfig({
           name: "unit-dom",
           environment: "jsdom",
           include: ["tests/unit/**/*.test.tsx"],
-          setupFiles: ["./vitest.setup.ts", "./tests/support/unit-env.ts"],
+          setupFiles: [
+            "./vitest.setup.ts",
+            "./tests/support/unit-env.ts",
+            "./tests/support/console-only-output.ts",
+          ],
         },
       },
       {

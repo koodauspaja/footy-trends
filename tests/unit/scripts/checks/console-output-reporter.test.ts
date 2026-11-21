@@ -81,7 +81,7 @@ describe("ConsoleOutputReporter", () => {
   });
 
   const reporterWith = (written: string[]) =>
-    new ConsoleOutputReporter((text) => written.push(text));
+    new ConsoleOutputReporter({ write: (text: string) => written.push(text) });
 
   it("leaves a run that printed nothing alone", () => {
     const written: string[] = [];
@@ -128,23 +128,12 @@ describe("ConsoleOutputReporter", () => {
     expect(process.exitCode).toBe(1);
   });
 
-  it("is the reporter Vitest constructs, writing to stderr", () => {
-    const writes: string[] = [];
-    const original = process.stderr.write.bind(process.stderr);
-    process.stderr.write = ((text: string) => {
-      writes.push(text);
-      return true;
-    }) as typeof process.stderr.write;
-    try {
-      const reporter = new StderrConsoleOutputReporter();
-      reporter.onUserConsoleLog(log("hello"));
-      reporter.onTestRunEnd();
-    } finally {
-      process.stderr.write = original;
-    }
-
-    expect(writes).toEqual([
-      describeConsoleOutput([{ where: "outside any test", type: "stderr", content: "hello" }]),
+  it("is the reporter Vitest constructs with its options, writing to stderr", () => {
+    // Vitest passes its own options to a reporter's constructor, as here.
+    const reporter: StderrConsoleOutputReporter = Reflect.construct(StderrConsoleOutputReporter, [
+      { print: true },
     ]);
+
+    expect(Reflect.get(reporter, "out")).toBe(process.stderr);
   });
 });

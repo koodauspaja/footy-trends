@@ -58,7 +58,7 @@ export class ConsoleOutputReporter implements Reporter {
     undefined;
   private readonly printed: Printed[] = [];
 
-  constructor(private readonly write: (text: string) => void) {}
+  constructor(private readonly out: { write: (text: string) => unknown }) {}
 
   onInit(vitest: Vitest): void {
     this.root = vitest.config.root;
@@ -76,7 +76,7 @@ export class ConsoleOutputReporter implements Reporter {
 
   onTestRunEnd(): void {
     if (this.printed.length === 0) return;
-    this.write(describeConsoleOutput(this.printed));
+    this.out.write(describeConsoleOutput(this.printed));
     process.exitCode = 1;
   }
 }
@@ -89,6 +89,6 @@ export class ConsoleOutputReporter implements Reporter {
  */
 export default class StderrConsoleOutputReporter extends ConsoleOutputReporter {
   constructor() {
-    super((text) => process.stderr.write(text));
+    super(process.stderr);
   }
 }
