@@ -226,14 +226,16 @@ function writtenEarlier(body: BodySource, earlier: readonly SimpleCommand[]): Bo
 }
 
 /**
- * A `gh` command without its `-R`/`--repo` option, which gh accepts before `pr`
- * and between `pr` and `create` as well as after them.
+ * A `gh` command without the `-R`/`--repo` option gh accepts before `pr` and
+ * between `pr` and `create`. Only those words are read: after `create` come
+ * values, such as a title, that may look like an option.
  *
  * decisions/806-push-and-pr-hooks.md
  */
 function withoutRepository(words: readonly string[]): string[] {
   const kept: string[] = [];
-  for (let at = 0; at < words.length; at++) {
+  let at = 0;
+  for (; at < words.length && kept.length < 3; at++) {
     const { name, width } = optionAt(words, at);
     if (name === "-R" || name === "--repo") {
       at += width - 1;
@@ -241,7 +243,7 @@ function withoutRepository(words: readonly string[]): string[] {
       kept.push(words[at] as string);
     }
   }
-  return kept;
+  return [...kept, ...words.slice(at)];
 }
 
 function pullRequestCreate(

@@ -395,31 +395,32 @@ const ENV_OPTIONS_WITH_VALUE = new Set(["-u", "--unset", "-C", "--chdir", "-S", 
 
 /**
  * How many words to skip at `at`: an assignment, a prefix, or an option of an
- * `env` already passed. Zero at the command's own name.
+ * `env` or `time` already passed. Zero at the command's own name.
  *
  * decisions/806-push-and-pr-hooks.md
  */
-function skipAt(words: readonly string[], at: number, afterEnv: boolean): number {
+function skipAt(words: readonly string[], at: number, wrapper: string | null): number {
   const word = words[at] as string;
   if (/^[A-Za-z_]\w*=/.test(word) || PREFIXES.has(word)) return 1;
-  if (!afterEnv || !word.startsWith("-")) return 0;
-  return ENV_OPTIONS_WITH_VALUE.has(word) ? 2 : 1;
+  if (wrapper === null || !word.startsWith("-")) return 0;
+  return wrapper === "env" && ENV_OPTIONS_WITH_VALUE.has(word) ? 2 : 1;
 }
 
 /**
  * The words that name the command and its arguments: past leading `NAME=value`
- * assignments, `PREFIXES` and `env`'s options, with the command named without
+ * assignments, `PREFIXES` and `env`'s and `time`'s options, with the command named without
  * its directory, so `/usr/bin/git` is `git`.
  *
  * decisions/806-push-and-pr-hooks.md
  */
 export function commandWords(words: readonly string[]): string[] {
   let at = 0;
-  let afterEnv = false;
+  // The last wrapper passed whose options come before the command: `env -i`, `time -p`.
+  let wrapper: string | null = null;
   while (at < words.length) {
-    const skip = skipAt(words, at, afterEnv);
+    const skip = skipAt(words, at, wrapper);
     if (skip === 0) break;
-    afterEnv ||= words[at] === "env";
+    if (words[at] === "env" || words[at] === "time") wrapper = words[at] as string;
     at += skip;
   }
   if (at >= words.length) return [];

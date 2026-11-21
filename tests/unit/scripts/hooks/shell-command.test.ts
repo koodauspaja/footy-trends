@@ -253,5 +253,7 @@ describe("round two's directory and wrapper forms", () => {
     ]);
     expect(commandWords(["git", "-c", "x"])).toEqual(["git", "-c", "x"]);
     expect(commandWords(["env", "-u"])).toEqual([]);
+    expect(commandWords(["time", "-p", "git", "add"])).toEqual(["git", "add"]);
+    expect(commandWords(["time", "-u", "x", "gh"])).toEqual(["x", "gh"]);
   });
 });

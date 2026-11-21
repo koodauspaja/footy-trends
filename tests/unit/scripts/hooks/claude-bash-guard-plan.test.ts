@@ -319,6 +319,12 @@ describe("round two's forms", () => {
     }
   });
 
+  it("reads a title that looks like -R as a title, after create", () => {
+    expect(requestsIn('gh pr create --title "-Rework" -b x', "/r").pullRequests).toEqual([
+      { cwd: "/r", body: { kind: "text", text: "x" }, head: null },
+    ]);
+  });
+
   it("takes a redirection to a target the shell builds as one that may write the body file", () => {
     const [request] = requestsIn('echo x > "$F"; gh pr create -F b.md', "/r").pullRequests;
 
