@@ -50,7 +50,7 @@ function consoleSpy() {
 // lsof answering `listening` per port, every holder's directory `HERE`.
 function deps(
   listening: Record<number, string> = {},
-  cwd = `p1\nfcwd\nn${HERE}\n`
+  cwd: string | null = `p1\nfcwd\nn${HERE}\n`
 ): Deps & { asked: number[] } {
   const asked: number[] = [];
   return {
@@ -103,7 +103,7 @@ describe("runPortsCheck", () => {
   it("names a holder whose directory lsof cannot give as in no checkout", () => {
     const console = consoleSpy();
 
-    runPortsCheck({}, HERE, deps({ 3001: "p7\ncnode\n" }, ""), console);
+    runPortsCheck({}, HERE, deps({ 3001: "p7\ncnode\n" }, null), console);
 
     expect(console.errLines.join("\n")).toContain("  3001  pid 7  node  no checkout");
   });
