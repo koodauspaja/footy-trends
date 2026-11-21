@@ -109,6 +109,7 @@ describe("upload", () => {
     expect(calls[0]?.url).toBe("https://api.example.com/b2api/v4/b2_get_upload_url");
     expect(calls[0]?.init?.body).toBe('{"bucketId":"bucket-1"}');
     expect(header(calls[0], "Authorization")).toBe("session-token");
+    expect(header(calls[0], "Content-Type")).toBe("application/json");
     expect(calls[1]?.url).toBe("https://upload.example.com/u");
     expect(header(calls[1], "Authorization")).toBe("upload-token");
     expect(header(calls[1], "X-Bz-File-Name")).toBe("20261121T000000Z/database.dump.age");

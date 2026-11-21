@@ -21,6 +21,24 @@ export const POSTGRES_IMAGE = "postgres:18-alpine";
  */
 export const RESTORE_DATABASE = "footy-trends_restore_check";
 
+/**
+ * Production Postgres's own root certificate, which signs the certificate its
+ * server presents, and where `pg_dump`'s container sees it. Pinned, so the
+ * backup talks only to that server.
+ *
+ * decisions/807-database-backup.md
+ */
+export const RAILWAY_CA_FILE = "scripts/backup/railway-postgres-ca.pem";
+export const CONTAINER_CA_FILE = "/etc/railway-postgres-ca.pem";
+
+/**
+ * The name production's server certificate is issued to. The proxy's own
+ * address is not in it, so the name is checked against this one.
+ *
+ * decisions/807-database-backup.md
+ */
+export const SERVER_CERTIFICATE_NAME = "localhost";
+
 export const DUMP_FILE = "database.dump.age";
 export const COUNTS_FILE = "counts.json.age";
 
@@ -116,12 +134,15 @@ export function latestBackup(fileNames: readonly string[]): string | null {
 
 /**
  * libpq's variables for a connection string, so the address reaches `pg_dump`
- * through the environment and never its command line. Encryption is required:
- * the server is reached over the internet.
+ * through the environment and never its command line. The server must present
+ * a certificate signed by `rootCertificate`: it is reached over the internet.
  *
  * decisions/807-database-backup.md
  */
-export function libpqEnvironment(connectionString: string): Record<string, string> {
+export function libpqEnvironment(
+  connectionString: string,
+  rootCertificate: string
+): Record<string, string> {
   const url = new URL(connectionString);
   return {
     PGHOST: url.hostname,
@@ -129,7 +150,8 @@ export function libpqEnvironment(connectionString: string): Record<string, strin
     PGUSER: decodeURIComponent(url.username),
     PGPASSWORD: decodeURIComponent(url.password),
     PGDATABASE: decodeURIComponent(url.pathname.slice(1)),
-    PGSSLMODE: "require",
+    PGSSLMODE: "verify-ca",
+    PGSSLROOTCERT: rootCertificate,
   };
 }
 

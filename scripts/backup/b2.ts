@@ -73,7 +73,7 @@ export async function authorize(keyId: string, key: string, fetchFn: Fetch): Pro
 function call(session: Session, name: string, payload: object, fetchFn: Fetch): Promise<Response> {
   return fetchFn(`${session.apiUrl}/b2api/v4/${name}`, {
     method: "POST",
-    headers: { Authorization: session.token },
+    headers: { Authorization: session.token, "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
 }
