@@ -293,7 +293,7 @@ repos/:owner/:repo/rulesets` and its neighbours.
 | Pull request required | yes, 0 approvals | yes, **1 approval** |
 | Merge methods | squash, merge or rebase; history must stay linear | **merge commit only**, so `release` keeps `main`'s SHAs |
 | Up to date before merge | required | **not** required (#221) |
-| Required checks | `Typecheck, lint and unit tests`, `Integration tests`, `Issue checkboxes`, `SonarCloud scan`, `Sourcery review` | `Release — typecheck, lint and unit tests`, `Release — integration tests`, `Release — end-to-end tests` |
+| Required checks | `Typecheck, lint and unit tests`, `Integration tests`, `Issue checkboxes`, `Commit messages`, `SonarCloud scan`, `Sourcery review` | `Release — typecheck, lint and unit tests`, `Release — integration tests`, `Release — end-to-end tests` |
 | Force push, deletion | blocked | blocked |
 
 - **A required check is satisfied by `skipped`.** Sourcery skips when its
@@ -307,7 +307,7 @@ repos/:owner/:repo/rulesets` and its neighbours.
 
 | File | Runs on | Jobs | Notes |
 |---|---|---|---|
-| `ci.yml` | push to `main`, pull requests to `main` | unit (typecheck, lint, unit, shuffled unit), production build (`next build` with placeholder variables, the Axiom ones included), integration (Postgres 18 and Redis 8 as services), issue checkboxes | only for `OWNER_USERNAME`, `COLLABORATOR_USERNAME` and `renovate[bot]` |
+| `ci.yml` | push to `main`, pull requests to `main` | unit (typecheck, lint, unit, shuffled unit), production build (`next build` with placeholder variables, the Axiom ones included), integration (Postgres 18 and Redis 8 as services), issue checkboxes, commit messages (every subject the pull request adds, decisions/841) | only for `OWNER_USERNAME`, `COLLABORATOR_USERNAME` and `renovate[bot]` |
 | `sonarcloud.yml` | the same | scan, with coverage; the job waits for the quality gate | the same allowlist |
 | `release.yml` | pull requests to `release`, push to `release`, by hand | unit, integration, **e2e against a production build**, then tag and publish on a push | uses the two provider keys; e2e runs nowhere else in CI |
 | `taso-key-check.yml` | daily 06:00 UTC, by hand | asks production's `/api/health?providers=1`, with the token, whether TASO still answers | #113, decisions/814 |
@@ -382,7 +382,7 @@ Organization project `Footy Trends` (number 2), private. Status: `Backlog`,
 | SonarCloud | `sonar-project.properties`, `sonarcloud.yml` | indexes the whole repository, so a source file no test imports scores 0%; `npm run test:unit` fails on such a file first (CLAUDE.md). The gate judges new code only, and the built-in profile gains rules without notice, so open issues can appear on `main` with the gate green. One rule, `await` in a loop, is ignored in five named files, and no security rule is ignored anywhere (`decisions/592-sonar-zero-open-issues-again.md`) |
 | Secret scanning | repository settings, section **Secret Protection** (`gh api repos/:owner/:repo --jq .security_and_analysis`) | scanning and push protection on since 2026-11-20; a push carrying a recognised key is rejected with `GH013`, and the rejection links to a page where the pusher can still allow the key by giving a reason, so it stops a mistake, not a pusher who means it. Non-provider patterns and validity checks stay `disabled`: the organisation is on the Free plan, and the API accepts a request to enable them with a 200 and changes nothing. The first scan of the history found no alerts (`decisions/809-secret-scanning.md`) |
 | Renovate | `renovate.json` | Mondays before 07:00 Helsinki, at most 10 open, no automerge. TypeScript is held below 7 (#43). It keeps the actions' pinned hashes current and pins any action that arrives on a tag (decisions/813) |
-| Local gate | `npm run verify`, the pre-commit hook (lint, typecheck), the pre-push hook (a branch other than `main` or `release` up to date with `origin/main`, skipped when the fetch fails; then a fresh e2e run, against a production build, unless the push changes only `specs/`, `decisions/`, `docs/`, `skills/` or root `.md` files), and Claude Code's `PreToolUse` hook on Bash in `.claude/settings.json`, which refuses `git add -A`/`--all`/`.`, and `gh pr create` on an unpushed head or closing an issue with a box neither ticked nor explained (decisions/806) | the stages are checked against the workflows by a unit test |
+| Local gate | `npm run verify`, the pre-commit hook (lint, typecheck), the commit-msg hook (a subject that names the review instead of the change is refused, decisions/841), the pre-push hook (a branch other than `main` or `release` up to date with `origin/main`, skipped when the fetch fails; then a fresh e2e run, against a production build, unless the push changes only `specs/`, `decisions/`, `docs/`, `skills/` or root `.md` files), and Claude Code's `PreToolUse` hook on Bash in `.claude/settings.json`, which refuses `git add -A`/`--all`/`.`, and `gh pr create` on an unpushed head or closing an issue with a box neither ticked nor explained (decisions/806) | the stages are checked against the workflows by a unit test |
 
 ## Observability
 
