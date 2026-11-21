@@ -19,7 +19,9 @@ matches: that was whatever Postgres's sort returned. It was not seen to vary.
 Nor was which teams of one kickoff a query's cap kept: on today's Postgres it
 keeps the lowest ids, because `distinct on (team id)` hands the outer query its
 rows in team-id order and the capped sort keeps the earliest of equal rows. The
-integration test passes with or without the cap's new tie-break.
+integration test passes with or without the cap's new tie-break, so the unit
+test's mock is what holds it: it orders rows of one kickoff by team id only when
+the query asks it to, and keeps them in the order read otherwise.
 
 ## Decisions
 
