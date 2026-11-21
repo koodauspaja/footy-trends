@@ -79,7 +79,9 @@ function call(session: Session, name: string, payload: object, fetchFn: Fetch): 
 }
 
 /**
- * Uploads `bytes` as `fileName`. The bucket's default retention locks it.
+ * Uploads `bytes` as `fileName`. The bucket's default retention locks it. B2
+ * answers 503 when an upload address is busy, and asks for a new address and
+ * another try; after `attempts` of them the 503 is the failure.
  *
  * decisions/807-database-backup.md
  */
@@ -87,10 +89,14 @@ export async function upload(
   session: Session,
   fileName: string,
   bytes: Uint8Array<ArrayBuffer>,
-  fetchFn: Fetch
+  fetchFn: Fetch,
+  attempts = 3
 ): Promise<void> {
+  const again = () => upload(session, fileName, bytes, fetchFn, attempts - 1);
+  const address = await call(session, "b2_get_upload_url", { bucketId: session.bucketId }, fetchFn);
+  if (address.status === 503 && attempts > 1) return again();
   const target = await json<{ uploadUrl: string; authorizationToken: string }>(
-    await call(session, "b2_get_upload_url", { bucketId: session.bucketId }, fetchFn),
+    address,
     "b2_get_upload_url"
   );
   const response = await fetchFn(target.uploadUrl, {
@@ -103,6 +109,7 @@ export async function upload(
     },
     body: bytes,
   });
+  if (response.status === 503 && attempts > 1) return again();
   await json(response, "b2_upload_file");
 }
 
