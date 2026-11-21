@@ -111,6 +111,7 @@ By name; no value is in the repository. The lists are in `.railway/railway.ts`.
 | `FOOTBALL_DATA_EARLIEST_SEASON`, `FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS` | `2023`, `3600` | `2023`, `3600` | how far back history is stored, and how old stored matches may be before a refresh |
 | `AXIOM_TOKEN`, `AXIOM_DATASET` | dataset `footy-trends` | dataset `footy-trends-prod` | a token per environment |
 | `NEXT_PUBLIC_SENTRY_DSN` | set | set | per environment |
+| `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN` | set | set | read by the build, which uploads source maps to that environment's own Sentry project. The token is an organisation token, **its own in each**. Only Railway's builds hold one; CI's build uploads nothing (decisions/830) |
 | `HEALTH_PROVIDERS_TOKEN` | set | set | **its own in each**; without it in a request's header, `?providers=1` makes no TASO call. Production's is also the Actions secret (decisions/814) |
 | `LOG_LEVEL` | `info` | `info` | why `info` is safe: `docs/setup/021` |
 | `AUTH_ALLOWED_EMAILS` | set | absent | unset means anyone may sign in |

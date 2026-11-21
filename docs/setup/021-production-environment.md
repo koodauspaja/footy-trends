@@ -172,6 +172,7 @@ more once the Sentry configs read their settings from the environment.
 | `AUTH_TRUSTED_PROXIES` | optional | Configure together with `AUTH_CLIENT_IP_HEADERS=x-forwarded-for` when the client address has to come from a multi-hop `x-forwarded-for`. If set, add it to production's `ENVIRONMENTS` entry first (025, *Later*), or the next apply deletes it |
 | `AUTH_ALLOWED_EMAILS` | **leave unset** | Restricts sign-in to the listed addresses. Production is deliberately open — see *Sign-in is restricted only where a list says so* below |
 | `NEXT_PUBLIC_SENTRY_DSN` | manual | |
+| `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN` | manual | Production's project slug, and **its own** organisation token rather than staging's. Read by the build, not `src/`; they upload source maps — 017, decisions/830 |
 | `AXIOM_TOKEN` | manual | |
 | `AXIOM_DATASET` | manual | A separate dataset from staging, so the two do not interleave |
 | `LOG_LEVEL` | manual | See Step 6 |
