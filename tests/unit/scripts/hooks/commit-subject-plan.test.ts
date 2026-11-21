@@ -99,12 +99,16 @@ describe("processPhrase", () => {
 });
 
 describe("subjectOf", () => {
-  it("reads the first line that is neither blank nor a git comment, trimmed", () => {
-    expect(subjectOf("# Please enter\n\n  chore: x (#1)  \n\nbody\n")).toBe("chore: x (#1)");
+  it("reads the first line that is not blank, trimmed, above git's comments", () => {
+    expect(subjectOf("\n  chore: x (#1)  \n\nbody\n# Please enter\n")).toBe("chore: x (#1)");
   });
 
-  it("is empty for a message with no subject", () => {
-    expect(subjectOf("# only comments\n\n")).toBe("");
+  it("keeps a first line that starts with #, as git commit -m does", () => {
+    expect(subjectOf("# answer the review comments\n")).toBe("# answer the review comments");
+  });
+
+  it("is empty for a blank message", () => {
+    expect(subjectOf("\n  \n")).toBe("");
   });
 });
 

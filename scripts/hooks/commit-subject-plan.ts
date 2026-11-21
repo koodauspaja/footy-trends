@@ -56,12 +56,13 @@ export function processPhrase(subject: string): string | null {
 }
 
 /**
- * A commit message's subject: its first line that is not a git comment.
+ * A commit message's subject: its first line that is not blank. `git commit -m`
+ * keeps a first line starting with `#`, and the editor puts git's comments below.
  *
  * decisions/841-commit-subject-gate.md
  */
 export function subjectOf(message: string): string {
-  const line = message.split("\n").find((text) => text.trim() !== "" && !text.startsWith("#"));
+  const line = message.split("\n").find((text) => text.trim() !== "");
   return (line ?? "").trim();
 }
 
