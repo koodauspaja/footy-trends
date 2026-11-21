@@ -9,15 +9,18 @@ import { warmModules } from "../../../support/warm-module";
  *
  * decisions/027-team-search.md
  * decisions/325-taso-finland-links.md
+ * decisions/834-team-search-tie-order.md
  */
 
-const { state, resolveTeamNames } = vi.hoisted(() => ({
+const { state, resolveTeamNames, TEAM_ID } = vi.hoisted(() => ({
   state: {
     sides: new Map<string, unknown[]>(),
     limits: [] as number[],
     queried: 0,
   },
   resolveTeamNames: vi.fn(),
+  // The subquery's team id column as the outer `orderBy` receives it.
+  TEAM_ID: "newest_per_team.team_provider_id",
 }));
 
 // The chain is a `selectDistinctOn` subquery inside an outer `select` with `orderBy`
@@ -32,7 +35,7 @@ vi.mock("@/db", () => ({
             as: () => {
               const side = columns[0]?.name.startsWith("home") === true ? "home" : "away";
               const name = table === matches ? "matches" : "taso_matches";
-              return { source: `${name}:${side}` };
+              return { source: `${name}:${side}`, teamProviderId: TEAM_ID };
             },
           }),
         }),
@@ -40,7 +43,7 @@ vi.mock("@/db", () => ({
     }),
     select: () => ({
       from: (sub: { source: string }) => ({
-        orderBy: () => ({
+        orderBy: (...terms: unknown[]) => ({
           limit: async (n: number) => {
             state.queried += 1;
             state.limits.push(n);
@@ -49,9 +52,16 @@ vi.mock("@/db", () => ({
               kickoffAt: Date;
             }[];
             // Postgres would order and cap; the mock does the same, or the
-            // outer `limit` would be untested.
+            // outer `limit` would be untested. Rows of one kickoff keep the
+            // order they were read in unless the query orders them by team id,
+            // since nothing else promises theirs.
+            const byTeam = terms.includes(TEAM_ID);
             return [...rows]
-              .sort((left, right) => right.kickoffAt.getTime() - left.kickoffAt.getTime())
+              .sort(
+                (left, right) =>
+                  right.kickoffAt.getTime() - left.kickoffAt.getTime() ||
+                  (byTeam ? left.teamProviderId - right.teamProviderId : 0)
+              )
               .slice(0, n);
           },
         }),
@@ -241,6 +251,47 @@ describe("searchTeams", () => {
       { source: "taso", teamProviderId: 3 },
       { source: "taso", teamProviderId: 1 },
     ]);
+  });
+
+  it("orders teams whose newest matches kick off together by source, then team id", async () => {
+    // Each from its own query, so only the merge can order them: TASO's home
+    // query is read before its away one, and a football-data side ties with both.
+    const together = at("2026-01-01");
+    state.sides.set("taso_matches:home", [{ teamProviderId: 9, kickoffAt: together }]);
+    state.sides.set("taso_matches:away", [{ teamProviderId: 4, kickoffAt: together }]);
+    state.sides.set("matches:away", [{ teamProviderId: 7, kickoffAt: together }]);
+    const { searchTeams } = await import("@/lib/teams/team-search");
+
+    await searchTeams("honka");
+
+    expect(resolveTeamNames).toHaveBeenCalledWith([
+      { source: "football-data", teamProviderId: 7 },
+      { source: "taso", teamProviderId: 4 },
+      { source: "taso", teamProviderId: 9 },
+    ]);
+  });
+
+  it("caps each query at its lowest team ids when more than the cap kick off together", async () => {
+    // Read highest id first: without the query's own tie-break, the cap would
+    // keep whichever twenty came first.
+    const { MAX_RESULTS, searchTeams } = await import("@/lib/teams/team-search");
+    const total = MAX_RESULTS + 5;
+    state.sides.set(
+      "taso_matches:home",
+      Array.from({ length: total }, (_, index) => ({
+        teamProviderId: total - index,
+        kickoffAt: at("2026-01-01"),
+      }))
+    );
+
+    await searchTeams("honka");
+
+    expect(resolveTeamNames).toHaveBeenCalledWith(
+      Array.from({ length: MAX_RESULTS }, (_, index) => ({
+        source: "taso",
+        teamProviderId: index + 1,
+      }))
+    );
   });
 
   it("never resolves more teams than the cap, however many sides matched", async () => {
