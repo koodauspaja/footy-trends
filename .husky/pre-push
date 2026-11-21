@@ -1,10 +1,15 @@
 # Why each setting is as it is: decisions/531-configuration-files.md
-# Blocks a push that no passing e2e run covers: see tests/e2e/README.md.
-# `git push --no-verify` skips it. Skipped quietly when dependencies are not
+# Blocks a push of a branch behind origin/main (decisions/806-push-and-pr-hooks.md),
+# then a push that no passing e2e run covers: see tests/e2e/README.md.
+# `git push --no-verify` skips both. Skipped quietly when dependencies are not
 # installed.
 if [ ! -x node_modules/.bin/tsx ]; then
-  echo "e2e freshness check skipped: run npm install to enable it."
+  echo "pre-push checks skipped: run npm install to enable them."
   exit 0
 fi
 
-node_modules/.bin/tsx scripts/e2e/e2e-freshness.ts
+# git gives the pushed refs on stdin once; both checks read them.
+refs=$(cat)
+
+printf '%s\n' "$refs" | node_modules/.bin/tsx scripts/hooks/up-to-date.ts || exit 1
+printf '%s\n' "$refs" | node_modules/.bin/tsx scripts/e2e/e2e-freshness.ts
