@@ -2,11 +2,12 @@ import { createHash } from "node:crypto";
 import ts from "typescript";
 
 /**
- * The rules a comment is held to: what it may cite, and how it may sit. A
- * test's name is held to the first of them.
+ * The rules a comment is held to: what it may cite, how long it may run and how
+ * it may sit. A test's name is held to the first of them.
  *
  * decisions/531-comments-say-what-code-is-for.md
  * decisions/584-test-names-carry-no-citations.md
+ * decisions/839-mechanical-comment-rules.md
  */
 
 export type Comment = {
@@ -31,7 +32,13 @@ const SOURCE_EXTENSIONS = [".ts", ".tsx", ".mts", ".mjs"];
  * decisions/531-comments-say-what-code-is-for.md
  */
 const ISSUE_NUMBER = /(?<![&#])#\d+\b/;
-const DECISION_PATH = /decisions\/[\w.-]+\.md/g;
+/**
+ * A decision record's path, not part of a longer path or word. A sentence's
+ * full stop may follow it.
+ *
+ * decisions/839-mechanical-comment-rules.md
+ */
+const DECISION_PATH = /(?<![\w./-])decisions\/[\w.-]+\.md(?![\w/-]|\.\w)/g;
 
 /**
  * What a test's name may not carry: an issue number, a spec by path or number,
@@ -59,6 +66,16 @@ function scriptKind(file: string): ts.ScriptKind {
 }
 
 /**
+ * A file's syntax tree. Each check takes one already parsed, so a run over the
+ * repository parses each file once.
+ *
+ * decisions/839-mechanical-comment-rules.md
+ */
+export function parse(file: string, source: string): ts.SourceFile {
+  return ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind(file));
+}
+
+/**
  * `"use server"`, `"use client"`: a string on its own at the top of a file.
  *
  * decisions/531-comments-say-what-code-is-for.md
@@ -74,8 +91,11 @@ function isDirective(statement: ts.Statement): boolean {
  *
  * decisions/531-comments-say-what-code-is-for.md
  */
-export function commentsOf(file: string, source: string): Comment[] {
-  const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind(file));
+export function commentsOf(
+  file: string,
+  source: string,
+  tree: ts.SourceFile = parse(file, source)
+): Comment[] {
   const ranges = new Map<number, ts.CommentRange>();
 
   const collect = (position: number) => {
@@ -217,13 +237,25 @@ function calledFrom(expression: ts.Expression): string | null {
  * Vitest's `suite` as it imports them, under another name or not, and a constant assigned from one.
  *
  * decisions/584-test-names-carry-no-citations.md
+ * decisions/839-mechanical-comment-rules.md
  */
 function testFunctionsOf(tree: ts.SourceFile): Set<string> {
   const names = new Set<string>();
+  for (const statement of tree.statements) {
+    const bindings = ts.isImportDeclaration(statement)
+      ? statement.importClause?.namedBindings
+      : undefined;
+    if (bindings === undefined || !ts.isNamedImports(bindings)) continue;
+    for (const element of bindings.elements) {
+      if (TEST_FUNCTIONS.has((element.propertyName ?? element.name).text)) {
+        names.add(element.name.text);
+      }
+    }
+  }
+  // A file importing none has no test, so its tree is not walked.
+  if (names.size === 0) return names;
   const visit = (node: ts.Node) => {
-    if (ts.isImportSpecifier(node)) {
-      if (TEST_FUNCTIONS.has((node.propertyName ?? node.name).text)) names.add(node.name.text);
-    } else if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) {
       const from = node.initializer === undefined ? null : calledFrom(node.initializer);
       if (from !== null && names.has(from)) names.add(node.name.text);
     }
@@ -237,7 +269,7 @@ function isFunction(node: ts.Node): boolean {
   return ts.isArrowFunction(node) || ts.isFunctionExpression(node);
 }
 
-type TestName = { line: number; text: string; written: boolean };
+export type TestName = { line: number; text: string; written: boolean };
 
 /**
  * Each test's and suite's name, read from the parsed tree: the same words in a
@@ -246,9 +278,9 @@ type TestName = { line: number; text: string; written: boolean };
  *
  * decisions/584-test-names-carry-no-citations.md
  */
-function testNamesOf(file: string, source: string): TestName[] {
-  const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind(file));
+export function testNamesOf(tree: ts.SourceFile): TestName[] {
   const functions = testFunctionsOf(tree);
+  if (functions.size === 0) return [];
   const names: TestName[] = [];
 
   const visit = (node: ts.Node) => {
@@ -274,8 +306,12 @@ function testNamesOf(file: string, source: string): TestName[] {
  *
  * decisions/584-test-names-carry-no-citations.md
  */
-export function testNameCitations(file: string, source: string): Finding[] {
-  return testNamesOf(file, source)
+export function testNameCitations(
+  file: string,
+  source: string,
+  names: readonly TestName[] = testNamesOf(parse(file, source))
+): Finding[] {
+  return names
     .filter((name) => NAME_CITATIONS.some((citation) => citation.test(name.text)))
     .map(({ line, text }) => ({ file, line, text }));
 }
@@ -286,10 +322,12 @@ export function testNameCitations(file: string, source: string): Finding[] {
  *
  * decisions/584-test-names-carry-no-citations.md
  */
-export function computedTestNames(file: string, source: string): Finding[] {
-  return testNamesOf(file, source)
-    .filter((name) => !name.written)
-    .map(({ line, text }) => ({ file, line, text }));
+export function computedTestNames(
+  file: string,
+  source: string,
+  names: readonly TestName[] = testNamesOf(parse(file, source))
+): Finding[] {
+  return names.filter((name) => !name.written).map(({ line, text }) => ({ file, line, text }));
 }
 
 /**
@@ -310,6 +348,133 @@ export function stackedDocComments(
     if (between.trim() !== "") return [];
     if (previous.header && between.split("\n").length > 2) return [];
     return [{ file, line: comment.line, text: comment.text.replace(/\n[\s\S]*/, "") }];
+  });
+}
+
+/**
+ * A comment line's words, without the markers around them.
+ *
+ * decisions/839-mechanical-comment-rules.md
+ */
+function proseOf(line: string): string {
+  return line
+    .trim()
+    .replace(/^\/\*\*?|\*\/$/g, "")
+    .replace(/^\s*(\*|\/\/)/, "")
+    .trim();
+}
+
+/**
+ * The words of a comment's lines on one line: what a finding shows, and what
+ * keys it in a record, so a comment that only moves keeps its key.
+ *
+ * decisions/839-mechanical-comment-rules.md
+ */
+function wordsOf(lines: readonly string[]): string {
+  return lines
+    .map(proseOf)
+    .filter((line) => line !== "")
+    .join(" ");
+}
+
+function citesARecord(text: string): boolean {
+  return text.search(DECISION_PATH) !== -1;
+}
+
+function isDeclaration(statement: ts.Statement): boolean {
+  return (
+    ts.isFunctionDeclaration(statement) ||
+    ts.isClassDeclaration(statement) ||
+    ts.isInterfaceDeclaration(statement) ||
+    ts.isTypeAliasDeclaration(statement) ||
+    ts.isEnumDeclaration(statement) ||
+    ts.isVariableStatement(statement) ||
+    ts.isModuleDeclaration(statement) ||
+    ts.isExportAssignment(statement)
+  );
+}
+
+/**
+ * Doc comments on a file's top-level declarations that cite no decision record:
+ * the header covers only a declaration with no comment of its own. A header a
+ * blank line sets apart is the file's, not the declaration's.
+ *
+ * decisions/531-comments-say-what-code-is-for.md
+ * decisions/839-mechanical-comment-rules.md
+ */
+export function uncitedDeclarations(
+  file: string,
+  source: string,
+  comments: readonly Comment[],
+  tree: ts.SourceFile = parse(file, source)
+): Finding[] {
+  return tree.statements.filter(isDeclaration).flatMap((statement) => {
+    const start = statement.getStart(tree);
+    const doc = comments.findLast(
+      (comment) => comment.doc && comment.start >= statement.pos && comment.end <= start
+    );
+    if (doc === undefined || citesARecord(doc.text)) return [];
+    if (doc.header && /\n[ \t]*\n/.test(source.slice(doc.end, start))) return [];
+    return [{ file, line: doc.line, text: wordsOf(doc.text.split("\n")) }];
+  });
+}
+
+function startsItsLine(source: string, comment: Comment): boolean {
+  return source.slice(source.lastIndexOf("\n", comment.start - 1) + 1, comment.start).trim() === "";
+}
+
+function continues(source: string, previous: Comment, comment: Comment): boolean {
+  return (
+    previous.text.startsWith("//") &&
+    comment.text.startsWith("//") &&
+    startsItsLine(source, previous) &&
+    startsItsLine(source, comment) &&
+    comment.line === previous.endLine + 1
+  );
+}
+
+type Run = { line: number; lines: string[] };
+
+/**
+ * The file's comments as a reader sees them: `//` lines each on a line of their
+ * own, one directly under another, are one comment.
+ *
+ * decisions/839-mechanical-comment-rules.md
+ */
+function runsOf(source: string, comments: readonly Comment[]): Run[] {
+  const runs: Run[] = [];
+  let current: { run: Run; last: Comment } | undefined;
+  for (const comment of comments) {
+    const lines = comment.text.split("\n");
+    if (current !== undefined && continues(source, current.last, comment)) {
+      current.run.lines.push(...lines);
+    } else {
+      current = { run: { line: comment.line, lines }, last: comment };
+      runs.push(current.run);
+    }
+    current.last = comment;
+  }
+  return runs;
+}
+
+/**
+ * Comments whose words before the first record path run over three lines, each
+ * with those words as its text.
+ *
+ * decisions/531-comments-say-what-code-is-for.md
+ * decisions/839-mechanical-comment-rules.md
+ */
+export function longComments(
+  file: string,
+  source: string,
+  comments: readonly Comment[]
+): Finding[] {
+  return runsOf(source, comments).flatMap(({ line, lines }) => {
+    const text = lines.join("\n");
+    const firstPath = text.search(DECISION_PATH);
+    const prose = (firstPath === -1 ? text : text.slice(0, firstPath)).split("\n");
+    const proseLines = prose.filter((text) => proseOf(text) !== "").length;
+    return proseLines > 3 ? [{ file, line, text: wordsOf(prose) }] : [];
   });
 }
 

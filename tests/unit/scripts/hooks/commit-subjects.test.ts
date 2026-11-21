@@ -22,7 +22,11 @@ afterEach(() => {
   vi.resetModules();
 });
 
-/** A shell or YAML file's lines that run, trimmed: a commented-out line is not one. */
+/**
+ * A shell or YAML file's lines that run, trimmed: a commented-out line is not one.
+ *
+ * decisions/841-commit-subject-gate.md
+ */
 function activeLines(path: string): string[] {
   return readFileSync(path, "utf8")
     .split("\n")
