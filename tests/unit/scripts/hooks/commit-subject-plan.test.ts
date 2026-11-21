@@ -68,6 +68,14 @@ describe("processPhrase", () => {
     ["chore: review round 2", "review round"],
     ["docs: tighten wording per the review", "per the review"],
     ["docs: tighten wording per code review", "per code review"],
+    ["docs: tighten wording per SonarCloud review", "per SonarCloud review"],
+    ["fix: fix findings from Sourcery review", "fix findings from Sourcery review"],
+    ["fix: fixes the comments of the code review", "fixes the comments of the code review"],
+    ["fix: fix Sourcery's findings", "fix Sourcery's findings"],
+    ["chore: apply Sourcery review suggestions", "apply Sourcery review suggestions"],
+    ["chore: apply the review's suggestions", "apply the review's suggestions"],
+    ["chore: apply SonarCloud's suggestions", "apply SonarCloud's suggestions"],
+    ["chore: applied review suggestions", "applied review suggestions"],
   ])("refuses %j, naming %j", (subject, phrase) => {
     expect(processPhrase(subject)).toBe(phrase);
   });
@@ -77,7 +85,10 @@ describe("processPhrase", () => {
     expect(processPhrase("fix: the answer key is read once (#1)")).toBeNull();
     expect(
       processPhrase("chore: answers come from the cache, and the comments table is dropped (#2)")
-    ).not.toBeNull();
+    ).toBeNull();
+    expect(
+      processPhrase("fix: address the cup forecast's tie order, and drop stale comments (#3)")
+    ).toBeNull();
   });
 });
 

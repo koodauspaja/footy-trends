@@ -79,7 +79,25 @@ describe("runCheck with --message", () => {
   });
 });
 
+describe("runCheck with --subject", () => {
+  it("refuses a pull request title that names the review, and passes one that does not", () => {
+    const console = consoleSpy();
+
+    expect(runCheck(argv("--subject", "chore: apply suggestions"), deps(), console)).toBe(1);
+    expect(console.lines.join("\n")).toContain('("apply suggestions")');
+    expect(runCheck(argv("--subject", "chore: x is y (#1)"), deps(), consoleSpy())).toBe(0);
+  });
+});
+
 describe("runCheck with a range", () => {
+  it("reads a subject's own tabs as part of the subject", () => {
+    const log = `${"c".repeat(40)}\tchore: tidy\tanswer the review comments\n`;
+    const console = consoleSpy();
+
+    expect(runCheck(argv("a..b"), deps({}, log), console)).toBe(1);
+    expect(console.lines.join("\n")).toContain("ccccccc chore: tidy\tanswer the review comments");
+  });
+
   it("reads every commit in the range and names each offender", () => {
     const log = `${"a".repeat(40)}\tchore: x is y (#1)\n${"b".repeat(40)}\tchore: apply suggestions\n`;
     const checkout = deps({}, log);
@@ -107,12 +125,15 @@ describe("runCheck with a range", () => {
 });
 
 describe("runCheck usage", () => {
-  it.each([[[]], [["--message"]], [["main"]], [["a b..c"]]])("prints the usage for %j", (args) => {
-    const console = consoleSpy();
+  it.each([[[]], [["--message"]], [["--subject"]], [["main"]], [["a b..c"]]])(
+    "prints the usage for %j",
+    (args) => {
+      const console = consoleSpy();
 
-    expect(runCheck(argv(...args), deps(), console)).toBe(1);
-    expect(console.lines[0]).toContain("Usage: npm run check:commits");
-  });
+      expect(runCheck(argv(...args), deps(), console)).toBe(1);
+      expect(console.lines[0]).toContain("Usage: npm run check:commits");
+    }
+  );
 });
 
 describe("defaultDeps", () => {

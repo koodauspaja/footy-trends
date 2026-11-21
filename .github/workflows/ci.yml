@@ -202,11 +202,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Every commit the pull request adds, read against the rule the commit-msg
-  # hook applies: `--no-verify` skips the hook, not this.
+  # Every commit the pull request adds, and its title, read against the rule
+  # the commit-msg hook applies: `--no-verify` skips the hook, not this.
   commits:
     name: Commit messages
-    if: github.event_name == 'pull_request'
+    if: |
+      github.event_name == 'pull_request' && (
+        github.actor == vars.OWNER_USERNAME ||
+        github.actor == vars.COLLABORATOR_USERNAME ||
+        github.actor == 'renovate[bot]'
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -228,3 +233,10 @@ jobs:
 
       - name: Commit messages
         run: npm run check:commits -- ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
+
+      # A squash merge makes the title the subject that lands on `main`. Passed
+      # through the environment, never into the script's text.
+      - name: Pull request title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: npm run check:commits -- --subject "$TITLE"

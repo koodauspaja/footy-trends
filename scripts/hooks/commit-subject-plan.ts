@@ -14,16 +14,19 @@
  * decisions/841-commit-subject-gate.md
  */
 const PROCESS_PHRASES: readonly RegExp[] = [
-  // "answer Sourcery's second review", "address review feedback", "respond to comments"
-  /\b(?:answer(?:s|ed|ing)?|address(?:es|ed|ing)?|respond(?:s|ed|ing)? to|repl(?:y|ies|ied|ying) to)\b.{0,40}?\b(?:reviews?|comments?|findings?|feedback|suggestions?)\b/i,
-  // "fix review findings", "fix Sourcery comments"
-  /\bfix(?:es|ed|ing)?\s+(?:the\s+)?(?:review|sourcery|sonar(?:cloud)?)\s+(?:findings?|comments?|issues?|feedback)\b/i,
-  // "apply suggestions", "apply Sourcery's suggestions"
-  /\bapply(?:ing)?\s+(?:the\s+)?(?:(?:review|sourcery(?:'s)?|code review)\s+)?suggestions?\b/i,
+  // "answer Sourcery's second review", "address review feedback", "respond to comments":
+  // the review within three words of the verb, in the same clause.
+  /\b(?:answer(?:s|ed|ing)?|address(?:es|ed|ing)?|respond(?:s|ed|ing)? to|repl(?:y|ies|ied|ying) to)\s+(?:[\w'’]+\s+){0,3}?(?:reviews?|comments?|findings?|feedback|suggestions?)\b/i,
+  // "fix review findings", "fix Sourcery's findings", "fix the SonarCloud review comments"
+  /\bfix(?:es|ed|ing)?\s+(?:the\s+)?(?:review|sourcery|sonar(?:cloud)?)(?:'s)?\s+(?:review\s+)?(?:findings?|comments?|issues?|feedback)\b/i,
+  // "fix findings from Sourcery review"
+  /\bfix(?:es|ed|ing)?\s+(?:the\s+)?(?:findings?|comments?|issues?|feedback)\s+(?:from|of)\s+(?:the\s+)?(?:(?:sourcery|sonar(?:cloud)?|code)(?:'s)?\s+)?review\b/i,
+  // "apply suggestions", "applied Sourcery's review suggestions", "apply the review's suggestions"
+  /\bappl(?:y|ies|ied|ying)\s+(?:the\s+)?(?:(?:review|sourcery|sonar(?:cloud)?|code review)(?:'s)?\s+)?(?:review\s+)?suggestions?\b/i,
   // "review round 2"
   /\breview\s+round\b/i,
-  // "per Sourcery review"
-  /\bper\s+(?:the\s+)?(?:(?:sourcery|sonar|code)\s+)?review\b/i,
+  // "per Sourcery review", "per SonarCloud review"
+  /\bper\s+(?:the\s+)?(?:(?:sourcery|sonar(?:cloud)?|code)\s+)?review\b/i,
 ];
 
 /**

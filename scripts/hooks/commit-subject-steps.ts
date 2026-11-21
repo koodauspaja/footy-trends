@@ -6,8 +6,9 @@ import { type Offender, processPhrase, refusal, subjectOf } from "./commit-subje
 
 /**
  * `npm run check:commits`: the commit-msg hook's check of one message, with
- * `--message <file>`, and CI's check of every commit in a `<base>..<head>`
- * range. Reading is injected.
+ * `--message <file>`, and CI's checks of the pull request's title, with
+ * `--subject <text>`, and of every commit in a `<base>..<head>` range. Reading
+ * is injected.
  *
  * decisions/841-commit-subject-gate.md
  */
@@ -19,12 +20,25 @@ export type Deps = {
   git: (args: readonly string[]) => string | null;
 };
 
-const USAGE = "Usage: npm run check:commits -- --message <file> | <base>..<head>";
+const USAGE =
+  "Usage: npm run check:commits -- --message <file> | --subject <text> | <base>..<head>";
 
 function verdict(offenders: readonly Offender[], console: Console): number {
   if (offenders.length === 0) return 0;
   console.err(refusal(offenders));
   return 1;
+}
+
+/**
+ * One subject given as text: a pull request's title, which a squash merge
+ * makes the subject of the commit that lands on `main`.
+ *
+ * decisions/841-commit-subject-gate.md
+ */
+function checkSubject(text: string, console: Console): number {
+  const subject = subjectOf(text);
+  const phrase = processPhrase(subject);
+  return verdict(phrase === null ? [] : [{ commit: null, subject, phrase }], console);
 }
 
 /**
@@ -56,7 +70,10 @@ function checkRange(range: string, deps: Deps, console: Console): number {
     .split("\n")
     .filter(Boolean)
     .flatMap((line) => {
-      const [commit = "", subject = ""] = line.split("\t");
+      // The subject runs from the first tab on: it may hold tabs of its own.
+      const tab = line.indexOf("\t");
+      const commit = line.slice(0, tab);
+      const subject = line.slice(tab + 1);
       const phrase = processPhrase(subject);
       return phrase === null ? [] : [{ commit, subject, phrase }];
     });
@@ -71,6 +88,7 @@ function checkRange(range: string, deps: Deps, console: Console): number {
 export function runCheck(argv: readonly string[], deps: Deps, console: Console): number {
   const [first, second] = argv.slice(2);
   if (first === "--message" && second !== undefined) return checkMessage(second, deps, console);
+  if (first === "--subject" && second !== undefined) return checkSubject(second, console);
   if (first !== undefined && /^\S+\.\.\S+$/.test(first)) return checkRange(first, deps, console);
   console.err(USAGE);
   return 1;
@@ -81,7 +99,11 @@ export const defaultDeps: Deps = {
   git: (args) => {
     const binary = executablePath("git");
     if (binary === null) return null;
-    const result = spawnSync(binary, [...args], { encoding: "utf8", timeout: 30_000 });
+    const result = spawnSync(binary, [...args], {
+      encoding: "utf8",
+      timeout: 30_000,
+      maxBuffer: 32 * 1024 * 1024,
+    });
     return result.status === 0 ? result.stdout : null;
   },
 };

@@ -307,7 +307,7 @@ repos/:owner/:repo/rulesets` and its neighbours.
 
 | File | Runs on | Jobs | Notes |
 |---|---|---|---|
-| `ci.yml` | push to `main`, pull requests to `main` | unit (typecheck, lint, unit, shuffled unit), production build (`next build` with placeholder variables, the Axiom ones included), integration (Postgres 18 and Redis 8 as services), issue checkboxes, commit messages (every subject the pull request adds, decisions/841) | only for `OWNER_USERNAME`, `COLLABORATOR_USERNAME` and `renovate[bot]` |
+| `ci.yml` | push to `main`, pull requests to `main` | unit (typecheck, lint, unit, shuffled unit), production build (`next build` with placeholder variables, the Axiom ones included), integration (Postgres 18 and Redis 8 as services), issue checkboxes, commit messages (every subject the pull request adds, and its title, decisions/841) | only for `OWNER_USERNAME`, `COLLABORATOR_USERNAME` and `renovate[bot]` |
 | `sonarcloud.yml` | the same | scan, with coverage; the job waits for the quality gate | the same allowlist |
 | `release.yml` | pull requests to `release`, push to `release`, by hand | unit, integration, **e2e against a production build**, then tag and publish on a push | uses the two provider keys; e2e runs nowhere else in CI |
 | `taso-key-check.yml` | daily 06:00 UTC, by hand | asks production's `/api/health?providers=1`, with the token, whether TASO still answers | #113, decisions/814 |

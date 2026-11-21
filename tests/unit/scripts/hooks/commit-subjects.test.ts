@@ -42,6 +42,13 @@ describe("scripts/hooks/commit-subjects.ts", () => {
     );
   });
 
+  it("is run by CI on the pull request's title, passed through the environment", () => {
+    const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
+
+    expect(workflow).toContain('run: npm run check:commits -- --subject "$TITLE"');
+    expect(workflow).toMatch(/TITLE: \$\{\{ github\.event\.pull_request\.title \}\}/);
+  });
+
   it("is run by CI on every commit the pull request adds over its base", () => {
     // The workflow's own `${{ … }}` expressions, matched as written.
     expect(readFileSync(".github/workflows/ci.yml", "utf8")).toMatch(
