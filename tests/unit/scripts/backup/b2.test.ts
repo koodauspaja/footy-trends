@@ -43,6 +43,7 @@ const SESSION: Session = {
   downloadUrl: "https://f.example.com",
   bucketId: "bucket-1",
   bucketName: "backups",
+  capabilities: ["writeFiles"],
 };
 
 function authorized(buckets: { id: string; name: string }[] | null): Response {
@@ -52,7 +53,7 @@ function authorized(buckets: { id: string; name: string }[] | null): Response {
       storageApi: {
         apiUrl: "https://api.example.com",
         downloadUrl: "https://f.example.com",
-        allowed: { buckets },
+        allowed: { buckets, capabilities: ["writeFiles"] },
       },
     },
   });

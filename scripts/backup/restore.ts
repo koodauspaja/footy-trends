@@ -84,7 +84,11 @@ async function main(): Promise<number> {
     )
       .split("\n")[0]
       ?.trim();
-    if (!container) throw new Error(`No local ${POSTGRES_IMAGE} container publishes port 5432.`);
+    if (!container) {
+      throw new Error(
+        `No local ${POSTGRES_IMAGE} container publishes port 5432. Start one with: docker compose up -d postgres`
+      );
+    }
     const inPostgres = (...command: string[]) => ({
       path: docker,
       args: ["exec", "-i", container, ...command],

@@ -78,6 +78,13 @@ describe("pipe", () => {
     ).rejects.toThrow(/exited with 1: dump failed$/);
   });
 
+  it("reports a second tool that exits early, while the first still has output", async () => {
+    // Far more than a pipe holds, so the first tool blocks unless it is drained.
+    const writer = node("process.stdout.write(Buffer.alloc(16 * 1024 * 1024))");
+
+    await expect(pipe(writer, node("process.exit(5)"))).rejects.toThrow(/exited with 5: $/);
+  }, 10_000);
+
   it("fails when the second tool fails", async () => {
     await expect(
       pipe(

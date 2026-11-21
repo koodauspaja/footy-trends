@@ -34,6 +34,7 @@ export const COUNTS_SQL = `select n.nspname || '.' || c.relname as "table",
   (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I', n.nspname, c.relname), false, true, '')))[1]::text::bigint as "rows"
 from pg_class c join pg_namespace n on n.oid = c.relnamespace
 where c.relkind in ('r', 'p')
+  and c.relpersistence <> 't'
   and n.nspname not in ('pg_catalog', 'information_schema')
   and n.nspname not like 'pg_toast%'
 order by 1`;
@@ -168,6 +169,17 @@ export function parseRestoreArgs(
     return { ok: false, message: "Both --b2-key=<file> and --identity=<file> are required." };
   }
   return { ok: true, b2Key, identity };
+}
+
+/**
+ * Why a key the backup was given must not upload, or `null` when it may: it
+ * must be able to upload and nothing else, so a leaked copy can delete nothing.
+ *
+ * decisions/807-database-backup.md
+ */
+export function uploadKeyProblem(capabilities: readonly string[]): string | null {
+  if (capabilities.length === 1 && capabilities[0] === "writeFiles") return null;
+  return `The B2 key may only upload (writeFiles), but it has: ${capabilities.join(", ")}.`;
 }
 
 /**

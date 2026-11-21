@@ -22,6 +22,7 @@ import {
   describeCounts,
   libpqEnvironment,
   POSTGRES_IMAGE,
+  uploadKeyProblem,
 } from "./backup-plan";
 import { capture, pipe } from "./processes";
 
@@ -48,6 +49,8 @@ async function main(): Promise<void> {
   const docker = tool("docker");
   const age = tool("age");
   const session = await authorize(required("B2_KEY_ID"), required("B2_APPLICATION_KEY"), fetch);
+  const keyProblem = uploadKeyProblem(session.capabilities);
+  if (keyProblem !== null) throw new Error(keyProblem);
 
   const folder = backupFolder(new Date());
   const work = mkdtempSync(path.join(tmpdir(), "backup-"));

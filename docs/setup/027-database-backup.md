@@ -51,7 +51,7 @@ Deployment branches: **Selected branches**, `main` only. No reviewers. Secrets:
 
 ## Step 5 — The recipients
 
-Each person who may restore runs `age-keygen -o ~/.age/footy-backup.key`, keeps
+Each person who may restore runs `mkdir -p ~/.age && age-keygen -o ~/.age/footy-backup.key`, keeps
 the file in a password manager, and adds the printed public key to
 `scripts/backup/recipients.txt`.
 
@@ -62,7 +62,7 @@ the file in a password manager, and adds the printed public key to
 2. Restore it:
 
    ```sh
-   npm run backup:restore -- --b2-key=<read key file> --identity=~/.age/footy-backup.key
+   npm run backup:restore -- --b2-key=<read key file> --identity="$HOME/.age/footy-backup.key"
    ```
 
    The key file is two lines: the key's id, then the key. It ends with

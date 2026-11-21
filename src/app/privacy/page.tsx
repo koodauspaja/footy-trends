@@ -6,6 +6,10 @@ const HEADING = "Tietosuojaseloste";
 
 export const metadata: Metadata = { title: HEADING };
 
+const SECTION = "mb-8";
+const HEADING_2 = "mb-3 font-semibold text-xl";
+const LIST = "list-disc space-y-1 pl-6";
+
 /**
  * `/tietosuoja`. Public and static: it must be reachable without signing in,
  * so nothing here may read a session. Every claim below describes what the
@@ -20,10 +24,6 @@ export const metadata: Metadata = { title: HEADING };
  * decisions/079-group-members-guesses.md
  * decisions/807-database-backup.md
  */
-const SECTION = "mb-8";
-const HEADING_2 = "mb-3 font-semibold text-xl";
-const LIST = "list-disc space-y-1 pl-6";
-
 export default function Privacy() {
   return (
     <PageShell heading={HEADING}>
