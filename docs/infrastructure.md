@@ -256,7 +256,7 @@ nothing that cannot be rebuilt (decisions/807).
 | What | `pg_dump --format=custom` of production, and every table's row count from the same snapshot (`npm run backup`) |
 | When | daily 02:17 UTC, `database-backup.yml` |
 | Where | Backblaze B2, account `Koodauspaja`, private bucket `footy-trends-db-backups`, region `eu-central-003` (Amsterdam) |
-| Encrypted | with `age` on the runner, to the public keys in `scripts/backup/recipients.txt`. Each private key alone decrypts, and is held by its person, nowhere else. Miikka's is there; Kalle's is to be added, and the backups made before it only Miikka can read |
+| Encrypted | with `age` on the runner, to the public keys in `scripts/backup/recipients.txt`. Each private key alone decrypts, and is held by its person, nowhere else: Miikka and Kalle |
 | Kept | 30 days. Object Lock, governance mode, locks each file for 30 days; a lifecycle rule hides it 30 days after upload and deletes it a day later |
 | Read by production as | `backup_reader`, a member of `pg_read_all_data`: reads every table, writes nothing. Created by hand (`docs/setup/027`) |
 | Restore | `npm run backup:restore -- --b2-key=<file> --identity=<file>`: the newest backup into `footy-trends_restore_check` on the local Docker Postgres, then every table's count compared with the backup's |
