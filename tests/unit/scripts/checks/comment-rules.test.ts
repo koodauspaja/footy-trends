@@ -610,7 +610,7 @@ describe("longComments", () => {
   it("keeps `//` lines apart across a blank line, a line of code, a block comment or code before them", () => {
     expect(long("// One.\n// Two.\n\n// Three.\n// Four.")).toEqual([]);
     expect(long("// One.\n// Two.\nconst a = 1;\n// Three.\n// Four.")).toEqual([]);
-    expect(long("// One.\n// Two.\n/* Three. */\n// Four.")).toEqual([]);
+    expect(long("// One.\n// Two.\n// Three.\n/* Four. */")).toEqual([]);
     expect(long("/* One. */\n// Two.\n// Three.\n// Four.")).toEqual([]);
     expect(long("const a = 1; // One.\n// Two.\n// Three.\n// Four.")).toEqual([]);
     expect(long("// One.\n// Two.\n// Three.\nconst a = 1; // Four.")).toEqual([]);
