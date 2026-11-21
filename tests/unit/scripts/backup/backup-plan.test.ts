@@ -98,21 +98,25 @@ describe("latestBackup", () => {
 });
 
 describe("libpqEnvironment", () => {
-  it("splits the address into libpq's variables and requires encryption", () => {
+  it("splits the address into libpq's variables and requires the pinned certificate", () => {
     expect(
-      libpqEnvironment("postgresql://backup_reader:p%40ss@altaria.example.com:45459/railway")
+      libpqEnvironment(
+        "postgresql://backup_reader:p%40ss@altaria.example.com:45459/railway",
+        "/etc/ca.pem"
+      )
     ).toEqual({
       PGHOST: "altaria.example.com",
       PGPORT: "45459",
       PGUSER: "backup_reader",
       PGPASSWORD: "p@ss",
       PGDATABASE: "railway",
-      PGSSLMODE: "require",
+      PGSSLMODE: "verify-ca",
+      PGSSLROOTCERT: "/etc/ca.pem",
     });
   });
 
   it("uses Postgres's port when the address names none", () => {
-    expect(libpqEnvironment("postgresql://u:p@db.example.com/x").PGPORT).toBe("5432");
+    expect(libpqEnvironment("postgresql://u:p@db.example.com/x", "/ca").PGPORT).toBe("5432");
   });
 });
 

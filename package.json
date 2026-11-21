@@ -17,7 +17,6 @@
     "format": "biome format --write .",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "prebackup:restore": "tsx scripts/local/ensure-services.ts",
     "predb:migrate": "tsx scripts/local/ensure-services.ts",
     "predb:push": "tsx scripts/local/ensure-services.ts",
     "predb:studio": "tsx scripts/local/ensure-services.ts",

@@ -14,6 +14,7 @@ import { executablePath } from "../shared/executable";
 import { authorize, upload } from "./b2";
 import {
   backupFolder,
+  CONTAINER_CA_FILE,
   COUNTS_FILE,
   COUNTS_SQL,
   type Counts,
@@ -22,6 +23,8 @@ import {
   describeCounts,
   libpqEnvironment,
   POSTGRES_IMAGE,
+  RAILWAY_CA_FILE,
+  SERVER_CERTIFICATE_NAME,
   uploadKeyProblem,
 } from "./backup-plan";
 import { capture, pipe } from "./processes";
@@ -55,12 +58,13 @@ async function main(): Promise<void> {
   const folder = backupFolder(new Date());
   const work = mkdtempSync(path.join(tmpdir(), "backup-"));
   const dumpPath = path.join(work, DUMP_FILE);
-  const pgEnv = libpqEnvironment(connectionString);
+  const pgEnv = libpqEnvironment(connectionString, CONTAINER_CA_FILE);
 
   try {
-    // `require` encrypts without verifying the certificate, which Railway's
-    // `postgres-ssl` image signs itself.
-    const sql = postgres(connectionString, { ssl: "require", max: 1 });
+    const sql = postgres(connectionString, {
+      ssl: { ca: readFileSync(RAILWAY_CA_FILE, "utf8"), servername: SERVER_CERTIFICATE_NAME },
+      max: 1,
+    });
     let counts: Counts;
     try {
       counts = await sql.begin("isolation level repeatable read read only", async (tx) => {
@@ -75,6 +79,8 @@ async function main(): Promise<void> {
             args: [
               "run",
               "--rm",
+              "-v",
+              `${path.resolve(RAILWAY_CA_FILE)}:${CONTAINER_CA_FILE}:ro`,
               ...Object.keys(pgEnv).flatMap((name) => ["-e", name]),
               POSTGRES_IMAGE,
               "pg_dump",
