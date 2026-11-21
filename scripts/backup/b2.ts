@@ -108,23 +108,23 @@ export async function upload(
  *
  * decisions/807-database-backup.md
  */
-export async function listFileNames(session: Session, fetchFn: Fetch): Promise<string[]> {
-  const names: string[] = [];
-  let startFileName: string | null = null;
-  do {
-    const page: { files: { fileName: string }[]; nextFileName: string | null } = await json(
-      await call(
-        session,
-        "b2_list_file_names",
-        { bucketId: session.bucketId, maxFileCount: 1000, startFileName },
-        fetchFn
-      ),
-      "b2_list_file_names"
-    );
-    names.push(...page.files.map((file) => file.fileName));
-    startFileName = page.nextFileName;
-  } while (startFileName !== null);
-  return names;
+export async function listFileNames(
+  session: Session,
+  fetchFn: Fetch,
+  startFileName: string | null = null
+): Promise<string[]> {
+  const page: { files: { fileName: string }[]; nextFileName: string | null } = await json(
+    await call(
+      session,
+      "b2_list_file_names",
+      { bucketId: session.bucketId, maxFileCount: 1000, startFileName },
+      fetchFn
+    ),
+    "b2_list_file_names"
+  );
+  const names = page.files.map((file) => file.fileName);
+  if (page.nextFileName === null) return names;
+  return [...names, ...(await listFileNames(session, fetchFn, page.nextFileName))];
 }
 
 /**
