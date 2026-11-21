@@ -12,7 +12,7 @@ export type SimpleCommand = {
   words: string[];
   /** Where it runs, or `null` after a `cd` this cannot follow. */
   cwd: string | null;
-  /** The files its redirections name, as written: what it may write. */
+  /** The files its output redirections name, as written: what it may write. */
   redirects: string[];
 };
 
@@ -21,7 +21,7 @@ type Token =
   /** `scope` marks a subshell's `(` and `)`, whose `cd` does not outlive it. */
   | { kind: "separator"; scope?: "open" | "close" }
   /** `>`, `2>&1`, `<`: the word after one is its target, not an argument. */
-  | { kind: "redirect" };
+  | { kind: "redirect"; writes: boolean };
 
 type Heredoc = { delimiter: string; stripTabs: boolean };
 
@@ -167,7 +167,8 @@ function readRedirect(scan: Scan): void {
     scan.text.slice(scan.at)
   ) as RegExpExecArray;
   scan.at += operator[0].length;
-  scan.tokens.push({ kind: "redirect" });
+  // `<` and `<<<` only read; `<&` duplicates a descriptor; anything with `>` writes.
+  scan.tokens.push({ kind: "redirect", writes: operator[0].includes(">") });
 }
 
 /**
@@ -295,7 +296,9 @@ function changeDirectory(cwd: string | null, target: string | undefined): string
  * decisions/806-push-and-pr-hooks.md
  */
 function directoryAfter(cwd: string | null, words: readonly string[]): string | null {
-  const [name, target] = commandWords(words);
+  const [name, ...args] = commandWords(words);
+  // `cd -- dir` and `cd -P dir`: the options are not the directory.
+  const target = args.find((arg) => arg === "-" || !arg.startsWith("-"));
   if (name === "cd" || name === "pushd") return changeDirectory(cwd, target);
   return name === "popd" ? null : cwd;
 }
@@ -304,7 +307,8 @@ type Grouping = {
   commands: SimpleCommand[];
   words: string[];
   redirects: string[];
-  dropNext: boolean;
+  /** Whether the next word is a redirection's target, and if so whether it is written. */
+  target: "none" | "read" | "write";
   directory: string | null;
   /** The directory each open subshell started in, restored when it closes. */
   outer: (string | null)[];
@@ -318,7 +322,7 @@ function finish(grouping: Grouping): void {
   }
   grouping.words = [];
   grouping.redirects = [];
-  grouping.dropNext = false;
+  grouping.target = "none";
 }
 
 function group(grouping: Grouping, token: Token): void {
@@ -329,10 +333,10 @@ function group(grouping: Grouping, token: Token): void {
       grouping.directory = grouping.outer.pop() as string | null;
     }
   } else if (token.kind === "redirect") {
-    grouping.dropNext = true;
-  } else if (grouping.dropNext) {
-    grouping.dropNext = false;
-    grouping.redirects.push(token.value);
+    grouping.target = token.writes ? "write" : "read";
+  } else if (grouping.target !== "none") {
+    if (grouping.target === "write") grouping.redirects.push(token.value);
+    grouping.target = "none";
   } else {
     grouping.words.push(token.value);
   }
@@ -350,7 +354,7 @@ export function simpleCommands(command: string, cwd: string | null): SimpleComma
     commands: [],
     words: [],
     redirects: [],
-    dropNext: false,
+    target: "none",
     directory: cwd,
     outer: [],
   };
@@ -383,14 +387,41 @@ const PREFIXES = new Set([
 ]);
 
 /**
+ * `env`'s options that take the next word as their value.
+ *
+ * decisions/806-push-and-pr-hooks.md
+ */
+const ENV_OPTIONS_WITH_VALUE = new Set(["-u", "--unset", "-C", "--chdir", "-S", "--split-string"]);
+
+/**
+ * How many words to skip at `at`: an assignment, a prefix, or an option of an
+ * `env` already passed. Zero at the command's own name.
+ *
+ * decisions/806-push-and-pr-hooks.md
+ */
+function skipAt(words: readonly string[], at: number, afterEnv: boolean): number {
+  const word = words[at] as string;
+  if (/^[A-Za-z_]\w*=/.test(word) || PREFIXES.has(word)) return 1;
+  if (!afterEnv || !word.startsWith("-")) return 0;
+  return ENV_OPTIONS_WITH_VALUE.has(word) ? 2 : 1;
+}
+
+/**
  * The words that name the command and its arguments: past leading `NAME=value`
- * assignments and `PREFIXES`, with the command named without its directory, so
- * `/usr/bin/git` is `git`.
+ * assignments, `PREFIXES` and `env`'s options, with the command named without
+ * its directory, so `/usr/bin/git` is `git`.
  *
  * decisions/806-push-and-pr-hooks.md
  */
 export function commandWords(words: readonly string[]): string[] {
-  const first = words.findIndex((word) => !/^[A-Za-z_]\w*=/.test(word) && !PREFIXES.has(word));
-  if (first === -1) return [];
-  return [basename(words[first] as string), ...words.slice(first + 1)];
+  let at = 0;
+  let afterEnv = false;
+  while (at < words.length) {
+    const skip = skipAt(words, at, afterEnv);
+    if (skip === 0) break;
+    afterEnv ||= words[at] === "env";
+    at += skip;
+  }
+  if (at >= words.length) return [];
+  return [basename(words[at] as string), ...words.slice(at + 1)];
 }

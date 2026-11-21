@@ -231,3 +231,27 @@ describe("commandWords, past keywords and wrappers", () => {
     expect(commandWords(["if", "while", "until", "do", "elif", "else"])).toEqual([]);
   });
 });
+
+describe("round two's directory and wrapper forms", () => {
+  it("skips cd's options and its option terminator", () => {
+    const commands = simpleCommands("cd -- /a && x && cd -P b && y && cd - && z", "/r");
+
+    expect(commands.map((simple) => simple.cwd)).toEqual(["/r", "/a", "/a", "/a/b", "/a/b", null]);
+  });
+
+  it("keeps only the files a command writes as its redirections", () => {
+    const [command] = simpleCommands("sort < in.txt <<< 'x' 0<&3 > out.txt 2>> err.log", "/r");
+
+    expect(command?.redirects).toEqual(["out.txt", "err.log"]);
+  });
+
+  it("skips env's options, and the values of those that take one", () => {
+    expect(commandWords(["env", "-i", "--", "git", "add"])).toEqual(["git", "add"]);
+    expect(commandWords(["env", "-u", "A", "-C", "/x", "-S", "y", "gh", "pr"])).toEqual([
+      "gh",
+      "pr",
+    ]);
+    expect(commandWords(["git", "-c", "x"])).toEqual(["git", "-c", "x"]);
+    expect(commandWords(["env", "-u"])).toEqual([]);
+  });
+});

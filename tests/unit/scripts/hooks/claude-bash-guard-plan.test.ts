@@ -1,3 +1,5 @@
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   ADD_EVERYTHING_REFUSAL,
@@ -33,6 +35,12 @@ describe("stagesEverything", () => {
     ["env", "A=1", "git", "add", "."],
     ["command", "git", "add", "-A"],
     ["/usr/bin/git", "add", "-A"],
+    ["git", "add", "*"],
+    ["git", "add", "./*"],
+    ["git", "add", ":/"],
+    ["git", "add", ":/."],
+    ["env", "-i", "git", "add", "-A"],
+    ["env", "-u", "HOME", "git", "add", "."],
   ])("refuses %j", (...words) => {
     expect(stagesEverything(words)).toBe(true);
   });
@@ -40,6 +48,8 @@ describe("stagesEverything", () => {
   it.each([
     ["git", "add", "src/a.ts", "tests/a.test.ts"],
     ["git", "add", "-p", "src"],
+    ["git", "add", "src/*.ts"],
+    ["git", "add", ":/src"],
     ["git", "add", "--", "-A"],
     ["git", "add", "--update"],
     ["git", "commit", "-A"],
@@ -215,7 +225,10 @@ describe("repeated and expanded bodies", () => {
     for (const value of ["$BODY", braced, "x $_y"]) {
       expect(bodySource(["--body", value], "/r")).toMatchObject({ kind: "unreadable" });
     }
-    expect(bodySource(["--body", "costs 5 $ and $1"], "/r")).toMatchObject({ kind: "text" });
+    for (const value of ["$1", "a $@ b", "$#", "$?", "$$", "$!", "$-", "$*"]) {
+      expect(bodySource(["--body", value], "/r")).toMatchObject({ kind: "unreadable" });
+    }
+    expect(bodySource(["--body", "costs 5 $ and $. more"], "/r")).toMatchObject({ kind: "text" });
   });
 });
 
@@ -275,5 +288,46 @@ describe("a body file written in the same line", () => {
   it("recognises gh by its path, and after a keyword", () => {
     expect(requestsIn("/opt/homebrew/bin/gh pr create -b x", "/r").pullRequests).toHaveLength(1);
     expect(requestsIn("if true; then gh pr create -b x; fi", "/r").pullRequests).toHaveLength(1);
+  });
+});
+
+describe("round two's forms", () => {
+  it("reads an attached short option's value", () => {
+    expect(headBranch(["-Hchore/1-x"])).toBe("chore/1-x");
+    expect(bodySource(["-bCloses #3"], "/r")).toEqual({ kind: "text", text: "Closes #3" });
+    expect(bodySource(["-F/tmp/b.md"], "/r")).toEqual({ kind: "file", path: "/tmp/b.md" });
+  });
+
+  it("expands a body file under ~/ into the home directory", () => {
+    expect(bodySource(["--body-file", "~/b.md"], null)).toEqual({
+      kind: "file",
+      path: join(homedir(), "b.md"),
+    });
+  });
+
+  it("recognises gh pr create with --repo or -R before pr, between pr and create, or after", () => {
+    for (const line of [
+      "gh -R o/r pr create -b x",
+      "gh --repo o/r pr create -b x",
+      "gh --repo=o/r pr create -b x",
+      "gh pr -R o/r create -b x",
+      "gh pr create -R o/r -b x",
+    ]) {
+      expect(requestsIn(line, "/r").pullRequests, line).toEqual([
+        { cwd: "/r", body: { kind: "text", text: "x" }, head: null },
+      ]);
+    }
+  });
+
+  it("takes a redirection to a target the shell builds as one that may write the body file", () => {
+    const [request] = requestsIn('echo x > "$F"; gh pr create -F b.md', "/r").pullRequests;
+
+    expect(request?.body).toMatchObject({ kind: "unreadable" });
+  });
+
+  it("does not take a read of the body file for a write", () => {
+    const [request] = requestsIn("wc -l < b.md && gh pr create -F b.md", "/r").pullRequests;
+
+    expect(request?.body).toEqual({ kind: "file", path: "/r/b.md" });
   });
 });

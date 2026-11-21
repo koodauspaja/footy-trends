@@ -1,3 +1,4 @@
+import { homedir } from "node:os";
 import { isAbsolute, join, normalize } from "node:path";
 import { commandWords, type SimpleCommand, simpleCommands } from "./shell-command";
 
@@ -63,8 +64,17 @@ function gitSubcommand(words: readonly string[]): { name: string; args: string[]
 }
 
 /**
+ * Paths that name the whole checkout: from its top, as `.` is when the session
+ * stands there, or from anywhere, as `:/` is. `*` is expanded by the shell
+ * into everything but dotfiles.
+ *
+ * decisions/806-push-and-pr-hooks.md
+ */
+const WHOLE_CHECKOUT = new Set([".", "./", "*", "./*", ":/", ":/."]);
+
+/**
  * Whether `git add`'s arguments stage the whole checkout: `-A`, `--all`, or
- * `.` as a path. `-A` counts inside a cluster such as `-vA`, and only before
+ * a `WHOLE_CHECKOUT` path. `-A` counts inside a cluster such as `-vA`, and only before
  * `--`, after which a word is a path.
  *
  * decisions/806-push-and-pr-hooks.md
@@ -78,7 +88,7 @@ export function stagesEverything(words: readonly string[]): boolean {
   const paths = separator === -1 ? git.args : git.args.slice(separator + 1);
 
   const all = options.some((word) => word === "--all" || /^-[^-]*A/.test(word));
-  return all || paths.some((word) => word === "." || word === "./");
+  return all || paths.some((word) => WHOLE_CHECKOUT.has(word));
 }
 
 /**
@@ -117,6 +127,8 @@ function optionAt(
   if (word.startsWith("--") && equals !== -1) {
     return { name: word.slice(0, equals), value: word.slice(equals + 1), width: 1 };
   }
+  // `-Hbranch`: a short option with its value attached.
+  if (/^-[A-Za-z]./.test(word)) return { name: word.slice(0, 2), value: word.slice(2), width: 1 };
   return { name: word, value: args[at + 1], width: 2 };
 }
 
@@ -127,7 +139,7 @@ function optionAt(
  * decisions/806-push-and-pr-hooks.md
  */
 function textSource(text: string): BodySource {
-  return /\$[{(A-Za-z_]|`/.test(text)
+  return /\$[\w{(@*#?!$-]|`/.test(text)
     ? { kind: "unreadable", reason: "the body is built by the shell when the command runs" }
     : { kind: "text", text };
 }
@@ -187,6 +199,7 @@ function fileSource(path: string, cwd: string | null): BodySource {
 }
 
 function resolvePath(path: string, cwd: string | null): string | null {
+  if (path.startsWith("~/")) return join(homedir(), path.slice(2));
   if (isAbsolute(path)) return normalize(path);
   return cwd === null ? null : join(cwd, path);
 }
@@ -200,8 +213,9 @@ function resolvePath(path: string, cwd: string | null): string | null {
  */
 function writtenEarlier(body: BodySource, earlier: readonly SimpleCommand[]): BodySource {
   if (body.kind !== "file") return body;
+  // A target the shell builds, such as `"$F"`, may be this file.
   const written = earlier.some(({ redirects, cwd }) =>
-    redirects.some((target) => resolvePath(target, cwd) === body.path)
+    redirects.some((target) => /[$`]/.test(target) || resolvePath(target, cwd) === body.path)
   );
   return written
     ? {
@@ -211,11 +225,30 @@ function writtenEarlier(body: BodySource, earlier: readonly SimpleCommand[]): Bo
     : body;
 }
 
+/**
+ * A `gh` command without its `-R`/`--repo` option, which gh accepts before `pr`
+ * and between `pr` and `create` as well as after them.
+ *
+ * decisions/806-push-and-pr-hooks.md
+ */
+function withoutRepository(words: readonly string[]): string[] {
+  const kept: string[] = [];
+  for (let at = 0; at < words.length; at++) {
+    const { name, width } = optionAt(words, at);
+    if (name === "-R" || name === "--repo") {
+      at += width - 1;
+    } else {
+      kept.push(words[at] as string);
+    }
+  }
+  return kept;
+}
+
 function pullRequestCreate(
   command: SimpleCommand,
   earlier: readonly SimpleCommand[]
 ): PullRequestCreate | null {
-  const words = commandWords(command.words);
+  const words = withoutRepository(commandWords(command.words));
   const isCreate =
     words[0] === "gh" && words[1] === "pr" && (words[2] === "create" || words[2] === "new");
   if (!isCreate) return null;

@@ -1,5 +1,7 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 /**
@@ -68,16 +70,16 @@ describe("scripts/hooks/up-to-date.ts", () => {
 });
 
 describe("scripts/hooks/claude-bash-guard.sh", () => {
-  function runWrapper(command: string) {
+  function runWrapper(command: string, project = process.cwd()) {
     const input = JSON.stringify({
       tool_name: "Bash",
       tool_input: { command },
       cwd: process.cwd(),
     });
-    return spawnSync("sh", ["scripts/hooks/claude-bash-guard.sh"], {
+    return spawnSync("sh", [join(process.cwd(), "scripts/hooks/claude-bash-guard.sh")], {
       input,
       encoding: "utf8",
-      env: { ...process.env, CLAUDE_PROJECT_DIR: process.cwd() },
+      env: { ...process.env, CLAUDE_PROJECT_DIR: project },
     });
   }
 
@@ -90,10 +92,25 @@ describe("scripts/hooks/claude-bash-guard.sh", () => {
     }
   });
 
-  it("lets a command no rule covers through without starting the guard", () => {
-    const result = runWrapper("ls -la");
+  it("starts the guard only for a command whose text could break a rule", () => {
+    // A project whose tsx only says it was started, so the filter is all that is tested.
+    const project = mkdtempSync(join(tmpdir(), "wrapper-"));
+    mkdirSync(join(project, "node_modules/.bin"), { recursive: true });
+    const tsx = join(project, "node_modules/.bin/tsx");
+    writeFileSync(tsx, "#!/bin/sh\necho started >&2\n");
+    chmodSync(tsx, 0o755);
+    const started = (command: string) => runWrapper(command, project).stderr.includes("started");
+
+    expect(started("ls -la")).toBe(false);
+    expect(started("npm test")).toBe(false);
+    expect(started("gh  pr\tcreate")).toBe(true);
+    expect(started("git\tadd -A")).toBe(true);
+  });
+
+  it("skips the guard, and says so, where dependencies are not installed", () => {
+    const result = runWrapper("git add -A", mkdtempSync(join(tmpdir(), "wrapper-")));
 
     expect(result.status).toBe(0);
-    expect(result.stderr).toBe("");
+    expect(result.stderr).toContain("run npm install");
   });
 });
