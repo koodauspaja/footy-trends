@@ -119,6 +119,43 @@ describe("upload", () => {
     expect(calls[1]?.init?.body).toBe(bytes);
   });
 
+  it("asks for a new address and tries again when B2 is too busy", async () => {
+    const busy = () => new Response('{"code":"too_busy"}', { status: 503 });
+    const address = () =>
+      ok({ uploadUrl: "https://upload.example.com/u", authorizationToken: "upload-token" });
+    const { fetchFn, calls } = scripted(busy(), address(), busy(), address(), ok({}));
+
+    await upload(SESSION, "x", new Uint8Array(), fetchFn);
+
+    expect(calls.map((call) => call.url)).toEqual([
+      "https://api.example.com/b2api/v4/b2_get_upload_url",
+      "https://api.example.com/b2api/v4/b2_get_upload_url",
+      "https://upload.example.com/u",
+      "https://api.example.com/b2api/v4/b2_get_upload_url",
+      "https://upload.example.com/u",
+    ]);
+  });
+
+  it("fails with the 503 once three tries were all too busy", async () => {
+    const busy = () => new Response('{"code":"too_busy"}', { status: 503 });
+    const { fetchFn } = scripted(busy(), busy(), busy());
+
+    await expect(upload(SESSION, "x", new Uint8Array(), fetchFn)).rejects.toThrow(
+      'B2 b2_get_upload_url answered 503: {"code":"too_busy"}'
+    );
+  });
+
+  it("fails with the upload's 503 once three uploads were all too busy", async () => {
+    const busy = () => new Response('{"code":"too_busy"}', { status: 503 });
+    const address = () =>
+      ok({ uploadUrl: "https://upload.example.com/u", authorizationToken: "upload-token" });
+    const { fetchFn } = scripted(address(), busy(), address(), busy(), address(), busy());
+
+    await expect(upload(SESSION, "x", new Uint8Array(), fetchFn)).rejects.toThrow(
+      'B2 b2_upload_file answered 503: {"code":"too_busy"}'
+    );
+  });
+
   it("fails when the upload itself is refused", async () => {
     const { fetchFn } = scripted(
       ok({ uploadUrl: "https://upload.example.com/u", authorizationToken: "upload-token" }),
