@@ -28,6 +28,7 @@ Have these before the first run:
 | `TASO_API_KEY` | no | 020 |
 | `TASO_HASH_SALT` | no | 020 |
 | `AXIOM_TOKEN`, `AXIOM_DATASET` | no; the workflow does not pass them | 009 |
+| `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN` | no; the workflow does not pass them | 017 |
 | `NEXT_PUBLIC_SENTRY_DSN` | no; the workflow does not pass it | 017 |
 
 One left out is set in Railway afterwards. The command sets `DATABASE_URL`,

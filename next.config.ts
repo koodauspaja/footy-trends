@@ -7,6 +7,7 @@
  * decisions/293-sentry-config-subpath.md
  * decisions/527-one-route-table.md
  * decisions/808-security-headers.md
+ * decisions/830-sentry-source-maps.md
  */
 
 // From `@sentry/nextjs/config`, not the package root, whose export is
@@ -161,7 +162,8 @@ export default withSentryConfig(nextConfig, {
 
   org: "koodauspaja",
 
-  project: "javascript-nextjs",
+  // No `project`: each environment names its own in `SENTRY_PROJECT`. Source maps
+  // upload only where `SENTRY_AUTH_TOKEN` is set, which is Railway's builds.
 
   // Only print logs for uploading source maps in CI
   silent: !process.env.CI,
