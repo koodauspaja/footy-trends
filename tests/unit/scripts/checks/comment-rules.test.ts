@@ -488,6 +488,9 @@ describe("uncitedDeclarations", () => {
   it("passes a doc comment that cites a record, anywhere in it", () => {
     expect(uncited("/**\n * For f.\n *\n * decisions/001-a.md\n */\nfunction f() {}")).toEqual([]);
     expect(uncited("/** For f, decisions/001-a.md. */\nfunction f() {}")).toEqual([]);
+    expect(uncited("/** For f, see olddecisions/001-a.md. */\nfunction f() {}")).toEqual([
+      "For f, see olddecisions/001-a.md.",
+    ]);
   });
 
   it("finds one in a file whose header cites a record: the header covers only an uncommented declaration", () => {
@@ -591,6 +594,9 @@ describe("longComments", () => {
       "Line 1. Line 2. Line 3. Line 4.",
     ]);
     expect(long(doc(3, " * decisions/001-a.md", " * Words after the paths."))).toEqual([]);
+    expect(
+      long(doc(3, " * And a fourth, before decisions/001-a.md")).map((finding) => finding.text)
+    ).toEqual(["Line 1. Line 2. Line 3. And a fourth, before"]);
   });
 
   it("counts a one-line doc comment as one, and text on its opening line", () => {
@@ -667,6 +673,7 @@ describe("this repository's comments", () => {
   // Read in `beforeAll`, under its longer timeout: each parses every file again.
   let named: Finding[] = [];
   let computed: Finding[] = [];
+  let uncited: Finding[] = [];
   const across = (rule: (file: string, source: string, comments: Comment[]) => Finding[]) =>
     scanned.flatMap(({ file, source, comments }) => rule(file, source, comments));
 
@@ -692,6 +699,7 @@ describe("this repository's comments", () => {
     });
     named = scanned.flatMap(({ file, source }) => testNameCitations(file, source));
     computed = scanned.flatMap(({ file, source }) => computedTestNames(file, source));
+    uncited = across(uncitedDeclarations);
   }, 60_000);
 
   afterAll(() => {
@@ -735,7 +743,7 @@ describe("this repository's comments", () => {
   it("cites a record on every declaration's doc comment the record does not list", () => {
     expectOnlyRecorded(
       UNCITED_RECORD_PATH,
-      across(uncitedDeclarations),
+      uncited,
       "A declaration's doc comment cites no decision record. Add the path of the record behind it:"
     );
   });

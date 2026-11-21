@@ -32,7 +32,12 @@ const SOURCE_EXTENSIONS = [".ts", ".tsx", ".mts", ".mjs"];
  * decisions/531-comments-say-what-code-is-for.md
  */
 const ISSUE_NUMBER = /(?<![&#])#\d+\b/;
-const DECISION_PATH = /decisions\/[\w.-]+\.md/g;
+/**
+ * A decision record's path, not the tail of another path or word.
+ *
+ * decisions/839-mechanical-comment-rules.md
+ */
+const DECISION_PATH = /(?<![\w./-])decisions\/[\w.-]+\.md/g;
 
 /**
  * What a test's name may not carry: an issue number, a spec by path or number,
@@ -434,8 +439,9 @@ export function longComments(
   comments: readonly Comment[]
 ): Finding[] {
   return runsOf(source, comments).flatMap(({ line, lines }) => {
-    const firstPath = lines.findIndex(citesARecord);
-    const prose = lines.slice(0, firstPath === -1 ? lines.length : firstPath);
+    const text = lines.join("\n");
+    const firstPath = text.search(DECISION_PATH);
+    const prose = (firstPath === -1 ? text : text.slice(0, firstPath)).split("\n");
     const proseLines = prose.filter((text) => proseOf(text) !== "").length;
     return proseLines > 3 ? [{ file, line, text: wordsOf(prose) }] : [];
   });
