@@ -113,6 +113,4 @@ branch's code holding these keys.
 
 ## Next
 
-→ Nothing: the setup is complete. `docs/infrastructure.md` describes what now
-  exists, and is the document to keep true from here on. `skills/release.md` is
-  how `main` reaches production.
+→ `027-database-backup.md`
