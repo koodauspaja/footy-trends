@@ -14,7 +14,8 @@ gives the app its DSN, and gives the build a token to upload source maps.
 2. **Create project** → **Next.js**, one for staging and one for production
 3. Copy each project's **DSN** and its **slug**
 4. **Settings** → **Organization Tokens** → **Create New Token**, one per
-   environment, named after it. Its value is shown once
+   environment, named after it. Its scope is fixed, `org:ci`: creating releases
+   and uploading source maps, nothing else. Its value is shown once
 
 Do not run the Sentry wizard: it would regenerate files the repository already
 has, with development defaults.
