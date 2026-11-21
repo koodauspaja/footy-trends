@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { upcomingFirst } from "@/lib/matches/match-order";
+import { byKickoffThenId, upcomingFirst } from "@/lib/matches/match-order";
 
 const match = (id: number, day: string, goals: [number, number] | null) => ({
   id,
@@ -42,5 +42,28 @@ describe("upcomingFirst", () => {
     upcomingFirst(matches);
 
     expect(matches.map((entry) => entry.id)).toEqual([1, 2]);
+  });
+});
+
+describe("byKickoffThenId", () => {
+  const match = (providerMatchId: number, iso: string) => ({
+    providerMatchId,
+    kickoffAt: new Date(iso),
+  });
+
+  it("orders by kickoff", () => {
+    const sorted = [match(1, "2026-06-05T19:00:00Z"), match(2, "2026-03-27T19:00:00Z")].sort(
+      byKickoffThenId
+    );
+
+    expect(sorted.map((m) => m.providerMatchId)).toEqual([2, 1]);
+  });
+
+  it("breaks a same-kickoff tie by id, so the order is stable across renders", () => {
+    const sorted = [match(9, "2026-06-05T19:00:00Z"), match(4, "2026-06-05T19:00:00Z")].sort(
+      byKickoffThenId
+    );
+
+    expect(sorted.map((m) => m.providerMatchId)).toEqual([4, 9]);
   });
 });

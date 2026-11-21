@@ -47,6 +47,7 @@ import { warmModules } from "../../../support/warm-module";
  * decisions/299-unit-suite-independent-of-order.md
  * decisions/530-one-team-panel-builder.md
  * decisions/066-season-summary.md
+ * decisions/832-cup-forecast-tie-order.md
  */
 
 // The six result panels as the team page builds them: this service's one read
@@ -895,6 +896,18 @@ describe("getRoundMatches", () => {
     expect(result.status).toBe("ok");
     expect(result.status === "ok" && result.round).toBe(3);
     expect(result.status === "ok" && result.matches.map((m) => m.providerMatchId)).toEqual([1, 2]);
+  });
+
+  it("lists a round's matches that kick off together by match id, whatever order they were read in", async () => {
+    const together = { matchday: 3, kickoffAt: new Date("2025-09-14"), updatedAt: new Date(0) };
+    mockStoredMatches([
+      storedMatch({ ...together, providerMatchId: 5 }),
+      storedMatch({ ...together, providerMatchId: 3 }),
+    ]);
+
+    const result = await getRoundMatches(COMPETITION_CODE, PAST_SEASON, 3, ACTIVE_SEASON);
+
+    expect(result.status === "ok" && result.matches.map((m) => m.providerMatchId)).toEqual([3, 5]);
   });
 
   it("defaults to the round containing the next unplayed match when no round is requested", async () => {

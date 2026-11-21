@@ -11,6 +11,7 @@ import { LEAGUE_STAGE, resolvePhaseShape } from "../competitions/cup-stages";
 import { buildCupPhaseStandings, type CupPhaseTable } from "../competitions/cup-standings";
 import { getLeagueSeasonMatches } from "../football-data/standings-service";
 import { PLACEHOLDER_TEAM_ID } from "../matches/match-detail";
+import { byKickoffThenId } from "../matches/match-order";
 import type { MatchSource } from "../matches/match-source";
 import { logger } from "../platform/logger";
 import { getComputedUnlessDegraded } from "../providers/cache";
@@ -294,12 +295,16 @@ export type CupForecastResult =
 export type CupRound = { ties: StoredTie[]; size: number };
 
 /**
- * A stored group of a cup's season as one of its rounds.
+ * A stored group of a cup's season as one of its rounds, its ties by kickoff
+ * and then TASO's match id, whatever order the rows were read in.
  *
  * decisions/067-knockout-simulation.md
+ * decisions/832-cup-forecast-tie-order.md
  */
 export function cupRound(group: Pick<SeasonTable, "groupId" | "matches">): CupRound {
-  const listed = group.matches.filter((match) => !CALLED_OFF_STATUSES.has(match.status));
+  const listed = group.matches
+    .filter((match) => !CALLED_OFF_STATUSES.has(match.status))
+    .sort(byKickoffThenId);
   const ties = listed.flatMap((match: NormalizedTasoMatch): StoredTie[] => {
     const { homeTeamProviderId: home, awayTeamProviderId: away } = match;
     if (home === PLACEHOLDER_TEAM_ID || away === PLACEHOLDER_TEAM_ID) return [];

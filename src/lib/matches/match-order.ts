@@ -1,4 +1,20 @@
 /**
+ * Chronological, the match id breaking a tie, so matches that kick off together
+ * keep one order however the rows were read.
+ *
+ * decisions/017-huuhkajat.md
+ * decisions/018-helmarit.md
+ * decisions/832-cup-forecast-tie-order.md
+ */
+export function byKickoffThenId<T extends { kickoffAt: Date; providerMatchId: number }>(
+  left: T,
+  right: T
+): number {
+  const byKickoff = left.kickoffAt.getTime() - right.kickoffAt.getTime();
+  return byKickoff === 0 ? left.providerMatchId - right.providerMatchId : byKickoff;
+}
+
+/**
  * The order a team's own match list reads in: the matches still to play first,
  * nearest first, then the played ones newest first, so the season's first match
  * is last.

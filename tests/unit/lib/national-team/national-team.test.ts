@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  byKickoffThenId,
   competitionIdForYear,
   competitionLabel,
   FINLAND_TEAM_ID,
@@ -146,29 +145,6 @@ describe("isFinlandMatch", () => {
 
   it("drops a placeholder row with no teams", () => {
     expect(isFinlandMatch({ homeTeamName: "", awayTeamName: "" })).toBe(false);
-  });
-});
-
-describe("byKickoffThenId", () => {
-  const match = (providerMatchId: number, iso: string) => ({
-    providerMatchId,
-    kickoffAt: new Date(iso),
-  });
-
-  it("orders by kickoff", () => {
-    const sorted = [match(1, "2026-06-05T19:00:00Z"), match(2, "2026-03-27T19:00:00Z")].sort(
-      byKickoffThenId
-    );
-
-    expect(sorted.map((m) => m.providerMatchId)).toEqual([2, 1]);
-  });
-
-  it("breaks a same-kickoff tie by id, so the order is stable across renders", () => {
-    const sorted = [match(9, "2026-06-05T19:00:00Z"), match(4, "2026-06-05T19:00:00Z")].sort(
-      byKickoffThenId
-    );
-
-    expect(sorted.map((m) => m.providerMatchId)).toEqual([4, 9]);
   });
 });
 

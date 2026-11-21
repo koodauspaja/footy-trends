@@ -12,6 +12,7 @@ import { openFolds } from "./folds";
  * value is named.
  *
  * decisions/067-knockout-simulation.md
+ * decisions/832-cup-forecast-tie-order.md
  */
 
 const SEASON = 2026;
@@ -179,7 +180,8 @@ test.describe("Suomen Cup forecast, signed in", () => {
     await openFolds(page, HEADING);
     const ties = section(page).getByRole("listitem");
 
-    // The two still to play between league sides, 4 against 5 and 7 against 8.
+    // The two still to play between league sides, 4 against 5 and 7 against 8:
+    // by kickoff and then match id, since both are seeded at the same moment.
     await expect(ties).toHaveText([tie(104, 105), tie(107, 108)]);
   });
 

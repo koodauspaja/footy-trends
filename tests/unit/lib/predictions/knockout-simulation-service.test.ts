@@ -9,6 +9,7 @@ import type { SeasonTable } from "@/lib/taso/taso-standings-service";
  * stand-in, the cache, and failure as its own case with its log line.
  *
  * decisions/067-knockout-simulation.md
+ * decisions/832-cup-forecast-tie-order.md
  */
 
 const mocks = vi.hoisted(() => ({
@@ -364,6 +365,8 @@ describe("storedTies", () => {
 
 type CupMatch = SeasonTable["matches"][number];
 let nextCupMatch = 1;
+// A round played on one evening, as a Suomen Cup round often is.
+const CUP_KICKOFF = new Date("2026-06-03T15:00:00Z");
 
 // A cup match at its listed home side's ground; `winner` once TASO has played it.
 function cupMatch(
@@ -375,6 +378,7 @@ function cupMatch(
   nextCupMatch += 1;
   return {
     providerMatchId: nextCupMatch,
+    kickoffAt: CUP_KICKOFF,
     status: winner === null ? "SCHEDULED" : "FINISHED",
     homeTeamProviderId: home,
     homeTeamName: `Seura ${home}`,
@@ -480,6 +484,18 @@ describe("cupRound", () => {
 
     expect(cupRound(round(3, [cupMatch(1, 2), called]))).toMatchObject({ size: 2 });
     expect(cupTies(round(3, [called]))).toEqual([]);
+  });
+
+  it("lists its ties by kickoff and then match id, whatever order the rows were read in", () => {
+    const first = cupMatch(1, 2);
+    const second = cupMatch(3, 4);
+    const earlier = {
+      ...cupMatch(5, 6),
+      kickoffAt: new Date(CUP_KICKOFF.getTime() - 3_600_000),
+    };
+    const sides = (table: SeasonTable) => cupTies(table).map((tie) => tie.home.teamProviderId);
+
+    expect(sides(round(3, [second, first, earlier]))).toEqual([5, 1, 3]);
   });
 });
 
