@@ -47,6 +47,7 @@ import { warmModules } from "../../../support/warm-module";
  * decisions/299-unit-suite-independent-of-order.md
  * decisions/530-one-team-panel-builder.md
  * decisions/066-season-summary.md
+ * decisions/832-cup-forecast-tie-order.md
  */
 
 // The six result panels as the team page builds them: this service's one read

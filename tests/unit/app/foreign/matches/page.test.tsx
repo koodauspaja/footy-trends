@@ -13,6 +13,7 @@ import { warmModules } from "../../../../support/warm-module";
  * decisions/007-back-navigation.md
  * decisions/014-champions-league.md
  * decisions/016-world-cup-and-euro.md
+ * decisions/832-cup-forecast-tie-order.md
  */
 
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();

@@ -9,6 +9,7 @@ import type { SeasonTable } from "@/lib/taso/taso-standings-service";
  * stand-in, the cache, and failure as its own case with its log line.
  *
  * decisions/067-knockout-simulation.md
+ * decisions/832-cup-forecast-tie-order.md
  */
 
 const mocks = vi.hoisted(() => ({

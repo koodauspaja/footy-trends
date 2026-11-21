@@ -12,6 +12,7 @@ import { openFolds } from "./folds";
  * value is named.
  *
  * decisions/067-knockout-simulation.md
+ * decisions/832-cup-forecast-tie-order.md
  */
 
 const SEASON = 2026;

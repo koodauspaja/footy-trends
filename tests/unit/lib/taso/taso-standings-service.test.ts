@@ -70,6 +70,7 @@ import { teamPanelLoaders } from "@/lib/teams/team-panels";
  * decisions/644-stored-table-behind-results.md
  * decisions/064-season-simulation-zones.md
  * decisions/066-season-summary.md
+ * decisions/832-cup-forecast-tie-order.md
  */
 
 // The six result panels as the team page builds them: this service's one read
