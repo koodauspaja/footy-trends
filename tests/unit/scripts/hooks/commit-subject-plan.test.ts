@@ -10,12 +10,20 @@ import { processPhrase, refusal, subjectOf } from "../../../../scripts/hooks/com
  * decisions/841-commit-subject-gate.md
  */
 
-/** Every subject on `main` when the rule was written, newest first. */
+/**
+ * Every subject on `main` when the rule was written, newest first.
+ *
+ * decisions/841-commit-subject-gate.md
+ */
 const MAIN_SUBJECTS = readFileSync("tests/unit/scripts/hooks/main-subjects.txt", "utf8")
   .split("\n")
   .filter(Boolean);
 
-/** The subjects on `main` that name the review, from before squash merges. */
+/**
+ * The subjects on `main` that name the review, from before squash merges.
+ *
+ * decisions/841-commit-subject-gate.md
+ */
 const OLD_OFFENDERS = [
   "refactor: remove duplicate/unused TASO cache TTL constants, addressing Sourcery review on PR #121",
   "refactor: address Sourcery review on PR #120",
