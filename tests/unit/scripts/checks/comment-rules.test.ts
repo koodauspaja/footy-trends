@@ -13,10 +13,12 @@ import {
   describeFindings,
   type Finding,
   issueCitations,
+  longComments,
   longDocComments,
   sourceFilesAmong,
   stackedDocComments,
   testNameCitations,
+  uncitedDeclarations,
 } from "../../../../scripts/checks/comment-rules";
 import { executablePath, overrideNameFor } from "../../../../scripts/shared/executable";
 
@@ -27,11 +29,14 @@ import { executablePath, overrideNameFor } from "../../../../scripts/shared/exec
  *
  * decisions/531-comments-say-what-code-is-for.md
  * decisions/584-test-names-carry-no-citations.md
+ * decisions/839-mechanical-comment-rules.md
  */
 
-// The comment lines in this repository that cite an issue or pull request
-// number, as keys. Entries leave as files are trimmed, and none is added.
+// The comments in this repository that break a rule, as keys. Entries leave as
+// files are trimmed, and none is added.
 const RECORD_PATH = "tests/unit/scripts/checks/recorded-issue-citations.json";
+const UNCITED_RECORD_PATH = "tests/unit/scripts/checks/recorded-uncited-declarations.json";
+const LONG_RECORD_PATH = "tests/unit/scripts/checks/recorded-long-comments.json";
 
 const texts = (comments: readonly Comment[]) => comments.map((comment) => comment.text);
 
@@ -435,6 +440,187 @@ describe("stackedDocComments", () => {
   });
 });
 
+describe("uncitedDeclarations", () => {
+  const uncited = (source: string) =>
+    uncitedDeclarations("a.ts", source, commentsOf("a.ts", source)).map((finding) => finding.text);
+
+  it("finds a doc comment on each kind of top-level declaration that cites no record", () => {
+    const source = [
+      "/** A function. */",
+      "export function f() {}",
+      "/** A constant. */",
+      "const a = 1;",
+      "/** A type. */",
+      "type T = number;",
+      "/** An interface. */",
+      "interface I {}",
+      "/** A class. */",
+      "class C {}",
+      "/** An enum. */",
+      "enum E { One }",
+      "/** A namespace. */",
+      "namespace N {}",
+      "/** The default export. */",
+      "export default a;",
+    ].join("\n");
+
+    expect(uncited(source)).toEqual([
+      "A function.",
+      "A constant.",
+      "A type.",
+      "An interface.",
+      "A class.",
+      "An enum.",
+      "A namespace.",
+      "The default export.",
+    ]);
+  });
+
+  it("names the comment by its line and its words, without the markers", () => {
+    const source =
+      "const a = 1;\n\n/**\n * Says what f is for,\n * in two lines.\n */\nfunction f() {}";
+
+    expect(uncitedDeclarations("a.ts", source, commentsOf("a.ts", source))).toEqual([
+      { file: "a.ts", line: 3, text: "Says what f is for, in two lines." },
+    ]);
+  });
+
+  it("passes a doc comment that cites a record, anywhere in it", () => {
+    expect(uncited("/**\n * For f.\n *\n * decisions/001-a.md\n */\nfunction f() {}")).toEqual([]);
+    expect(uncited("/** For f, decisions/001-a.md. */\nfunction f() {}")).toEqual([]);
+  });
+
+  it("finds one in a file whose header cites a record: the header covers only an uncommented declaration", () => {
+    const source = [
+      "/**",
+      " * The module.",
+      " *",
+      " * decisions/001-a.md",
+      " */",
+      "",
+      "const a = 1;",
+      "/** For f. */",
+      "function f() {}",
+    ].join("\n");
+
+    expect(uncited(source)).toEqual(["For f."]);
+  });
+
+  it("passes a header a blank line sets apart, and finds one sitting on the first declaration", () => {
+    expect(uncited("/** The module. */\n\nconst a = 1;")).toEqual([]);
+    expect(uncited('import a from "a";\n\n/** The module. */\n\nconst b = a;')).toEqual([]);
+    expect(uncited("/** The module. */\n\n// A note.\nconst a = 1;")).toEqual([]);
+    expect(uncited("/** The module, or a? */\nconst a = 1;")).toEqual(["The module, or a?"]);
+  });
+
+  it("reads the doc comment above a line comment, and not a plain block comment", () => {
+    expect(uncited("/** For f. */\n// biome-ignore lint: a reason\nfunction f() {}")).toEqual([
+      "For f.",
+    ]);
+    expect(uncited("/* For f. */\nfunction f() {}")).toEqual([]);
+  });
+
+  it("leaves alone a comment inside a declaration, and one on what is not a declaration", () => {
+    const source = [
+      "/**",
+      " * For C.",
+      " *",
+      " * decisions/001-a.md",
+      " */",
+      "class C {",
+      "  /** A field. */",
+      "  a = 1;",
+      "  /** A method. */",
+      "  m() {",
+      "    /** Inside a function. */",
+      "    const b = 2;",
+      "    return b;",
+      "  }",
+      "}",
+      "/** On a call. */",
+      'describe("x", () => {});',
+      "/** On an export list. */",
+      "export { C };",
+      "/** On an import. */",
+      'import d from "d";',
+    ].join("\n");
+
+    expect(uncited(source)).toEqual([]);
+  });
+
+  it("reads TSX", () => {
+    const source = "/** The button. */\nexport const B = () => <button>Go</button>;";
+
+    expect(uncitedDeclarations("a.tsx", source, commentsOf("a.tsx", source))).toEqual([
+      { file: "a.tsx", line: 1, text: "The button." },
+    ]);
+  });
+});
+
+describe("longComments", () => {
+  const long = (source: string) => longComments("a.ts", source, commentsOf("a.ts", source));
+  const doc = (prose: number, ...rest: string[]) =>
+    ["/**", ...Array.from({ length: prose }, (_, at) => ` * Line ${at + 1}.`), ...rest, " */"].join(
+      "\n"
+    );
+
+  it("finds a doc comment of four lines before its paths, with its words as its text", () => {
+    const source = `const a = 1;\n${doc(4, " *", " * decisions/001-a.md")}\nfunction f() {}`;
+
+    expect(long(source)).toEqual([
+      { file: "a.ts", line: 2, text: "Line 1. Line 2. Line 3. Line 4." },
+    ]);
+  });
+
+  it("passes three lines, a blank line between them, and the paths below them", () => {
+    const source = doc(
+      3,
+      " *",
+      " * decisions/001-a.md",
+      " * decisions/002-b.md",
+      " *",
+      " * decisions/003-c.md"
+    );
+
+    expect(long(source)).toEqual([]);
+    expect(long("/**\n * One.\n *\n * Two.\n *\n * Three.\n */")).toEqual([]);
+  });
+
+  it("counts every line of a comment that cites no record, and only those before the first path", () => {
+    expect(long(doc(4)).map((finding) => finding.text)).toEqual([
+      "Line 1. Line 2. Line 3. Line 4.",
+    ]);
+    expect(long(doc(3, " * decisions/001-a.md", " * Words after the paths."))).toEqual([]);
+  });
+
+  it("counts a one-line doc comment as one, and text on its opening line", () => {
+    expect(long("/** One. */")).toEqual([]);
+    expect(
+      long("/** One.\n * Two.\n * Three.\n * Four. */").map((finding) => finding.text)
+    ).toEqual(["One. Two. Three. Four."]);
+  });
+
+  it("reads `//` lines one under another as one comment", () => {
+    const lines = ["// One.", "// Two.", "//", "// Three.", "// Four."].join("\n");
+
+    expect(long(lines)).toEqual([{ file: "a.ts", line: 1, text: "One. Two. Three. Four." }]);
+    expect(long(`function f() {\n  ${lines.replaceAll("\n", "\n  ")}\n}`)).toHaveLength(1);
+  });
+
+  it("keeps `//` lines apart across a blank line, a line of code, a block comment or code before them", () => {
+    expect(long("// One.\n// Two.\n\n// Three.\n// Four.")).toEqual([]);
+    expect(long("// One.\n// Two.\nconst a = 1;\n// Three.\n// Four.")).toEqual([]);
+    expect(long("// One.\n// Two.\n/* Three. */\n// Four.")).toEqual([]);
+    expect(long("/* One. */\n// Two.\n// Three.\n// Four.")).toEqual([]);
+    expect(long("const a = 1; // One.\n// Two.\n// Three.\n// Four.")).toEqual([]);
+    expect(long("// One.\n// Two.\n// Three.\nconst a = 1; // Four.")).toEqual([]);
+  });
+
+  it("holds a plain block comment to the same three lines", () => {
+    expect(long("/*\n * One.\n * Two.\n * Three.\n * Four.\n */")).toHaveLength(1);
+  });
+});
+
 describe("longDocComments", () => {
   const doc = (lines: number) =>
     ["/**", ...Array.from({ length: lines - 2 }, () => " * line"), " */"].join("\n");
@@ -526,19 +712,40 @@ describe("this repository's comments", () => {
     expect(missing, `Cited, but not in decisions/:\n${describeFindings(missing)}`).toEqual([]);
   });
 
-  it("cites no issue or pull request number the record does not have", () => {
-    const recorded: string[] = JSON.parse(readFileSync(path.join(ROOT, RECORD_PATH), "utf8"));
-    const citations = across((file, _source, comments) => issueCitations(file, comments));
-    const { added, removed } = compareCitations(recorded, citations);
+  // Fails on a finding the record does not have, and on a recorded one that is gone.
+  const expectOnlyRecorded = (recordPath: string, findings: Finding[], problem: string) => {
+    const recorded: string[] = JSON.parse(readFileSync(path.join(ROOT, recordPath), "utf8"));
+    const { added, removed } = compareCitations(recorded, findings);
 
-    expect(
-      added,
-      `A comment cites an issue or pull request. Move its reason into a decision record and link that instead:\n${describeFindings(added)}`
-    ).toEqual([]);
+    expect(added, `${problem}\n${describeFindings(added)}`).toEqual([]);
     expect(
       removed,
-      `Recorded citations that are gone. Replace ${RECORD_PATH} with:\n${JSON.stringify(citationRecordOf(citations), null, 2)}`
+      `Recorded findings that are gone. Replace ${recordPath} with:\n${JSON.stringify(citationRecordOf(findings), null, 2)}`
     ).toEqual([]);
+  };
+
+  it("cites no issue or pull request number the record does not have", () => {
+    expectOnlyRecorded(
+      RECORD_PATH,
+      across((file, _source, comments) => issueCitations(file, comments)),
+      "A comment cites an issue or pull request. Move its reason into a decision record and link that instead:"
+    );
+  });
+
+  it("cites a record on every declaration's doc comment the record does not list", () => {
+    expectOnlyRecorded(
+      UNCITED_RECORD_PATH,
+      across(uncitedDeclarations),
+      "A declaration's doc comment cites no decision record. Add the path of the record behind it:"
+    );
+  });
+
+  it("runs no comment over three lines that the record does not list", () => {
+    expectOnlyRecorded(
+      LONG_RECORD_PATH,
+      across(longComments),
+      "A comment runs over three lines before its record paths. Say what the thing is for in three, and move the rest into the record:"
+    );
   });
 
   it("cites no issue, spec or spec section in a test's name", () => {

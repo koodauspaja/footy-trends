@@ -2,11 +2,12 @@ import { createHash } from "node:crypto";
 import ts from "typescript";
 
 /**
- * The rules a comment is held to: what it may cite, and how it may sit. A
- * test's name is held to the first of them.
+ * The rules a comment is held to: what it may cite, how long it may run and how
+ * it may sit. A test's name is held to the first of them.
  *
  * decisions/531-comments-say-what-code-is-for.md
  * decisions/584-test-names-carry-no-citations.md
+ * decisions/839-mechanical-comment-rules.md
  */
 
 export type Comment = {
@@ -310,6 +311,133 @@ export function stackedDocComments(
     if (between.trim() !== "") return [];
     if (previous.header && between.split("\n").length > 2) return [];
     return [{ file, line: comment.line, text: comment.text.replace(/\n[\s\S]*/, "") }];
+  });
+}
+
+/**
+ * A comment line's words, without the markers around them.
+ *
+ * decisions/839-mechanical-comment-rules.md
+ */
+function proseOf(line: string): string {
+  return line
+    .trim()
+    .replace(/^\/\*\*?|\*\/$/g, "")
+    .replace(/^\s*(\*|\/\/)/, "")
+    .trim();
+}
+
+/**
+ * The words of a comment's lines on one line: what a finding shows, and what
+ * keys it in a record, so a comment that only moves keeps its key.
+ *
+ * decisions/839-mechanical-comment-rules.md
+ */
+function wordsOf(lines: readonly string[]): string {
+  return lines
+    .map(proseOf)
+    .filter((line) => line !== "")
+    .join(" ");
+}
+
+function citesARecord(text: string): boolean {
+  return text.search(DECISION_PATH) !== -1;
+}
+
+function isDeclaration(statement: ts.Statement): boolean {
+  return (
+    ts.isFunctionDeclaration(statement) ||
+    ts.isClassDeclaration(statement) ||
+    ts.isInterfaceDeclaration(statement) ||
+    ts.isTypeAliasDeclaration(statement) ||
+    ts.isEnumDeclaration(statement) ||
+    ts.isVariableStatement(statement) ||
+    ts.isModuleDeclaration(statement) ||
+    ts.isExportAssignment(statement)
+  );
+}
+
+/**
+ * Doc comments on a file's top-level declarations that cite no decision record:
+ * the header covers only a declaration with no comment of its own. A header a
+ * blank line sets apart is the file's, not the declaration's.
+ *
+ * decisions/531-comments-say-what-code-is-for.md
+ * decisions/839-mechanical-comment-rules.md
+ */
+export function uncitedDeclarations(
+  file: string,
+  source: string,
+  comments: readonly Comment[]
+): Finding[] {
+  const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind(file));
+
+  return tree.statements.filter(isDeclaration).flatMap((statement) => {
+    const start = statement.getStart(tree);
+    const doc = comments.findLast(
+      (comment) => comment.doc && comment.start >= statement.pos && comment.end <= start
+    );
+    if (doc === undefined || citesARecord(doc.text)) return [];
+    if (doc.header && /\n[ \t]*\n/.test(source.slice(doc.end, start))) return [];
+    return [{ file, line: doc.line, text: wordsOf(doc.text.split("\n")) }];
+  });
+}
+
+function startsItsLine(source: string, comment: Comment): boolean {
+  return source.slice(source.lastIndexOf("\n", comment.start - 1) + 1, comment.start).trim() === "";
+}
+
+function continues(source: string, previous: Comment, comment: Comment): boolean {
+  return (
+    previous.text.startsWith("//") &&
+    comment.text.startsWith("//") &&
+    startsItsLine(source, previous) &&
+    startsItsLine(source, comment) &&
+    comment.line === previous.endLine + 1
+  );
+}
+
+type Run = { line: number; lines: string[] };
+
+/**
+ * The file's comments as a reader sees them: `//` lines each on a line of their
+ * own, one directly under another, are one comment.
+ *
+ * decisions/839-mechanical-comment-rules.md
+ */
+function runsOf(source: string, comments: readonly Comment[]): Run[] {
+  const runs: Run[] = [];
+  let current: { run: Run; last: Comment } | undefined;
+  for (const comment of comments) {
+    const lines = comment.text.split("\n");
+    if (current !== undefined && continues(source, current.last, comment)) {
+      current.run.lines.push(...lines);
+    } else {
+      current = { run: { line: comment.line, lines }, last: comment };
+      runs.push(current.run);
+    }
+    current.last = comment;
+  }
+  return runs;
+}
+
+/**
+ * Comments whose words before the first record path run over three lines, each
+ * with those words as its text.
+ *
+ * decisions/531-comments-say-what-code-is-for.md
+ * decisions/839-mechanical-comment-rules.md
+ */
+export function longComments(
+  file: string,
+  source: string,
+  comments: readonly Comment[]
+): Finding[] {
+  return runsOf(source, comments).flatMap(({ line, lines }) => {
+    const firstPath = lines.findIndex(citesARecord);
+    const prose = lines.slice(0, firstPath === -1 ? lines.length : firstPath);
+    const proseLines = prose.filter((text) => proseOf(text) !== "").length;
+    return proseLines > 3 ? [{ file, line, text: wordsOf(prose) }] : [];
   });
 }
 
