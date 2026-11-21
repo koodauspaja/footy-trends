@@ -8,6 +8,7 @@ import { isAbsolute } from "node:path";
  *
  * decisions/292-sonar-zero-open-issues.md
  * decisions/807-database-backup.md
+ * decisions/849-e2e-names-port-holders.md
  */
 
 const CANDIDATES = {
@@ -27,6 +28,8 @@ const CANDIDATES = {
   ],
   age: ["/usr/bin/age", "/usr/local/bin/age", "/opt/homebrew/bin/age"],
   railway: ["/usr/bin/railway", "/usr/local/bin/railway", "/opt/homebrew/bin/railway"],
+  // macOS keeps it in /usr/sbin, Linux in /usr/bin.
+  lsof: ["/usr/sbin/lsof", "/usr/bin/lsof"],
   docker: [
     "/usr/bin/docker",
     "/usr/local/bin/docker",

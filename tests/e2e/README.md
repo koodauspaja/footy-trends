@@ -136,8 +136,9 @@ Measured on one machine on 2026-10-09, 358 tests: 4 min 39 s against `next dev`,
 and 3 min 54 s against the build, 32 s of it the build.
 `decisions/568-e2e-against-a-production-build.md` has the reasons.
 
-A server already on port 3001 stops the run at once, with Playwright's message
-that the address is already used.
+A server already on one of its ports stops the run at once: `pretest:e2e`
+names each holder and the checkout it runs from, and says whether to wait or to
+stop it (`decisions/849-e2e-names-port-holders.md`).
 
 ### The suite runs serially, everywhere
 

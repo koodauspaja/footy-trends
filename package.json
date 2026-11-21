@@ -24,7 +24,7 @@
     "predictions": "tsx scripts/predictions/predictions.ts",
     "railway:environment": "tsx scripts/environments/railway-environment.ts",
     "prepare": "husky",
-    "pretest:e2e": "tsx scripts/local/ensure-services.ts --test",
+    "pretest:e2e": "tsx scripts/e2e/e2e-ports.ts && tsx scripts/local/ensure-services.ts --test",
     "pretest:integration": "tsx scripts/local/ensure-services.ts --test",
     "release:pr": "tsx scripts/release/release-pr.ts",
     "release:version": "tsx scripts/release/release-version.ts",
