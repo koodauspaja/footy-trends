@@ -98,11 +98,20 @@ describe("runCheck", () => {
     expect(console.lines[0]).toContain("could not fetch origin/main");
   });
 
-  it("skips with a message when the pushed refs are not in git's shape", () => {
+  it("checks the current branch's HEAD, and says so, when the pushed refs are not in git's shape", () => {
+    const git = repository();
     const console = consoleSpy();
 
-    expect(runCheck("nonsense", repository(), console)).toBe(0);
-    expect(console.lines[0]).toContain("not in the shape");
+    expect(runCheck("nonsense", git, console)).toBe(0);
+    expect(console.lines[0]).toContain("checking HEAD");
+    expect(git.calls).toContainEqual(["merge-base", "--is-ancestor", "origin/main", CURRENT]);
+  });
+
+  it("does not check HEAD when it is main", () => {
+    const git = repository({ branch: "main" });
+
+    expect(runCheck(null, git, consoleSpy())).toBe(0);
+    expect(git.calls.some(([command]) => command === "fetch")).toBe(false);
   });
 
   it("checks the current branch's HEAD when there is no stdin", () => {

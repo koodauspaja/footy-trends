@@ -63,19 +63,24 @@ function bodyText(body: BodySource, deps: GuardDeps): { text: string } | { refus
     : { text };
 }
 
-async function boxRefusals(body: string, deps: GuardDeps): Promise<string[]> {
-  const verdicts: IssueVerdict[] = [];
-  const unread: string[] = [];
-  for (const issue of closedIssues(body)) {
-    try {
-      verdicts.push({ issue, bare: bareBoxes(await deps.readIssue(issue)) });
-    } catch (error) {
-      unread.push(
-        unreadIssueRefusal(issue, error instanceof Error ? error.message : String(error))
-      );
-    }
+/**
+ * Why an issue could not be read, as a refusal, or its verdict.
+ *
+ * decisions/806-push-and-pr-hooks.md
+ */
+async function readVerdict(issue: number, deps: GuardDeps): Promise<IssueVerdict | string> {
+  try {
+    return { issue, bare: bareBoxes(await deps.readIssue(issue)) };
+  } catch (error) {
+    return unreadIssueRefusal(issue, error instanceof Error ? error.message : String(error));
   }
-  const bare = report(verdicts);
+}
+
+async function boxRefusals(body: string, deps: GuardDeps): Promise<string[]> {
+  // Read together: one issue's answer does not change which others to read.
+  const results = await Promise.all(closedIssues(body).map((issue) => readVerdict(issue, deps)));
+  const unread = results.filter((result) => typeof result === "string");
+  const bare = report(results.filter((result) => typeof result !== "string"));
   return [...unread, ...(bare.length > 0 ? [[BARE_BOXES_HEADING, "", ...bare].join("\n")] : [])];
 }
 
@@ -104,11 +109,10 @@ async function pullRequestRefusals(request: PullRequestCreate, deps: GuardDeps):
  */
 export async function refusals(command: string, cwd: string, deps: GuardDeps): Promise<string[]> {
   const requests = requestsIn(command, cwd);
-  const found = requests.addsEverything ? [ADD_EVERYTHING_REFUSAL] : [];
-  for (const request of requests.pullRequests) {
-    found.push(...(await pullRequestRefusals(request, deps)));
-  }
-  return found;
+  const pullRequests = await Promise.all(
+    requests.pullRequests.map((request) => pullRequestRefusals(request, deps))
+  );
+  return [...(requests.addsEverything ? [ADD_EVERYTHING_REFUSAL] : []), ...pullRequests.flat()];
 }
 
 /**
