@@ -15,6 +15,7 @@ import Privacy, { metadata } from "@/app/privacy/page";
  * decisions/073-leaderboard.md
  * decisions/078-private-groups.md
  * decisions/079-group-members-guesses.md
+ * decisions/807-database-backup.md
  */
 
 describe("the privacy policy", () => {
@@ -61,7 +62,7 @@ describe("the privacy policy", () => {
     render(<Privacy />);
 
     const body = document.body.textContent ?? "";
-    for (const processor of ["Google", "Railway", "Sentry", "Axiom"]) {
+    for (const processor of ["Google", "Railway", "Backblaze", "Sentry", "Axiom"]) {
       expect(body).toContain(processor);
     }
   });
@@ -95,6 +96,16 @@ describe("the privacy policy", () => {
     const body = document.body.textContent ?? "";
     expect(body).toContain("Poikkeuksena lokit");
     expect(body).toContain("eikä sitä voi yhdistää");
+  });
+
+  it("says deleted data stays in the backups for about a month, because it does", () => {
+    // A backup taken before the deletion keeps the account until its own
+    // lifecycle removes it, so the page may not promise deletion everywhere at once.
+    render(<Privacy />);
+
+    const body = document.body.textContent ?? "";
+    expect(body).toContain("Poikkeuksena myös varmuuskopiot");
+    expect(body).toContain("varmuuskopioistakin noin kuukaudessa");
   });
 
   it("names a contact address, which a policy needs", () => {

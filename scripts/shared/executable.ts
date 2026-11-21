@@ -7,6 +7,7 @@ import { isAbsolute } from "node:path";
  * and the like override them, and must be absolute.
  *
  * decisions/292-sonar-zero-open-issues.md
+ * decisions/807-database-backup.md
  */
 
 const CANDIDATES = {
@@ -24,6 +25,7 @@ const CANDIDATES = {
     "/opt/homebrew/bin/gh",
     String.raw`C:\Program Files\GitHub CLI\gh.exe`,
   ],
+  age: ["/usr/bin/age", "/usr/local/bin/age", "/opt/homebrew/bin/age"],
   railway: ["/usr/bin/railway", "/usr/local/bin/railway", "/opt/homebrew/bin/railway"],
   docker: [
     "/usr/bin/docker",
