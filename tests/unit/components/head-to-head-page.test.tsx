@@ -82,7 +82,7 @@ vi.mock("@/components/sign-in-prompt", () => ({
   SignInPrompt: ({ message }: { message: string }) => <p>{message}</p>,
 }));
 
-vi.mock("@/lib/taso/taso-standings-service", () => ({
+vi.mock("@/lib/taso/taso-seasons", () => ({
   getSeasonCategoryNameMap: vi.fn(async () => null),
 }));
 

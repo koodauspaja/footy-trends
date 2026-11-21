@@ -29,6 +29,12 @@ vi.mock("@/lib/taso/taso-standings-service", async (importOriginal) => {
   return {
     ...actual,
     getSeasonMatchList: getSeasonMatchListMock,
+  };
+});
+vi.mock("@/lib/taso/taso-seasons", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/taso/taso-seasons")>();
+  return {
+    ...actual,
     getSeasonCategoryName: getSeasonCategoryNameMock,
     resolveTasoSeasonContext: resolveTasoSeasonContextMock,
   };

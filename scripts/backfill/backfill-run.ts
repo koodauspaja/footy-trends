@@ -38,7 +38,7 @@ import {
 import {
   synchronizeGroupTeams,
   synchronizeMatches as synchronizeTasoMatches,
-} from "../../src/lib/taso/taso-standings-service";
+} from "../../src/lib/taso/taso-sync";
 import { backfillZones, ZONE_BACKFILL_PER_MINUTE } from "../../src/lib/taso/zone-backfill";
 import { canSkip, describeError, tasoSeasonsFor } from "./backfill-plan";
 

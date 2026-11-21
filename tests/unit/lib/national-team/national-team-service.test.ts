@@ -16,8 +16,10 @@ const getSeasonCategoryNameMapMock =
   vi.fn<(competitionId: string, ...rest: number[]) => Promise<Record<string, string>>>();
 const getSeasonMatchListMock = vi.fn();
 
-vi.mock("@/lib/taso/taso-standings-service", () => ({
+vi.mock("@/lib/taso/taso-seasons", () => ({
   getSeasonCategoryNameMap: getSeasonCategoryNameMapMock,
+}));
+vi.mock("@/lib/taso/taso-standings-service", () => ({
   getSeasonMatchList: getSeasonMatchListMock,
 }));
 vi.mock("@/lib/platform/logger", () => ({

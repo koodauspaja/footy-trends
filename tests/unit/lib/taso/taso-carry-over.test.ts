@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { tasoGroupTeams } from "@/db/schema";
 import type { NormalizedTasoMatch } from "@/lib/taso/taso";
+import { listCarryOverEntries } from "@/lib/taso/taso-carry-over";
 import {
   getSeasonMatchList,
   getSeasonStandings,
-  listCarryOverEntries,
   listSelectableTasoRounds,
 } from "@/lib/taso/taso-standings-service";
 import fixture from "../../../fixtures/taso-carry-over.json";

@@ -10,7 +10,7 @@ import {
   getDomesticCompetitionName,
   parseDomesticCompetitionParam,
 } from "../taso/domestic-competitions";
-import { getSeasonCategoryName, resolveTasoSeasonContext } from "../taso/taso-standings-service";
+import { getSeasonCategoryName, resolveTasoSeasonContext } from "../taso/taso-seasons";
 import type { TeamContext } from "../teams/team-context";
 import type { SeasonOption, SeasonParamResult } from "./seasons";
 

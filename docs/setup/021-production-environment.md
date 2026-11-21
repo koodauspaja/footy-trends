@@ -479,8 +479,8 @@ traffic:
   bounded by **cache misses rather than user traffic** — a busy day does not
   multiply it — but the bound lives in the service layer, not here.
   `src/lib/taso/taso.ts` and `src/lib/football-data/football-data.ts` call the helper directly
-  with no caching of their own; `standings-service.ts` and
-  `taso-standings-service.ts` are what bound them, through Redis TTL caches,
+  with no caching of their own; `standings-service.ts`, and for TASO
+  `taso-sync.ts` and `taso-seasons.ts`, are what bound them, through Redis TTL caches,
   matches stored in Postgres and refreshed only when `needsRefresh` says so,
   and React `cache()` for per-request deduplication.
 - `src/app/api/health/route.ts`, once per request to it. Railway probes

@@ -60,8 +60,8 @@ vi.mock("@/lib/taso/taso", async (importOriginal) => {
   };
 });
 
-vi.mock("@/lib/taso/taso-standings-service", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/taso/taso-standings-service")>();
+vi.mock("@/lib/taso/taso-seasons", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/taso/taso-seasons")>();
   return {
     ...actual,
     // Fixed, so the season range does not depend on TASO being reachable. The
@@ -72,6 +72,12 @@ vi.mock("@/lib/taso/taso-standings-service", async (importOriginal) => {
       newestStored: 2026,
     })),
     resolveTasoSeasonContext: probingResolverSpy,
+  };
+});
+vi.mock("@/lib/taso/taso-sync", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/taso/taso-sync")>();
+  return {
+    ...actual,
     // The real writer, unless a test asks it to fail — which is how the
     // transaction's rollback is proven without a second write path.
     synchronizeGroupTeams: vi.fn(
@@ -497,7 +503,7 @@ describe("the season ceiling", () => {
     // so a competition held purely as standings must count as held.
     await seed([], [buildGroupTeam()]);
 
-    const { storedTasoSeasons } = await import("@/lib/taso/taso-standings-service");
+    const { storedTasoSeasons } = await import("@/lib/taso/taso-seasons");
 
     expect([...(await storedTasoSeasons("VL"))]).toContain(SEASON);
   });
@@ -505,7 +511,7 @@ describe("the season ceiling", () => {
   it("sees a season held only as matches", async () => {
     await seed([buildMatch()], []);
 
-    const { storedTasoSeasons } = await import("@/lib/taso/taso-standings-service");
+    const { storedTasoSeasons } = await import("@/lib/taso/taso-seasons");
 
     expect([...(await storedTasoSeasons("VL"))]).toContain(SEASON);
   });

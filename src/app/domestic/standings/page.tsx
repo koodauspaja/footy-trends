@@ -30,11 +30,11 @@ import { type GroupZones, groupZones, zoneLine } from "@/lib/taso/competition-zo
 import { cupFormatFor, isDomesticCup } from "@/lib/taso/domestic-competitions";
 import {
   type GroupLevel,
-  type GroupStandingsResult,
   getSeasonStandings,
   listSeasonRounds,
   parseTasoRoundParam,
 } from "@/lib/taso/taso-standings-service";
+import type { GroupStandingsResult } from "@/lib/taso/taso-tables";
 
 export const dynamic = "force-dynamic";
 

@@ -57,7 +57,7 @@ vi.mock("@/lib/taso/taso", async (importOriginal) => ({
 vi.mock("@/lib/football-data/standings-service", () => ({
   synchronizeMatches: mocks.synchronizeFootballDataMatches,
 }));
-vi.mock("@/lib/taso/taso-standings-service", () => ({
+vi.mock("@/lib/taso/taso-sync", () => ({
   synchronizeMatches: mocks.synchronizeTasoMatches,
 }));
 vi.mock("@/lib/matches/match-service", () => ({
@@ -69,7 +69,7 @@ vi.mock("@/lib/platform/logger", () => ({
   logger: { error: mocks.loggerError, info: mocks.loggerInfo },
 }));
 vi.mock("@/lib/providers/cache", () => ({ invalidateCache: mocks.invalidateCache }));
-vi.mock("@/lib/guessing-game/guessing-game-store", () => ({ settleGuesses: mocks.settleGuesses }));
+vi.mock("@/lib/guessing-game/guessing-game-settle", () => ({ settleGuesses: mocks.settleGuesses }));
 vi.mock("@/lib/guessing-game/guessing-game-season-store", () => ({
   settleSeasonGuesses: mocks.settleSeasonGuesses,
 }));

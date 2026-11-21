@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { gameGuess, gameLedger, predictions, tasoMatches, user } from "@/db/schema";
 import { readModelGuesses } from "@/lib/guessing-game/guessing-game-board";
-import { joinGame, placeGuess, settleGuesses } from "@/lib/guessing-game/guessing-game-store";
+import { settleGuesses } from "@/lib/guessing-game/guessing-game-settle";
+import { joinGame, placeGuess } from "@/lib/guessing-game/guessing-game-store";
 
 /**
  * Arvauspeli against the models with a real Postgres: the models' live rows as

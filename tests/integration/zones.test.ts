@@ -4,12 +4,12 @@ import { db } from "@/db";
 import { tasoGroupTeams, tasoGroupZones, tasoMatches } from "@/db/schema";
 import type { NormalizedTasoGroupLevel, NormalizedTasoGroupTeam } from "@/lib/taso/taso";
 import { getSeasonGroups } from "@/lib/taso/taso";
+import { getSeasonStandings } from "@/lib/taso/taso-standings-service";
 import {
-  getSeasonStandings,
   synchronizeGroupLevels,
   synchronizeGroupTeams,
   synchronizeMatches,
-} from "@/lib/taso/taso-standings-service";
+} from "@/lib/taso/taso-sync";
 import { backfillZones } from "@/lib/taso/zone-backfill";
 
 /**

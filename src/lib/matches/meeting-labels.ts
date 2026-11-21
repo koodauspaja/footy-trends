@@ -19,7 +19,7 @@ import {
   competitionCodeForCategory,
   getDomesticCompetitionName,
 } from "../taso/domestic-competitions";
-import { getSeasonCategoryNameMap } from "../taso/taso-standings-service";
+import { getSeasonCategoryNameMap } from "../taso/taso-seasons";
 import type { FootballDataMatchRow, TasoMatchRow } from "./match-detail";
 
 /**

@@ -49,13 +49,12 @@ import {
   tasoCategoryCacheKey,
   tasoMatchesCacheKey,
 } from "@/lib/taso/taso";
+import { resolveTasoSeasonCeiling, storedTasoSeasons } from "@/lib/taso/taso-seasons";
 import {
   dedupeByIdentity,
-  resolveTasoSeasonCeiling,
-  storedTasoSeasons,
   synchronizeGroupTeams,
   synchronizeMatches as synchronizeTasoMatches,
-} from "@/lib/taso/taso-standings-service";
+} from "@/lib/taso/taso-sync";
 
 /**
  * Forced refresh of one competition-season. `previewRefresh` writes nothing and

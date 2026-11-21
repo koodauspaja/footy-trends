@@ -25,7 +25,7 @@ vi.mock("@/lib/matches/match-service", () => ({
   getMatchPageData: getMatchPageDataMock,
 }));
 
-vi.mock("@/lib/taso/taso-standings-service", () => ({
+vi.mock("@/lib/taso/taso-seasons", () => ({
   getSeasonCategoryNameMap: getSeasonCategoryNameMapMock,
 }));
 
