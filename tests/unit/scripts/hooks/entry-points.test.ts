@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -63,5 +64,36 @@ describe("scripts/hooks/up-to-date.ts", () => {
     expect(hook.indexOf("scripts/hooks/up-to-date.ts")).toBeLessThan(
       hook.indexOf("scripts/e2e/e2e-freshness.ts")
     );
+  });
+});
+
+describe("scripts/hooks/claude-bash-guard.sh", () => {
+  function runWrapper(command: string) {
+    const input = JSON.stringify({
+      tool_name: "Bash",
+      tool_input: { command },
+      cwd: process.cwd(),
+    });
+    return spawnSync("sh", ["scripts/hooks/claude-bash-guard.sh"], {
+      input,
+      encoding: "utf8",
+      env: { ...process.env, CLAUDE_PROJECT_DIR: process.cwd() },
+    });
+  }
+
+  it("hands each refused form of git add to the guard, which blocks it", () => {
+    for (const command of ["git add -A", "git add --all", "git add .", "git -C x add -A"]) {
+      const result = runWrapper(command);
+
+      expect(result.status).toBe(2);
+      expect(result.stderr).toContain("Stage the paths by name");
+    }
+  });
+
+  it("lets a command no rule covers through without starting the guard", () => {
+    const result = runWrapper("ls -la");
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
   });
 });

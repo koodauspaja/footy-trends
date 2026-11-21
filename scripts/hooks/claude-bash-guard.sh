@@ -5,7 +5,7 @@
 # decisions/806-push-and-pr-hooks.md
 input=$(cat)
 case "$input" in
-  *"gh pr "* | *"git "*" add"*) ;;
+  *"gh pr "* | *"git"*"add"*) ;;
   *) exit 0 ;;
 esac
 
