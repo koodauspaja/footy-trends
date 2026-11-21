@@ -21,6 +21,8 @@ export type Session = {
   downloadUrl: string;
   bucketId: string;
   bucketName: string;
+  /** What the key may do, as B2 names it. */
+  capabilities: string[];
 };
 
 async function json<T>(response: Response, call: string): Promise<T> {
@@ -35,7 +37,7 @@ type AuthorizeBody = {
     storageApi: {
       apiUrl: string;
       downloadUrl: string;
-      allowed: { buckets: { id: string; name: string }[] | null };
+      allowed: { buckets: { id: string; name: string }[] | null; capabilities: string[] };
     };
   };
 };
@@ -64,6 +66,7 @@ export async function authorize(keyId: string, key: string, fetchFn: Fetch): Pro
     downloadUrl: storage.downloadUrl,
     bucketId: bucket.id,
     bucketName: bucket.name,
+    capabilities: storage.allowed.capabilities,
   };
 }
 

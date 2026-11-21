@@ -9,6 +9,7 @@ import {
   libpqEnvironment,
   parseKeyFile,
   parseRestoreArgs,
+  uploadKeyProblem,
 } from "../../../../scripts/backup/backup-plan";
 
 /**
@@ -157,6 +158,21 @@ describe("parseRestoreArgs", () => {
       ok: false,
       message: "Both --b2-key=<file> and --identity=<file> are required.",
     });
+  });
+});
+
+describe("uploadKeyProblem", () => {
+  it("accepts a key that can only upload", () => {
+    expect(uploadKeyProblem(["writeFiles"])).toBeNull();
+  });
+
+  it.each([
+    ["can also delete", ["writeFiles", "deleteFiles"]],
+    ["cannot upload", ["readFiles"]],
+  ])("refuses a key that %s, naming what it has", (_case, capabilities) => {
+    expect(uploadKeyProblem(capabilities)).toBe(
+      `The B2 key may only upload (writeFiles), but it has: ${capabilities.join(", ")}.`
+    );
   });
 });
 

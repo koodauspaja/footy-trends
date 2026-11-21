@@ -79,6 +79,12 @@ export async function pipe(first: Command, second: Command): Promise<void> {
   writer.stdin.end();
   writer.stdout.pipe(reader.stdin);
   reader.stdout.resume();
+  // A reader that exits early stops taking the writer's output; draining it
+  // lets the writer finish, so the reader's failure is reported, not a hang.
+  reader.on("exit", () => {
+    writer.stdout.unpipe(reader.stdin);
+    writer.stdout.resume();
+  });
   const [wrote, read] = await Promise.all([finished(writer), finished(reader)]);
   if (wrote.code !== 0) throw failure(first, wrote.code, wrote.stderr);
   if (read.code !== 0) throw failure(second, read.code, read.stderr);
