@@ -31,6 +31,12 @@ vi.mock("@/lib/predictions/elo-service", () => ({
   getEloRatings: async () => ({ status: "ok", ratings: new Map() }),
 }));
 
+// The fit reads Redis and Postgres, which a unit test has neither of. Its
+// error result is what the page got from them before this mock existed.
+vi.mock("@/lib/predictions/poisson-service", () => ({
+  getPoissonFit: async () => ({ status: "error" }),
+}));
+
 vi.mock("@/lib/auth/analytics-access", () => ({
   canSeeAnalytics: canSeeAnalyticsMock,
 }));

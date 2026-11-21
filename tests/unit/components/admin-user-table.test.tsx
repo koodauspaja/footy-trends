@@ -210,7 +210,13 @@ describe("deleting", () => {
 });
 
 describe("clearing a nickname", () => {
-  const NAMED: AdminUser = { ...READER, nickname: "Lauri L" };
+  // A user of their own, so a table holding both READER and NAMED keys each row once.
+  const NAMED: AdminUser = {
+    ...READER,
+    id: "reader-2",
+    email: "nimetty@example.fi",
+    nickname: "Lauri L",
+  };
   const CLEAR = "Tyhjennä nimimerkki";
 
   it("shows each user's nickname, and nothing for one without", () => {
@@ -236,7 +242,7 @@ describe("clearing a nickname", () => {
 
     expect(
       screen.getByRole("alertdialog", {
-        name: "Tyhjennetäänkö käyttäjän lukija@example.fi nimimerkki?",
+        name: "Tyhjennetäänkö käyttäjän nimetty@example.fi nimimerkki?",
       })
     ).toBeInTheDocument();
     expect(screen.queryByText(/Tätä ei voi perua/)).toBeNull();
@@ -249,7 +255,7 @@ describe("clearing a nickname", () => {
     fireEvent.click(screen.getByRole("button", { name: CLEAR }));
     fireEvent.click(screen.getAllByRole("button", { name: CLEAR }).at(-1) as HTMLElement);
 
-    expect(clearNicknameAction).toHaveBeenCalledWith("reader-1");
+    expect(clearNicknameAction).toHaveBeenCalledWith("reader-2");
     expect(deleteUserAction).not.toHaveBeenCalled();
     expect(await screen.findByRole("alert")).toHaveTextContent("Nimimerkki tyhjennetty.");
   });

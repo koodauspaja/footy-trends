@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import type { SourceFile } from "typescript";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import {
   type Comment,
   citationKey,
@@ -15,7 +15,6 @@ import {
   type Finding,
   issueCitations,
   longComments,
-  longDocComments,
   parse,
   sourceFilesAmong,
   stackedDocComments,
@@ -656,27 +655,6 @@ describe("longComments", () => {
   });
 });
 
-describe("longDocComments", () => {
-  const doc = (lines: number) =>
-    ["/**", ...Array.from({ length: lines - 2 }, () => " * line"), " */"].join("\n");
-
-  it("reports a doc comment past twelve lines, and not one of twelve", () => {
-    const source = `${doc(13)}\nconst a = 1;\n${doc(12)}\nconst b = 2;`;
-
-    expect(longDocComments("a.ts", commentsOf("a.ts", source))).toEqual([
-      { file: "a.ts", line: 1, text: "13 lines" },
-    ]);
-  });
-
-  it("leaves a long run of line comments alone, and a long plain block comment", () => {
-    const lines = Array.from({ length: 20 }, () => "// line").join("\n");
-    const block = ["/*", ...Array.from({ length: 18 }, () => " * line"), " */"].join("\n");
-
-    expect(longDocComments("a.ts", commentsOf("a.ts", lines))).toEqual([]);
-    expect(longDocComments("a.ts", commentsOf("a.ts", block))).toEqual([]);
-  });
-});
-
 describe("sourceFilesAmong", () => {
   it("keeps the TypeScript sources, sorted", () => {
     expect(
@@ -738,16 +716,6 @@ describe("this repository's comments", () => {
       };
     });
   }, 60_000);
-
-  afterAll(() => {
-    const long = across((file, _source, comments) => longDocComments(file, comments));
-    const longest = long.toSorted(
-      (left, right) => Number.parseInt(right.text, 10) - Number.parseInt(left.text, 10)
-    );
-    process.stdout.write(
-      `\n${long.length} doc comments run past twelve lines; the longest:\n${describeFindings(longest.slice(0, 10))}\n`
-    );
-  });
 
   it("cites only decision records that exist", () => {
     const missing = across((file, _source, comments) => decisionCitations(file, comments)).filter(

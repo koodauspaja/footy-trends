@@ -1,6 +1,7 @@
 {
   "name": "footy-trends",
   "private": true,
+  "type": "module",
   "scripts": {
     "admin:role": "tsx scripts/db/grant-admin.ts",
     "backfill": "tsx scripts/backfill/backfill.ts",
@@ -38,8 +39,8 @@
     "test:e2e": "playwright test",
     "test:e2e:browser": "playwright install --with-deps chromium",
     "test:integration": "tsx scripts/db/with-test-db.ts node node_modules/vitest/vitest.mjs run tests/integration",
-    "test:shuffle": "vitest run tests/unit --sequence.shuffle",
-    "test:unit": "vitest run tests/unit --coverage && tsx scripts/checks/coverage-gaps.ts",
+    "test:shuffle": "vitest run tests/unit --sequence.shuffle --reporter=default --reporter=./scripts/checks/console-output-reporter.ts",
+    "test:unit": "vitest run tests/unit --coverage --reporter=default --reporter=./scripts/checks/console-output-reporter.ts && tsx scripts/checks/coverage-gaps.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "verify:sentry": "tsx scripts/environments/verify-sentry.ts",
