@@ -94,6 +94,8 @@ describe("the coverage exclusion list", () => {
     "scripts/predictions/predictions.ts",
     "scripts/environments/railway-environment.ts",
     "scripts/e2e/record-taso-fixture.ts",
+    "scripts/backup/backup.ts",
+    "scripts/backup/restore.ts",
     // The tooling's own configuration.
     "drizzle.config.ts",
     "next.config.ts",
