@@ -99,6 +99,21 @@ export type TeamSearchView = {
  */
 type Hit = { source: FavouriteSource; teamProviderId: number; kickoffAt: Date };
 
+/**
+ * Newest first, then by source and team id, so teams whose newest matches kick
+ * off together keep one order. Each query's SQL cap orders the same way.
+ *
+ * decisions/027-team-search.md
+ * decisions/834-team-search-tie-order.md
+ */
+function byNewestThenTeam(left: Hit, right: Hit): number {
+  return (
+    right.kickoffAt.getTime() - left.kickoffAt.getTime() ||
+    left.source.localeCompare(right.source) ||
+    left.teamProviderId - right.teamProviderId
+  );
+}
+
 export async function searchTeams(term: string): Promise<TeamSearchView[]> {
   if (!isSearchable(term)) return [];
 
@@ -137,7 +152,7 @@ export async function searchTeams(term: string): Promise<TeamSearchView[]> {
           kickoffAt: newestPerTeam.kickoffAt,
         })
         .from(newestPerTeam)
-        .orderBy(desc(newestPerTeam.kickoffAt))
+        .orderBy(desc(newestPerTeam.kickoffAt), newestPerTeam.teamProviderId)
         .limit(MAX_RESULTS);
 
       return rows.map((row) => ({ ...row, source }) as Hit);
@@ -152,9 +167,7 @@ export async function searchTeams(term: string): Promise<TeamSearchView[]> {
     if (held === undefined || held.kickoffAt < hit.kickoffAt) newest.set(key, hit);
   }
 
-  const ordered = [...newest.values()]
-    .sort((left, right) => right.kickoffAt.getTime() - left.kickoffAt.getTime())
-    .slice(0, MAX_RESULTS);
+  const ordered = [...newest.values()].sort(byNewestThenTeam).slice(0, MAX_RESULTS);
 
   // The display name comes from each team's newest match overall, not from the
   // row that matched — a renamed club is found by its old name and shown under

@@ -243,6 +243,25 @@ describe("searchTeams", () => {
     ]);
   });
 
+  it("orders teams whose newest matches kick off together by source, then team id", async () => {
+    // Both sides of one match share its kickoff, so a search finding both ties.
+    const together = at("2026-01-01");
+    state.sides.set("taso_matches:home", [
+      { teamProviderId: 9, kickoffAt: together },
+      { teamProviderId: 4, kickoffAt: together },
+    ]);
+    state.sides.set("matches:away", [{ teamProviderId: 7, kickoffAt: together }]);
+    const { searchTeams } = await import("@/lib/teams/team-search");
+
+    await searchTeams("honka");
+
+    expect(resolveTeamNames).toHaveBeenCalledWith([
+      { source: "football-data", teamProviderId: 7 },
+      { source: "taso", teamProviderId: 4 },
+      { source: "taso", teamProviderId: 9 },
+    ]);
+  });
+
   it("never resolves more teams than the cap, however many sides matched", async () => {
     // Each of the four queries is capped, so four full pages could arrive.
     const rows = (offset: number) =>

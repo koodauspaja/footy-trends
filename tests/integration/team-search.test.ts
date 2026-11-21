@@ -371,4 +371,21 @@ describe("searching real rows", () => {
     // And they come back newest first.
     expect(ids[0]).toBe(972000 + total - 1);
   });
+
+  it("keeps the lowest team ids when more match than the cap at one kickoff", async () => {
+    // Inserted highest id first, so storage order would not happen to give the answer.
+    const total = MAX_RESULTS + 5;
+    await db.insert(tasoMatches).values(
+      Array.from({ length: total }, (_, index) => ({
+        ...tasoRow(),
+        providerMatchId: 993400 + index,
+        homeTeamProviderId: 973000 + total - 1 - index,
+        homeTeamName: `Järvenpää ${index}`,
+      }))
+    );
+
+    const ids = idsOf(await searchTeams("jarvenpaa"));
+
+    expect(ids).toEqual(Array.from({ length: MAX_RESULTS }, (_, index) => 973000 + index));
+  });
 });
