@@ -33,11 +33,12 @@ const SOURCE_EXTENSIONS = [".ts", ".tsx", ".mts", ".mjs"];
  */
 const ISSUE_NUMBER = /(?<![&#])#\d+\b/;
 /**
- * A decision record's path, not the tail of another path or word.
+ * A decision record's path, not part of a longer path or word. A sentence's
+ * full stop may follow it.
  *
  * decisions/839-mechanical-comment-rules.md
  */
-const DECISION_PATH = /(?<![\w./-])decisions\/[\w.-]+\.md/g;
+const DECISION_PATH = /(?<![\w./-])decisions\/[\w.-]+\.md(?![\w/-]|\.\w)/g;
 
 /**
  * What a test's name may not carry: an issue number, a spec by path or number,

@@ -512,6 +512,12 @@ describe("uncitedDeclarations", () => {
     expect(uncited("/** For f, see olddecisions/001-a.md. */\nfunction f() {}")).toEqual([
       "For f, see olddecisions/001-a.md.",
     ]);
+    expect(uncited("/** For f, see decisions/001-a.mdx. */\nfunction f() {}")).toEqual([
+      "For f, see decisions/001-a.mdx.",
+    ]);
+    expect(uncited("/** For f, see decisions/001-a.md.bak. */\nfunction f() {}")).toEqual([
+      "For f, see decisions/001-a.md.bak.",
+    ]);
   });
 
   it("finds one in a file whose header cites a record: the header covers only an uncommented declaration", () => {
@@ -631,6 +637,7 @@ describe("longComments", () => {
     const lines = ["// One.", "// Two.", "//", "// Three.", "// Four."].join("\n");
 
     expect(long(lines)).toEqual([{ file: "a.ts", line: 1, text: "One. Two. Three. Four." }]);
+    expect(long("// One.\n// Two.\n// Three.")).toEqual([]);
     expect(long(`function f() {\n  ${lines.replaceAll("\n", "\n  ")}\n}`)).toHaveLength(1);
   });
 
@@ -645,6 +652,7 @@ describe("longComments", () => {
 
   it("holds a plain block comment to the same three lines", () => {
     expect(long("/*\n * One.\n * Two.\n * Three.\n * Four.\n */")).toHaveLength(1);
+    expect(long("/*\n * One.\n * Two.\n * Three.\n */")).toEqual([]);
   });
 });
 
