@@ -67,3 +67,11 @@ the file in a password manager, and adds the printed public key to
 
    The key file is two lines: the key's id, then the key. It ends with
    `Every table matches.`
+
+---
+
+## Next
+
+→ Nothing: the setup is complete. `docs/infrastructure.md` describes what now
+  exists, and is the document to keep true from here on. `skills/release.md` is
+  how `main` reaches production.
