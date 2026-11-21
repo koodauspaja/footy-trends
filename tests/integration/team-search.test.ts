@@ -11,6 +11,7 @@ import { MAX_RESULTS, searchTeams } from "@/lib/teams/team-search";
  *
  * decisions/027-team-search.md
  * decisions/325-taso-finland-links.md
+ * decisions/834-team-search-tie-order.md
  */
 
 // Every provider match id these fixtures use, as a range, not a list: a range

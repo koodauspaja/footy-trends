@@ -9,6 +9,7 @@ import { warmModules } from "../../../support/warm-module";
  *
  * decisions/027-team-search.md
  * decisions/325-taso-finland-links.md
+ * decisions/834-team-search-tie-order.md
  */
 
 const { state, resolveTeamNames } = vi.hoisted(() => ({
