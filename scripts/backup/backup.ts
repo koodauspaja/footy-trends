@@ -1,8 +1,6 @@
 /**
- * The production database's backup: `npm run backup`, which
- * `.github/workflows/database-backup.yml` runs daily. Counts every table and
- * dumps from one snapshot, encrypts both with `age` and uploads them to B2.
- * Reads `BACKUP_DATABASE_URL`, `B2_KEY_ID` and `B2_APPLICATION_KEY`.
+ * The production database's daily backup, `npm run backup`: every table's count
+ * and a dump from one snapshot, both encrypted with `age` and uploaded to B2.
  *
  * decisions/807-database-backup.md
  */

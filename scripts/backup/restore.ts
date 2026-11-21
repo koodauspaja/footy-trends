@@ -1,9 +1,7 @@
 /**
- * Restores the newest backup into a scratch database on the local Docker
- * Postgres and compares every table's row count with the counts taken at backup
- * time: `npm run backup:restore -- --b2-key=<file> --identity=<file>`. The key
- * file holds a B2 key that can list and read the bucket; the identity is an
- * `age` private key one of the backup's recipients holds.
+ * Restores the newest backup into a local scratch database and compares every
+ * table's count with the backup's: `npm run backup:restore -- --b2-key=<B2 read
+ * key file> --identity=<age private key file>`.
  *
  * decisions/807-database-backup.md
  */
