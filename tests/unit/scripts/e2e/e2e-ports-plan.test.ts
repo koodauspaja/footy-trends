@@ -71,7 +71,9 @@ describe("portsRefusal", () => {
     const text = portsRefusal([holder(3001, 4100, THERE)], HERE);
 
     expect(text).toContain(`  3001  pid 4100  cmd4100  ${THERE}`);
-    expect(text).toContain("wait for it, or set E2E_PORT, E2E_TASO_PORT and E2E_REDIS_PORT");
+    expect(text).toContain(
+      "wait for it. Only with E2E_TASO_STUB=1 can E2E_PORT, E2E_TASO_PORT and E2E_REDIS_PORT"
+    );
     expect(text).not.toContain("kill");
   });
 

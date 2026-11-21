@@ -75,7 +75,7 @@ export function portsRefusal(
   }
   if (own.length < holders.length) {
     advice.push(
-      "Held from elsewhere, most likely a run in another checkout: wait for it, or set E2E_PORT, E2E_TASO_PORT and E2E_REDIS_PORT to run beside it."
+      "Held from elsewhere, most likely a run in another checkout: wait for it. Only with E2E_TASO_STUB=1 can E2E_PORT, E2E_TASO_PORT and E2E_REDIS_PORT run one beside it, as the stand-in gives each port its own database and Redis."
     );
   }
   return ["Refused: e2e's ports are taken.", ...rows, "", ...advice].join("\n");
