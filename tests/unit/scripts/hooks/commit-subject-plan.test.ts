@@ -76,7 +76,7 @@ describe("processPhrase", () => {
     ["chore: apply the review's suggestions", "apply the review's suggestions"],
     ["chore: apply SonarCloud's suggestions", "apply SonarCloud's suggestions"],
     ["chore: applied review suggestions", "applied review suggestions"],
-    ["chore: answer Sourcery (#841)", "answer Sourcery"],
+    ["chore: answer Sourcery", "answer Sourcery"],
     ["chore: address SonarCloud", "address SonarCloud"],
     ["chore: reply to the reviewer", "reply to the reviewer"],
   ])("refuses %j, naming %j", (subject, phrase) => {

@@ -5,10 +5,9 @@ import { type Console, processConsole } from "../shared/github-read";
 import { type Offender, processPhrase, refusal, subjectOf } from "./commit-subject-plan";
 
 /**
- * `npm run check:commits`: the commit-msg hook's check of one message, with
- * `--message <file>`, and CI's checks of the pull request's title, with
- * `--subject <text>`, and of every commit in a `<base>..<head>` range. Reading
- * is injected.
+ * `npm run check:commits`: one message for the commit-msg hook (`--message`), and
+ * for CI the pull request's title (`--subject`) and every commit in a
+ * `<base>..<head>` range. Reading is injected.
  *
  * decisions/841-commit-subject-gate.md
  */
