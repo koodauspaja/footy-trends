@@ -1,5 +1,5 @@
 /**
- * Backblaze B2's native API, the four calls a backup and a restore need. Its
+ * Backblaze B2's native API, the four operations a backup and a restore need. Its
  * v4: a key made through the API is refused by v3.
  *
  * decisions/807-database-backup.md

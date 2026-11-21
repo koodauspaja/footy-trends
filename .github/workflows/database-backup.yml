@@ -6,7 +6,7 @@ name: Database backup
 
 on:
   schedule:
-    # 02:17 UTC daily: the quietest hour, and off the hour most schedules use.
+    # 02:17 UTC daily: at night, and off the hour most schedules use.
     - cron: "17 2 * * *"
   workflow_dispatch:
 
