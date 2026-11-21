@@ -1,0 +1,36 @@
+# 807 — The production database's backup, outside Railway: decisions
+
+Chore #807. Nothing backed up the production database, or restored it.
+Production holds what no provider can give back: accounts, avatars, Arvauspeli
+guesses and groups, nicknames, preferences and the prediction log. Each choice
+below was agreed in chat on 2026-11-21, one at a time, and is on the issue.
+
+| Decision | Why |
+|---|---|
+| Railway's volume backups are not part of it | Neither environment has any, and this plan cannot create them: new backups, schedules and point-in-time recovery need Railway Pro. Read in the dashboard on 2026-11-21. They would also have stayed inside Railway |
+| A scheduled GitHub workflow runs the backup, not a Railway cron | Production's Postgres already has a public address, Railway's TCP proxy, which read-only measurements use. A cron inside Railway would only have been worth it to close that address, and it would have needed its own way to report a failure. A failed workflow run is red, and GitHub emails it |
+| The secrets are in a GitHub Environment `backup` that only `main` can use, with no reviewers | A repository secret can be read by a workflow on any branch of the repository, Renovate's included. A reviewer would stop the schedule waiting for someone |
+| Production is read as `backup_reader`, a member of `pg_read_all_data` | It reads every table and writes nothing, so the secret is not the app's password and cannot change data |
+| The file goes to Backblaze B2, not workflow artifacts, R2 or a personal drive | The repository is public, so any signed-in GitHub user can download its artifacts. B2 can issue a key that only uploads (below); R2 has no such key and locks deletion with a bucket rule instead. Both are free at this size: 10 GB, and a backup is about 6 MB |
+| The account is `Koodauspaja`'s, the bucket private, in `eu-central-003` (Amsterdam) | Not a person's account, and the copy stays in the EU |
+| The workflow's key has `writeFiles` only, on that bucket only, made through the API | The console's "Write Only" choice includes `deleteFiles` and `bypassGovernance`, which together delete locked files. This one cannot list, read or delete; tested on 2026-11-21 by an upload that worked and a delete and a list that were refused |
+| Object Lock, governance mode, 30 days, on every upload; a lifecycle rule hides a file after 30 days and deletes it a day later | Without the lock, the upload key could hide every file and the lifecycle rule would delete them the next day. Governance, not compliance, so the account-wide key can still delete a backup early, as erasing a person's data might need |
+| Each file is kept 30 days | A month of history; at about 6 MB a day it stays far inside the free 10 GB |
+| Encrypted with `age` on the runner, to Miikka's and Kalle's public keys in `scripts/backup/recipients.txt` | Neither GitHub nor Backblaze ever holds a key that decrypts. Two recipients, so either can restore alone, and nobody shares a private key |
+| The backup starts with Miikka's key alone; Kalle's is added when he has made one | Waiting would leave production without a backup meanwhile. `age` fixes the recipients when it encrypts, so Kalle cannot read the backups made before his key is added; within 30 days of it they have all been deleted |
+| Each upload sends its SHA-1, and Sonar's weak-hash finding on it (S4790) is marked a false positive in SonarCloud, with this reason | B2's upload API takes the SHA-1 as an integrity checksum, so it can refuse a corrupted upload. Nothing secret depends on it: the file is already encrypted and authenticated by `age`. Sending `do_not_verify` instead would have moved the first sign of a damaged upload to the restore. `sonar-project.properties` ignores no rule but `await` in a loop, so the finding is closed in SonarCloud, not there |
+| Row counts are taken in the dump's snapshot: `pg_export_snapshot()` in a repeatable-read transaction, the counts, then `pg_dump --snapshot` | Counts taken before or after the dump drift with the hourly writes. In one snapshot, the restore check compares exact numbers |
+| `pg_dump` and `pg_restore` run from the `postgres:18-alpine` image | The server's major. The runner's client is older, and a client older than the server refuses it |
+| The server is verified against its own root certificate, pinned in `scripts/backup/railway-postgres-ca.pem`: `PGSSLMODE=verify-ca` for `pg_dump`, and that CA with the name `localhost` for postgres.js | The server is reached over the internet, so encryption alone would let an impostor take `backup_reader`'s password. Railway's `postgres-ssl` signs its server certificate with a root of its own, `CN=root-ca`, valid until 2028-11-23, and publishes no CA, so the root is pinned. The certificate names `localhost` and `postgres.railway.internal`, not the proxy's address, so libpq checks the chain only and postgres.js checks the name `localhost`. A new root, on expiry or a new volume, turns the run red until the file is replaced. Tested on 2026-11-21: with a different CA both clients refused production, with this one both connected |
+| A busy B2 upload is tried again, up to three times, each with a new upload address | B2 answers `503 too_busy` as a normal answer and asks for exactly that. One of the first uploads made on 2026-11-21 got it |
+| The restore goes into `footy-trends_restore_check` on the local Docker Postgres, found by the image and port 5432, with no preflight | A fixed name, so no argument can point its drop at another database. Found by port, not by Compose project, because a worktree's Compose project serves that port as often as this checkout's. The repository's preflight decides from `DATABASE_URL`, which the restore never uses, so a remote or unreachable `DATABASE_URL` could have blocked it; without one, a missing container is named and how to start it said |
+| A run that never starts goes unnoticed | GitHub turns off a scheduled workflow after 60 days without repository activity, and nothing then fails. This repository is active daily; agreed on the issue as out of scope |
+| `/tietosuoja` names Backblaze, and says a deleted account leaves the backups within about a month | Deletion reaches the live database at once and a backup only when its lifecycle removes it. A file can last 31 days, so the page says about a month rather than a number it would miss by one |
+| Redis, staging and point-in-time recovery are not backed up | Redis holds caches and rate-limit counters; staging's data can be made again; recovery to a moment was ruled out of scope |
+
+## First run, 2026-11-21
+
+From a developer machine, with the workflow's own secrets, before the workflow
+existed on `main`: backup `20261121T142846Z`, 23 tables, 195 204 rows, a 6 MB
+encrypted dump, in 10 seconds. Restored with the read key and an `age`
+identity, every table's count equalled the count taken at backup time.

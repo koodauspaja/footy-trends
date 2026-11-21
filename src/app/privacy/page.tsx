@@ -6,6 +6,10 @@ const HEADING = "Tietosuojaseloste";
 
 export const metadata: Metadata = { title: HEADING };
 
+const SECTION = "mb-8";
+const HEADING_2 = "mb-3 font-semibold text-xl";
+const LIST = "list-disc space-y-1 pl-6";
+
 /**
  * `/tietosuoja`. Public and static: it must be reachable without signing in,
  * so nothing here may read a session. Every claim below describes what the
@@ -18,15 +22,12 @@ export const metadata: Metadata = { title: HEADING };
  * decisions/073-leaderboard.md
  * decisions/078-private-groups.md
  * decisions/079-group-members-guesses.md
+ * decisions/807-database-backup.md
  */
-const SECTION = "mb-8";
-const HEADING_2 = "mb-3 font-semibold text-xl";
-const LIST = "list-disc space-y-1 pl-6";
-
 export default function Privacy() {
   return (
     <PageShell heading={HEADING}>
-      <p className="mb-8 text-muted text-sm">Päivitetty 6.11.2026</p>
+      <p className="mb-8 text-muted text-sm">Päivitetty 21.11.2026</p>
 
       <section className={SECTION}>
         <h2 className={HEADING_2}>Lyhyesti</h2>
@@ -95,6 +96,10 @@ export default function Privacy() {
             sijaitsevat siellä.
           </li>
           <li>
+            <strong>Backblaze</strong> — tietokannan varmuuskopiot. Kopiot salataan ennen siirtoa,
+            eikä Backblaze voi lukea niitä. Ne sijaitsevat EU:ssa.
+          </li>
+          <li>
             <strong>Sentry</strong> — virheiden seuranta. Virheilmoituksiin ei liitetä
             käyttäjätunnistetta, eikä tuotannossa IP-osoitteita.
           </li>
@@ -116,10 +121,15 @@ export default function Privacy() {
           Niin kauan kuin tilisi on olemassa. Kun poistat tilin, kaikki edellä luetellut tiedot
           poistetaan samalla.
         </p>
-        <p>
+        <p className="mb-3">
           Poikkeuksena lokit: jos jokin on aiemmin epäonnistunut, käyttäjätunnisteesi on voinut
           tallentua lokiin, ja lokit säilyvät oman säilytysaikansa. Tunniste ei kuitenkaan enää
           viittaa mihinkään — tili, jota se tarkoitti, on poistettu — eikä sitä voi yhdistää sinuun.
+        </p>
+        <p>
+          Poikkeuksena myös varmuuskopiot: tietokannasta otetaan joka päivä salattu varmuuskopio, ja
+          kukin poistetaan noin kuukauden kuluttua. Poistetun tilin tiedot häviävät siis
+          varmuuskopioistakin noin kuukaudessa.
         </p>
       </section>
 
