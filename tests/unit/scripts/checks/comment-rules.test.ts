@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import type { SourceFile } from "typescript";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   type Comment,
@@ -15,9 +16,12 @@ import {
   issueCitations,
   longComments,
   longDocComments,
+  parse,
   sourceFilesAmong,
   stackedDocComments,
+  type TestName,
   testNameCitations,
+  testNamesOf,
   uncitedDeclarations,
 } from "../../../../scripts/checks/comment-rules";
 import { executablePath, overrideNameFor } from "../../../../scripts/shared/executable";
@@ -322,6 +326,23 @@ describe("testNameCitations", () => {
 
     expect(cited(source, "a.ts", "")).toEqual([]);
     expect(cited(['it("is absent (S5)", () => {});'], "a.test.ts", "")).toEqual([]);
+  });
+
+  it("finds no test function in an import with no names, a namespace or a default", () => {
+    const imports = [
+      'import "./setup";',
+      'import * as vitest from "vitest";',
+      'import it from "./it";',
+      'import describe, { expect } from "vitest";',
+    ].join("\n");
+
+    expect(
+      cited(
+        ['it("is absent (S5)", () => {});', 'describe("the panel (#1)", () => {});'],
+        "a.test.ts",
+        imports
+      )
+    ).toEqual([]);
   });
 
   it("reads TSX", () => {
@@ -669,13 +690,17 @@ describe("describeFindings", () => {
 
 describe("this repository's comments", () => {
   const ROOT = process.cwd();
-  let scanned: { file: string; source: string; comments: Comment[] }[] = [];
-  // Read in `beforeAll`, under its longer timeout: each parses every file again.
-  let named: Finding[] = [];
-  let computed: Finding[] = [];
-  let uncited: Finding[] = [];
-  const across = (rule: (file: string, source: string, comments: Comment[]) => Finding[]) =>
-    scanned.flatMap(({ file, source, comments }) => rule(file, source, comments));
+  // Each file parsed, and its test names read, once in `beforeAll`, and handed to every rule.
+  let scanned: {
+    file: string;
+    source: string;
+    tree: SourceFile;
+    comments: Comment[];
+    names: TestName[];
+  }[] = [];
+  const across = (
+    rule: (file: string, source: string, comments: Comment[], tree: SourceFile) => Finding[]
+  ) => scanned.flatMap(({ file, source, comments, tree }) => rule(file, source, comments, tree));
 
   beforeAll(() => {
     // What git tracks or would: an ignored or generated file is not the repository's.
@@ -695,11 +720,15 @@ describe("this repository's comments", () => {
     );
     scanned = files.map((file) => {
       const source = readFileSync(path.join(ROOT, file), "utf8");
-      return { file, source, comments: commentsOf(file, source) };
+      const tree = parse(file, source);
+      return {
+        file,
+        source,
+        tree,
+        comments: commentsOf(file, source, tree),
+        names: testNamesOf(tree),
+      };
     });
-    named = scanned.flatMap(({ file, source }) => testNameCitations(file, source));
-    computed = scanned.flatMap(({ file, source }) => computedTestNames(file, source));
-    uncited = across(uncitedDeclarations);
   }, 60_000);
 
   afterAll(() => {
@@ -743,7 +772,7 @@ describe("this repository's comments", () => {
   it("cites a record on every declaration's doc comment the record does not list", () => {
     expectOnlyRecorded(
       UNCITED_RECORD_PATH,
-      uncited,
+      across(uncitedDeclarations),
       "A declaration's doc comment cites no decision record. Add the path of the record behind it:"
     );
   });
@@ -757,6 +786,10 @@ describe("this repository's comments", () => {
   });
 
   it("cites no issue, spec or spec section in a test's name", () => {
+    const named = scanned.flatMap(({ file, source, names }) =>
+      testNameCitations(file, source, names)
+    );
+
     expect(
       named,
       `A test's name cites an issue or a spec. Say what the test protects, and let the file's header carry the record:\n${describeFindings(named)}`
@@ -764,6 +797,10 @@ describe("this repository's comments", () => {
   });
 
   it("writes every test's name as a string, where the check can read it", () => {
+    const computed = scanned.flatMap(({ file, source, names }) =>
+      computedTestNames(file, source, names)
+    );
+
     expect(
       computed,
       `A test's name is a variable, a call or a sum. Write it as a string where the test is:\n${describeFindings(computed)}`

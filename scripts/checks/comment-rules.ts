@@ -65,6 +65,16 @@ function scriptKind(file: string): ts.ScriptKind {
 }
 
 /**
+ * A file's syntax tree. Each check takes one already parsed, so a run over the
+ * repository parses each file once.
+ *
+ * decisions/839-mechanical-comment-rules.md
+ */
+export function parse(file: string, source: string): ts.SourceFile {
+  return ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind(file));
+}
+
+/**
  * `"use server"`, `"use client"`: a string on its own at the top of a file.
  *
  * decisions/531-comments-say-what-code-is-for.md
@@ -80,8 +90,11 @@ function isDirective(statement: ts.Statement): boolean {
  *
  * decisions/531-comments-say-what-code-is-for.md
  */
-export function commentsOf(file: string, source: string): Comment[] {
-  const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind(file));
+export function commentsOf(
+  file: string,
+  source: string,
+  tree: ts.SourceFile = parse(file, source)
+): Comment[] {
   const ranges = new Map<number, ts.CommentRange>();
 
   const collect = (position: number) => {
@@ -223,13 +236,25 @@ function calledFrom(expression: ts.Expression): string | null {
  * Vitest's `suite` as it imports them, under another name or not, and a constant assigned from one.
  *
  * decisions/584-test-names-carry-no-citations.md
+ * decisions/839-mechanical-comment-rules.md
  */
 function testFunctionsOf(tree: ts.SourceFile): Set<string> {
   const names = new Set<string>();
+  for (const statement of tree.statements) {
+    const bindings = ts.isImportDeclaration(statement)
+      ? statement.importClause?.namedBindings
+      : undefined;
+    if (bindings === undefined || !ts.isNamedImports(bindings)) continue;
+    for (const element of bindings.elements) {
+      if (TEST_FUNCTIONS.has((element.propertyName ?? element.name).text)) {
+        names.add(element.name.text);
+      }
+    }
+  }
+  // A file importing none has no test, so its tree is not walked.
+  if (names.size === 0) return names;
   const visit = (node: ts.Node) => {
-    if (ts.isImportSpecifier(node)) {
-      if (TEST_FUNCTIONS.has((node.propertyName ?? node.name).text)) names.add(node.name.text);
-    } else if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) {
       const from = node.initializer === undefined ? null : calledFrom(node.initializer);
       if (from !== null && names.has(from)) names.add(node.name.text);
     }
@@ -243,7 +268,7 @@ function isFunction(node: ts.Node): boolean {
   return ts.isArrowFunction(node) || ts.isFunctionExpression(node);
 }
 
-type TestName = { line: number; text: string; written: boolean };
+export type TestName = { line: number; text: string; written: boolean };
 
 /**
  * Each test's and suite's name, read from the parsed tree: the same words in a
@@ -252,9 +277,9 @@ type TestName = { line: number; text: string; written: boolean };
  *
  * decisions/584-test-names-carry-no-citations.md
  */
-function testNamesOf(file: string, source: string): TestName[] {
-  const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind(file));
+export function testNamesOf(tree: ts.SourceFile): TestName[] {
   const functions = testFunctionsOf(tree);
+  if (functions.size === 0) return [];
   const names: TestName[] = [];
 
   const visit = (node: ts.Node) => {
@@ -280,8 +305,12 @@ function testNamesOf(file: string, source: string): TestName[] {
  *
  * decisions/584-test-names-carry-no-citations.md
  */
-export function testNameCitations(file: string, source: string): Finding[] {
-  return testNamesOf(file, source)
+export function testNameCitations(
+  file: string,
+  source: string,
+  names: readonly TestName[] = testNamesOf(parse(file, source))
+): Finding[] {
+  return names
     .filter((name) => NAME_CITATIONS.some((citation) => citation.test(name.text)))
     .map(({ line, text }) => ({ file, line, text }));
 }
@@ -292,10 +321,12 @@ export function testNameCitations(file: string, source: string): Finding[] {
  *
  * decisions/584-test-names-carry-no-citations.md
  */
-export function computedTestNames(file: string, source: string): Finding[] {
-  return testNamesOf(file, source)
-    .filter((name) => !name.written)
-    .map(({ line, text }) => ({ file, line, text }));
+export function computedTestNames(
+  file: string,
+  source: string,
+  names: readonly TestName[] = testNamesOf(parse(file, source))
+): Finding[] {
+  return names.filter((name) => !name.written).map(({ line, text }) => ({ file, line, text }));
 }
 
 /**
@@ -373,10 +404,9 @@ function isDeclaration(statement: ts.Statement): boolean {
 export function uncitedDeclarations(
   file: string,
   source: string,
-  comments: readonly Comment[]
+  comments: readonly Comment[],
+  tree: ts.SourceFile = parse(file, source)
 ): Finding[] {
-  const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind(file));
-
   return tree.statements.filter(isDeclaration).flatMap((statement) => {
     const start = statement.getStart(tree);
     const doc = comments.findLast(
