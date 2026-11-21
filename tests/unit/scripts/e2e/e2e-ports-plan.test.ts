@@ -63,7 +63,7 @@ describe("portsRefusal", () => {
     );
 
     expect(text).toContain("  3001  pid 35147  cmd35147  this checkout");
-    expect(text).toContain("kill 35147 35036");
+    expect(text).toMatch(/kill 35147 35036$/);
     expect(text).not.toContain("elsewhere");
   });
 
