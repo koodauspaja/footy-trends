@@ -41,6 +41,13 @@ describe("capture", () => {
     await expect(capture(failing)).rejects.toThrow(/exited with 3: no such table$/);
   });
 
+  it("judges a tool that exits without reading its input by its exit code", async () => {
+    // More than a pipe buffers, so writing it breaks the pipe once the tool is gone.
+    const unread = Buffer.alloc(8 * 1024 * 1024);
+
+    await expect(capture(node("process.exit(4)"), unread)).rejects.toThrow(/exited with 4: $/);
+  });
+
   it("fails when the tool cannot be started at all", async () => {
     await expect(capture({ path: "/nonexistent/tool", args: [] })).rejects.toThrow("ENOENT");
   });
