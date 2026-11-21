@@ -18,6 +18,7 @@ CLAUDE.md's one to three lines (about 4).
 | `//` lines are one comment when each sits on its own line, directly under the previous one | That is how a reader sees a run of line comments. A blank line, code or a block comment between them ends the run, and so does a `//` after code on the same line |
 | Each check fails only on findings its record does not list: `recorded-uncited-declarations.json` (50) and `recorded-long-comments.json` (55) | The issue-citation check works the same way (531), so comments not yet trimmed do not fail. A finding is keyed by its file and its words, so a comment that only moves keeps its key, and a rewritten one is new and has to comply. A recorded finding that is gone fails as well, so the record shrinks as files are trimmed |
 | The citation-order check is left out | Below |
+| `CLAUDE.md` and `REVIEW_RULES.md` list the two checks among what the test fails on | They name what the test enforces, and were stale without them. The rules themselves are unchanged |
 
 ## Why the order check was left out
 
