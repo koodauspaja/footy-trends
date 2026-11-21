@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   defaultGit,
   type Git,
+  MAIN_REFSPEC,
   runCheck,
   startCheck,
 } from "../../../../scripts/hooks/up-to-date-steps";
@@ -65,7 +66,8 @@ describe("runCheck", () => {
     const git = repository();
 
     expect(runCheck(push("chore/806-x", CURRENT), git, consoleSpy())).toBe(0);
-    expect(git.calls[0]).toEqual(["fetch", "--quiet", "origin", "main"]);
+    expect(git.calls[0]).toEqual(["fetch", "--quiet", "origin", MAIN_REFSPEC]);
+    expect(MAIN_REFSPEC).toBe("+refs/heads/main:refs/remotes/origin/main");
     expect(git.calls[1]).toEqual(["merge-base", "--is-ancestor", "origin/main", CURRENT]);
   });
 

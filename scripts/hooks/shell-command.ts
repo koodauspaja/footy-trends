@@ -1,4 +1,4 @@
-import { isAbsolute, join, normalize } from "node:path";
+import { basename, isAbsolute, join, normalize } from "node:path";
 
 /**
  * A Bash command line split the way the shell would split it: into the simple
@@ -12,11 +12,14 @@ export type SimpleCommand = {
   words: string[];
   /** Where it runs, or `null` after a `cd` this cannot follow. */
   cwd: string | null;
+  /** The files its redirections name, as written: what it may write. */
+  redirects: string[];
 };
 
 type Token =
   | { kind: "word"; value: string }
-  | { kind: "separator" }
+  /** `scope` marks a subshell's `(` and `)`, whose `cd` does not outlive it. */
+  | { kind: "separator"; scope?: "open" | "close" }
   /** `>`, `2>&1`, `<`: the word after one is its target, not an argument. */
   | { kind: "redirect" };
 
@@ -123,7 +126,10 @@ function openHeredoc(scan: Scan): void {
   while (scan.text[scan.at] === " " || scan.text[scan.at] === "\t") scan.at += 1;
 
   // Always matches: at worst an empty delimiter, which ends at a blank line.
-  const match = /^(['"]?)([^\s'";&|<>()]*)\1/.exec(scan.text.slice(scan.at)) as RegExpExecArray;
+  // A backslash before it quotes it, as `<<\EOF` does, and is not part of it.
+  const match = /^\\?(['"]?)([^\s'";&|<>()\\]*)\1/.exec(
+    scan.text.slice(scan.at)
+  ) as RegExpExecArray;
   scan.at += match[0].length;
   scan.heredocs.push({ delimiter: String(match[2]), stripTabs });
 }
@@ -164,10 +170,18 @@ function readRedirect(scan: Scan): void {
   scan.tokens.push({ kind: "redirect" });
 }
 
+/**
+ * Which separators open and close a subshell.
+ *
+ * decisions/806-push-and-pr-hooks.md
+ */
+const SCOPES: Record<string, "open" | "close"> = { "(": "open", ")": "close" };
+
 function readSeparator(scan: Scan, separator: string): void {
   endWord(scan);
   scan.at += separator.length;
-  scan.tokens.push({ kind: "separator" });
+  const scope = SCOPES[separator];
+  scan.tokens.push(scope === undefined ? { kind: "separator" } : { kind: "separator", scope });
 }
 
 function readNewline(scan: Scan): void {
@@ -275,49 +289,108 @@ function changeDirectory(cwd: string | null, target: string | undefined): string
 }
 
 /**
+ * The directory after one simple command: `cd` and `pushd` move it, and
+ * `popd`, whose stack this does not keep, loses it.
+ *
+ * decisions/806-push-and-pr-hooks.md
+ */
+function directoryAfter(cwd: string | null, words: readonly string[]): string | null {
+  const [name, target] = commandWords(words);
+  if (name === "cd" || name === "pushd") return changeDirectory(cwd, target);
+  return name === "popd" ? null : cwd;
+}
+
+type Grouping = {
+  commands: SimpleCommand[];
+  words: string[];
+  redirects: string[];
+  dropNext: boolean;
+  directory: string | null;
+  /** The directory each open subshell started in, restored when it closes. */
+  outer: (string | null)[];
+};
+
+function finish(grouping: Grouping): void {
+  if (grouping.words.length > 0) {
+    const { words, redirects, directory } = grouping;
+    grouping.commands.push({ words, cwd: directory, redirects });
+    grouping.directory = directoryAfter(directory, words);
+  }
+  grouping.words = [];
+  grouping.redirects = [];
+  grouping.dropNext = false;
+}
+
+function group(grouping: Grouping, token: Token): void {
+  if (token.kind === "separator") {
+    finish(grouping);
+    if (token.scope === "open") grouping.outer.push(grouping.directory);
+    if (token.scope === "close" && grouping.outer.length > 0) {
+      grouping.directory = grouping.outer.pop() as string | null;
+    }
+  } else if (token.kind === "redirect") {
+    grouping.dropNext = true;
+  } else if (grouping.dropNext) {
+    grouping.dropNext = false;
+    grouping.redirects.push(token.value);
+  } else {
+    grouping.words.push(token.value);
+  }
+}
+
+/**
  * The simple commands `command` runs, in order, from `cwd`. A redirection's
- * target is dropped, and a heredoc's body is not read as commands.
+ * target is kept apart from the words, and a heredoc's body is not read as
+ * commands.
  *
  * decisions/806-push-and-pr-hooks.md
  */
 export function simpleCommands(command: string, cwd: string | null): SimpleCommand[] {
-  const commands: SimpleCommand[] = [];
-  let words: string[] = [];
-  let dropNext = false;
-  let directory = cwd;
-
-  const finish = (): void => {
-    if (words.length > 0) {
-      commands.push({ words, cwd: directory });
-      if (words[0] === "cd") directory = changeDirectory(directory, words[1]);
-    }
-    words = [];
-    dropNext = false;
+  const grouping: Grouping = {
+    commands: [],
+    words: [],
+    redirects: [],
+    dropNext: false,
+    directory: cwd,
+    outer: [],
   };
-
-  for (const token of tokenize(command)) {
-    if (token.kind === "separator") {
-      finish();
-    } else if (token.kind === "redirect") {
-      dropNext = true;
-    } else if (dropNext) {
-      dropNext = false;
-    } else {
-      words.push(token.value);
-    }
-  }
-  finish();
-
-  return commands;
+  for (const token of tokenize(command)) group(grouping, token);
+  finish(grouping);
+  return grouping.commands;
 }
 
 /**
- * The words that name the command and its arguments, after any leading
- * `NAME=value` assignments.
+ * Words that run the command after them: shell keywords, and the wrappers
+ * `env`, `command`, `exec`, `time` and `nohup`.
+ *
+ * decisions/806-push-and-pr-hooks.md
+ */
+const PREFIXES = new Set([
+  "if",
+  "then",
+  "elif",
+  "else",
+  "do",
+  "while",
+  "until",
+  "!",
+  "{",
+  "env",
+  "command",
+  "exec",
+  "time",
+  "nohup",
+]);
+
+/**
+ * The words that name the command and its arguments: past leading `NAME=value`
+ * assignments and `PREFIXES`, with the command named without its directory, so
+ * `/usr/bin/git` is `git`.
  *
  * decisions/806-push-and-pr-hooks.md
  */
 export function commandWords(words: readonly string[]): string[] {
-  const first = words.findIndex((word) => !/^[A-Za-z_]\w*=/.test(word));
-  return first === -1 ? [] : words.slice(first);
+  const first = words.findIndex((word) => !/^[A-Za-z_]\w*=/.test(word) && !PREFIXES.has(word));
+  if (first === -1) return [];
+  return [basename(words[first] as string), ...words.slice(first + 1)];
 }

@@ -182,3 +182,52 @@ describe("commandWords", () => {
     expect(commandWords(["--x=1", "y"])).toEqual(["--x=1", "y"]);
   });
 });
+
+describe("redirections, scopes and wrappers", () => {
+  it("keeps each command's redirection targets apart from its words", () => {
+    const commands = simpleCommands("cat > a.md 2>&1 <<'EOF'\nx\nEOF\necho y >> b.md", "/r");
+
+    expect(commands.map(({ words, redirects }) => ({ words, redirects }))).toEqual([
+      { words: ["cat"], redirects: ["a.md", "1"] },
+      { words: ["echo", "y"], redirects: ["b.md"] },
+    ]);
+  });
+
+  it("ends a subshell's cd with the subshell", () => {
+    const commands = simpleCommands("(cd /a && x) && y; (cd /b; (cd c)) ; z", "/r");
+
+    expect(commands.map((simple) => [simple.words[0], simple.cwd])).toEqual([
+      ["cd", "/r"],
+      ["x", "/a"],
+      ["y", "/r"],
+      ["cd", "/r"],
+      ["cd", "/b"],
+      ["z", "/r"],
+    ]);
+  });
+
+  it("ignores a closing parenthesis with no subshell open", () => {
+    expect(simpleCommands("cd /a ) x", "/r").map((simple) => simple.cwd)).toEqual(["/r", "/a"]);
+  });
+
+  it("follows pushd like cd, and loses track after popd", () => {
+    const commands = simpleCommands("pushd /a && x && popd && y", "/r");
+
+    expect(commands.map((simple) => simple.cwd)).toEqual(["/r", "/a", "/a", null]);
+  });
+
+  it("ends an escaped heredoc delimiter where Bash ends it", () => {
+    expect(words("cat <<\\EOF\nx\nEOF\ngit add -A")).toEqual([["cat"], ["git", "add", "-A"]]);
+  });
+});
+
+describe("commandWords, past keywords and wrappers", () => {
+  it("skips shell keywords and wrappers, and names the command without its directory", () => {
+    expect(commandWords(["then", "env", "A=1", "/usr/bin/git", "add"])).toEqual(["git", "add"]);
+    expect(commandWords(["!", "{", "time", "nohup", "command", "exec", "gh", "pr"])).toEqual([
+      "gh",
+      "pr",
+    ]);
+    expect(commandWords(["if", "while", "until", "do", "elif", "else"])).toEqual([]);
+  });
+});
