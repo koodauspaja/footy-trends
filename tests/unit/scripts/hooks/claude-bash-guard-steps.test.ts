@@ -121,6 +121,29 @@ describe("refusals", () => {
     expect(found[0]).toContain("is not the pushed head");
   });
 
+  it("checks the branch --head names, not the checkout's", async () => {
+    const checkout = deps();
+
+    await refusals("gh pr create -b none --head chore/1-x", "/repo", checkout);
+
+    expect(checkout.gitCalls).toEqual([
+      ["/repo", "rev-parse", "--verify", "--quiet", "refs/heads/chore/1-x"],
+      ["/repo", "rev-parse", "--verify", "--quiet", "refs/heads/chore/1-x@{upstream}"],
+    ]);
+  });
+
+  it("refuses a --head branch whose local commit is not what was pushed", async () => {
+    const checkout = {
+      ...deps(),
+      git: (_cwd: string, args: readonly string[]) =>
+        String(args.at(-1)).endsWith("@{upstream}") ? PUSHED : LOCAL,
+    };
+
+    const found = await refusals("gh pr create -b none -H chore/1-x", "/repo", checkout);
+
+    expect(found[0]).toContain("chore/1-x, whose local HEAD");
+  });
+
   it("refuses gh pr create on a branch with no upstream", async () => {
     const found = await refusals("gh pr create -b none", "/repo", deps({ upstream: null }));
 

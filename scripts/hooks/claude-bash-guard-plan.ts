@@ -1,4 +1,4 @@
-import { isAbsolute, join } from "node:path";
+import { isAbsolute, join, normalize } from "node:path";
 import { commandWords, type SimpleCommand, simpleCommands } from "./shell-command";
 
 /**
@@ -19,7 +19,12 @@ export type BodySource =
   | { kind: "file"; path: string }
   | { kind: "unreadable"; reason: string };
 
-export type PullRequestCreate = { cwd: string | null; body: BodySource };
+export type PullRequestCreate = {
+  cwd: string | null;
+  body: BodySource;
+  /** The branch `--head` names, or `null` for the checkout's own. */
+  head: string | null;
+};
 
 /**
  * What a command line asks for that a rule covers.
@@ -66,7 +71,7 @@ function gitSubcommand(words: readonly string[]): { name: string; args: string[]
  */
 export function stagesEverything(words: readonly string[]): boolean {
   const git = gitSubcommand(words);
-  if (git === null || git.name !== "add") return false;
+  if (git?.name !== "add") return false;
 
   const separator = git.args.indexOf("--");
   const options = separator === -1 ? git.args : git.args.slice(0, separator);
@@ -116,50 +121,110 @@ function optionAt(
 }
 
 /**
+ * A body given as text, unless the shell builds it when the command runs: a
+ * substitution, or a variable such as `$BODY`.
+ *
+ * decisions/806-push-and-pr-hooks.md
+ */
+function textSource(text: string): BodySource {
+  return /\$[{(A-Za-z_]|`/.test(text)
+    ? { kind: "unreadable", reason: "the body is built by the shell when the command runs" }
+    : { kind: "text", text };
+}
+
+/**
  * Where a `gh pr create` command's body comes from. Only a body this hook can
  * read is `text` or `file`: one built by the shell, read from stdin, or left to
- * `gh` to fill is `unreadable`.
+ * `gh` to fill is `unreadable`. A repeated option counts as gh counts it: the
+ * last one given.
  *
  * decisions/806-push-and-pr-hooks.md
  */
 export function bodySource(args: readonly string[], cwd: string | null): BodySource {
+  let found: BodySource = { kind: "unreadable", reason: "the command gives no body" };
   for (let at = 0; at < args.length; at++) {
     const word = args[at] as string;
-    const option = optionAt(args, at);
-
     if (BODY_ELSEWHERE.has(word)) {
       return { kind: "unreadable", reason: `\`${word}\` leaves the body to gh` };
     }
-    if (BODY_TEXT.has(option.name) && option.value !== undefined) {
-      return /\$\(|`/.test(option.value)
-        ? { kind: "unreadable", reason: "the body is built by the shell when the command runs" }
-        : { kind: "text", text: option.value };
-    }
-    if (BODY_FILE.has(option.name) && option.value !== undefined) {
-      return fileSource(option.value, cwd);
+    const option = optionAt(args, at);
+    if (option.value === undefined) continue;
+    if (BODY_TEXT.has(option.name)) found = textSource(option.value);
+    if (BODY_FILE.has(option.name)) found = fileSource(option.value, cwd);
+  }
+  return found;
+}
+
+/**
+ * The branch a `gh pr create` names with `--head` or `-H`, without the
+ * `owner:` gh accepts in front of it; `null` when it names none.
+ *
+ * decisions/806-push-and-pr-hooks.md
+ */
+export function headBranch(args: readonly string[]): string | null {
+  let head: string | null = null;
+  for (let at = 0; at < args.length; at++) {
+    const { name, value } = optionAt(args, at);
+    if ((name === "--head" || name === "-H") && value !== undefined) {
+      head = value.replace(/^[^:]*:/, "");
     }
   }
-  return { kind: "unreadable", reason: "the command gives no body" };
+  return head;
 }
 
 function fileSource(path: string, cwd: string | null): BodySource {
   if (path === "-") return { kind: "unreadable", reason: "the body is read from stdin" };
-  if (/\$|`/.test(path))
+  if (/[$`]/.test(path)) {
     return { kind: "unreadable", reason: "the body file's path is built by the shell" };
-  if (isAbsolute(path)) return { kind: "file", path };
-  return cwd === null
+  }
+  const resolved = resolvePath(path, cwd);
+  return resolved === null
     ? {
         kind: "unreadable",
         reason: "the body file is relative to a directory this hook cannot follow",
       }
-    : { kind: "file", path: join(cwd, path) };
+    : { kind: "file", path: resolved };
 }
 
-function pullRequestCreate(command: SimpleCommand): PullRequestCreate | null {
+function resolvePath(path: string, cwd: string | null): string | null {
+  if (isAbsolute(path)) return normalize(path);
+  return cwd === null ? null : join(cwd, path);
+}
+
+/**
+ * A body file that a redirection in the same line writes, up to and including
+ * the `gh pr create` itself, is unreadable: the hook runs before the line does,
+ * so it would read the file as it was.
+ *
+ * decisions/806-push-and-pr-hooks.md
+ */
+function writtenEarlier(body: BodySource, earlier: readonly SimpleCommand[]): BodySource {
+  if (body.kind !== "file") return body;
+  const written = earlier.some(({ redirects, cwd }) =>
+    redirects.some((target) => resolvePath(target, cwd) === body.path)
+  );
+  return written
+    ? {
+        kind: "unreadable",
+        reason: `${body.path} is written by the same command line, after this hook has run`,
+      }
+    : body;
+}
+
+function pullRequestCreate(
+  command: SimpleCommand,
+  earlier: readonly SimpleCommand[]
+): PullRequestCreate | null {
   const words = commandWords(command.words);
   const isCreate =
     words[0] === "gh" && words[1] === "pr" && (words[2] === "create" || words[2] === "new");
-  return isCreate ? { cwd: command.cwd, body: bodySource(words.slice(3), command.cwd) } : null;
+  if (!isCreate) return null;
+  const args = words.slice(3);
+  return {
+    cwd: command.cwd,
+    body: writtenEarlier(bodySource(args, command.cwd), earlier),
+    head: headBranch(args),
+  };
 }
 
 /**
@@ -171,7 +236,9 @@ export function requestsIn(command: string, cwd: string): Requests {
   const commands = simpleCommands(command, cwd);
   return {
     addsEverything: commands.some((simple) => stagesEverything(simple.words)),
-    pullRequests: commands.flatMap((simple) => pullRequestCreate(simple) ?? []),
+    pullRequests: commands.flatMap(
+      (simple, index) => pullRequestCreate(simple, commands.slice(0, index + 1)) ?? []
+    ),
   };
 }
 
@@ -185,7 +252,7 @@ export type HeadState = { head: string | null; upstream: string | null; branch: 
 export function headRefusal({ head, upstream, branch }: HeadState): string | null {
   const name = branch ?? "this checkout";
   if (head === null) {
-    return `Refused: \`gh pr create\` where git cannot read the checkout's HEAD. Run it from the branch's own checkout.`;
+    return `Refused: \`gh pr create\` on ${name}, whose local commit git cannot read. Run it from the branch's own checkout.`;
   }
   if (upstream === null) {
     return [

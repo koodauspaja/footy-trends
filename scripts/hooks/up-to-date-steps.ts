@@ -55,7 +55,9 @@ export function runCheck(stdin: string | null, git: Git, console: Console): numb
   const pushes = pushesToCheck(stdin, git, console);
   if (pushes.length === 0) return 0;
 
-  if (git(["fetch", "--quiet", "origin", "main"])?.status !== 0) {
+  // The refspec names the tracking ref, so it is updated whatever the clone's
+  // fetch configuration, and the comparison below reads what was just fetched.
+  if (git(["fetch", "--quiet", "origin", MAIN_REFSPEC])?.status !== 0) {
     console.err(FETCH_FAILED);
     return 0;
   }
@@ -85,6 +87,14 @@ function readStdin(stdin: { isTTY?: boolean }): string | null {
     return null;
   }
 }
+
+/**
+ * `main` fetched into `origin/main` explicitly: a clone whose configured
+ * refspec leaves `origin/main` out would otherwise compare against a stale one.
+ *
+ * decisions/806-push-and-pr-hooks.md
+ */
+export const MAIN_REFSPEC = "+refs/heads/main:refs/remotes/origin/main";
 
 export const defaultGit: Git = (args) => {
   const binary = executablePath("git");

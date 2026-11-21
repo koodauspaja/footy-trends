@@ -46,7 +46,25 @@ export type GuardDeps = {
   readIssue: (issue: number) => Promise<string>;
 };
 
-function headState(cwd: string, deps: GuardDeps) {
+/**
+ * The commit `gh pr create` would open and what was pushed of it: the
+ * checkout's `HEAD`, or the branch `--head` names.
+ *
+ * decisions/806-push-and-pr-hooks.md
+ */
+function headState(cwd: string, head: string | null, deps: GuardDeps) {
+  if (head !== null) {
+    return {
+      head: deps.git(cwd, ["rev-parse", "--verify", "--quiet", `refs/heads/${head}`]),
+      upstream: deps.git(cwd, [
+        "rev-parse",
+        "--verify",
+        "--quiet",
+        `refs/heads/${head}@{upstream}`,
+      ]),
+      branch: head,
+    };
+  }
   return {
     head: deps.git(cwd, ["rev-parse", "HEAD"]),
     upstream: deps.git(cwd, ["rev-parse", "--verify", "--quiet", "@{upstream}"]),
@@ -96,7 +114,7 @@ async function pullRequestRefusals(request: PullRequestCreate, deps: GuardDeps):
     ];
   }
 
-  const head = headRefusal(headState(request.cwd, deps));
+  const head = headRefusal(headState(request.cwd, request.head, deps));
   const body = bodyText(request.body, deps);
   const boxes = "text" in body ? await boxRefusals(body.text, deps) : [body.refusal];
   return [...(head === null ? [] : [head]), ...boxes];
