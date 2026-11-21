@@ -245,7 +245,8 @@ describe("searchTeams", () => {
   });
 
   it("orders teams whose newest matches kick off together by source, then team id", async () => {
-    // Both sides of one match share its kickoff, so a search finding both ties.
+    // Two home sides in simultaneous matches tie within one query, read here in
+    // the other order, and a football-data side ties with both.
     const together = at("2026-01-01");
     state.sides.set("taso_matches:home", [
       { teamProviderId: 9, kickoffAt: together },

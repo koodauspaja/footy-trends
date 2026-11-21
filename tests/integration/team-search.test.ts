@@ -374,7 +374,7 @@ describe("searching real rows", () => {
   });
 
   it("keeps the lowest team ids when more match than the cap at one kickoff", async () => {
-    // Inserted highest id first, so storage order would not happen to give the answer.
+    // The cap's own order decides which teams of one kickoff are kept: the lowest ids.
     const total = MAX_RESULTS + 5;
     await db.insert(tasoMatches).values(
       Array.from({ length: total }, (_, index) => ({
