@@ -37,7 +37,15 @@ CREATE ROLE backup_reader LOGIN PASSWORD '<random>' IN ROLE pg_read_all_data;
 ```
 
 Its address is production's public proxy address with `backup_reader` and that
-password in it.
+password in it. Save production's root certificate, the last one the server
+presents, as `scripts/backup/railway-postgres-ca.pem`:
+
+```sh
+openssl s_client -starttls postgres -connect <proxy host>:<port> -showcerts </dev/null
+```
+
+macOS's own `openssl` cannot speak Postgres's handshake; Homebrew's `openssl@3`
+can.
 
 ## Step 4 — The GitHub Environment
 

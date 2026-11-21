@@ -276,7 +276,10 @@ nothing that cannot be rebuilt (decisions/807).
   the workflow's `cron` line. A run that never starts goes unnoticed: GitHub
   turns off a scheduled workflow after 60 days without repository activity.
 - **Production's Postgres has a public address,** Railway's TCP proxy
-  (`*.proxy.rlwy.net`). The backup connects through it, encryption required.
+  (`*.proxy.rlwy.net`). The backup connects through it and verifies the server
+  against production's own root certificate, pinned in
+  `scripts/backup/railway-postgres-ca.pem`, `CN=root-ca`, valid until
+  **2028-11-23**. A new root turns the backup red until that file is replaced.
 
 ## GitHub
 
