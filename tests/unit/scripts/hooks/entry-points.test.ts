@@ -69,7 +69,10 @@ describe("scripts/hooks/up-to-date.ts", () => {
   });
 });
 
-describe("scripts/hooks/claude-bash-guard.sh", () => {
+/** Each test starts real processes, `tsx` among them, which a busy machine slows. */
+const SPAWN_TIMEOUT = { timeout: 30_000 };
+
+describe("scripts/hooks/claude-bash-guard.sh", SPAWN_TIMEOUT, () => {
   function runWrapper(command: string, project = process.cwd()) {
     const input = JSON.stringify({
       tool_name: "Bash",
