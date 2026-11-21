@@ -89,6 +89,9 @@ describe("processPhrase", () => {
     expect(
       processPhrase("fix: address the cup forecast's tie order, and drop stale comments (#3)")
     ).toBeNull();
+    expect(processPhrase("chore: address book caching and comments are kept (#4)")).toBeNull();
+    expect(processPhrase("fix: answers stay cached \u2014 comments load later (#5)")).toBeNull();
+    expect(processPhrase("fix: review round-trip parsing of dates (#6)")).toBeNull();
   });
 });
 

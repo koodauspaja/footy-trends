@@ -22,6 +22,14 @@ afterEach(() => {
   vi.resetModules();
 });
 
+/** A shell or YAML file's lines that run, trimmed: a commented-out line is not one. */
+function activeLines(path: string): string[] {
+  return readFileSync(path, "utf8")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "" && !line.startsWith("#"));
+}
+
 describe("scripts/hooks/commit-subjects.ts", () => {
   it("offers itself to runWhenMain under the path npm runs, and checks nothing by itself", async () => {
     const { default: packageJson } = await import("../../../../package.json");
@@ -37,13 +45,13 @@ describe("scripts/hooks/commit-subjects.ts", () => {
   });
 
   it("is run by the commit-msg hook on the message file git passes it", () => {
-    expect(readFileSync(".husky/commit-msg", "utf8")).toContain(
-      'tsx scripts/hooks/commit-subjects.ts --message "$1"'
+    expect(activeLines(".husky/commit-msg")).toContain(
+      'node_modules/.bin/tsx scripts/hooks/commit-subjects.ts --message "$1"'
     );
   });
 
   it("is run by CI on the pull request's title, passed through the environment", () => {
-    const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
+    const workflow = activeLines(".github/workflows/ci.yml").join("\n");
 
     expect(workflow).toContain('run: npm run check:commits -- --subject "$TITLE"');
     expect(workflow).toMatch(/TITLE: \$\{\{ github\.event\.pull_request\.title \}\}/);
@@ -51,7 +59,7 @@ describe("scripts/hooks/commit-subjects.ts", () => {
 
   it("is run by CI on every commit the pull request adds over its base", () => {
     // The workflow's own `${{ … }}` expressions, matched as written.
-    expect(readFileSync(".github/workflows/ci.yml", "utf8")).toMatch(
+    expect(activeLines(".github/workflows/ci.yml").join("\n")).toMatch(
       /npm run check:commits -- \$\{\{ github\.event\.pull_request\.base\.sha \}\}\.\.\$\{\{ github\.event\.pull_request\.head\.sha \}\}/
     );
   });

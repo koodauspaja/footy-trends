@@ -31,12 +31,13 @@ function verdict(offenders: readonly Offender[], console: Console): number {
 
 /**
  * One subject given as text: a pull request's title, which a squash merge
- * makes the subject of the commit that lands on `main`.
+ * makes the subject of the commit that lands on `main`. Not a git message, so a
+ * leading `#` is part of it.
  *
  * decisions/841-commit-subject-gate.md
  */
 function checkSubject(text: string, console: Console): number {
-  const subject = subjectOf(text);
+  const subject = text.trim();
   const phrase = processPhrase(subject);
   return verdict(phrase === null ? [] : [{ commit: null, subject, phrase }], console);
 }
@@ -81,6 +82,17 @@ function checkRange(range: string, deps: Deps, console: Console): number {
 }
 
 /**
+ * Whether an argument is a `<base>..<head>` range: two non-empty parts, no
+ * blank in either.
+ *
+ * decisions/841-commit-subject-gate.md
+ */
+function isRange(argument: string): boolean {
+  const parts = argument.split("..");
+  return parts.length === 2 && parts.every((part) => part !== "" && !/\s/.test(part));
+}
+
+/**
  * The command: arguments in, exit code out.
  *
  * decisions/841-commit-subject-gate.md
@@ -89,7 +101,7 @@ export function runCheck(argv: readonly string[], deps: Deps, console: Console):
   const [first, second] = argv.slice(2);
   if (first === "--message" && second !== undefined) return checkMessage(second, deps, console);
   if (first === "--subject" && second !== undefined) return checkSubject(second, console);
-  if (first !== undefined && /^\S+\.\.\S+$/.test(first)) return checkRange(first, deps, console);
+  if (first !== undefined && isRange(first)) return checkRange(first, deps, console);
   console.err(USAGE);
   return 1;
 }

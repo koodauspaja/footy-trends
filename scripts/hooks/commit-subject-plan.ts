@@ -14,20 +14,28 @@
  * decisions/841-commit-subject-gate.md
  */
 const PROCESS_PHRASES: readonly RegExp[] = [
-  // "answer Sourcery's second review", "address review feedback", "respond to comments":
-  // the review within three words of the verb, in the same clause.
-  /\b(?:answer(?:s|ed|ing)?|address(?:es|ed|ing)?|respond(?:s|ed|ing)? to|repl(?:y|ies|ied|ying) to)\s+(?:[\w'’]+\s+){0,3}?(?:reviews?|comments?|findings?|feedback|suggestions?)\b/i,
+  // "answer Sourcery's second review", "address review feedback", "respond to comments"
+  /\b(?:answer|address|respond|repl(?:y|ie))\w*\s+(?:to\s+)?(?:\S+\s+){0,3}?(?:review|comment|finding|feedback|suggestion)s?\b/i,
   // "fix review findings", "fix Sourcery's findings", "fix the SonarCloud review comments"
-  /\bfix(?:es|ed|ing)?\s+(?:the\s+)?(?:review|sourcery|sonar(?:cloud)?)(?:'s)?\s+(?:review\s+)?(?:findings?|comments?|issues?|feedback)\b/i,
+  /\bfix\w*\s+(?:the\s+)?(?:review|sourcery|sonar)\S*\s+(?:review\s+)?(?:finding|comment|issue|feedback)s?\b/i,
   // "fix findings from Sourcery review"
-  /\bfix(?:es|ed|ing)?\s+(?:the\s+)?(?:findings?|comments?|issues?|feedback)\s+(?:from|of)\s+(?:the\s+)?(?:(?:sourcery|sonar(?:cloud)?|code)(?:'s)?\s+)?review\b/i,
+  /\bfix\w*\s+(?:the\s+)?(?:finding|comment|issue|feedback)s?\s+(?:from|of)\s+(?:the\s+)?(?:\S+\s+)?review\b/i,
   // "apply suggestions", "applied Sourcery's review suggestions", "apply the review's suggestions"
-  /\bappl(?:y|ies|ied|ying)\s+(?:the\s+)?(?:(?:review|sourcery|sonar(?:cloud)?|code review)(?:'s)?\s+)?(?:review\s+)?suggestions?\b/i,
-  // "review round 2"
-  /\breview\s+round\b/i,
+  /\bappl(?:y|ie)\w*\s+(?:the\s+)?(?:(?:review|sourcery|sonar|code)\S*\s+){0,2}suggestions?\b/i,
+  // "review round 2", but not "review round-trip parsing"
+  /\breview\s+round(?![\w-])/i,
   // "per Sourcery review", "per SonarCloud review"
-  /\bper\s+(?:the\s+)?(?:(?:sourcery|sonar(?:cloud)?|code)\s+)?review\b/i,
+  /\bper\s+(?:the\s+)?(?:(?:sourcery|sonar|code)\S*\s+)?review\b/i,
 ];
+
+/**
+ * Where a subject's clauses meet: punctuation, or "and", "or", "but". A phrase
+ * is read within one clause, so "answers come from the cache, and the comments
+ * table is dropped" names no review.
+ *
+ * decisions/841-commit-subject-gate.md
+ */
+const CLAUSE_BREAK = /[,;:—]|\s(?:and|or|but)\s/i;
 
 /**
  * The words in `subject` that name the review process, or `null` when it names
@@ -36,9 +44,11 @@ const PROCESS_PHRASES: readonly RegExp[] = [
  * decisions/841-commit-subject-gate.md
  */
 export function processPhrase(subject: string): string | null {
-  for (const pattern of PROCESS_PHRASES) {
-    const match = pattern.exec(subject);
-    if (match !== null) return match[0];
+  for (const clause of subject.split(CLAUSE_BREAK)) {
+    for (const pattern of PROCESS_PHRASES) {
+      const match = pattern.exec(clause);
+      if (match !== null) return match[0];
+    }
   }
   return null;
 }
@@ -62,16 +72,26 @@ export type Offender = { commit: string | null; subject: string; phrase: string 
  * decisions/841-commit-subject-gate.md
  */
 export function refusal(offenders: readonly Offender[]): string {
+  const count =
+    offenders.length === 1 ? "a commit subject names" : `${offenders.length} commit subjects name`;
   return [
-    `Refused: ${offenders.length === 1 ? "a commit subject names" : `${offenders.length} commit subjects name`} the review instead of the change:`,
-    ...offenders.map(
-      ({ commit, subject, phrase }) =>
-        `  ${commit === null ? "" : `${commit.slice(0, 7)} `}${subject}  ("${phrase}")`
-    ),
+    `Refused: ${count} the review instead of the change:`,
+    ...offenders.map(offenderLine),
     "",
     "Say what the commit changes, as a reader of git log needs it:",
     "  chore: the Bash hook catches gh -R and git add * (#806)",
     "not who asked for it:",
     "  chore: answer Sourcery's second review (#806)",
   ].join("\n");
+}
+
+/**
+ * One refused subject: its commit when there is one, the subject, and the
+ * words that named the review.
+ *
+ * decisions/841-commit-subject-gate.md
+ */
+function offenderLine({ commit, subject, phrase }: Offender): string {
+  const prefix = commit === null ? "" : `${commit.slice(0, 7)} `;
+  return `  ${prefix}${subject}  ("${phrase}")`;
 }

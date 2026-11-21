@@ -11,7 +11,9 @@ Scope
   reaches. Finnish UI copy — in source, asserted in a test, or quoted in any
   document, a spec or a decision record among them — is data, not a language
   violation. `CLAUDE.md` carries the same carve-out, so the two do not disagree.
-- Commit messages: English too, but unchecked — see below.
+- Commit messages: English too, but unchecked — see below. A subject that
+  names the review instead of the change is refused, by the `commit-msg` hook
+  and CI's `Commit messages` job (`decisions/841-commit-subject-gate.md`).
 - Configuration files and tooling settings: English unless they are end-user
   visible (Block 6 covers these too).
 
@@ -122,8 +124,9 @@ Deliberately not Sourcery rules
   `a11y/useAltText` and `a11y/noSvgWithoutTitle`. Both already deterministic.
 - **`noExplicitAny`, `noConsoleLog`** — Biome, as above.
 - **Commit messages in English** — a rule reads files, never the commit log,
-  and there is no `commit-msg` hook or commitlint here. Convention only, and
-  named as such rather than left looking enforced.
+  and there is no commitlint here. Convention only, and named as such rather
+  than left looking enforced. The `commit-msg` hook checks one thing only: that
+  the subject does not name the review instead of the change (decisions/841).
 
 Authority
 - The Sourcery dashboard rules are the authoritative automated checks. This

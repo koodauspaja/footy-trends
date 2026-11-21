@@ -293,7 +293,7 @@ repos/:owner/:repo/rulesets` and its neighbours.
 | Pull request required | yes, 0 approvals | yes, **1 approval** |
 | Merge methods | squash, merge or rebase; history must stay linear | **merge commit only**, so `release` keeps `main`'s SHAs |
 | Up to date before merge | required | **not** required (#221) |
-| Required checks | `Typecheck, lint and unit tests`, `Integration tests`, `Issue checkboxes`, `Commit messages`, `SonarCloud scan`, `Sourcery review` | `Release — typecheck, lint and unit tests`, `Release — integration tests`, `Release — end-to-end tests` |
+| Required checks | `Typecheck, lint and unit tests`, `Production build`, `Integration tests`, `Issue checkboxes`, `Commit messages`, `SonarCloud scan`, `Sourcery review` | `Release — typecheck, lint and unit tests`, `Release — integration tests`, `Release — end-to-end tests` |
 | Force push, deletion | blocked | blocked |
 
 - **A required check is satisfied by `skipped`.** Sourcery skips when its

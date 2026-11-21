@@ -87,6 +87,12 @@ describe("runCheck with --subject", () => {
     expect(console.lines.join("\n")).toContain('("apply suggestions")');
     expect(runCheck(argv("--subject", "chore: x is y (#1)"), deps(), consoleSpy())).toBe(0);
   });
+
+  it("reads a title that starts with # as the subject, not as a git comment", () => {
+    expect(runCheck(argv("--subject", "# answer the review comments"), deps(), consoleSpy())).toBe(
+      1
+    );
+  });
 });
 
 describe("runCheck with a range", () => {
@@ -125,15 +131,20 @@ describe("runCheck with a range", () => {
 });
 
 describe("runCheck usage", () => {
-  it.each([[[]], [["--message"]], [["--subject"]], [["main"]], [["a b..c"]]])(
-    "prints the usage for %j",
-    (args) => {
-      const console = consoleSpy();
+  it.each([
+    [[]],
+    [["--message"]],
+    [["--subject"]],
+    [["main"]],
+    [["a b..c"]],
+    [["..b"]],
+    [["a..b..c"]],
+  ])("prints the usage for %j", (args) => {
+    const console = consoleSpy();
 
-      expect(runCheck(argv(...args), deps(), console)).toBe(1);
-      expect(console.lines[0]).toContain("Usage: npm run check:commits");
-    }
-  );
+    expect(runCheck(argv(...args), deps(), console)).toBe(1);
+    expect(console.lines[0]).toContain("Usage: npm run check:commits");
+  });
 });
 
 describe("defaultDeps", () => {

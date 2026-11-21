@@ -1,5 +1,6 @@
 # Why each setting is as it is: decisions/531-configuration-files.md
 # Every action is pinned to a commit hash: decisions/813-pinned-actions.md
+# The Commit messages job: decisions/841-commit-subject-gate.md
 name: CI
 
 on:
