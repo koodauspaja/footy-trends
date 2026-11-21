@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -128,7 +129,7 @@ describe("refusals", () => {
 
     expect(checkout.gitCalls).toEqual([
       ["/repo", "rev-parse", "--verify", "--quiet", "refs/heads/chore/1-x"],
-      ["/repo", "rev-parse", "--verify", "--quiet", "refs/heads/chore/1-x@{upstream}"],
+      ["/repo", "rev-parse", "--verify", "--quiet", "chore/1-x@{upstream}"],
     ]);
   });
 
@@ -206,6 +207,73 @@ describe("refusals", () => {
     expect(found[0]).toContain("git add");
     expect(found[1]).toContain("pushed head");
     expect(found[2]).toContain("#9");
+  });
+});
+
+describe("refusals with --head, against a real repository", () => {
+  /** A clone whose `pushed` branch is pushed with an upstream, and its git. */
+  function clone(): { directory: string; git: (...args: string[]) => void } {
+    executablePath.mockReturnValue("/usr/bin/git");
+    const root = mkdtempSync(join(tmpdir(), "guard-head-"));
+    const run = (cwd: string, args: string[]) => {
+      const result = spawnSync(
+        "git",
+        [
+          "-c",
+          "user.name=t",
+          "-c",
+          "user.email=t@example.com",
+          "-c",
+          "commit.gpgsign=false",
+          ...args,
+        ],
+        { cwd, encoding: "utf8" }
+      );
+      if (result.status !== 0) throw new Error(result.stderr);
+    };
+    run(root, ["init", "--quiet", "--bare", "origin.git"]);
+    run(root, ["clone", "--quiet", "origin.git", "work"]);
+    const directory = join(root, "work");
+    const git = (...args: string[]) => run(directory, args);
+    git("commit", "--quiet", "--allow-empty", "-m", "first");
+    git("push", "--quiet", "-u", "origin", "HEAD:refs/heads/pushed");
+    git("branch", "--quiet", "--set-upstream-to=origin/pushed", "HEAD");
+    git("branch", "--quiet", "pushed", "origin/pushed");
+    git("branch", "--quiet", "--set-upstream-to=origin/pushed", "pushed");
+    return { directory, git };
+  }
+
+  it("lets gh pr create --head through for a pushed branch whose local head is the pushed head", async () => {
+    const { directory } = clone();
+
+    expect(
+      await refusals("gh pr create -b none --head pushed", directory, defaultDeps({}))
+    ).toEqual([]);
+  });
+
+  it("refuses a --head branch with no upstream", async () => {
+    const { directory, git } = clone();
+    git("branch", "--quiet", "local-only");
+
+    const found = await refusals(
+      "gh pr create -b none --head local-only",
+      directory,
+      defaultDeps({})
+    );
+
+    expect(found).toHaveLength(1);
+    expect(found[0]).toContain("local-only, which has no upstream");
+  });
+
+  it("refuses a --head branch whose local head is not the pushed head", async () => {
+    const { directory, git } = clone();
+    git("checkout", "--quiet", "pushed");
+    git("commit", "--quiet", "--allow-empty", "-m", "unpushed");
+
+    const found = await refusals("gh pr create -b none --head pushed", directory, defaultDeps({}));
+
+    expect(found).toHaveLength(1);
+    expect(found[0]).toContain("pushed, whose local HEAD");
   });
 });
 
