@@ -56,12 +56,8 @@ function headState(cwd: string, head: string | null, deps: GuardDeps) {
   if (head !== null) {
     return {
       head: deps.git(cwd, ["rev-parse", "--verify", "--quiet", `refs/heads/${head}`]),
-      upstream: deps.git(cwd, [
-        "rev-parse",
-        "--verify",
-        "--quiet",
-        `refs/heads/${head}@{upstream}`,
-      ]),
+      // git reads `@{upstream}` after a branch name, not after a full ref.
+      upstream: deps.git(cwd, ["rev-parse", "--verify", "--quiet", `${head}@{upstream}`]),
       branch: head,
     };
   }
