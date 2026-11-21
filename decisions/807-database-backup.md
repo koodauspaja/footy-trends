@@ -7,6 +7,7 @@ below was agreed in chat on 2026-11-21, one at a time, and is on the issue.
 
 | Decision | Why |
 |---|---|
+| Railway's volume backups are not part of it | Neither environment has any, and this plan cannot create them: new backups, schedules and point-in-time recovery need Railway Pro. Read in the dashboard on 2026-11-21. They would also have stayed inside Railway |
 | A scheduled GitHub workflow runs the backup, not a Railway cron | Production's Postgres already has a public address, Railway's TCP proxy, which read-only measurements use. A cron inside Railway would only have been worth it to close that address, and it would have needed its own way to report a failure. A failed workflow run is red, and GitHub emails it |
 | The secrets are in a GitHub Environment `backup` that only `main` can use, with no reviewers | A repository secret can be read by a workflow on any branch of the repository, Renovate's included. A reviewer would stop the schedule waiting for someone |
 | Production is read as `backup_reader`, a member of `pg_read_all_data` | It reads every table and writes nothing, so the secret is not the app's password and cannot change data |

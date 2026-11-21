@@ -268,8 +268,10 @@ nothing that cannot be rebuilt (decisions/807).
   `bypassGovernance`, so such keys are made through the API. The restore's,
   `footy-trends-db-backup-read`, lists and reads, and stays with the people who
   restore. An account-wide key exists only while the bucket is being set up.
-- **Railway's own volume backups:** not yet read; the dashboard is the only
-  place they show.
+- **Railway's own volume backups: none,** in staging or production, and this
+  plan cannot make them: new backups, schedules and point-in-time recovery are
+  Railway Pro's. Read in the dashboard (`Postgres` → **Backups**, the only
+  place they show) on 2026-11-21.
 - **A failed run is a red run.** GitHub emails it only to whoever last changed
   the workflow's `cron` line. A run that never starts goes unnoticed: GitHub
   turns off a scheduled workflow after 60 days without repository activity.
