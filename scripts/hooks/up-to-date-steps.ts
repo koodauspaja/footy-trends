@@ -2,7 +2,13 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { executablePath } from "../shared/executable";
 import { type Console, processConsole } from "../shared/github-read";
-import { type BranchPush, behindRefusal, branchPushes, FETCH_FAILED } from "./up-to-date-plan";
+import {
+  type BranchPush,
+  behindRefusal,
+  branchPushes,
+  FETCH_FAILED,
+  UNCHECKED_BRANCHES,
+} from "./up-to-date-plan";
 
 /**
  * The pre-push hook's up-to-date check: fetch `origin/main`, then refuse a
@@ -20,19 +26,24 @@ export type Git = (args: readonly string[]) => { status: number; stdout: string 
 
 /**
  * The pushes to check: from the hook's stdin, or the current branch's HEAD when
- * there is no stdin to read, as when the check is run by hand.
+ * there is none to read, as when the check is run by hand, or when the refs are
+ * not in git's shape. Checking HEAD then is stricter than checking nothing.
  *
  * decisions/806-push-and-pr-hooks.md
  */
-function pushesToCheck(stdin: string | null, git: Git): BranchPush[] | null {
-  if (stdin !== null && stdin.trim() !== "") return branchPushes(stdin);
+function pushesToCheck(stdin: string | null, git: Git, console: Console): BranchPush[] {
+  if (stdin !== null && stdin.trim() !== "") {
+    const pushed = branchPushes(stdin);
+    if (pushed !== null) return pushed;
+    console.err("The pushed refs are not in the shape git gives a pre-push hook; checking HEAD.");
+  }
 
   const branch = git(["symbolic-ref", "--short", "--quiet", "HEAD"]);
   const head = git(["rev-parse", "HEAD"]);
-  if (branch?.status !== 0 || head?.status !== 0) return [];
-  return branchPushes(
-    `refs/heads/${branch.stdout} ${head.stdout} refs/heads/${branch.stdout} ${"0".repeat(40)}`
-  );
+  if (branch?.status !== 0 || head?.status !== 0 || UNCHECKED_BRANCHES.includes(branch.stdout)) {
+    return [];
+  }
+  return [{ branch: branch.stdout, sha: head.stdout }];
 }
 
 /**
@@ -41,13 +52,7 @@ function pushesToCheck(stdin: string | null, git: Git): BranchPush[] | null {
  * decisions/806-push-and-pr-hooks.md
  */
 export function runCheck(stdin: string | null, git: Git, console: Console): number {
-  const pushes = pushesToCheck(stdin, git);
-  if (pushes === null) {
-    console.err(
-      "Up-to-date check skipped: the pushed refs were not in the shape git gives a pre-push hook."
-    );
-    return 0;
-  }
+  const pushes = pushesToCheck(stdin, git, console);
   if (pushes.length === 0) return 0;
 
   if (git(["fetch", "--quiet", "origin", "main"])?.status !== 0) {
