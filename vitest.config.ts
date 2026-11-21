@@ -10,13 +10,14 @@
  * decisions/400-one-command-setup.md
  * decisions/467-deterministic-integration-suite.md
  * decisions/479-integration-suite-database-guard.md
+ * decisions/847-quiet-unit-run.md
  */
 
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
-import { parseSonarProperty } from "./scripts/checks/coverage-gaps-plan";
+import { parseSonarProperty } from "./scripts/checks/coverage-gaps-plan.ts";
 
 // Vitest does not populate process.env from .env files, so Node's built-in
 // loader fills it here; test workers inherit it.
@@ -52,7 +53,11 @@ export default defineConfig({
           name: "unit",
           environment: "node",
           include: ["tests/unit/**/*.test.ts"],
-          setupFiles: ["./vitest.setup.ts", "./tests/support/unit-env.ts"],
+          setupFiles: [
+            "./vitest.setup.ts",
+            "./tests/support/unit-env.ts",
+            "./tests/support/console-only-output.ts",
+          ],
         },
       },
       {
@@ -61,7 +66,11 @@ export default defineConfig({
           name: "unit-dom",
           environment: "jsdom",
           include: ["tests/unit/**/*.test.tsx"],
-          setupFiles: ["./vitest.setup.ts", "./tests/support/unit-env.ts"],
+          setupFiles: [
+            "./vitest.setup.ts",
+            "./tests/support/unit-env.ts",
+            "./tests/support/console-only-output.ts",
+          ],
         },
       },
       {
@@ -109,7 +118,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(import.meta.dirname, "./src"),
     },
   },
 });

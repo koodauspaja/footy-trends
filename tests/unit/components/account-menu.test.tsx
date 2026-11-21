@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountMenu } from "@/components/account-menu";
 
 /**
@@ -9,6 +9,7 @@ import { AccountMenu } from "@/components/account-menu";
  * decisions/024-account-settings.md
  * decisions/026-favourites.md
  * decisions/028-admin-tools-and-roles.md
+ * decisions/847-quiet-unit-run.md
  */
 
 const onSignOut = vi.fn();
@@ -28,8 +29,18 @@ function renderMenu(overrides: { name?: string; image?: string | null; isAdmin?:
 
 const trigger = () => screen.getByRole("button", { name: "Tili: Matti Meikäläinen" });
 
+// jsdom cannot follow a link to another page, and says so on stderr. The menu
+// has handled the click by the time it reaches the document, so cancelling the
+// link's own navigation there leaves what these tests check untouched.
+const cancelNavigation = (event: MouseEvent) => event.preventDefault();
+
 beforeEach(() => {
   onSignOut.mockClear();
+  document.addEventListener("click", cancelNavigation);
+});
+
+afterEach(() => {
+  document.removeEventListener("click", cancelNavigation);
 });
 
 describe("AccountMenu", () => {

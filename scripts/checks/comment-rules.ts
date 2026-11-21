@@ -478,21 +478,6 @@ export function longComments(
   });
 }
 
-/**
- * Doc comments running past `limit` lines: reported, never failed on.
- *
- * decisions/531-comments-say-what-code-is-for.md
- */
-export function longDocComments(file: string, comments: readonly Comment[], limit = 12): Finding[] {
-  return comments
-    .filter((comment) => comment.doc && comment.endLine - comment.line + 1 > limit)
-    .map((comment) => ({
-      file,
-      line: comment.line,
-      text: `${comment.endLine - comment.line + 1} lines`,
-    }));
-}
-
 export function describeFindings(findings: readonly Finding[]): string {
   return findings.map((finding) => `  ${finding.file}:${finding.line}  ${finding.text}`).join("\n");
 }
