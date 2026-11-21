@@ -26,6 +26,7 @@ it was read, so it can be read again.
 | Postgres, Redis, Sentry DSN, Axiom token and dataset | its own | its own |
 | Provider API keys | **shared**: one football-data key and one TASO key serve both | |
 | Hourly predictions cron | none | `predictions` service |
+| Database backup | none | daily, encrypted, to Backblaze B2 (*Backups*) |
 | Volumes | 500 MB each | 5 GB each |
 
 ## Railway
@@ -245,6 +246,41 @@ settle`: on staging, which has no cron, whenever its guesses should be settled.
   and Redis container, so it reaches neither TASO nor development's Redis (decisions/672,
   decisions/674).
 
+### Backups
+
+Production's database only: staging's data can be made again, and Redis holds
+nothing that cannot be rebuilt (decisions/807).
+
+| | |
+|---|---|
+| What | `pg_dump --format=custom` of production, and every table's row count from the same snapshot (`npm run backup`) |
+| When | daily 02:17 UTC, `database-backup.yml` |
+| Where | Backblaze B2, account `Koodauspaja`, private bucket `footy-trends-db-backups`, region `eu-central-003` (Amsterdam) |
+| Encrypted | with `age` on the runner, to the public keys in `scripts/backup/recipients.txt`. Each private key alone decrypts, and is held by its person, nowhere else: Miikka and Kalle |
+| Kept | 30 days. Object Lock, governance mode, locks each file for 30 days; a lifecycle rule hides it 30 days after upload and deletes it a day later |
+| Read by production as | `backup_reader`, a member of `pg_read_all_data`: reads every table, writes nothing. Created by hand (`docs/setup/027`) |
+| Restore | `npm run backup:restore -- --b2-key=<file> --identity=<file>`: the newest backup into `footy-trends_restore_check` on the local Docker Postgres, then every table's count compared with the backup's |
+| Last restored | 2026-11-21, from `20261121T142846Z`: 23 tables, 195 204 rows, every count equal |
+
+- **Three B2 keys.** The workflow's, `footy-trends-db-backup-upload`, can only
+  upload (`writeFiles`), to that bucket only: it cannot list, read or delete.
+  The console's "Write Only" choice is not that: it includes `deleteFiles` and
+  `bypassGovernance`, so such keys are made through the API. The restore's,
+  `footy-trends-db-backup-read`, lists and reads, and stays with the people who
+  restore. An account-wide key exists only while the bucket is being set up.
+- **Railway's own volume backups: none,** in staging or production, and this
+  plan cannot make them: new backups, schedules and point-in-time recovery are
+  Railway Pro's. Read in the dashboard (`Postgres` → **Backups**, the only
+  place they show) on 2026-11-21.
+- **A failed run is a red run.** GitHub emails it only to whoever last changed
+  the workflow's `cron` line. A run that never starts goes unnoticed: GitHub
+  turns off a scheduled workflow after 60 days without repository activity.
+- **Production's Postgres has a public address,** Railway's TCP proxy
+  (`*.proxy.rlwy.net`). The backup connects through it and verifies the server
+  against production's own root certificate, pinned in
+  `scripts/backup/railway-postgres-ca.pem`, `CN=root-ca`, valid until
+  **2028-11-23**. A new root turns the backup red until that file is replaced.
+
 ## GitHub
 
 Repository `koodauspaja/footy-trends`, **public**. Read with `gh api
@@ -275,6 +311,7 @@ repos/:owner/:repo/rulesets` and its neighbours.
 | `sonarcloud.yml` | the same | scan, with coverage; the job waits for the quality gate | the same allowlist |
 | `release.yml` | pull requests to `release`, push to `release`, by hand | unit, integration, **e2e against a production build**, then tag and publish on a push | uses the two provider keys; e2e runs nowhere else in CI |
 | `taso-key-check.yml` | daily 06:00 UTC, by hand | asks production's `/api/health?providers=1`, with the token, whether TASO still answers | #113, decisions/814 |
+| `database-backup.yml` | daily 02:17 UTC, by hand | `npm run backup`: production's database, encrypted, to B2 (*Backups*) | runs in the GitHub Environment `backup`, which only `main` can use and which has no reviewers, so the schedule never waits (decisions/807) |
 | `railway-environment.yml` | by hand, with a name and a branch | `npm run railway:environment`: a new Railway environment, from nothing to a site that answers `/api/health` | runs in the GitHub Environment `railway-provisioning`, so it waits for a required reviewer; one run at a time (decisions/522) |
 
 - **Every workflow's token is `contents: read`**, and a job widens only what it
@@ -297,6 +334,11 @@ Actions variables: `OWNER_USERNAME`, `COLLABORATOR_USERNAME`,
 container a workflow run creates (any random value; nothing outside a run uses it). `SONAR_ORGANIZATION` and `SONAR_PROJECT_KEY` also exist as
 secrets and nothing reads them: the values are in `sonar-project.properties`.
 Workflows from forks need approval for all outside contributors.
+
+`database-backup.yml` reads `BACKUP_DATABASE_URL`, `backup_reader`'s address,
+and `B2_KEY_ID` and `B2_APPLICATION_KEY`, the upload-only key, all secrets of
+the GitHub Environment `backup`. A repository secret could be read by a workflow
+on any branch; an Environment limited to `main` cannot.
 
 `railway-environment.yml` reads more, all of it secrets of the GitHub
 Environment `railway-provisioning`: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
