@@ -16,6 +16,8 @@
 const PROCESS_PHRASES: readonly RegExp[] = [
   // "answer Sourcery's second review", "address review feedback", "respond to comments"
   /\b(?:answer|address|respond|repl(?:y|ie))\w*\s+(?:to\s+)?(?:\S+\s+){0,3}?(?:review|comment|finding|feedback|suggestion)s?\b/i,
+  // "answer Sourcery", "address Sonar", "reply to the reviewer": the reviewer named instead
+  /\b(?:answer|address|respond|repl(?:y|ie))\w*\s+(?:to\s+)?(?:the\s+)?(?:sourcery|sonar\w*|reviewers?)\b/i,
   // "fix review findings", "fix Sourcery's findings", "fix the SonarCloud review comments"
   /\bfix\w*\s+(?:the\s+)?(?:review|sourcery|sonar)\S*\s+(?:review\s+)?(?:finding|comment|issue|feedback)s?\b/i,
   // "fix findings from Sourcery review"
