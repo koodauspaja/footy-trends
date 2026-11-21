@@ -25,7 +25,7 @@ export const VERIFY_STAGES: readonly Stage[] = [
   { name: "Unit tests", script: "test:unit", typical: "~40s" },
   { name: "Unit tests, shuffled", script: "test:shuffle", typical: "~30s" },
   { name: "Integration tests", script: "test:integration", typical: "~5s" },
-  { name: "End-to-end tests", script: "test:e2e", typical: "~4min" },
+  { name: "End-to-end tests", script: "test:e2e", typical: "~7min" },
 ];
 
 /**
