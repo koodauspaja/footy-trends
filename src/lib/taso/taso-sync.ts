@@ -249,9 +249,8 @@ export async function synchronizeGroupTeams(
   await executor.transaction(async (tx) => {
     // One write of a season's group rows at a time, until its transaction ends:
     // two interleaving their deletes and upserts deadlock.
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtext(${`taso-group-rows:${categoryId}:${competitionId}:${seasonId}`}))`
-    );
+    const lockKey = `taso-group-rows:${categoryId}:${competitionId}:${seasonId}`;
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${lockKey}))`);
     const season = and(
       eq(tasoGroupTeams.categoryId, categoryId),
       eq(tasoGroupTeams.competitionCode, competitionId),
