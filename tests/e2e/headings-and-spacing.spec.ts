@@ -160,6 +160,50 @@ test.describe("a forecast's labels", () => {
     );
   }
 
+  // Each side's table row, as TASO would publish it for the seeded results: a
+  // group the season stores no rows for would be read as a list of matches.
+  function tableRows() {
+    const sides = new Map<
+      number,
+      { group: number; name: string; won: number; lost: number; gf: number; ga: number }
+    >();
+    for (const match of rows()) {
+      for (const [id, name] of [
+        [match.home_team_provider_id, match.home_team_name],
+        [match.away_team_provider_id, match.away_team_name],
+      ] as const) {
+        if (!sides.has(id))
+          sides.set(id, { group: match.group_id, name, won: 0, lost: 0, gf: 0, ga: 0 });
+      }
+      const home = sides.get(match.home_team_provider_id);
+      const away = sides.get(match.away_team_provider_id);
+      if (match.home_goals === null || match.away_goals === null || !home || !away) continue;
+      home.won += 1;
+      away.lost += 1;
+      home.gf += match.home_goals;
+      home.ga += match.away_goals;
+      away.gf += match.away_goals;
+      away.ga += match.home_goals;
+    }
+    return [...sides].map(([id, side]) => ({
+      category_id: "VL",
+      competition_id: `spljp${season % 100}`,
+      season_id: season,
+      group_id: side.group,
+      team_provider_id: id,
+      team_name: side.name,
+      points: side.won * 3,
+      matches_played: side.won + side.lost,
+      matches_won: side.won,
+      matches_tied: 0,
+      matches_lost: side.lost,
+      goals_for: side.gf,
+      goals_against: side.ga,
+      goals_diff: side.gf - side.ga,
+      updated_at: new Date(),
+    }));
+  }
+
   // The fit and the season's forecast are cached: dropped, so the page computes
   // them from the rows stored now, and so does the next spec.
   async function dropCaches() {
@@ -167,9 +211,11 @@ test.describe("a forecast's labels", () => {
   }
 
   async function clearSeason() {
-    await withDatabase(
-      (sql) => sql`delete from taso_matches where category_id = 'VL' and season_id = ${season}`
-    );
+    await withDatabase(async (sql) => {
+      await sql`delete from taso_matches where category_id = 'VL' and season_id = ${season}`;
+      await sql`delete from taso_group_teams where category_id = 'VL' and season_id = ${season}
+        and group_id in (901, 902)`;
+    });
   }
 
   test.beforeAll(async ({ browser }) => {
@@ -177,7 +223,10 @@ test.describe("a forecast's labels", () => {
     // The stored season would be read beside the seeded one. Gone, the next read
     // of it asks TASO again.
     await clearSeason();
-    await withDatabase((sql) => sql`insert into taso_matches ${sql(rows())}`);
+    await withDatabase(async (sql) => {
+      await sql`insert into taso_matches ${sql(rows())}`;
+      await sql`insert into taso_group_teams ${sql(tableRows())}`;
+    });
     await dropCaches();
   });
 
