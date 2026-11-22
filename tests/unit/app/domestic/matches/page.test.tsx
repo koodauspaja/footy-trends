@@ -91,6 +91,17 @@ describe("Domestic matches page", () => {
     expect(screen.getByText("Runkosarja")).toBeInTheDocument();
   });
 
+  it("reads the newest season with matches as active while TASO's newest has none", async () => {
+    resolveTasoSeasonContextMock.mockResolvedValueOnce({
+      currentSeason: 2027,
+      defaultSeason: 2026,
+    });
+
+    await renderMatches();
+
+    expect(getSeasonMatchListMock).toHaveBeenCalledWith("VL", "spljp26", 2026, 2026);
+  });
+
   it("shows a dash for an unplayed match's result", async () => {
     getSeasonMatchListMock.mockResolvedValue({
       status: "ok",

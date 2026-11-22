@@ -941,6 +941,22 @@ describe("Domestic team page league position", () => {
     expect(label(2025)).toBe("2025");
   });
 
+  it("reads the newest season with matches as active while TASO's newest has none", async () => {
+    resolveTasoSeasonContextMock.mockResolvedValue({ currentSeason: 2027, defaultSeason: 2026 });
+
+    await renderTeam("1", { kilpailu: "VL", kausi: "2026" });
+    await analyticsSectionMock.mock.calls[0]?.[0].loadRecords?.();
+
+    expect(getTeamMatchesMock).toHaveBeenCalledWith("VL", "spljp26", 1, 2026, 2026);
+    expect(getTeamStreakRecordsMock).toHaveBeenCalledWith(
+      "VL",
+      1,
+      2026,
+      expect.any(Array),
+      expect.any(Function)
+    );
+  });
+
   it("asks for this club's worst opponents across its whole region, linked under its own prefix", async () => {
     await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
     const loadOpponents = analyticsSectionMock.mock.calls[0]?.[0].loadOpponents;

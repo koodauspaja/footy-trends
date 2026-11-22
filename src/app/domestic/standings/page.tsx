@@ -349,17 +349,12 @@ export default async function DomesticStandingsPage({
     seasonLabel,
     competitionId,
     categoryId,
-    currentSeason,
+    activeSeason,
     seasonCompetitionName,
     renamedTo,
   } = await resolveDomesticPageContext(params);
 
-  const availableRounds = await listSeasonRounds(
-    categoryId,
-    competitionId,
-    seasonId,
-    currentSeason
-  );
+  const availableRounds = await listSeasonRounds(categoryId, competitionId, seasonId, activeSeason);
   const roundParam = parseTasoRoundParam(params.kierros, availableRounds);
   const selectedRound = roundParam.kind === "valid" ? roundParam.round : undefined;
 
@@ -368,7 +363,7 @@ export default async function DomesticStandingsPage({
     categoryId,
     competitionId,
     seasonId,
-    currentSeason,
+    activeSeason,
     selectedRound,
     isCup ? "taso" : "league"
   );
@@ -382,14 +377,14 @@ export default async function DomesticStandingsPage({
     kind: "taso",
     competitionCode,
     selectedSeasonId: seasonId,
-    activeSeasonId: currentSeason,
+    activeSeasonId: activeSeason,
     seasonLabel: String,
   });
 
   // A Suomen Cup's forecast, signed in only; the gate is asked only for a cup that has one.
   const cupForecast =
     hasCupForecast(competitionCode) && (await canSeeAnalytics())
-      ? await getCupForecast(competitionCode, seasonId, currentSeason)
+      ? await getCupForecast(competitionCode, seasonId, activeSeason)
       : { status: "unavailable" as const };
 
   const isGroupsAndPlayoff = cupFormatFor(competitionCode) === "groups-and-playoff";

@@ -101,7 +101,10 @@ async function discoverCurrentSeason(): Promise<{ season: number | null; failed:
 export type TasoSeasonContext = {
   /** The selector's ceiling, and the season `needsRefresh` treats as refreshable. */
   currentSeason: number;
-  /** Where a page with no `kausi` param lands — never a season with no matches. */
+  /**
+   * Where a page with no `kausi` param lands, and the season its analytics treat
+   * as current: never a season with no matches.
+   */
   defaultSeason: number;
 };
 
@@ -149,6 +152,7 @@ export const resolveTasoSeasonCeiling = cache(async function resolveTasoSeasonCe
  *
  * decisions/011-current-season-discovery.md
  * decisions/534-taso-season-fallback-cache.md
+ * decisions/865-active-season-has-matches.md
  */
 export const resolveTasoSeasonContext = cache(async function resolveTasoSeasonContext(
   competitionCode: string
@@ -184,11 +188,12 @@ export const resolveTasoSeasonContext = cache(async function resolveTasoSeasonCo
       );
     }
 
-    // Clamped to both ends of the selector's range: a default outside it lands the
-    // page on a season the selector does not offer.
+    // With nothing stored, the season before the empty one. Clamped to both ends
+    // of the selector's range: a default outside it lands the page on a season
+    // the selector does not offer.
     const fallbackDefault = Math.max(
       earliestSeasonFor(competitionCode),
-      Math.min(newestStored ?? currentSeason, currentSeason)
+      Math.min(newestStored ?? currentSeason - 1, currentSeason)
     );
     return {
       value: { currentSeason, defaultSeason: fallbackDefault },

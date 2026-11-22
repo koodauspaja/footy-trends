@@ -2550,6 +2550,18 @@ describe("resolveTasoSeasonContext", () => {
     });
   });
 
+  it("defaults to the season before a published-but-empty one when nothing is stored", async () => {
+    // An empty database, as the release run's: no stored season to fall back on.
+    getCurrentSeasonMock.mockResolvedValue(2027);
+    mockDb(null, []);
+    getSeasonMatchesMock.mockResolvedValue([]);
+
+    await expect(resolveTasoSeasonContext("VL")).resolves.toEqual({
+      currentSeason: 2027,
+      defaultSeason: 2026,
+    });
+  });
+
   it("does make an all-fixtures season the default — unplayed is not empty", async () => {
     getCurrentSeasonMock.mockResolvedValue(2027);
     mockDb(2026, []);
