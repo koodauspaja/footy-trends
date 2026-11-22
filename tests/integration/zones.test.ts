@@ -186,13 +186,14 @@ describe("a sync of a season's group rows", () => {
   });
 
   it("survives two syncs of the same season at once", async () => {
-    const results = await Promise.allSettled([
-      synchronizeGroupTeams("VL", COMPETITION, SEASON, [team()], [level()]),
-      synchronizeGroupTeams("VL", COMPETITION, SEASON, [team()], [level()]),
-      synchronizeGroupTeams("VL", COMPETITION, SEASON, [team()], [level()]),
-    ]);
+    // Eight, not two: unlocked, two deadlock only now and then, eight nearly always.
+    const results = await Promise.allSettled(
+      Array.from({ length: 8 }, () =>
+        synchronizeGroupTeams("VL", COMPETITION, SEASON, [team()], [level()])
+      )
+    );
 
-    expect(results.map((result) => result.status)).toEqual(["fulfilled", "fulfilled", "fulfilled"]);
+    expect(results.map((result) => result.status)).toEqual(Array(8).fill("fulfilled"));
     expect(await storedLevels()).toEqual([["VL", 1, 1, 1, "Kultaa"]]);
   });
 });

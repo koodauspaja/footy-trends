@@ -232,6 +232,7 @@ export function dedupeByIdentity(rows: NormalizedTasoGroupTeam[]): NormalizedTas
  * decisions/628-zeroed-continuation-tables.md
  * decisions/063-competition-zones.md
  * decisions/678-stale-snapshot-written-last.md
+ * decisions/871-season-sync-lock.md
  */
 export async function synchronizeGroupTeams(
   categoryId: string,
@@ -246,6 +247,10 @@ export async function synchronizeGroupTeams(
 ): Promise<void> {
   // An empty snapshot is an answer too, and replaces what was stored.
   await executor.transaction(async (tx) => {
+    // One write of a season's group rows at a time, until its transaction ends:
+    // two interleaving their deletes and upserts deadlock.
+    const lockKey = `taso-group-rows:${categoryId}:${competitionId}:${seasonId}`;
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${lockKey}))`);
     const season = and(
       eq(tasoGroupTeams.categoryId, categoryId),
       eq(tasoGroupTeams.competitionCode, competitionId),
