@@ -344,10 +344,11 @@ and its reason in one line before pushing, and let the human overrule it:
 | A new Sourcery round | a fix changed behaviour (logic, data, queries, caching, auth), touched code beyond the finding, answered a high or critical finding, or changed tests in a way worth a second look | the fixes are wording, comments, docs, or a one-line change a test proves, or the findings were repeats and edge-case wishes answered on their threads |
 | An e2e run the hooks do not ask for | the change touches what e2e exercises: pages, routes, data fetching, migrations, caching, configuration | it touches scripts, hooks, tooling, tests or docs that unit tests prove |
 
-**A third full review only when the second found a behaviour defect.** Every
-other finding after round 2 gets an answer on its thread, with no push: on #817
-the rounds after a second without one found no behaviour defect on any pull
-request (decisions/838).
+**From the third on, a full review only when the one before it found a
+behaviour defect.** A behaviour defect is always fixed; from round 2 on, every
+other finding gets an answer on its thread, with no push. On #817 no round after
+the second found a behaviour defect when the round before it had none
+(decisions/838).
 
 An e2e failure called a flake gets an issue of its own, with the run's output:
 the nondeterminism #832 fixed was waved off twice as one.

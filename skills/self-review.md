@@ -14,9 +14,9 @@ When to use
 ## Why these classes
 
 Measured on #817 over the last 50 merged pull requests (#689 to #835, to
-2026-11-21): of Sourcery's 191 catches, 89 fell in a class this pass covers, and
-the pass itself found 2 defects in about 30 visible runs. Five classes held 79
-of the 89, and only those five stay (decisions/838):
+2026-11-21): of Sourcery's 191 catches, 89 fell in the eleven classes the pass
+then had, and the pass itself found 2 defects in about 30 visible runs. Five
+classes held 79 of the 89, and only those five stay (decisions/838):
 
 | Findings | Class |
 |---|---|
