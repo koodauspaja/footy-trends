@@ -163,7 +163,7 @@ test.describe("a forecast's labels", () => {
   // The fit and the season's forecast are cached: dropped, so the page computes
   // them from the rows stored now, and so does the next spec.
   async function dropCaches() {
-    await dropCached("poisson:v1:taso", "elo:v1:taso", `forecast:v4:taso:VL:${season}`);
+    await dropCached("poisson:v1:taso", "elo:v1:taso", `forecast:v4:taso:VL:${season}:*`);
   }
 
   async function clearSeason() {
