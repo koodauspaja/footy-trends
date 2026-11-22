@@ -1,3 +1,5 @@
+import type { SQL } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { tasoGroupTeams, tasoGroupZones } from "@/db/schema";
 import { calculateStandings, type NormalizedMatch } from "@/lib/competitions/standings";
@@ -106,6 +108,7 @@ const {
     selectDistinct: vi.fn(),
     insert: vi.fn(),
     delete: vi.fn(),
+    execute: vi.fn(async (_query: SQL) => undefined),
     transaction: vi.fn(),
   },
   getCachedMock: vi.fn(),
@@ -2006,6 +2009,24 @@ describe("group standings storage", () => {
     // survive the refresh carrying an obsolete starting_points.
     expect(dbMock.delete).toHaveBeenCalled();
     expect(dbMock.transaction).toHaveBeenCalled();
+  });
+
+  it("takes the season's lock before it deletes anything", async () => {
+    mockInsert();
+
+    await synchronizeGroupTeams(CATEGORY_ID, COMPETITION_ID, PAST_SEASON, [], []);
+
+    expect(dbMock.execute).toHaveBeenCalledTimes(1);
+    const [query] = dbMock.execute.mock.calls[0] ?? [];
+    if (query === undefined) throw new Error("no lock was taken");
+    const lock = new PgDialect().sqlToQuery(query);
+    expect(lock).toMatchObject({
+      sql: "select pg_advisory_xact_lock(hashtext($1))",
+      params: [`taso-group-rows:${CATEGORY_ID}:${COMPETITION_ID}:${PAST_SEASON}`],
+    });
+    expect(dbMock.execute.mock.invocationCallOrder[0]).toBeLessThan(
+      dbMock.delete.mock.invocationCallOrder[0] ?? 0
+    );
   });
 
   it("clears the season's existing rows before writing the new snapshot", async () => {
