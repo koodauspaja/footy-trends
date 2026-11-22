@@ -34,6 +34,11 @@ vi.mock("../../../../scripts/e2e/e2e-freshness-git", () => ({
   gitDepsIn,
 }));
 
+// Docker's real check spawns its CLI, which takes seconds where Docker is slow or missing.
+const { dockerIsRunning } = vi.hoisted(() => ({ dockerIsRunning: vi.fn(() => true) }));
+
+vi.mock("../../../../scripts/local/docker", () => ({ dockerIsRunning }));
+
 vi.mock("../../../../scripts/shared/executable", async (original) => {
   const actual = await original<typeof import("../../../../scripts/shared/executable")>();
   real.executablePath = actual.executablePath as (tool: string) => string | null;
@@ -158,6 +163,7 @@ describe("freshnessOfCheckout", () => {
     expect(freshnessOfCheckout(join(process.cwd(), "scripts")).verdict.kind).toBe("pass");
     expect(freshnessOfCheckout(process.cwd()).verdict.message).not.toContain("skipped");
     expect(changedFromMain).toHaveBeenCalledWith(["HEAD"], { directory: process.cwd() });
+    expect(dockerIsRunning).toHaveBeenCalled();
   });
 
   it("refuses uncommitted code, naming it, but not uncommitted documentation", () => {
