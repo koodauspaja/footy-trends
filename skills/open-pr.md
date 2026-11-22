@@ -88,10 +88,11 @@ already, and #390 found two classes that had never been written down at all.
 5. **Review your own diff, then** push the branch and open a PR against
    main. The author's review comes before Sourcery's, and it is two things,
    both run on the diff as it will be pushed: the pass in
-   `skills/self-review.md`, and the `code-review` skill at its lowest effort
-   (`/code-review low` in Claude Code). It is the quick pass for what an
-   author should have seen; the thorough one is Sourcery's. Fix what they find
-   before the push. A later push repeats the pass on what it changed, as
+   `skills/self-review.md`, and the `code-review` skill. **Before a feature
+   pull request opens, the skill runs once at medium effort**
+   (`/code-review medium` in Claude Code), as its longer runs found most of its
+   defects; a chore or a bug runs it at low (`/code-review low`). Fix what they
+   find before the push. A later push repeats the pass on what it changed, as
    `skills/self-review.md` says, and not the skill. A change to what a page
    shows also gets `skills/ui-review.md`'s pass. **A full passing
    `npm run test:e2e` comes before the pull request opens**, never skipped
@@ -342,6 +343,12 @@ and its reason in one line before pushing, and let the human overrule it:
 |---|---|---|
 | A new Sourcery round | a fix changed behaviour (logic, data, queries, caching, auth), touched code beyond the finding, answered a high or critical finding, or changed tests in a way worth a second look | the fixes are wording, comments, docs, or a one-line change a test proves, or the findings were repeats and edge-case wishes answered on their threads |
 | An e2e run the hooks do not ask for | the change touches what e2e exercises: pages, routes, data fetching, migrations, caching, configuration | it touches scripts, hooks, tooling, tests or docs that unit tests prove |
+
+**From the third on, a full review only when the one before it found a
+behaviour defect.** A behaviour defect is always fixed; from round 2 on, every
+other finding gets an answer on its thread, with no push. On #817 no round after
+the second found a behaviour defect when the round before it had none
+(decisions/838).
 
 An e2e failure called a flake gets an issue of its own, with the run's output:
 the nondeterminism #832 fixed was waved off twice as one.

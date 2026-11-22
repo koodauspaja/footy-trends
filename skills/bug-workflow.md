@@ -116,7 +116,7 @@ Workflow
 
 10. Push the bug branch and open a pull request against `main`.
    - **Before the push, review your own diff**: the pass in
-     `skills/self-review.md` and the `code-review` skill at its lowest effort,
+     `skills/self-review.md` and the `code-review` skill at low effort,
      with what they find fixed first, per `skills/open-pr.md` step 5. The pull
      request's Checklist has a box for it.
    - Link the originating GitHub issue with a closing keyword — `Closes #NNN`

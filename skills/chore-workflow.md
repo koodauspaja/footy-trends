@@ -108,7 +108,7 @@ Workflow
 
 9. Push the chore branch and open a pull request against `main`.
    - **Before the push, review your own diff**: the pass in
-     `skills/self-review.md` and the `code-review` skill at its lowest effort,
+     `skills/self-review.md` and the `code-review` skill at low effort,
      with what they find fixed first, per `skills/open-pr.md` step 5. The pull
      request's Checklist has a box for it.
    - **When the chore has an issue**, link it with a closing keyword —
