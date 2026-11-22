@@ -8,6 +8,7 @@
  * decisions/292-sonar-zero-open-issues.md
  * decisions/568-e2e-against-a-production-build.md
  * decisions/661-e2e-freshness-skips-documentation.md
+ * decisions/837-e2e-before-a-pull-request-and-a-review.md
  */
 
 /**
@@ -62,6 +63,33 @@ export function pushedCommits(stdin: string): string[] | null {
   }
   return commits;
 }
+
+/**
+ * Whether a push is a branch's first: some ref it sends is not on the remote
+ * yet, which git gives as a remote sha of zeros. A line not in git's shape, or
+ * no line at all as when the hook is run by hand, counts as a first push, so
+ * the full check runs.
+ *
+ * decisions/837-e2e-before-a-pull-request-and-a-review.md
+ */
+export function isFirstPush(stdin: string): boolean {
+  const lines = stdin.split("\n").filter((line) => line.trim() !== "");
+  return (
+    lines.length === 0 ||
+    lines.some((line) => {
+      const remoteSha = /^\S+ [0-9a-f]{40,64} \S+ ([0-9a-f]{40,64})$/.exec(line.trim())?.[1];
+      return remoteSha === undefined || /^0+$/.test(remoteSha);
+    })
+  );
+}
+
+/**
+ * What the pre-push hook says when it lets a later push through unchecked.
+ *
+ * decisions/837-e2e-before-a-pull-request-and-a-review.md
+ */
+export const LATER_PUSH_SKIP =
+  "e2e freshness check skipped: the branch is already on origin. e2e is due before `gh pr create` and before asking Sourcery for a review.";
 
 /**
  * Whether every file a push changes from `origin/main` is a non-code path, so
@@ -306,6 +334,21 @@ function assess(input: {
   }
 
   return { vouchedBy: input.marker };
+}
+
+/**
+ * Why no passing run vouches for the working tree, or `null` when one does.
+ *
+ * decisions/837-e2e-before-a-pull-request-and-a-review.md
+ */
+export function staleReason(input: {
+  marker: Date | null;
+  now: Date;
+  maxAgeMs: number;
+  changedFiles: string[];
+}): string | null {
+  const assessment = assess(input);
+  return "blocking" in assessment ? assessment.blocking : null;
 }
 
 /**

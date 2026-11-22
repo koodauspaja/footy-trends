@@ -1,3 +1,6 @@
+import { mkdtempSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   changedFromMain,
@@ -5,6 +8,7 @@ import {
   fingerprint,
   type GitDeps,
   type GitOutput,
+  gitDepsIn,
 } from "../../../../scripts/e2e/e2e-freshness-git";
 
 /**
@@ -14,6 +18,7 @@ import {
  *
  * decisions/403-coverage-exclusions-that-earn-it.md
  * decisions/661-e2e-freshness-skips-documentation.md
+ * decisions/837-e2e-before-a-pull-request-and-a-review.md
  */
 
 const BINARY = "/usr/bin/git";
@@ -310,5 +315,21 @@ describe("defaultGitDeps", () => {
 
   it("refuses to read a link where there is none", () => {
     expect(() => defaultGitDeps.readlink("package.json")).toThrow();
+  });
+});
+
+describe("gitDepsIn", () => {
+  it("runs commands in the directory it is given, and reads its paths from there", () => {
+    const directory = mkdtempSync(join(tmpdir(), "freshness-"));
+    symlinkSync("target.txt", join(directory, "link"));
+    const inDirectory = gitDepsIn(directory);
+
+    const result = inDirectory.run(process.execPath, ["-e", "process.stdout.write(process.cwd())"]);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain(directory.split("/").at(-1));
+    expect(inDirectory.find()).toBe(defaultGitDeps.find());
+    expect(inDirectory.lstat("link").isSymbolicLink()).toBe(true);
+    expect(inDirectory.readlink("link")).toBe("target.txt");
   });
 });

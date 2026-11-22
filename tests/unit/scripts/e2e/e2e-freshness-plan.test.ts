@@ -9,14 +9,17 @@ import {
   hashFromEntry,
   inFixedOrder,
   isDocumentationOnly,
+  isFirstPush,
   isFullRun,
   isNonCodePath,
+  LATER_PUSH_SKIP,
   MAX_AGE_MS,
   missingPrerequisites,
   NON_CODE_DIRECTORIES,
   parseMarker,
   pathFromEntry,
   pushedCommits,
+  staleReason,
 } from "../../../../scripts/e2e/e2e-freshness-plan";
 
 /**
@@ -73,6 +76,51 @@ describe("isNonCodePath", () => {
 const SHA_A = "a".repeat(40);
 const SHA_B = "b".repeat(40);
 const ZERO = "0".repeat(40);
+
+describe("isFirstPush", () => {
+  const A = "a".repeat(40);
+  const Z = "0".repeat(40);
+
+  it("is a first push when a ref is new on the remote", () => {
+    expect(isFirstPush(`refs/heads/x ${A} refs/heads/x ${Z}\n`)).toBe(true);
+  });
+
+  it("is not when every ref is already on the remote, a deletion among them", () => {
+    expect(
+      isFirstPush(`refs/heads/x ${A} refs/heads/x ${A}\n(delete) ${Z} refs/heads/y ${A}\n`)
+    ).toBe(false);
+  });
+
+  it("counts no ref lines, or a line not in git's shape, as a first push", () => {
+    expect(isFirstPush("")).toBe(true);
+    expect(isFirstPush(`refs/heads/x ${A}\n`)).toBe(true);
+  });
+
+  it("says later pushes need e2e only before a pull request and a review", () => {
+    expect(LATER_PUSH_SKIP).toContain("before `gh pr create` and before asking Sourcery");
+  });
+});
+
+describe("staleReason", () => {
+  const now = new Date("2026-11-22T12:00:00Z");
+
+  it("is null when a recent run vouches for an unchanged tree", () => {
+    expect(
+      staleReason({
+        marker: new Date("2026-11-22T11:00:00Z"),
+        now,
+        maxAgeMs: MAX_AGE_MS,
+        changedFiles: [],
+      })
+    ).toBeNull();
+  });
+
+  it("gives the reason when no run does", () => {
+    expect(staleReason({ marker: null, now, maxAgeMs: MAX_AGE_MS, changedFiles: [] })).toContain(
+      "No passing full e2e run has been recorded"
+    );
+  });
+});
 
 describe("pushedCommits", () => {
   it("reads the local sha of each ref git hands the hook", () => {

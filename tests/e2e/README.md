@@ -238,7 +238,11 @@ It skips quietly when dependencies are not installed, and `git commit
 
 `npm run test:e2e` is easy to forget, and this suite is the only thing that
 exercises the app end to end before a release. A git `pre-push` hook nudges,
-and blocks, when nothing vouches for what you are pushing (#84).
+and blocks, when nothing vouches for what you are pushing (#84), but only on a
+branch's first push, which comes before its pull request. A later push goes
+through unchecked. Claude Code's hook asks the same question before
+`gh pr create` and before a `@sourcery-ai review` request
+(`decisions/837-e2e-before-a-pull-request-and-a-review.md`).
 
 It is installed by `npm install` — Husky's `prepare` script wires
 `core.hooksPath` to `.husky/`, so a fresh clone gets it with no manual step.

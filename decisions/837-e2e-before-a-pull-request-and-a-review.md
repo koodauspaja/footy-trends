@@ -1,0 +1,13 @@
+# 837 — e2e before a pull request opens and before each Sourcery round I ask for: decisions
+
+Chore #837, from the measurement on #817: over 50 merged pull requests, 131 full local e2e runs took 16.8 hours, the pre-push hook blocked 33 pushes, and no forced rerun found a defect. Miikka decided e2e runs once before a pull request opens and again before any new Sourcery round, not before every push. This overrides `decisions/084-e2e-freshness-before-push.md` where it makes every push need a run.
+
+| Decision | Why |
+|---|---|
+| **The git pre-push hook checks e2e only on a branch's first push**: one where some ref is not on the remote yet, which git gives as a remote sha of zeros. A run by hand, or ref lines it cannot read, still get the full check | The first push comes before the pull request, and a git hook runs for everyone, however the pull request is then opened, so most of each pull request on `main` is verified by e2e. A later push goes through unchecked |
+| **The Claude Code hook refuses `gh pr create` unless a passing full run covers the checkout** | It catches commits made after the first push and before the pull request opens. The checkout's `HEAD` is already required to be the pushed head (decisions/806) |
+| **It refuses a command that asks Sourcery for a review unless a passing full run covers the checkout**: a `gh` command whose words carry `@sourcery-ai review`, or a `gh pr comment` whose body file does or whose body it cannot read | A new round is the point where the fixes since the first review get verified. A push that only answers threads, with no new round asked for, needs no e2e. A request typed on GitHub, or made outside Claude Code, is not seen; the release workflow's e2e run covers it before production |
+| **Both use the pre-push hook's rules**, through one function, `checkoutFreshness` in `scripts/e2e/e2e-freshness-verdict.ts`: documentation-only changes pass, a narrowed run writes no marker, and where e2e cannot run at all the check does not refuse | One rule in one place, so the two hooks cannot drift apart. The review check judges the checkout the command runs from |
+| **Above that floor, the author judges the risk** of each push from the change and the review's findings, says the call in one line, and the human can overrule it (`skills/open-pr.md`, "e2e and Sourcery rounds") | Miikka, 2026-11-22: "you should be able to evaluate the risk based on the changes and the feedback". A round for small fixes cost more than it found |
+
+Not done: e2e in pull-request CI, and blocking `git push --no-verify`, both out of scope. The release workflow's e2e job stays as it is.

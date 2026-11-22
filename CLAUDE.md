@@ -72,6 +72,10 @@
   authorisation, and neither is being confident or being green. When Claude sets
   `Ready` itself it quotes the sentence it is acting on, so the evidence is
   visible rather than in its head.
+- **e2e runs before a pull request opens and before any new Sourcery round**,
+  never skipped; no other push forces one. Hooks enforce it, and
+  `skills/open-pr.md` ("e2e and Sourcery rounds") says how to judge the rest
+  (`decisions/837-e2e-before-a-pull-request-and-a-review.md`).
 - **Every new source file is imported by a test, or excluded with a reason.**
   `npm run test:unit` fails otherwise — `scripts/checks/coverage-gaps.ts` compares the
   source tree against the coverage report and names anything missing, then
