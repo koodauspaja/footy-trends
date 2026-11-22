@@ -1,6 +1,12 @@
 import { expect, type Locator, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/auth/e2e-analytics";
+import {
+  categoryIdForSeason,
+  competitionIdForSeason,
+} from "../../src/lib/taso/domestic-competitions";
+import { dropCached } from "../support/e2e-redis";
 import { openAnalytics } from "./folds";
+import { activeSeason, withDatabase } from "./seeded-season";
 
 /**
  * A heading looks like what it heads on every page, a label stays on its
@@ -8,6 +14,7 @@ import { openAnalytics } from "./folds";
  * layout, so only a browser shows any of it.
  *
  * decisions/696-headings-and-spacing.md
+ * decisions/867-e2e-forecasts-seed-their-season.md
  */
 
 // A table heading on each kind of standings page: a domestic league, a domestic
@@ -114,30 +121,157 @@ test("leaves space between one analytics panel and the next, and more between gr
   expect(Math.min(...gaps.groups.map(({ gap }) => gap))).toBeGreaterThanOrEqual(48);
 });
 
-test("sets a panel's heading above its labels and lines, and below its section's", async ({
-  page,
-}) => {
-  await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
-  await page.goto("/kotimaa/sarjataulukko?kilpailu=VL&kausi=2026");
-  await openAnalytics(page);
-  const forecast = page.getByRole("region", { name: "Kauden ennuste" });
-  await expect(forecast).toBeVisible();
+// A forecast labels its tables only in a season with fixtures left, so one is
+// seeded in the active season: two groups of four, each half played.
+test.describe("a forecast's labels", () => {
+  let season = 0;
+  const firstId = 999_867_000;
+  const team = (group: number, side: number) => 999_867_100 + group * 10 + side;
+  // Every pairing of four sides once; the first three are played.
+  const PAIRS: ReadonlyArray<readonly [number, number]> = [
+    [1, 2],
+    [3, 4],
+    [1, 3],
+    [2, 4],
+    [1, 4],
+    [2, 3],
+  ];
 
-  const size = (locator: Locator) =>
-    locator.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
-  const section = await size(page.getByRole("heading", { level: 2, name: "Analyysit" }));
-  const panel = await size(forecast.getByRole("heading", { level: 4 }));
-  const label = await size(forecast.getByRole("heading", { level: 5 }).first());
-  expect(label).toBeLessThan(panel);
-  expect(panel).toBeLessThan(section);
-
-  // An empty line, such as the surprises' before any match is predicted.
-  const surprises = page.getByRole("region", { name: "Kauden suurimmat yllätykset" });
-  const lines = await surprises
-    .locator("p")
-    .evaluateAll((paragraphs) =>
-      paragraphs.map((paragraph) => Number.parseFloat(getComputedStyle(paragraph).fontSize))
+  function rows() {
+    return [901, 902].flatMap((groupId, group) =>
+      PAIRS.map(([home, away], index) => {
+        const played = index < 3;
+        return {
+          taso_match_id: firstId + group * 10 + index,
+          competition_id: competitionIdForSeason("VL", season),
+          category_id: categoryIdForSeason("VL", season),
+          season_id: season,
+          group_id: groupId,
+          group_name: `E2E Lohko ${group + 1}`,
+          kickoff_at: new Date(Date.now() + (played ? -10 + index : 10 + index) * 86_400_000),
+          matchday: index + 1,
+          status: played ? "FINISHED" : "SCHEDULED",
+          home_team_provider_id: team(group, home),
+          home_team_name: `E2E Joukkue ${group + 1}${home}`,
+          away_team_provider_id: team(group, away),
+          away_team_name: `E2E Joukkue ${group + 1}${away}`,
+          home_goals: played ? 2 : null,
+          away_goals: played ? 1 : null,
+          winner: played ? "home" : null,
+          // Fresh, so the page reads these rows and does not ask TASO for the season.
+          updated_at: new Date(),
+        };
+      })
     );
-  expect(lines.length).toBeGreaterThan(0);
-  expect(Math.max(...lines)).toBeLessThan(await size(surprises.getByRole("heading", { level: 4 })));
+  }
+
+  // Each side's table row, as TASO would publish it for the seeded results: a
+  // group the season stores no rows for would be read as a list of matches.
+  function tableRows() {
+    const sides = new Map<
+      number,
+      { group: number; name: string; won: number; lost: number; gf: number; ga: number }
+    >();
+    for (const match of rows()) {
+      for (const [id, name] of [
+        [match.home_team_provider_id, match.home_team_name],
+        [match.away_team_provider_id, match.away_team_name],
+      ] as const) {
+        if (!sides.has(id))
+          sides.set(id, { group: match.group_id, name, won: 0, lost: 0, gf: 0, ga: 0 });
+      }
+      const home = sides.get(match.home_team_provider_id);
+      const away = sides.get(match.away_team_provider_id);
+      if (match.home_goals === null || match.away_goals === null || !home || !away) continue;
+      home.won += 1;
+      away.lost += 1;
+      home.gf += match.home_goals;
+      home.ga += match.away_goals;
+      away.gf += match.away_goals;
+      away.ga += match.home_goals;
+    }
+    return [...sides].map(([id, side]) => ({
+      category_id: categoryIdForSeason("VL", season),
+      competition_id: competitionIdForSeason("VL", season),
+      season_id: season,
+      group_id: side.group,
+      team_provider_id: id,
+      team_name: side.name,
+      points: side.won * 3,
+      matches_played: side.won + side.lost,
+      matches_won: side.won,
+      matches_tied: 0,
+      matches_lost: side.lost,
+      goals_for: side.gf,
+      goals_against: side.ga,
+      goals_diff: side.gf - side.ga,
+      updated_at: new Date(),
+    }));
+  }
+
+  // The fit and the season's forecast are cached: dropped, so the page computes
+  // them from the rows stored now, and so does the next spec.
+  async function dropCaches() {
+    await dropCached("poisson:v1:taso", "elo:v1:taso", `forecast:v4:taso:VL:${season}:*`);
+  }
+
+  async function clearSeason() {
+    await withDatabase(async (sql) => {
+      // The seeded ids too, whatever season an aborted run left them in.
+      await sql`delete from taso_matches where (category_id = 'VL' and season_id = ${season})
+        or taso_match_id between ${firstId} and ${firstId + 999}`;
+      await sql`delete from taso_group_teams where category_id = 'VL'
+        and team_provider_id between ${team(0, 0)} and ${team(9, 9)}`;
+    });
+  }
+
+  test.beforeAll(async ({ browser }) => {
+    season = await activeSeason(browser, "VL");
+    // The stored season would be read beside the seeded one. Gone, the next read
+    // of it asks TASO again.
+    await clearSeason();
+    await withDatabase(async (sql) => {
+      await sql`insert into taso_matches ${sql(rows())}`;
+      await sql`insert into taso_group_teams ${sql(tableRows())}`;
+    });
+    await dropCaches();
+  });
+
+  test.afterAll(async () => {
+    await clearSeason();
+    await dropCaches();
+  });
+
+  test("sets a panel's heading above its labels and lines, and below its section's", async ({
+    page,
+  }) => {
+    await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
+    await page.goto(`/kotimaa/sarjataulukko?kilpailu=VL&kausi=${season}`);
+    await openAnalytics(page);
+    const forecast = page.getByRole("region", { name: "Kauden ennuste" });
+    await expect(forecast).toBeVisible();
+
+    const size = (locator: Locator) =>
+      locator.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
+    const section = await size(page.getByRole("heading", { level: 2, name: "Analyysit" }));
+    const panel = await size(forecast.getByRole("heading", { level: 4 }));
+    // The seeded group's, not one a live season happens to have.
+    const firstLabel = forecast.getByRole("heading", { level: 5 }).first();
+    await expect(firstLabel).toHaveText("E2E Lohko 1");
+    const label = await size(firstLabel);
+    expect(label).toBeLessThan(panel);
+    expect(panel).toBeLessThan(section);
+
+    // An empty line, such as the surprises' before any match is predicted.
+    const surprises = page.getByRole("region", { name: "Kauden suurimmat yllätykset" });
+    const lines = await surprises
+      .locator("p")
+      .evaluateAll((paragraphs) =>
+        paragraphs.map((paragraph) => Number.parseFloat(getComputedStyle(paragraph).fontSize))
+      );
+    expect(lines.length).toBeGreaterThan(0);
+    expect(Math.max(...lines)).toBeLessThan(
+      await size(surprises.getByRole("heading", { level: 4 }))
+    );
+  });
 });

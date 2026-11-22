@@ -1,0 +1,11 @@
+# 867 — e2e forecast specs seed their own season: decisions
+
+Chore #867. A forecast exists only for the season a page treats as active, and only while it has fixtures left (`decisions/865-active-season-has-matches.md`). `headings-and-spacing.spec.ts` measured a label on Veikkausliiga 2026's live forecast. Once real 2026 finished, the label was gone and #864's release run failed. `cup-forecast.spec.ts` seeded a hard-coded 2026, which would stop being active once 2027 had a fixture. Overrides the last row of `decisions/865-active-season-has-matches.md`, which said both would pass again with 2026 named. The release-identical run (real TASO, an empty database) showed the first did not.
+
+| Decision | Why |
+|---|---|
+| **Both specs read the active season from the competition's standings page**, the season the page opens on, before seeding (`tests/e2e/seeded-season.ts`) | A season named in a test is the newest one today and stale next year; the newest is the one most likely to change under a test. The page is the one authority on which season is active |
+| **The panel heading test seeds two Veikkausliiga groups of four, half played, under group ids 901 and 902**, and checks the label it measures is the seeded `E2E Lohko 1` | Two groups give a named forecast in any year. A single regular season is named only when the year before has a split entry in `taso-carry-over.ts`, which stops at 2026. The label check makes the test fail if it ever measures a live season's label again |
+| **It seeds the groups' `taso_group_teams` rows too, with points worked out from the seeded results** | Real TASO's table rows for the season are stored by the time the test runs. A group without rows of its own is then read as a list of matches, and has no forecast. Rows that reproduce the seeded points make it a calculated table |
+| **It clears the season's stored matches first and after, and drops the fit and the season's forecast under every generation** (`forecast:v4:taso:VL:<season>:*`) | An earlier test in the file opens the same season signed in, which caches a forecast from the live rows. The key carries a generation suffix, so an exact-key drop misses it |
+| **`cup-forecast.spec.ts` keeps its rows and seeds them in the active season** | Only the year moved. Its cup rows were already seeded and cleaned up |
