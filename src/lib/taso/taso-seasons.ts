@@ -188,12 +188,12 @@ export const resolveTasoSeasonContext = cache(async function resolveTasoSeasonCo
       );
     }
 
-    // With nothing stored, the season before the empty one. Clamped to both ends
-    // of the selector's range: a default outside it lands the page on a season
-    // the selector does not offer.
+    // The newest stored season, never older than the one before the empty one.
+    // Clamped to both ends of the selector's range: a default outside it lands
+    // the page on a season the selector does not offer.
     const fallbackDefault = Math.max(
       earliestSeasonFor(competitionCode),
-      Math.min(newestStored ?? currentSeason - 1, currentSeason)
+      Math.min(Math.max(newestStored ?? 0, currentSeason - 1), currentSeason)
     );
     return {
       value: { currentSeason, defaultSeason: fallbackDefault },
