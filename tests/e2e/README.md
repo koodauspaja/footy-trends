@@ -323,6 +323,14 @@ writer instead of to Playwright.
 The decision logic lives in `scripts/e2e/e2e-freshness-plan.ts`, kept free of the
 filesystem and `docker` so it is unit-tested directly.
 
+## Never the newest season as an example
+
+The newest season is the one most likely to change under a test: it moves mid-season, finishes, and is overtaken when TASO lists the next. The release run reads real TASO, so a test tied to it passes on the stand-in and fails at release.
+
+- A test that needs some season names a **finished** one, one the stand-in serves too (`tests/e2e/fixtures/taso-domestic.json.gz`).
+- A test of something that exists only in the season in progress, such as a forecast, **seeds** that season in whichever season is active, read from the page (`tests/e2e/seeded-season.ts`, `decisions/867-e2e-forecasts-seed-their-season.md`).
+- Only a test about the default season itself opens a page without `kausi`.
+
 ## What's covered
 
 One or two focused tests per shipped flow, asserting on structure and
