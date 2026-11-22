@@ -329,7 +329,7 @@ The newest season is the one most likely to change under a test: it moves mid-se
 
 - A test that needs some season names a **finished** one, one the stand-in serves too (`tests/e2e/fixtures/taso-domestic.json.gz`).
 - A test of something that exists only in the season in progress, such as a forecast, **seeds** that season in whichever season is active, read from the page (`tests/e2e/seeded-season.ts`, `decisions/867-e2e-forecasts-seed-their-season.md`).
-- Only a test about the default season itself opens a page without `kausi`.
+- Only a test about the default season itself, or about what only the active season shows, such as `Tämä kausi`, opens a page without `kausi`.
 
 ## What's covered
 
