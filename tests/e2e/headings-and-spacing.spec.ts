@@ -14,6 +14,7 @@ import { activeSeason, withDatabase } from "./seeded-season";
  * layout, so only a browser shows any of it.
  *
  * decisions/696-headings-and-spacing.md
+ * decisions/867-e2e-forecasts-seed-their-season.md
  */
 
 // A table heading on each kind of standings page: a domestic league, a domestic
@@ -219,7 +220,8 @@ test.describe("a forecast's labels", () => {
       // The seeded ids too, whatever season an aborted run left them in.
       await sql`delete from taso_matches where (category_id = 'VL' and season_id = ${season})
         or taso_match_id between ${firstId} and ${firstId + 999}`;
-      await sql`delete from taso_group_teams where category_id = 'VL' and group_id in (901, 902)`;
+      await sql`delete from taso_group_teams where category_id = 'VL'
+        and team_provider_id between ${team(0, 0)} and ${team(9, 9)}`;
     });
   }
 
