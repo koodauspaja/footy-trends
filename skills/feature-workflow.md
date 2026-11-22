@@ -70,6 +70,8 @@ Workflow
 8. AI runs the relevant verification checks and prepares the change for review.
    - This includes tests, linting, type checking, and any relevant local
      validation.
+   - Before the pull request opens, the `code-review` skill runs once at
+     medium effort, with what it finds fixed (`skills/open-pr.md` step 5).
 9. AI opens a pull request.
    - Use `skills/open-pr.md` for the PR workflow.
    - Move the card to `In Review` once the pull request is open.
