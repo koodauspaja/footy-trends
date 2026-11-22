@@ -164,10 +164,9 @@ function textSource(text: string): BodySource {
 }
 
 /**
- * Where a `gh pr create` command's body comes from. Only a body this hook can
- * read is `text` or `file`: one built by the shell, read from stdin, or left to
- * `gh` to fill is `unreadable`. A repeated option counts as gh counts it: the
- * last one given.
+ * Where a `gh pr create` command's body comes from: `text` or `file` only when this hook can read
+ * it; one built by the shell, read from stdin or left to `gh` is `unreadable`. A repeated option
+ * counts as gh counts it: the last one.
  *
  * decisions/806-push-and-pr-hooks.md
  */

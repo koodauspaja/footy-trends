@@ -66,10 +66,9 @@ test.describe("Form chart, signed in", () => {
   test("ends at the Vire the standings table shows — across a Veikkausliiga split", async ({
     page,
   }) => {
-    // KuPS, 2022: the Mestaruussarja table counts the regular season too, so
-    // its Vire and its O span the split, as the chart does. Read from the
-    // standings page, not hardcoded. A season long over: while one is being
-    // played, the provider's table trails its results for hours after a match.
+    // KuPS, 2022: the Mestaruussarja table counts the regular season too, so its Vire and O span
+    // the split, as the chart does. Read from the standings page on a season long over: while one
+    // is played, the provider's table trails its results for hours after a match.
     await page.goto("/kotimaa/sarjataulukko?kilpailu=VL&kausi=2022");
     const row = page
       .getByRole("heading", { name: "Mestaruussarja", level: 2 })

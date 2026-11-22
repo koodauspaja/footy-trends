@@ -21,10 +21,9 @@ export const metadata: Metadata = { title: "Arvauspelin ryhmä" };
 export const dynamic = "force-dynamic";
 
 /**
- * `/arvauspeli/ryhmat/{id}`: a group's page for its members. Anyone else, and
- * an id that names no group, gets the same 404, so a group's existence is not
- * revealed; a signed-out reader is asked to sign in. `?ottelut=` is how many of
- * the members' guessed matches it lists.
+ * `/arvauspeli/ryhmat/{id}`, a group's page for its members. Anyone else, or an id naming no group,
+ * gets the same 404, so no group's existence is revealed; a signed-out reader is asked to sign in.
+ * `?ottelut=` is how many of the members' guessed matches it lists.
  *
  * decisions/078-private-groups.md
  * decisions/079-group-members-guesses.md

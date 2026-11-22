@@ -113,11 +113,9 @@ async function modelRewards(
 }
 
 /**
- * Settles one match's guesses in one transaction, `null` for a guess another
- * run settled first, and pays the rarity bonus and the models' reward on those
- * this one settled.
- * Players are locked first, the order a guess and an account's deletion take
- * them in, so neither waits on the other.
+ * Settles one match's guesses in one transaction, `null` for a guess another run settled first, and
+ * pays the rarity bonus and the models' reward on those this one settled. Players are locked first,
+ * in the order a guess and an account's deletion take them, so neither waits on the other.
  *
  * decisions/072-match-guesses.md
  * decisions/076-guesses-on-irregular-matches.md

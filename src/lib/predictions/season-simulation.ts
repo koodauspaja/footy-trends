@@ -279,10 +279,9 @@ export function simulateTable(
   }
 
   return table.map((row, position) => {
-    // The fewest teams that can still end above this one (it wins everything,
-    // nobody else gains a point) and the most (it loses everything, everyone
-    // else wins all of theirs). A top place is possible at its best and certain
-    // at its worst; for a bottom place the two swap.
+    // The fewest teams that can still end above this one (it wins all, nobody else scores) and the
+    // most (it loses all, everyone else wins theirs). A top place is possible at its best and
+    // certain at its worst; for a bottom place the two swap.
     const best = teamsAbove(position, most[position] as number, current);
     const worst = teamsAbove(position, current[position] as number, most);
     const share = (counts: readonly number[]) => (counts[position] as number) / runs;

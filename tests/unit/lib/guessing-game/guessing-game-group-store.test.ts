@@ -3,10 +3,9 @@ import type { BoardEntry } from "@/lib/guessing-game/guessing-game";
 import { warmModules } from "../../../support/warm-module";
 
 /**
- * Arvauspeli's group store over a faked client: each awaited statement takes
- * the next queued result, so every refusal and answer is reached in order. The
- * SQL itself, the locks and the trigger, run against Postgres in
- * `tests/integration/guessing-game-group.test.ts`.
+ * Arvauspeli's group store over a faked client: each awaited statement takes the next queued
+ * result, so every refusal and answer is reached in order. The SQL, locks and trigger run against
+ * Postgres in `tests/integration/guessing-game-group.test.ts`.
  *
  * decisions/078-private-groups.md
  * decisions/079-group-members-guesses.md

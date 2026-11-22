@@ -11,10 +11,9 @@ import type { MatchSource } from "@/lib/matches/match-source";
 import { MENS_TEAM } from "@/lib/national-team/national-team";
 
 /**
- * The full head-to-head page: its sections (two signed out, four signed in, a form group while
- * the rivalry is current, and the next meeting's group when one is stored and predicted), the
- * ids it resolves, and the cases with nothing to show. The
- * record's arithmetic is `head-to-head.test.ts`'s and the row labels are `meeting-labels`'.
+ * The full head-to-head page: its sections (two signed out, four signed in, a form group while the
+ * rivalry is current, the next meeting's group when stored and predicted), its ids, and nothing to
+ * show. The record's arithmetic is `head-to-head.test.ts`'s, the row labels `meeting-labels`'.
  *
  * decisions/042-head-to-head-view.md
  * decisions/044-scorelines-and-goal-averages.md

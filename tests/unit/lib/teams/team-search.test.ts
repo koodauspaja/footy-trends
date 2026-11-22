@@ -51,10 +51,9 @@ vi.mock("@/db", () => ({
               teamProviderId: number;
               kickoffAt: Date;
             }[];
-            // Postgres would order and cap; the mock does the same, or the
-            // outer `limit` would be untested. Rows of one kickoff keep the
-            // order they were read in unless the query orders them by team id,
-            // since nothing else promises theirs.
+            // Postgres would order and cap, and so does the mock, or the outer `limit` goes
+            // untested. Rows of one kickoff keep their read order unless the query orders them by
+            // team id, since nothing else promises theirs.
             const byTeam = terms.includes(TEAM_ID);
             return [...rows]
               .sort(

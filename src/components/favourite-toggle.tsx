@@ -12,9 +12,8 @@ import { competitionKey, type FavouriteSource, teamKey } from "@/lib/preferences
 import type { RegionSegment } from "@/lib/preferences/regions";
 
 /**
- * The one control for favouriting anything, on every surface. A client
- * component reading the session the browser already has. A unit test that
- * renders anything containing it mocks `@/lib/auth/auth-client`, or runs the real
+ * The one control for favouriting anything, on every surface, reading the session the browser has.
+ * A unit test rendering anything that contains it mocks `@/lib/auth/auth-client`, or runs the real
  * client's cleanup as `session-hydration.test.tsx` does.
  *
  * decisions/026-favourites.md

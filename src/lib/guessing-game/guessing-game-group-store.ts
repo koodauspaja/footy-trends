@@ -418,10 +418,9 @@ export type MemberGuesses = { matches: GroupMatch[]; more: boolean };
 type MemberRow = { membershipId: number; userId: string; nickname: string | null };
 
 /**
- * The members' guesses on the season's matches whose stored kickoff has passed,
- * the newest `shown` matches any member guessed. The kickoff rule is in the
- * query, so nothing before kickoff is ever read. Payments are read as the
- * player's own page reads them.
+ * The members' guesses on the season's matches whose stored kickoff has passed, the newest `shown`
+ * matches any member guessed. The kickoff rule is in the query, so nothing before kickoff is ever
+ * read; payments are read as the player's own page reads them.
  *
  * decisions/079-group-members-guesses.md
  */

@@ -263,11 +263,9 @@ export type PredictionRunReport = {
 };
 
 /**
- * One hourly run: refresh what needs it, log every loggable match, then write
- * the backtest rows of matches finished since the last backtest. A competition
- * that fails to refresh is still logged from what is stored; one whose
- * baseline fails is skipped; a failed backtest step leaves the live rows
- * written. All are reported.
+ * One hourly run: refresh what needs it, log every loggable match, then backtest those finished
+ * since the last backtest. A competition failing to refresh is logged from what is stored, one
+ * whose baseline fails is skipped, a failed backtest leaves the live rows; all are reported.
  *
  * decisions/052-predictions-log.md
  * decisions/053-elo-ratings.md
@@ -587,10 +585,9 @@ async function writeMissingBacktest(
 }
 
 /**
- * The backtest: one `backtest` row for every stored finished match with
- * history, written idempotently. Stored rows only, no provider request. The
- * cached reports of the backtest are dropped whether or not every row was
- * written, so `/ennusteet` shows what is stored.
+ * The backtest: one `backtest` row for every stored finished match with history, written
+ * idempotently from stored rows, no provider request. Its cached reports are dropped whether or not
+ * every row was written, so `/ennusteet` shows what is stored.
  *
  * decisions/052-predictions-log.md
  * decisions/055-poisson-goal-model.md

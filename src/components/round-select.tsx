@@ -7,10 +7,9 @@ type RoundSelectProps = {
 };
 
 /**
- * The `Kierros` label and `<select>` only. A round is always required on the
- * season-wide match list; a table passes `wholeSeason` for a `Koko kausi`
- * option. Controlled via `value`, as the round also changes through the page's
- * ◀/▶ links and the browser's Back button.
+ * The `Kierros` label and `<select>` only. A round is always required on the season-wide match
+ * list; a table passes `wholeSeason` for a `Koko kausi` option. Controlled via `value`, as the
+ * round also changes through the ◀/▶ links and the browser's Back button.
  *
  * decisions/005-listing-matches-for-selected-season.md
  * decisions/532-one-transaction-type-one-round-dropdown.md

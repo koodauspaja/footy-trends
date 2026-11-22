@@ -1,10 +1,9 @@
 import type { PageKind, PageSectionsOf } from "@/lib/preferences/section-keys";
 
 /**
- * A stand-in for `@/lib/preferences/section-choices` in a page's tests: a signed-out
- * reader's defaults, unless a test stores choices first. A test mocks the module
- * with `vi.mock("@/lib/preferences/section-choices", () => import("<this file>"))` and
- * resets it before each test.
+ * A stand-in for `@/lib/preferences/section-choices` in a page's tests: a signed-out reader's
+ * defaults, unless a test stores choices first. A test mocks that module with `vi.mock(path, () =>
+ * import("<this file>"))`, and resets this before each test.
  *
  * decisions/071-section-toggles.md
  */

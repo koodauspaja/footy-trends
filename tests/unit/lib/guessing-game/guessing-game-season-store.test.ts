@@ -4,12 +4,9 @@ import type { GameView } from "@/lib/guessing-game/guessing-game";
 import { warmModules } from "../../../support/warm-module";
 
 /**
- * Arvauspeli's season guess store around its queries: placing and changing a
- * guess, the section's read, the season's answers from its tables, and
- * settling. Each query answers a queued result; the SQL runs against Postgres
- * in `tests/integration/guessing-game-season.test.ts`. The season's tables are
- * stood in for: they come from the standings page's path, with its own TASO
- * freshness rules.
+ * Arvauspeli's season guess store around its queries: placing, changing, the section's read, the
+ * season's answers and settling, each query answering a queued result; the SQL runs in
+ * `tests/integration/guessing-game-season.test.ts`, and the TASO-backed tables are stood in for.
  *
  * decisions/075-season-guesses.md
  */

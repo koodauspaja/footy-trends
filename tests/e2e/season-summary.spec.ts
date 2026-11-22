@@ -6,11 +6,9 @@ import { testDatabaseUrl } from "../support/test-database";
 import { openAnalytics } from "./folds";
 
 /**
- * `Kausi lyhyesti`, end to end, on two clubs seeded into four Premier League
- * seasons, 2020/21 to 2023/24, so their latest has three earlier ones in the
- * same competition. Every sentence's number is read back from the panel it
- * comes from. Signed in the way league-position.spec.ts explains. The rows are
- * this suite's own and are removed afterwards, with the cached reads they reached.
+ * `Kausi lyhyesti`, end to end, on two clubs seeded into Premier League 2020/21 to 2023/24, so the
+ * latest has three earlier seasons; each number is read back from its panel, signed in as
+ * league-position.spec.ts explains. Its rows are removed after, with the cached reads they reached.
  *
  * decisions/066-season-summary.md
  * decisions/069-season-summary-clean-sheets.md
@@ -73,11 +71,9 @@ function season(
 
 const five = <T>(entry: T): T[] => Array.from({ length: 5 }, () => entry);
 
-// 2020–2022: every away match won first, then every home match lost, so no run
-// crosses into the next season. 2023: every home match won, then one away win
-// and four defeats: a six-win run, the club's longest, and its best home record.
-// Five clean sheets in every season, 50 %, so 2023's share equals 2022's and is
-// no fact.
+// 2020–2022: every away match won, then every home match lost, so no run crosses seasons. 2023:
+// home all won, then one away win and four defeats: a six-win run, the longest, and the best home
+// record. Five clean sheets a season, 50 %, so 2023's share equals 2022's and is no fact.
 const ROWS = [
   ...[2020, 2021, 2022].flatMap((seasonId) =>
     season(seasonId, [

@@ -6,10 +6,9 @@ import { testDatabaseUrl } from "../support/test-database";
 import { openFolds } from "./folds";
 
 /**
- * A Suomen Cup's `Cupin ennuste`, end to end, on a round of 16 in progress.
- * The recorded cups are finished, so the season in progress is seeded: eight
- * league sides who have played each other, and a round of 16 half played. No
- * value is named.
+ * A Suomen Cup's `Cupin ennuste`, end to end, on a round of 16 in progress. The recorded cups are
+ * finished, so the season is seeded: eight league sides who have played each other, and a round of
+ * 16 half played. No value is named.
  *
  * decisions/067-knockout-simulation.md
  * decisions/832-cup-forecast-tie-order.md

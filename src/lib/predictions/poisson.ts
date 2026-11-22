@@ -386,10 +386,9 @@ function settleHome(columns: Columns, strengths: Strengths): number {
 }
 
 /**
- * Every attack, or every defence. `homeGoalsTo` names the parameter each
- * match's home goals count for and `awayGoalsTo` its away goals: the scoring
- * sides for the attacks, the conceding sides for the defences. Each is
- * measured against the `other` kind of strength of the side it faced.
+ * Every attack, or every defence. `homeGoalsTo` and `awayGoalsTo` name the parameter each match's
+ * home and away goals count for: the scoring sides for attacks, the conceding sides for defences.
+ * Each is measured against the `other` kind of strength of the side it faced.
  *
  * decisions/055-poisson-goal-model.md
  */
@@ -640,10 +639,9 @@ function endOfDay(ordered: readonly PoissonMatch[], index: number): number {
 }
 
 /**
- * Every match in kickoff order, a UTC day at a time: the day's matches are all
- * predicted from one fit of the days before it. `onPredict` sees each match
- * the fit can predict. Feed one provider at a time. Given `wanted`, only the
- * days holding a wanted match are fitted, and only those matches predicted.
+ * Every match in kickoff order, a UTC day at a time, each day predicted from one fit of the days
+ * before; `onPredict` sees each match the fit can predict. Feed one provider at a time. Given
+ * `wanted`, only days holding a wanted match are fitted, and only those matches predicted.
  *
  * decisions/055-poisson-goal-model.md
  * decisions/057-surprise-index.md

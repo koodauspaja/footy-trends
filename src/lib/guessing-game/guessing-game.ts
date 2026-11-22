@@ -392,10 +392,9 @@ const PLAYED: ReadonlySet<Settlement> = new Set<Settlement>([
 ]);
 
 /**
- * Which of one match's guesses, as settled in one go, earn the rarity bonus:
- * those whose 1X2 was right, when at most a quarter of the guesses settled as
- * played had it right and there were 5 or more. Void, refunded and awarded
- * guesses neither count nor earn it.
+ * Which of one match's guesses, settled in one go, earn the rarity bonus: those with the right 1X2,
+ * when 5 or more were settled as played and at most a quarter of them had it right. Void, refunded
+ * and awarded guesses neither count nor earn it.
  *
  * decisions/073-leaderboard.md
  */

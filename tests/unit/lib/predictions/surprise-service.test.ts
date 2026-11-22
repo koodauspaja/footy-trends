@@ -2,10 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { StoredMatch } from "@/lib/matches/match-detail";
 
 /**
- * The service's decisions around its queries: the first stored season answered
- * without a prediction read, which season is in progress, a match's score
- * with the shoot-out taken out, and each failure as its own case. The joins
- * are proved against Postgres in `tests/integration/surprise.test.ts`.
+ * The service's decisions around its queries: the first stored season answered without a prediction
+ * read, which season is in progress, a score with the shoot-out taken out, and each failure. The
+ * joins are proved against Postgres in `tests/integration/surprise.test.ts`.
  *
  * decisions/057-surprise-index.md
  * decisions/066-season-summary.md

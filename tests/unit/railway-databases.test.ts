@@ -59,10 +59,9 @@ describe(".railway/databases.ts", () => {
     expect(definition.resources).toHaveLength(2);
   });
 
-  // Under a name the project already holds, Railway adds an instance of that
-  // service instead of building a database: a Redis with no `REDIS_URL`. And a
-  // name of its own shares nothing with the databases another environment runs
-  // on.
+  // Under a name the project already holds, Railway adds an instance of that service instead of
+  // building a database: a Redis with no `REDIS_URL`. A name of its own shares nothing with the
+  // databases another environment runs on.
   it("names the two after the environment, never plain Postgres and Redis", () => {
     expect(databaseNames("pr-123")).toEqual({ postgres: "Postgres-pr-123", redis: "Redis-pr-123" });
   });
