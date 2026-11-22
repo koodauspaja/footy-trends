@@ -652,11 +652,11 @@ describe("Domestic standings page, cup competitions", () => {
       defaultSeason: 2026,
     });
 
-    await renderStandings({ kilpailu: "MSC", kausi: "2026" });
+    await renderStandings({ kilpailu: "MSC", kausi: "2025" });
 
-    expect(getCupForecastMock).toHaveBeenCalledWith("MSC", 2026, 2026);
+    expect(getCupForecastMock).toHaveBeenCalledWith("MSC", 2025, 2026);
     expect(competitionAnalyticsMock.mock.calls[0]?.[0]).toMatchObject({ activeSeasonId: 2026 });
-    expect(listSeasonRoundsMock).toHaveBeenCalledWith("MSC", expect.any(String), 2026, 2026);
+    expect(listSeasonRoundsMock).toHaveBeenCalledWith("MSC", expect.any(String), 2025, 2026);
   });
 
   it("has no cup forecast for a signed-out reader, and does not read one", async () => {

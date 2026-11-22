@@ -97,9 +97,9 @@ describe("Domestic matches page", () => {
       defaultSeason: 2026,
     });
 
-    await renderMatches();
+    await renderMatches({ kausi: "2025" });
 
-    expect(getSeasonMatchListMock).toHaveBeenCalledWith("VL", "spljp26", 2026, 2026);
+    expect(getSeasonMatchListMock).toHaveBeenCalledWith("VL", "spljp25", 2025, 2026);
   });
 
   it("shows a dash for an unplayed match's result", async () => {

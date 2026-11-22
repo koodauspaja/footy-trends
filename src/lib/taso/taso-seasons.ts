@@ -188,7 +188,7 @@ export const resolveTasoSeasonContext = cache(async function resolveTasoSeasonCo
       );
     }
 
-    // The newest stored season, never older than the one before the empty one.
+    // The newer of the newest stored season and the one before the empty one.
     // Clamped to both ends of the selector's range: a default outside it lands
     // the page on a season the selector does not offer.
     const fallbackDefault = Math.max(
