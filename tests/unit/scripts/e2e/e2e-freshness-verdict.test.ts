@@ -47,6 +47,7 @@ vi.mock("../../../../scripts/shared/executable", async (original) => {
 });
 
 afterEach(() => {
+  dockerIsRunning.mockClear();
   fingerprint.mockReset();
   changedFromMain.mockReset();
   executablePath.mockReset();
@@ -161,9 +162,10 @@ describe("freshnessOfCheckout", () => {
     changedFromMain.mockReturnValueOnce(["docs/a.md"]).mockReturnValueOnce(["src/a.ts"]);
 
     expect(freshnessOfCheckout(join(process.cwd(), "scripts")).verdict.kind).toBe("pass");
+    expect(dockerIsRunning).not.toHaveBeenCalled();
     expect(freshnessOfCheckout(process.cwd()).verdict.message).not.toContain("skipped");
+    expect(dockerIsRunning).toHaveBeenCalledTimes(1);
     expect(changedFromMain).toHaveBeenCalledWith(["HEAD"], { directory: process.cwd() });
-    expect(dockerIsRunning).toHaveBeenCalled();
   });
 
   it("refuses uncommitted code, naming it, but not uncommitted documentation", () => {
