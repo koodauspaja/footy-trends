@@ -17,7 +17,11 @@ const FIRST = "itest-nickname-first";
 const SECOND = "itest-nickname-second";
 const USERS = [FIRST, SECOND];
 
-/** Polls until a query of this database is waiting on a lock, so a race is set up, not hoped for. */
+/**
+ * Polls until a query of this database is waiting on a lock, so a race is set up, not hoped for.
+ *
+ * decisions/077-nickname.md
+ */
 async function waitForABlockedQuery() {
   for (let attempt = 0; attempt < 200; attempt += 1) {
     const [row] = await db.execute<{ waiting: number }>(
@@ -33,6 +37,8 @@ async function waitForABlockedQuery() {
 /**
  * Another save of the user's, as `saveNickname` makes it, stopped after its
  * write and before its commit until `commit` is called.
+ *
+ * decisions/077-nickname.md
  */
 async function saveHeldOpen(userId: string, nickname: string) {
   let release: () => void = () => {};

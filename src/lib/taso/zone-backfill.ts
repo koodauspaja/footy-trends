@@ -20,6 +20,8 @@ import { synchronizeGroupLevels } from "./taso-sync";
 /**
  * One TASO request every three seconds: slower than the full backfill's pace,
  * since this run is one-off and has no deadline.
+ *
+ * decisions/063-competition-zones.md
  */
 export const ZONE_BACKFILL_PER_MINUTE = 20;
 
@@ -40,6 +42,8 @@ function reasonOf(error: unknown): string {
  * Runs the backfill and says what it did, one line a season through `report`
  * and one log line at the end. A season that cannot be read is reported and
  * left as it was.
+ *
+ * decisions/063-competition-zones.md
  */
 export async function backfillZones(
   pace: Paced,

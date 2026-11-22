@@ -40,7 +40,11 @@ function push(branch: string, sha: string): string {
   return `refs/heads/${branch} ${sha} refs/heads/${branch} ${ZERO}\n`;
 }
 
-/** A repository where only `CURRENT` contains origin/main. */
+/**
+ * A repository where only `CURRENT` contains origin/main.
+ *
+ * decisions/806-push-and-pr-hooks.md
+ */
 function repository({ fetches = true, branch = "chore/806-x" } = {}): Git & { calls: string[][] } {
   const calls: string[][] = [];
   const git = ((args: readonly string[]) => {

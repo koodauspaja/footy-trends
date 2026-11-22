@@ -48,6 +48,8 @@ function statusOf(environments: Environment[], services: string[] = []): string 
 /**
  * A Railway that holds `environments`, records every call, and answers
  * `status` from `statuses` in turn when a test needs the answer to change.
+ *
+ * decisions/522-railway-environment-from-code.md
  */
 function fake({
   environments = [],

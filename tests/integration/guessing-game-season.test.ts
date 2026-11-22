@@ -29,7 +29,11 @@ const FIRST_MATCH_ID = 9_400_000;
 const PLAYER = "itest-season-player";
 const OTHER = "itest-season-other";
 const PLAYERS = [PLAYER, OTHER];
-/** The season's twelve teams, TASO ids 1 to 12, the table's order by id. */
+/**
+ * The season's twelve teams, TASO ids 1 to 12, the table's order by id.
+ *
+ * decisions/075-season-guesses.md
+ */
 const TEAMS = Array.from({ length: 12 }, (_, index) => index + 1);
 
 let nextMatchId = FIRST_MATCH_ID;

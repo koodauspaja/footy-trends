@@ -11,7 +11,11 @@ import { testDatabaseUrl } from "./test-database";
  * decisions/695-ux-sweep.md
  */
 
-/** better-auth's session cookie, as named over plain HTTP on localhost. */
+/**
+ * better-auth's session cookie, as named over plain HTTP on localhost.
+ *
+ * decisions/695-ux-sweep.md
+ */
 export const SESSION_COOKIE = "better-auth.session_token";
 
 /**

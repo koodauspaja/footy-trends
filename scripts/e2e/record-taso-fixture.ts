@@ -40,7 +40,11 @@ import {
 
 const OUTPUT = "tests/e2e/fixtures/taso-domestic.json.gz";
 
-/** Held for the whole recording, so a second one refuses to start rather than race it. */
+/**
+ * Held for the whole recording, so a second one refuses to start rather than race it.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
 const LOCK = `${OUTPUT}.lock`;
 
 async function main(): Promise<void> {

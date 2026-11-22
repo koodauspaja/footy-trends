@@ -39,7 +39,11 @@ export const COMPETITION = "VL";
 
 export const FINISHED = "FINISHED";
 
-/** The regular season's group; any other group of a season came out of the split. */
+/**
+ * The regular season's group; any other group of a season came out of the split.
+ *
+ * decisions/072-match-guesses.md
+ */
 export const REGULAR_SEASON_GROUP = 1;
 
 export type Client = Pick<typeof db, "select" | "insert" | "update">;

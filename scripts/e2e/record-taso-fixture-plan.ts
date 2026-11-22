@@ -16,7 +16,11 @@ import {
  * decisions/674-e2e-on-an-empty-database.md
  */
 
-/** One `taso_matches` row, as the recorder selects it. */
+/**
+ * One `taso_matches` row, as the recorder selects it.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
 export type StoredMatch = {
   competitionId: string;
   categoryId: string;
@@ -40,7 +44,11 @@ export type StoredMatch = {
   halfTimeAway: number | null;
 };
 
-/** One `taso_group_teams` row, as the recorder selects it. */
+/**
+ * One `taso_group_teams` row, as the recorder selects it.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
 export type StoredGroupTeam = {
   competitionId: string;
   categoryId: string;
@@ -61,7 +69,11 @@ export type StoredGroupTeam = {
   finalGroupStanding: number | null;
 };
 
-/** One `taso_group_zones` row, as the recorder selects it. */
+/**
+ * One `taso_group_zones` row, as the recorder selects it.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
 export type StoredZone = {
   competitionId: string;
   categoryId: string;
@@ -77,6 +89,8 @@ type ByCategory<T> = Record<string, Record<string, T>>;
 /**
  * What the stand-in replays: `getCompetitions`, and per competition id
  * `getCategories`, `getMatches` and `getCategory`.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
  */
 export type RecordedFixture = {
   competitions: TasoCompetition[];
@@ -85,7 +99,11 @@ export type RecordedFixture = {
   groups: ByCategory<TasoGroup[]>;
 };
 
-/** Which rows are recorded: no national-team bucket, and nothing the suite seeds itself. */
+/**
+ * Which rows are recorded: no national-team bucket, and nothing the suite seeds itself.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
 export type Selection = {
   earliestSeason: number;
   latestSeason: number;
@@ -97,6 +115,8 @@ type Row = { competitionId: string; categoryId: string; seasonId: number };
 /**
  * Whether a row belongs in the recording. A season outside the real range is an
  * integration test's leftover, and the national-team buckets have their own fixture.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
  */
 export function isRecorded(row: Row, selection: Selection): boolean {
   const { seeded } = selection;
@@ -114,6 +134,8 @@ export function isRecorded(row: Row, selection: Selection): boolean {
 /**
  * Refuses a stand-in run's database as the recording's source: its TASO rows are
  * the recording replayed, and a stand-in run clears them before each run.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
  */
 export function refuseStandInSource(databaseName: string): void {
   if (/_stand_in_\d+_test$/.test(databaseName)) {
@@ -121,12 +143,18 @@ export function refuseStandInSource(databaseName: string): void {
   }
 }
 
-/** Where the e2e specs' own match ids start, far above any TASO uses. */
+/**
+ * Where the e2e specs' own match ids start, far above any TASO uses.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
 const FIRST_SYNTHETIC_MATCH_ID = 999_000_000;
 
 /**
  * Whether a stored match came from TASO, not from an e2e spec that seeded it
  * and has not yet removed it.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
  */
 export function isProviderMatch(row: Pick<StoredMatch, "tasoMatchId">): boolean {
   return row.tasoMatchId < FIRST_SYNTHETIC_MATCH_ID;
@@ -200,6 +228,8 @@ function toProviderTeam(row: StoredGroupTeam): TasoGroupTeam {
  * One category's groups as `getCategory` sent them: every group with a team row
  * or a zone, its teams in the order given, its zones as the ten counts and labels
  * `normalizeGroupLevels` reads, and its name from its matches when it has any.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
  */
 export function toProviderGroups(
   teams: StoredGroupTeam[],
@@ -236,7 +266,11 @@ export function toProviderGroups(
   });
 }
 
-/** A competition and category as one key, however either id is spelled. */
+/**
+ * A competition and category as one key, however either id is spelled.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
 function key(row: Row): string {
   return JSON.stringify([row.competitionId, row.categoryId]);
 }
@@ -255,6 +289,8 @@ function groupBy<T extends Row>(rows: T[]): Map<string, T[]> {
  * The fixture for the rows given, already selected: only lists with stored rows,
  * and names that are not empty, Redis's first and then the previous recording's.
  * Throws on no matches, and on a competition id spanning two seasons.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
  */
 export function buildFixture(input: {
   matches: StoredMatch[];
@@ -325,6 +361,8 @@ export function buildFixture(input: {
  * The category names one Redis entry holds, as `getSeasonCategoryName` cached
  * them: a JSON object of names. Anything else throws, naming the entry, rather
  * than reaching the fixture as names.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
  */
 export function parseCategoryNames(key: string, raw: string): Record<string, string> {
   const refusal = `${key} in Redis is not a map of category names`;
@@ -343,7 +381,11 @@ export function parseCategoryNames(key: string, raw: string): Record<string, str
   return parsed as Record<string, string>;
 }
 
-/** Each competition id's one season, or a throw naming the competition that holds two. */
+/**
+ * Each competition id's one season, or a throw naming the competition that holds two.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
 function seasonOfEachCompetition(rows: Row[]): Map<string, number> {
   const seasons = new Map<string, number>();
   for (const row of rows) {
@@ -383,6 +425,8 @@ function hasNames(names: Record<string, string>): boolean {
  * What a new recording changes against the one it replaces, a line per list,
  * set of names or `getCompetitions` entry added, removed or recounted, for a
  * person to check: a season appearing unasked is an integration test's leftover.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
  */
 export function summariseChanges(
   previous: RecordedFixture | null,
@@ -406,10 +450,18 @@ export function summariseChanges(
     });
 }
 
-/** One list, set of names or listed season: its size to show, its contents to compare. */
+/**
+ * One list, set of names or listed season: its size to show, its contents to compare.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
 type Described = { text: string; content: string };
 
-/** Each list, set of names and listed competition in a fixture, by a readable id. */
+/**
+ * Each list, set of names and listed competition in a fixture, by a readable id.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
 function describeEach(fixture: RecordedFixture): Map<string, Described> {
   const described = new Map<string, Described>();
   const add = (id: string, text: string, value: unknown) =>
