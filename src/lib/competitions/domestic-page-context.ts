@@ -53,8 +53,13 @@ export function parseTasoSeasonParam(
 }
 
 export type DomesticPageContext = {
-  /** The discovered season: the selector ceiling, and what `needsRefresh` treats as current. */
+  /** The discovered season: the selector's ceiling. */
   currentSeason: number;
+  /**
+   * The newest season with matches, played or scheduled: what the analytics,
+   * the forecasts and `needsRefresh` treat as current.
+   */
+  activeSeason: number;
   competitionCode: string;
   competitionParam: DomesticCompetitionParamResult;
   competitionName: string;
@@ -87,6 +92,7 @@ export type DomesticPageContext = {
  * decisions/011-current-season-discovery.md
  * decisions/020-context-free-team-page.md
  * decisions/024-account-settings.md
+ * decisions/865-active-season-has-matches.md
  */
 export async function resolveDomesticPageContext(
   params: Record<string, string | string[] | undefined>,
@@ -126,7 +132,7 @@ export async function resolveDomesticPageContext(
     categoryId,
     competitionId,
     seasonId,
-    currentSeason
+    defaultSeason
   );
   const seasonCompetitionName = publishedName ?? competitionName;
   const renamedTo =
@@ -134,6 +140,7 @@ export async function resolveDomesticPageContext(
 
   return {
     currentSeason,
+    activeSeason: defaultSeason,
     competitionCode,
     competitionParam,
     competitionName,

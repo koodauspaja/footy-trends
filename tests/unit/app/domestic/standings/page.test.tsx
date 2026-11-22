@@ -643,6 +643,22 @@ describe("Domestic standings page, cup competitions", () => {
     expect(screen.getByRole("region", { name: "Cupin ennuste" })).toBeInTheDocument();
   });
 
+  it("forecasts the newest season with matches while TASO's newest has none", async () => {
+    canSeeAnalyticsMock.mockResolvedValue(true);
+    getCupForecastMock.mockResolvedValue({ status: "no-fixtures" });
+    getSeasonStandingsMock.mockResolvedValue({ status: "ok", levels: [], groups: closingRounds });
+    resolveTasoSeasonContextMock.mockResolvedValueOnce({
+      currentSeason: 2027,
+      defaultSeason: 2026,
+    });
+
+    await renderStandings({ kilpailu: "MSC", kausi: "2025" });
+
+    expect(getCupForecastMock).toHaveBeenCalledWith("MSC", 2025, 2026);
+    expect(competitionAnalyticsMock.mock.calls[0]?.[0]).toMatchObject({ activeSeasonId: 2026 });
+    expect(listSeasonRoundsMock).toHaveBeenCalledWith("MSC", expect.any(String), 2025, 2026);
+  });
+
   it("has no cup forecast for a signed-out reader, and does not read one", async () => {
     getSeasonStandingsMock.mockResolvedValue({ status: "ok", levels: [], groups: closingRounds });
 

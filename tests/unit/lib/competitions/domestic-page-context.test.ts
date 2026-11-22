@@ -109,6 +109,16 @@ describe("resolveDomesticPageContext", () => {
     expect(context.selectableSeasons[0]).toEqual({ seasonId: 2027, label: "2027" });
   });
 
+  it("treats the newest season with matches as active while the ceiling's has none", async () => {
+    resolveTasoSeasonContextMock.mockResolvedValue({ currentSeason: 2027, defaultSeason: 2026 });
+
+    const context = await resolveDomesticPageContext({ kausi: "2027" });
+
+    expect(context.currentSeason).toBe(2027);
+    expect(context.activeSeason).toBe(2026);
+    expect(getSeasonCategoryNameMock).toHaveBeenCalledWith("VL", "spljp27", 2027, 2026);
+  });
+
   it("defaults to Veikkausliiga and the latest season with no params", async () => {
     const context = await resolveDomesticPageContext({});
 

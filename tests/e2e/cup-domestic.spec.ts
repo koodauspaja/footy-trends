@@ -33,6 +33,14 @@ async function openCupSeason(page: Page) {
   await expect(page.locator("details table").first()).toBeVisible();
 }
 
+// Every year from the newest offered down to the competition's first, newest
+// first: the top is whatever TASO lists by now, so only the floor is named.
+function seasonsDownTo(offered: string[], first: number) {
+  const newest = Number(offered[0]);
+  expect(newest).toBeGreaterThanOrEqual(2026);
+  return Array.from({ length: newest - first + 1 }, (_, index) => String(newest - index));
+}
+
 test.describe("Finnish cups", () => {
   test("lists the four cups in the competition picker", async ({ page }) => {
     await page.goto("/kotimaa");
@@ -164,14 +172,14 @@ test.describe("Finnish cups", () => {
     await page.goto("/kotimaa/sarjataulukko?kilpailu=LC");
 
     const years = await page.getByLabel("Kausi").locator("option").allTextContents();
-    expect(years).toEqual(["2026", "2025", "2024", "2023"]);
+    expect(years).toEqual(seasonsDownTo(years, 2023));
   });
 
   test("offers only the seasons Ykkösliigacup actually has", async ({ page }) => {
     await page.goto("/kotimaa/sarjataulukko?kilpailu=M1LCUP");
 
     const years = await page.getByLabel("Kausi").locator("option").allTextContents();
-    expect(years).toEqual(["2026", "2025", "2024"]);
+    expect(years).toEqual(seasonsDownTo(years, 2024));
   });
 
   test("opens only the latest round on a phone, sparing it every match", async ({ page }) => {

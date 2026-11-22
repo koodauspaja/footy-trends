@@ -92,6 +92,7 @@ async function resolveTeamPage({
     competitionParam,
     competitionName,
     currentSeason,
+    activeSeason,
     season,
     seasonId,
     seasonLabel,
@@ -101,7 +102,7 @@ async function resolveTeamPage({
     competitionId,
     teamProviderId,
     seasonId,
-    currentSeason
+    activeSeason
   );
   const [firstMatch] = result.status === "ok" ? result.matches : [];
   const { name, seasons } = await resolveTeamIdentity(SOURCE, teamProviderId, firstMatch);
@@ -143,18 +144,18 @@ async function resolveTeamPage({
       // The same season wording the selector above the panel uses, so a
       // record names a season the way the rest of the page does.
       loadRecords: () =>
-        getTeamStreakRecords(competitionCode, teamProviderId, currentSeason, played, String),
+        getTeamStreakRecords(competitionCode, teamProviderId, activeSeason, played, String),
       // By competition code, not by TASO category: the comparison reads many
       // seasons, and a category id belongs to one.
       loadComparison: () =>
-        getTeamSeasonComparison(competitionCode, teamProviderId, seasonId, currentSeason, played),
+        getTeamSeasonComparison(competitionCode, teamProviderId, seasonId, activeSeason, played),
       // The club's latest league season only; a cup page has no block.
       loadSummary: (seasons) =>
         getTeamSeasonSummary(
           competitionCode,
           teamProviderId,
           seasonId,
-          currentSeason,
+          activeSeason,
           seasons,
           String
         ),
@@ -168,11 +169,11 @@ async function resolveTeamPage({
               competitionId,
               teamProviderId,
               seasonId,
-              currentSeason
+              activeSeason
             ),
       // The six result panels, over one read of the season's matches.
       ...teamPanelLoaders({ teamProviderId, categoryId, competitionId, seasonId }, () =>
-        getTeamPanelMatches(categoryId, competitionId, teamProviderId, seasonId, currentSeason)
+        getTeamPanelMatches(categoryId, competitionId, teamProviderId, seasonId, activeSeason)
       ),
       // Every competition in /kotimaa and every stored season, whatever season is
       // shown.
