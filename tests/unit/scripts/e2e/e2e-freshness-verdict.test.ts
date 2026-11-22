@@ -124,6 +124,16 @@ describe("checkoutFreshness", () => {
     });
   });
 
+  it("names every key as missing when the checkout has no .env", () => {
+    const { checkout } = deps();
+
+    const { verdict } = checkoutFreshness(TOP, null, checkout);
+
+    expect(verdict.kind).toBe("warn");
+    expect(verdict.message).toContain("FOOTBALL_DATA_API_KEY is not set");
+    expect(verdict.message).toContain("TASO_HASH_SALT is not set, and E2E_TASO_STUB is not 1");
+  });
+
   it("reads the keys from .env, and lets the process's own environment win", () => {
     const { checkout } = deps(
       { "/repo/.env": "FOOTBALL_DATA_API_KEY=k\nTASO_API_KEY=k\nTASO_HASH_SALT=s\n" },

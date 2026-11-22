@@ -61,10 +61,8 @@ function changesSince(files: string[], deps: FreshnessDeps): string[] {
 }
 
 /**
- * The checkout at `top` judged as the pre-push hook judges a push: changes
- * from `origin/main` only in documentation pass, and otherwise a passing full
- * run must vouch for the working tree, unless e2e cannot run here at all.
- * `changed` is `null` when what changed is unknown.
+ * The checkout at `top` judged as the pre-push hook judges a push. `changed` is
+ * what it changes from `origin/main`, or `null` when that is unknown.
  *
  * decisions/084-e2e-freshness-before-push.md
  * decisions/661-e2e-freshness-skips-documentation.md

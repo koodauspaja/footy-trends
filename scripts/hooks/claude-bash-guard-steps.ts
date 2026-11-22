@@ -107,13 +107,13 @@ async function boxRefusals(body: string, deps: GuardDeps): Promise<string[]> {
 
 /**
  * The refusal for `action` in `cwd` when no passing full e2e run covers it, or
- * `null`. Only a `block` refuses: when e2e cannot run here, it does not.
+ * `null`. There is a reason only for a `block`: where e2e cannot run, none.
  *
  * decisions/837-e2e-before-a-pull-request-and-a-review.md
  */
 function freshnessRefusal(action: string, cwd: string, deps: GuardDeps): string | null {
-  const { verdict, reason } = deps.freshness(cwd);
-  return verdict.kind === "block" ? staleRefusal(action, reason ?? "") : null;
+  const { reason } = deps.freshness(cwd);
+  return reason === null ? null : staleRefusal(action, reason);
 }
 
 /**

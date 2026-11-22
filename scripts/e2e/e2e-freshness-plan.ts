@@ -65,10 +65,8 @@ export function pushedCommits(stdin: string): string[] | null {
 }
 
 /**
- * Whether a push is a branch's first: some ref it sends is not on the remote
- * yet, which git gives as a remote sha of zeros. A line not in git's shape, or
- * no line at all as when the hook is run by hand, counts as a first push, so
- * the full check runs.
+ * Whether a push is a branch's first: some ref has a remote sha of zeros. No
+ * ref line, or one not in git's shape, counts as first, so the full check runs.
  *
  * decisions/837-e2e-before-a-pull-request-and-a-review.md
  */
