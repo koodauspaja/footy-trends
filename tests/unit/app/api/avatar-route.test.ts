@@ -91,7 +91,11 @@ describe("GET /api/avatar/me", () => {
 
 const SITE = "footy-trends.example.com";
 
-/** A body that counts how many chunks were pulled from it. */
+/**
+ * A body that counts how many chunks were pulled from it.
+ *
+ * decisions/810-avatar-upload-route.md
+ */
 function countingBody(chunks: Uint8Array[]) {
   const pulled = { count: 0, cancelled: false };
   const body = new ReadableStream<Uint8Array>(

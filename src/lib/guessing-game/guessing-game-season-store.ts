@@ -425,10 +425,9 @@ const GROUP_MATCHES: Readonly<Record<SeasonGroup, number>> = {
 };
 
 /**
- * Whether a group's whole format has been played: as many matches as it has
- * that the standings page's table counts, finished with a score, so a schedule
- * stored in part, an abandoned match never replayed, or a forfeit with no score
- * leaves it unplayed.
+ * Whether a group's whole format has been played: as many matches as the standings page's table
+ * counts, finished with a score. A schedule stored in part, an abandoned match never replayed, or a
+ * forfeit with no score leaves it unplayed.
  *
  * decisions/075-season-guesses.md
  */

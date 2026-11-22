@@ -39,7 +39,11 @@ export const COMPETITION = "VL";
 
 export const FINISHED = "FINISHED";
 
-/** The regular season's group; any other group of a season came out of the split. */
+/**
+ * The regular season's group; any other group of a season came out of the split.
+ *
+ * decisions/072-match-guesses.md
+ */
 export const REGULAR_SEASON_GROUP = 1;
 
 export type Client = Pick<typeof db, "select" | "insert" | "update">;
@@ -525,11 +529,9 @@ function refused(
 }
 
 /**
- * Makes or changes a player's guess on one match of the season the page shows,
- * with its ledger row, in one transaction. The player's row is locked first, so
- * two guesses sent at once are decided one after the other and never spend the
- * same tokens, and the clock is read once the lock is held. A guess whose price
- * is no longer the one the page showed is refused, never charged.
+ * Makes or changes a player's guess on one match, with its ledger row, in one transaction. The row
+ * is locked first and the clock read after, so two guesses at once never spend the same tokens; a
+ * guess whose price is no longer the one shown is refused, never charged.
  *
  * decisions/072-match-guesses.md
  * decisions/076-guesses-on-irregular-matches.md

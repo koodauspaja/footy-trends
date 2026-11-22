@@ -91,11 +91,9 @@ test.describe("League position chart, signed in", () => {
   test("continues a Kakkonen pool through its split, below that pool's upper group", async ({
     page,
   }) => {
-    // Kakkonen 2024: three pools, each split into its own upper and lower continuation.
-    // A lower-group team's line carries on past the split, at its place in its
-    // continuation plus its pool's upper group, as the standings page has it.
-    // A season long over, whose tables at the provider no longer move: in the days
-    // after a season ends they lag its results and differ from one read to the next.
+    // Kakkonen 2024: three pools, each split in two continuations; a lower-group line goes on past
+    // the split at its place plus its pool's upper group, as the standings page has it. Long over:
+    // just after a season ends, the provider's tables shift.
     const standings = "/kotimaa/sarjataulukko?kilpailu=M2&kausi=2024";
     const tableUnder = (name: string) =>
       page.getByRole("heading", { name, level: 2 }).locator("xpath=following::table[1]");
@@ -138,10 +136,9 @@ test.describe("League position chart, rounds a team sat out", () => {
   });
 
   test("fills a point only for a round the team played in", async ({ page }) => {
-    // Kakkonen 2024's pool B had eleven teams, so each sat out two of its 22
-    // rounds before the split. Checked against the standings page, not
-    // hardcoded rounds: each match played fills one point, and the legend
-    // follows. A season long over, whose table no longer trails its results.
+    // Kakkonen 2024's pool B had eleven teams, so each sat out two of its 22 rounds before the
+    // split. Checked against the standings page, not hardcoded rounds: each match played fills one
+    // point and the legend follows. A season long over, whose table no longer trails its results.
     await page.goto("/kotimaa/sarjataulukko?kilpailu=M2&kausi=2024");
     const table = page.getByRole("heading", { name: "Ylempi jatkosarja B", level: 2 });
     const row = table.locator("xpath=following::table[1]").locator("tbody tr").first();

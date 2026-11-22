@@ -7,10 +7,9 @@ import { SiteHeader } from "@/components/site-header";
 import { useSession } from "@/lib/auth/auth-client";
 
 /**
- * The header, the team search and the star read the sign-in state on their
- * first render, and hydrate cleanly even when the browser already holds a
- * session. `@/lib/auth/auth-client` is the real one here, because the hydration
- * snapshot under test is better-auth's.
+ * The header, the team search and the star read the sign-in state on first render, and hydrate
+ * cleanly when the browser already holds a session. `@/lib/auth/auth-client` is the real one: the
+ * hydration snapshot under test is better-auth's.
  *
  * decisions/535-session-read-needs-no-hydration-wait.md
  */

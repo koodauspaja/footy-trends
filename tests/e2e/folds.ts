@@ -8,7 +8,11 @@ import type { Locator, Page } from "@playwright/test";
  * decisions/071-section-toggles.md
  */
 
-/** The `<details>` in the region a heading names. */
+/**
+ * The `<details>` in the region a heading names.
+ *
+ * decisions/071-section-toggles.md
+ */
 export function fold(page: Page, name: string): Locator {
   return page.getByRole("region", { name, exact: true }).locator(":scope > details");
 }
@@ -17,7 +21,11 @@ export async function isOpen(details: Locator): Promise<boolean> {
   return details.evaluate((element) => (element as HTMLDetailsElement).open);
 }
 
-/** Opens each fold the headings name, in order, leaving an open one as it is. */
+/**
+ * Opens each fold the headings name, in order, leaving an open one as it is.
+ *
+ * decisions/071-section-toggles.md
+ */
 export async function openFolds(page: Page, ...names: string[]): Promise<void> {
   for (const name of names) {
     const details = fold(page, name);
@@ -25,14 +33,22 @@ export async function openFolds(page: Page, ...names: string[]): Promise<void> {
   }
 }
 
-/** Opens every fold on the page at once, for a spec that measures all of it. */
+/**
+ * Opens every fold on the page at once, for a spec that measures all of it.
+ *
+ * decisions/071-section-toggles.md
+ */
 export async function openEveryFold(page: Page): Promise<void> {
   await page.evaluate(() => {
     for (const details of document.querySelectorAll("details")) details.open = true;
   });
 }
 
-/** Opens `Analyysit` and every group inside it, for a spec reading its panels. */
+/**
+ * Opens `Analyysit` and every group inside it, for a spec reading its panels.
+ *
+ * decisions/071-section-toggles.md
+ */
 export async function openAnalytics(page: Page): Promise<void> {
   await openFolds(page, "Analyysit");
   await fold(page, "Analyysit").evaluate((analytics) => {

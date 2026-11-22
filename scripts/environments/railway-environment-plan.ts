@@ -87,10 +87,9 @@ export function findTarget(status: unknown, name: string): Target | null {
 }
 
 /**
- * Why the new databases cannot be built, or `null` when they can: the project
- * already holds a service under one of their names, which Railway would add an
- * instance of instead of building a database. Throws on an answer that lists
- * no services: unreadable is not none.
+ * Why the new databases cannot be built, or `null`: the project already holds a service under one
+ * of their names, which Railway would add an instance of instead of building a database. An answer
+ * listing no services throws: unreadable is not none.
  *
  * decisions/522-railway-environment-from-code.md
  */
@@ -166,10 +165,9 @@ const reference = (variable: string) => `$\{{${variable}}}`;
 export type Variables = { ok: true; variables: Variable[] } | { ok: false; missing: string[] };
 
 /**
- * Every variable the web service is given, or the required ones that are
- * missing. The two addresses, of this environment's own databases, and the
- * site's own are references Railway resolves; `secret` is this environment's
- * own `BETTER_AUTH_SECRET`.
+ * Every variable the web service is given, or the required ones missing. The two database addresses
+ * and the site's own are references Railway resolves; `secret` is this environment's own
+ * `BETTER_AUTH_SECRET`.
  *
  * decisions/522-railway-environment-from-code.md
  */

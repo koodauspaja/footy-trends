@@ -69,7 +69,11 @@ describe("scripts/hooks/up-to-date.ts", () => {
   });
 });
 
-/** Each test starts real processes, `tsx` among them, which a busy machine slows. */
+/**
+ * Each test starts real processes, `tsx` among them, which a busy machine slows.
+ *
+ * decisions/806-push-and-pr-hooks.md
+ */
 const SPAWN_TIMEOUT = { timeout: 30_000 };
 
 describe("scripts/hooks/claude-bash-guard.sh", SPAWN_TIMEOUT, () => {

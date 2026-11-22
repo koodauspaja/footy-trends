@@ -146,10 +146,9 @@ function tasoRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
-// The run's reads, in order: the candidates before and after refreshing, then
-// the finished matches its Elo replay and Poisson fit read (none here unless given) —
-// football-data, then TASO, each time — and last the backtest rows already
-// written, which its backtest step reads.
+// The run's reads, in order: the candidates before and after refreshing, the finished matches its
+// Elo replay and Poisson fit read (none unless given), football-data then TASO each time, and last
+// the backtest rows already written, which its backtest step reads.
 function stored(
   footballData: unknown[],
   taso: unknown[],

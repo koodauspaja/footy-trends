@@ -171,10 +171,9 @@ export function filteredSentence(name: string): string {
 const score = (value: number) => formatDecimal(value, SCORE_DECIMALS);
 
 /**
- * The page's parameters, as Next gives them: `alue`, `tyyppi`, `kilpailu` and
- * `mallit`, the defaults `kotimaa`, backtest, every competition and
- * `DEFAULT_DRAWN`. A repeated one is an array, and falls back, as does a
- * `kilpailu` that is not one of the provider's compared competitions.
+ * The page's parameters as Next gives them: `alue`, `tyyppi`, `kilpailu` and `mallit`, defaulting
+ * to `kotimaa`, backtest, every competition and `DEFAULT_DRAWN`. A repeated one is an array and
+ * falls back, as does a `kilpailu` not among the provider's compared competitions.
  *
  * decisions/054-prediction-quality.md
  * decisions/056-accuracy-by-competition.md
@@ -571,10 +570,9 @@ function Body({
 }
 
 /**
- * `/ennusteet`: the models judged against the results, one
- * provider and one kind at a time, over all its competitions or one, its charts
- * drawing the models chosen. Signed in only, the gate asked before anything is
- * read.
+ * `/ennusteet`: the models judged against the results, one provider and one kind at a time, over
+ * all its competitions or one, its charts drawing the models chosen. Signed in only, the gate asked
+ * before anything is read.
  *
  * decisions/054-prediction-quality.md
  * decisions/056-accuracy-by-competition.md

@@ -1,11 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * Arvauspeli's server actions: a request with no session, or with a match id or
- * guess that is not one, stores nothing; the store's refusals reach the browser
- * as the three a reader is told, and everything else as a failure to retry.
- * A season guess's refusals reach it the same way, two told and the rest a
- * failure.
+ * Arvauspeli's server actions: no session, or a match id or guess that is not one, stores nothing;
+ * the store's refusals reach the browser as the three a reader is told, all else as a failure to
+ * retry. A season guess's refusals do the same, two told and the rest a failure.
  *
  * decisions/072-match-guesses.md
  * decisions/075-season-guesses.md

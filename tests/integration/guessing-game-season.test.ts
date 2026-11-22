@@ -9,11 +9,9 @@ import {
 import { joinGame } from "@/lib/guessing-game/guessing-game-store";
 
 /**
- * Arvauspeli's season guesses against a real Postgres: placing pays once, a
- * change is free, the lock, settling once by the season's tables, and the void
- * with the next season, in seasons of their own. The tables are the standings
- * page's, stood in for here: that path reads TASO, with its own freshness
- * rules, which these tests leave as they are.
+ * Arvauspeli's season guesses against a real Postgres: placing pays once, a change is free, the
+ * lock, settling once by the season's tables and the void with the next season. The tables are
+ * stood in for: the standings page's path reads TASO, with its own freshness rules.
  *
  * decisions/075-season-guesses.md
  */
@@ -29,7 +27,11 @@ const FIRST_MATCH_ID = 9_400_000;
 const PLAYER = "itest-season-player";
 const OTHER = "itest-season-other";
 const PLAYERS = [PLAYER, OTHER];
-/** The season's twelve teams, TASO ids 1 to 12, the table's order by id. */
+/**
+ * The season's twelve teams, TASO ids 1 to 12, the table's order by id.
+ *
+ * decisions/075-season-guesses.md
+ */
 const TEAMS = Array.from({ length: 12 }, (_, index) => index + 1);
 
 let nextMatchId = FIRST_MATCH_ID;

@@ -52,7 +52,12 @@ const STALE: Freshness = {
 };
 const CANNOT_RUN: Freshness = { verdict: { kind: "warn", message: "Warning" }, reason: null };
 
-/** A checkout and its issues, as the hook would find them. */
+/**
+ * A checkout and its issues, as the hook would find them.
+ *
+ * decisions/806-push-and-pr-hooks.md
+ * decisions/837-e2e-before-a-pull-request-and-a-review.md
+ */
 function deps({
   head = PUSHED,
   upstream = PUSHED as string | null,

@@ -77,10 +77,9 @@ export function generationKey({ kind, code, seasonId }: ComputedFrom): string {
 }
 
 /**
- * `getCachedUnlessDegraded` for an entry computed from a competition-season's
- * stored rows: its key carries the generation read before the rows are, so an
- * entry computed before a forced refresh is stored where nothing reads it.
- * Without a generation the entry is computed and not stored.
+ * `getCachedUnlessDegraded` for an entry computed from a competition-season's stored rows: its key
+ * carries the generation read before the rows, so an entry computed before a forced refresh is
+ * stored where nothing reads it. Without a generation it is computed and not stored.
  *
  * decisions/691-computed-cache-generations.md
  */

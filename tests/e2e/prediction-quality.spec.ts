@@ -5,10 +5,9 @@ import { dropCached } from "../support/e2e-redis";
 import { testDatabaseUrl } from "../support/test-database";
 
 /**
- * `/ennusteet`, end to end. Signed in the way league-position.spec.ts explains. Whether
- * judged predictions are stored depends on what ran before, so one per model is seeded, on a
- * finished Veikkausliiga match in 2098. Whatever else is stored joins them, so no figure is
- * named.
+ * `/ennusteet`, end to end, signed in the way league-position.spec.ts explains. Judged predictions
+ * stored depend on what ran before, so one per model is seeded on a finished Veikkausliiga match in
+ * 2098; whatever else is stored joins them, so no figure is named.
  *
  * decisions/054-prediction-quality.md
  * decisions/055-poisson-goal-model.md

@@ -21,10 +21,9 @@ const HEADING = "Kauden ennuste";
 const NO_FIXTURES = "Kaudella ei ole enää pelaamattomia otteluita.";
 const CHANCE = /^(<\s1|>\s99|\d{1,3})\s%$/;
 
-// The fit and the forecasts are cached for 15 minutes. On a database that held
-// none of a league's matches when another spec had the fit made, the fit has
-// no such competition and the page no panel, so both are dropped once the
-// seasons are stored.
+// The fit and forecasts are cached for 15 minutes. A fit another spec had made while the database
+// held none of a league's matches has no such competition, and the page no panel, so both are
+// dropped once the seasons are stored.
 async function dropCaches() {
   await dropCached("poisson:v1:football-data", "forecast:v4:football-data:*");
 }

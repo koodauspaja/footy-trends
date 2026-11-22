@@ -16,6 +16,8 @@ export type ZoneKind = "cup" | "promotion" | "playoff" | "relegation";
 
 /**
  * One level as stored: the places it takes, and its label when it has one.
+ *
+ * decisions/063-competition-zones.md
  */
 export type ZoneLevel = {
   level: number;
@@ -26,6 +28,8 @@ export type ZoneLevel = {
 
 /**
  * A labelled stretch of the table, by the first and last position it covers.
+ *
+ * decisions/063-competition-zones.md
  */
 export type Zone = {
   from: number;
@@ -46,6 +50,8 @@ const NO_ZONES: GroupZones = { zones: [], ruleAfter: [] };
  * A group's zones on a table of `rowCount` rows. Positions are handed out from
  * the top in level order, an unlabelled level included; a group with no
  * labelled level on the table has neither zones nor rules.
+ *
+ * decisions/063-competition-zones.md
  */
 export function groupZones(levels: readonly ZoneLevel[], rowCount: number): GroupZones {
   const zones: Zone[] = [];
@@ -74,6 +80,8 @@ export function groupZones(levels: readonly ZoneLevel[], rowCount: number): Grou
 /**
  * A zone's line under the table: `Sija 1: …` for one position, `Sijat 3–8: …`
  * for several, then TASO's label as written.
+ *
+ * decisions/063-competition-zones.md
  */
 export function zoneLine(zone: Zone): string {
   const positions = zone.from === zone.to ? `Sija ${zone.from}` : `Sijat ${zone.from}–${zone.to}`;

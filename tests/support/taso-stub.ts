@@ -15,13 +15,21 @@ import { parseDatabaseUrl } from "../../src/lib/platform/test-database-name";
 
 type ByCategory<T> = Record<string, Record<string, T>>;
 
-/** What the stand-in replays: the recorder's shape, competitions and groups optional. */
+/**
+ * What the stand-in replays: the recorder's shape, competitions and groups optional.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
 type Fixture = Pick<RecordedFixture, "categories" | "matches"> &
   Partial<Pick<RecordedFixture, "competitions" | "groups">>;
 
 export type StubAnswer = { status: number; body: unknown };
 
-/** What the provider's refusal looks like to the app: a failed request. */
+/**
+ * What the provider's refusal looks like to the app: a failed request.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
 const REFUSED: StubAnswer = { status: 503, body: { error: "not in the fixture" } };
 
 /**
@@ -42,7 +50,11 @@ export function loadFixture(root: string = process.cwd()): Fixture {
   return mergeFixtures(national, domestic);
 }
 
-/** Two fixtures as one, refusing a competition id both of them record anything for. */
+/**
+ * Two fixtures as one, refusing a competition id both of them record anything for.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
 export function mergeFixtures(national: Fixture, domestic: Required<Fixture>): Fixture {
   const ids = (fixture: Fixture) => [
     ...Object.keys(fixture.matches),
@@ -63,6 +75,8 @@ export function mergeFixtures(national: Fixture, domestic: Required<Fixture>): F
 /**
  * The answer to one request, `path` being the URL's path and query as the app
  * sends it.
+ *
+ * decisions/672-e2e-without-the-provider.md
  */
 export function answer(fixture: Fixture, path: string): StubAnswer {
   const url = new URL(path, "http://stub.invalid");
@@ -105,13 +119,25 @@ export function answer(fixture: Fixture, path: string): StubAnswer {
   }
 }
 
-/** The Redis image `docker-compose.yml` runs, so the run's own matches development's. */
+/**
+ * The Redis image `docker-compose.yml` runs, so the run's own matches development's.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
 export const STAND_IN_REDIS_IMAGE = "redis:8-alpine";
 
-/** The start of the Docker volume names the stand-in run's Redis uses, one per port. */
+/**
+ * The start of the Docker volume names the stand-in run's Redis uses, one per port.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
 export const STAND_IN_REDIS_VOLUME_PREFIX = "footy-trends-e2e-redis";
 
-/** The start of the container's name, one per app port and so per stand-in database. */
+/**
+ * The start of the container's name, one per app port and so per stand-in database.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
 export const STAND_IN_CONTAINER_PREFIX = "footy-trends-e2e-stand-in";
 
 /**
@@ -151,6 +177,8 @@ export function standInDatabaseUrl(testUrl: string, appPort: number): string {
  * Whether a key in the stand-in run's Redis outlives the clear before a run:
  * football-data's answers only, which cost requests on the key staging and
  * production share. Everything else is TASO's or computed from stored rows.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
  */
 export function keptBetweenRuns(key: string): boolean {
   return key.startsWith("football-data:");
@@ -161,7 +189,11 @@ function recorded<T>(record: ByCategory<T>, competitionId: string, categoryId: s
   return categories === undefined ? undefined : ownEntry(categories, categoryId);
 }
 
-/** `record[key]` when the record itself has it, so `constructor` is not an id. */
+/**
+ * `record[key]` when the record itself has it, so `constructor` is not an id.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
 function ownEntry<T>(record: Record<string, T>, key: string): T | undefined {
   return Object.hasOwn(record, key) ? record[key] : undefined;
 }

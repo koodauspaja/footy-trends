@@ -6,10 +6,9 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 /**
- * `npm run predictions` against a database that cannot be connected to, run as
- * the process it is. The port belongs to a listener this file holds, which
- * resets every connection, and the working directory is empty, so no `.env` is
- * read.
+ * `npm run predictions`, run as the process it is, against a database it cannot connect to: the
+ * port belongs to a listener this file holds, which resets every connection, and the working
+ * directory is empty, so no `.env` is read.
  *
  * decisions/571-bounded-database-close.md
  */

@@ -6,11 +6,9 @@ import { SESSION_COOKIE, storeSignedInReader } from "../support/e2e-session";
 import { testDatabaseUrl } from "../support/test-database";
 
 /**
- * Arvauspeli's private groups as two readers meet them: one creates a group,
- * the other opens its link, joins the game and the group in one press, sees
- * both on the group's page and leaves; a renewed link refuses the old one, and
- * a reader outside the group gets the 404. One match of its own keeps the
- * season open, ids carrying the run's port.
+ * Arvauspeli's private groups as two readers meet them: one creates a group, the other joins game
+ * and group from its link, sees both and leaves; a renewed link refuses the old one, and an
+ * outsider gets the 404. One match of its own keeps the season open, ids carrying the run's port.
  *
  * decisions/078-private-groups.md
  * decisions/079-group-members-guesses.md

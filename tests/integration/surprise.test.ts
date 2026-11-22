@@ -9,10 +9,9 @@ import {
 } from "@/lib/predictions/surprise-service";
 
 /**
- * The surprise reads against a real Postgres, set in 1980 and 1981 so the
- * competition's first stored season is this suite's own. `predictions.test.ts`
- * deletes every backtest row around its tests; the integration files run one
- * at a time, so these rows are this suite's for as long as it needs them.
+ * The surprise reads against a real Postgres, set in 1980 and 1981 so the first stored season is
+ * this suite's. `predictions.test.ts` deletes every backtest row around its tests; the integration
+ * files run one at a time, so these rows stay this suite's while it needs them.
  *
  * decisions/057-surprise-index.md
  * decisions/066-season-summary.md

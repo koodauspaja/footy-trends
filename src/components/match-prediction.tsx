@@ -380,10 +380,9 @@ export async function predictsSides(
 }
 
 /**
- * The match page's `Ennuste`: the competition's home-win baseline and, beside
- * it, the Elo and Poisson predictions, on an upcoming match in a compared
- * competition, or nothing. Gated before anything is read; awaited by the page,
- * not rendered.
+ * The match page's `Ennuste`: the competition's home-win baseline beside the Elo and Poisson
+ * predictions, on an upcoming match in a compared competition, or nothing. Gated before anything is
+ * read; awaited by the page, not rendered.
  *
  * decisions/049-home-advantage-and-draw-rate.md
  * decisions/051-home-win-baseline.md

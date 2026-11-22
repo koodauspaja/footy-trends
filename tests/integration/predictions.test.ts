@@ -27,12 +27,9 @@ import { runPredictionBacktest, runPredictionLog } from "@/lib/predictions/predi
 import { getMatchSurprise } from "@/lib/predictions/surprise-service";
 
 /**
- * The predictions log against a real Postgres. The hourly run is set in 2099
- * and the backtest in 1990, so the live rows and the rows asserted on are this
- * suite's. Both also backtest every finished match stored, other suites'
- * included, so every backtest row in the database is deleted either side of
- * each test, with this suite's own rows. Their time follows what the database
- * holds, which an end-to-end run fills with whole seasons, so each test has 30 s.
+ * The predictions log against a real Postgres, the hourly run in 2099 and the backtest in 1990 so
+ * the rows asserted on are this suite's. Both backtest every stored match, so every backtest row is
+ * deleted around each test; an e2e run's whole seasons slow them, so each test has 30 s.
  *
  * decisions/051-home-win-baseline.md
  * decisions/052-predictions-log.md
