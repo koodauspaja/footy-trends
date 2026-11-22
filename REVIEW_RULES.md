@@ -44,7 +44,8 @@ Testing
 Comments
 - A comment says what the code beside it is for, in one to three lines, or a
   constraint the code cannot show. Then the decision records behind it, the
-  original feature's first and the later ones after it, oldest first:
+  original feature's first and the others after it; any other record added to a
+  comment goes below the ones already there, and nothing checks the order:
 
   ```ts
   /**
