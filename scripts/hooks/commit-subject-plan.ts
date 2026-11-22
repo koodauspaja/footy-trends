@@ -12,6 +12,7 @@
  * "check:sourcery says which kind of Sourcery review a head has", passes.
  *
  * decisions/841-commit-subject-gate.md
+ * decisions/856-review-round-needs-its-number.md
  */
 const PROCESS_PHRASES: readonly RegExp[] = [
   // "answer Sourcery's second review", "address review feedback", "respond to comments"
@@ -24,8 +25,8 @@ const PROCESS_PHRASES: readonly RegExp[] = [
   /\bfix\w*\s+(?:the\s+)?(?:finding|comment|issue|feedback)s?\s+(?:from|of)\s+(?:the\s+)?(?:\S+\s+)?review\b/i,
   // "apply suggestions", "applied Sourcery's review suggestions", "apply the review's suggestions"
   /\bappl(?:y|ie)\w*\s+(?:the\s+)?(?:(?:review|sourcery|sonar|code)\S*\s+){0,2}suggestions?\b/i,
-  // "review round 2", but not "review round-trip parsing"
-  /\breview\s+round(?![\w-])/i,
+  // "review round 2": the round's number, so "review round-trip" and a change to review rounds pass
+  /\breview\s+round\s+(?:#?\d+|one|two|three|four|five|six)\b/i,
   // "per Sourcery review", "per SonarCloud review"
   /\bper\s+(?:the\s+)?(?:(?:sourcery|sonar|code)\S*\s+)?review\b/i,
 ];

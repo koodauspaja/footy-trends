@@ -73,7 +73,9 @@ describe("processPhrase", () => {
     ["chore: apply suggestions", "apply suggestions"],
     ["chore: applying Sourcery's suggestions", "applying Sourcery's suggestions"],
     ["chore: apply the code review suggestion", "apply the code review suggestion"],
-    ["chore: review round 2", "review round"],
+    ["chore: review round 2", "review round 2"],
+    ["chore: review round #3", "review round #3"],
+    ["chore: review round two", "review round two"],
     ["docs: tighten wording per the review", "per the review"],
     ["docs: tighten wording per code review", "per code review"],
     ["docs: tighten wording per SonarCloud review", "per SonarCloud review"],
@@ -103,6 +105,9 @@ describe("processPhrase", () => {
     expect(processPhrase("chore: address book caching and comments are kept (#4)")).toBeNull();
     expect(processPhrase("fix: answers stay cached \u2014 comments load later (#5)")).toBeNull();
     expect(processPhrase("fix: review round-trip parsing of dates (#6)")).toBeNull();
+    expect(
+      processPhrase("chore: a behaviour defect from any review round is fixed (#7)")
+    ).toBeNull();
   });
 });
 
