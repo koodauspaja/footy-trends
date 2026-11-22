@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/auth/e2e-analytics";
+import { competitionIdForSeason } from "../../src/lib/taso/domestic-competitions";
 import { dropCached } from "../support/e2e-redis";
 import { openFolds } from "./folds";
 import { activeSeason, withDatabase } from "./seeded-season";
@@ -40,7 +41,7 @@ function row(
   nextId += 1;
   return {
     taso_match_id: nextId,
-    competition_id: `spljp${season % 100}`,
+    competition_id: competitionIdForSeason(categoryId, season),
     category_id: categoryId,
     season_id: season,
     group_id: group.id,

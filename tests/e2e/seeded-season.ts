@@ -12,9 +12,9 @@ export async function activeSeason(browser: Browser, code: string): Promise<numb
   const page = await browser.newPage();
   try {
     await page.goto(`/kotimaa/sarjataulukko?kilpailu=${code}`);
-    const season = Number(await page.getByLabel("Kausi").inputValue());
-    if (!Number.isInteger(season)) throw new Error(`No season selected on ${code}'s standings`);
-    return season;
+    const value = await page.getByLabel("Kausi").inputValue();
+    if (!/^\d{4}$/.test(value)) throw new Error(`No season selected on ${code}'s standings`);
+    return Number(value);
   } finally {
     await page.close();
   }

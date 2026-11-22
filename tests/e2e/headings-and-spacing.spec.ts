@@ -1,5 +1,9 @@
 import { expect, type Locator, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/auth/e2e-analytics";
+import {
+  categoryIdForSeason,
+  competitionIdForSeason,
+} from "../../src/lib/taso/domestic-competitions";
 import { dropCached } from "../support/e2e-redis";
 import { openAnalytics } from "./folds";
 import { activeSeason, withDatabase } from "./seeded-season";
@@ -138,8 +142,8 @@ test.describe("a forecast's labels", () => {
         const played = index < 3;
         return {
           taso_match_id: firstId + group * 10 + index,
-          competition_id: `spljp${season % 100}`,
-          category_id: "VL",
+          competition_id: competitionIdForSeason("VL", season),
+          category_id: categoryIdForSeason("VL", season),
           season_id: season,
           group_id: groupId,
           group_name: `E2E Lohko ${group + 1}`,
@@ -186,8 +190,8 @@ test.describe("a forecast's labels", () => {
       away.ga += match.home_goals;
     }
     return [...sides].map(([id, side]) => ({
-      category_id: "VL",
-      competition_id: `spljp${season % 100}`,
+      category_id: categoryIdForSeason("VL", season),
+      competition_id: competitionIdForSeason("VL", season),
       season_id: season,
       group_id: side.group,
       team_provider_id: id,
@@ -212,9 +216,10 @@ test.describe("a forecast's labels", () => {
 
   async function clearSeason() {
     await withDatabase(async (sql) => {
-      await sql`delete from taso_matches where category_id = 'VL' and season_id = ${season}`;
-      await sql`delete from taso_group_teams where category_id = 'VL' and season_id = ${season}
-        and group_id in (901, 902)`;
+      // The seeded ids too, whatever season an aborted run left them in.
+      await sql`delete from taso_matches where (category_id = 'VL' and season_id = ${season})
+        or taso_match_id between ${firstId} and ${firstId + 999}`;
+      await sql`delete from taso_group_teams where category_id = 'VL' and group_id in (901, 902)`;
     });
   }
 
