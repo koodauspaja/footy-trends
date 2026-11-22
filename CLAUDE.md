@@ -24,8 +24,8 @@
   dated heading naming the file and the commit it was cut at.
 - **A comment says what a thing is for**: one to three lines about the thing
   itself, or a constraint the code cannot show. Then the decision records behind
-  it, the original feature's first and the others after it; a record added to a
-  comment goes below the ones already there. Nothing checks the order
+  it, the original feature's first and the others after it; any other record
+  added to a comment goes below the ones already there. Nothing checks the order
   (`decisions/859-record-order-without-a-check.md`):
 
   ```ts
