@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { lstatSync, readlinkSync } from "node:fs";
+import { join } from "node:path";
 import { executablePath } from "../shared/executable";
 import { inFixedOrder, isNonCodePath } from "./e2e-freshness-plan";
 
@@ -14,6 +15,7 @@ import { inFixedOrder, isNonCodePath } from "./e2e-freshness-plan";
  * decisions/292-sonar-zero-open-issues.md
  * decisions/403-coverage-exclusions-that-earn-it.md
  * decisions/661-e2e-freshness-skips-documentation.md
+ * decisions/837-e2e-before-a-pull-request-and-a-review.md
  */
 
 /**
@@ -56,6 +58,27 @@ export const defaultGitDeps: GitDeps = {
   lstat: (path) => lstatSync(path),
   readlink: (path) => readlinkSync(path),
 };
+
+/**
+ * `defaultGitDeps` run in `directory` rather than the process's own, for the
+ * Claude Code hook, whose command may run in another checkout.
+ *
+ * decisions/837-e2e-before-a-pull-request-and-a-review.md
+ */
+export function gitDepsIn(directory: string): GitDeps {
+  return {
+    find: defaultGitDeps.find,
+    run: (binary, args) =>
+      spawnSync(binary, [...args], {
+        cwd: directory,
+        encoding: "utf8",
+        timeout: 15_000,
+        maxBuffer: 32 * 1024 * 1024,
+      }),
+    lstat: (path) => lstatSync(join(directory, path)),
+    readlink: (path) => readlinkSync(join(directory, path)),
+  };
+}
 
 function git(deps: GitDeps, args: string[]): string | null {
   // An absolute path, not a name resolved through `PATH`: see `executable.ts`.
@@ -196,4 +219,17 @@ export function changedFromMain(
     for (const path of out.split("\0").filter(Boolean)) changed.add(path);
   }
   return inFixedOrder([...changed]);
+}
+
+/**
+ * The files not committed: tracked ones that differ from `HEAD`, staged or not,
+ * and untracked ones the fingerprint watches. `null` when git cannot say.
+ *
+ * decisions/837-e2e-before-a-pull-request-and-a-review.md
+ */
+export function uncommittedChanges(deps: GitDeps = defaultGitDeps): string[] | null {
+  const changed = git(deps, ["diff", "--name-only", "-z", "--no-renames", "HEAD", "--"]);
+  const untracked = git(deps, ["ls-files", "-z", "-o", "--exclude-standard"]);
+  if (changed === null || untracked === null) return null;
+  return inFixedOrder(`${changed}\0${untracked}`.split("\0").filter(Boolean));
 }

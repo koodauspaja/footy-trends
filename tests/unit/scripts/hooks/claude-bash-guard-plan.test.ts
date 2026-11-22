@@ -8,6 +8,7 @@ import {
   headRefusal,
   requestsIn,
   stagesEverything,
+  staleRefusal,
   unreadableBodyRefusal,
   unreadIssueRefusal,
 } from "../../../../scripts/hooks/claude-bash-guard-plan";
@@ -160,6 +161,39 @@ describe("requestsIn", () => {
 
     expect(pullRequests).toEqual([]);
   });
+
+  it("finds a gh command that names a Sourcery review, with the directory it runs in", () => {
+    const { reviewRequests } = requestsIn(
+      "cd /wt && gh pr comment 1 --body '@sourcery-ai review'; gh api repos/o/r/issues/1/comments -f body='@sourcery-ai review'",
+      "/r"
+    );
+
+    expect(reviewRequests).toEqual([
+      { cwd: "/wt", bodyFile: null },
+      { cwd: "/wt", bodyFile: null },
+    ]);
+  });
+
+  it("leaves a gh pr comment's body file to be read, and counts a body it cannot read", () => {
+    expect(requestsIn("gh pr comment 1 -F c.md", "/r").reviewRequests).toEqual([
+      { cwd: "/r", bodyFile: "/r/c.md" },
+    ]);
+    expect(requestsIn('gh pr comment 1 --body "$TEXT"', "/r").reviewRequests).toEqual([
+      { cwd: "/r", bodyFile: null },
+    ]);
+    expect(
+      requestsIn("echo x > /r/c.md && gh pr comment 1 -F /r/c.md", "/r").reviewRequests
+    ).toEqual([{ cwd: "/r", bodyFile: null }]);
+  });
+
+  it("finds no review request in other comments, in gh pr create, or outside gh", () => {
+    const { reviewRequests } = requestsIn(
+      "gh pr comment 1 --body 'Fixed in abc.' && gh pr create -b '@sourcery-ai review' && git commit -m '@sourcery-ai review' && gh pr view 1",
+      "/r"
+    );
+
+    expect(reviewRequests).toEqual([]);
+  });
 });
 
 describe("headRefusal", () => {
@@ -193,6 +227,14 @@ describe("headRefusal", () => {
   it("refuses where git cannot read the commit it would open", () => {
     expect(headRefusal({ head: null, upstream: null, branch: null })).toContain(
       "whose local commit git cannot read"
+    );
+  });
+});
+
+describe("staleRefusal", () => {
+  it("names the action and the reason, and says what to run", () => {
+    expect(staleRefusal("`gh pr create`", "No passing full e2e run has been recorded.")).toBe(
+      "Refused: `gh pr create` before a passing full e2e run covers this checkout. No passing full e2e run has been recorded.\nRun `npm run test:e2e` first. A push that only answers review threads needs no e2e and no new review."
     );
   });
 });

@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { bareBoxes, closedIssues, type IssueVerdict, report } from "../checks/issue-boxes-plan";
 import { bodyReader } from "../checks/issue-boxes-steps";
+import { type Freshness, freshnessOfCheckout } from "../e2e/e2e-freshness-verdict";
 import { executablePath } from "../shared/executable";
 import { type Console, processConsole } from "../shared/github-read";
 import {
@@ -10,7 +11,10 @@ import {
   type BodySource,
   headRefusal,
   type PullRequestCreate,
+  REVIEW_REQUEST,
+  type ReviewRequest,
   requestsIn,
+  staleRefusal,
   unreadableBodyRefusal,
   unreadIssueRefusal,
 } from "./claude-bash-guard-plan";
@@ -21,6 +25,7 @@ import {
  * it breaks a rule in `claude-bash-guard-plan.ts`.
  *
  * decisions/806-push-and-pr-hooks.md
+ * decisions/837-e2e-before-a-pull-request-and-a-review.md
  */
 
 /**
@@ -44,6 +49,8 @@ export type GuardDeps = {
   readFile: (path: string) => string | null;
   /** An issue's body. Rejects when it cannot be read. */
   readIssue: (issue: number) => Promise<string>;
+  /** Whether a passing full e2e run vouches for the checkout `cwd` is in. */
+  freshness: (cwd: string) => Freshness;
 };
 
 /**
@@ -99,9 +106,22 @@ async function boxRefusals(body: string, deps: GuardDeps): Promise<string[]> {
 }
 
 /**
- * Everything wrong with one `gh pr create`: its head, then its body's boxes.
+ * The refusal for `action` in `cwd` when no passing full e2e run covers it, or
+ * `null`. There is a reason only for a `block`: where e2e cannot run, none.
+ *
+ * decisions/837-e2e-before-a-pull-request-and-a-review.md
+ */
+function freshnessRefusal(action: string, cwd: string, deps: GuardDeps): string | null {
+  const { reason } = deps.freshness(cwd);
+  return reason === null ? null : staleRefusal(action, reason);
+}
+
+/**
+ * Everything wrong with one `gh pr create`: its head, its e2e run, then its
+ * body's boxes.
  *
  * decisions/806-push-and-pr-hooks.md
+ * decisions/837-e2e-before-a-pull-request-and-a-review.md
  */
 async function pullRequestRefusals(request: PullRequestCreate, deps: GuardDeps): Promise<string[]> {
   if (request.cwd === null) {
@@ -111,9 +131,29 @@ async function pullRequestRefusals(request: PullRequestCreate, deps: GuardDeps):
   }
 
   const head = headRefusal(headState(request.cwd, request.head, deps));
+  const e2e = freshnessRefusal("`gh pr create`", request.cwd, deps);
   const body = bodyText(request.body, deps);
   const boxes = "text" in body ? await boxRefusals(body.text, deps) : [body.refusal];
-  return [...(head === null ? [] : [head]), ...boxes];
+  return [...[head, e2e].filter((refusal) => refusal !== null), ...boxes];
+}
+
+/**
+ * Why a command that asks Sourcery for a review may not run yet, or `null`. A
+ * body file that cannot be read counts as asking.
+ *
+ * decisions/837-e2e-before-a-pull-request-and-a-review.md
+ */
+function reviewRefusal(request: ReviewRequest, deps: GuardDeps): string | null {
+  if (
+    request.bodyFile !== null &&
+    !(deps.readFile(request.bodyFile) ?? REVIEW_REQUEST).includes(REVIEW_REQUEST)
+  ) {
+    return null;
+  }
+  if (request.cwd === null) {
+    return "Refused: a Sourcery review request after a `cd` this hook cannot follow, so it cannot tell which checkout it is for. Use an absolute path.";
+  }
+  return freshnessRefusal("asking Sourcery for a review", request.cwd, deps);
 }
 
 /**
@@ -126,7 +166,12 @@ export async function refusals(command: string, cwd: string, deps: GuardDeps): P
   const pullRequests = await Promise.all(
     requests.pullRequests.map((request) => pullRequestRefusals(request, deps))
   );
-  return [...(requests.addsEverything ? [ADD_EVERYTHING_REFUSAL] : []), ...pullRequests.flat()];
+  const reviews = requests.reviewRequests.flatMap((request) => reviewRefusal(request, deps) ?? []);
+  return [
+    ...(requests.addsEverything ? [ADD_EVERYTHING_REFUSAL] : []),
+    ...pullRequests.flat(),
+    ...reviews,
+  ];
 }
 
 /**
@@ -200,6 +245,7 @@ export function githubToken(
 export function defaultDeps(env: Record<string, string | undefined>): GuardDeps {
   const repository = env.GITHUB_REPOSITORY ?? "koodauspaja/footy-trends";
   return {
+    freshness: freshnessOfCheckout,
     git: (cwd, args) => run(executablePath("git"), cwd, args),
     readFile: (path) => {
       try {

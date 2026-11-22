@@ -8,6 +8,7 @@ import { commandWords, type SimpleCommand, simpleCommands } from "./shell-comman
  * reads git, the body file and the issues.
  *
  * decisions/806-push-and-pr-hooks.md
+ * decisions/837-e2e-before-a-pull-request-and-a-review.md
  */
 
 /**
@@ -28,15 +29,33 @@ export type PullRequestCreate = {
 };
 
 /**
+ * A `gh` command that may ask Sourcery for a review. With no `bodyFile`, its
+ * words name the review or its body cannot be read; with one, it asks only if
+ * that file's text does.
+ *
+ * decisions/837-e2e-before-a-pull-request-and-a-review.md
+ */
+export type ReviewRequest = { cwd: string | null; bodyFile: string | null };
+
+/**
  * What a command line asks for that a rule covers.
  *
  * decisions/806-push-and-pr-hooks.md
+ * decisions/837-e2e-before-a-pull-request-and-a-review.md
  */
 export type Requests = {
   /** A `git add` that stages everything in the checkout. */
   addsEverything: boolean;
   pullRequests: PullRequestCreate[];
+  reviewRequests: ReviewRequest[];
 };
+
+/**
+ * The words in a comment that make Sourcery review the pull request again.
+ *
+ * decisions/837-e2e-before-a-pull-request-and-a-review.md
+ */
+export const REVIEW_REQUEST = "@sourcery-ai review";
 
 /**
  * Git's options that take a value as the next word, before the subcommand.
@@ -263,18 +282,54 @@ function pullRequestCreate(
 }
 
 /**
+ * A `gh` command, other than `gh pr create`, that names `@sourcery-ai review`
+ * in its words, or a `gh pr comment` whose body may: a file, or one this hook
+ * cannot read, which counts as a request.
+ *
+ * decisions/837-e2e-before-a-pull-request-and-a-review.md
+ */
+function reviewRequest(
+  command: SimpleCommand,
+  earlier: readonly SimpleCommand[]
+): ReviewRequest | null {
+  const words = withoutRepository(commandWords(command.words));
+  if (words[0] !== "gh" || pullRequestCreate(command, earlier) !== null) return null;
+  if (words.some((word) => word.includes(REVIEW_REQUEST))) {
+    return { cwd: command.cwd, bodyFile: null };
+  }
+  if (words[1] !== "pr" || words[2] !== "comment") return null;
+  const body = writtenEarlier(bodySource(words.slice(3), command.cwd), earlier);
+  if (body.kind === "text") return null;
+  return { cwd: command.cwd, bodyFile: body.kind === "file" ? body.path : null };
+}
+
+/**
  * What a Bash command line, run from `cwd`, asks for that a rule covers.
  *
  * decisions/806-push-and-pr-hooks.md
+ * decisions/837-e2e-before-a-pull-request-and-a-review.md
  */
 export function requestsIn(command: string, cwd: string): Requests {
   const commands = simpleCommands(command, cwd);
+  const upTo = (index: number) => commands.slice(0, index + 1);
   return {
     addsEverything: commands.some((simple) => stagesEverything(simple.words)),
-    pullRequests: commands.flatMap(
-      (simple, index) => pullRequestCreate(simple, commands.slice(0, index + 1)) ?? []
-    ),
+    pullRequests: commands.flatMap((simple, index) => pullRequestCreate(simple, upTo(index)) ?? []),
+    reviewRequests: commands.flatMap((simple, index) => reviewRequest(simple, upTo(index)) ?? []),
   };
+}
+
+/**
+ * The refusal for `action` when no passing full e2e run covers the checkout,
+ * and what to run instead.
+ *
+ * decisions/837-e2e-before-a-pull-request-and-a-review.md
+ */
+export function staleRefusal(action: string, reason: string): string {
+  return [
+    `Refused: ${action} before a passing full e2e run covers this checkout. ${reason}`,
+    "Run `npm run test:e2e` first. A push that only answers review threads needs no e2e and no new review.",
+  ].join("\n");
 }
 
 /**

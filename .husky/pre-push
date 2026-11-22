@@ -1,6 +1,7 @@
 # Why each setting is as it is: decisions/531-configuration-files.md
 # Blocks a push of a branch behind origin/main (decisions/806-push-and-pr-hooks.md),
-# then a push that no passing e2e run covers: see tests/e2e/README.md.
+# then a branch's first push that no passing e2e run covers
+# (decisions/837-e2e-before-a-pull-request-and-a-review.md, tests/e2e/README.md).
 # `git push --no-verify` skips both. Skipped quietly when dependencies are not
 # installed.
 if [ ! -x node_modules/.bin/tsx ]; then

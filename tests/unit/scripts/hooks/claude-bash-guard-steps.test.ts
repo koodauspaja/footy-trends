@@ -3,6 +3,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { type Freshness, freshnessOfCheckout } from "../../../../scripts/e2e/e2e-freshness-verdict";
 import {
   ALLOW,
   bashCall,
@@ -44,16 +45,30 @@ afterEach(() => {
 const PUSHED = "a".repeat(40);
 const LOCAL = "b".repeat(40);
 
+const FRESH: Freshness = { verdict: { kind: "pass", message: "e2e is fresh" }, reason: null };
+const STALE: Freshness = {
+  verdict: { kind: "block", message: "Push blocked" },
+  reason: "1 file(s) changed since the last passing e2e run: a.ts (modified).",
+};
+const CANNOT_RUN: Freshness = { verdict: { kind: "warn", message: "Warning" }, reason: null };
+
 /** A checkout and its issues, as the hook would find them. */
 function deps({
   head = PUSHED,
   upstream = PUSHED as string | null,
   files = {} as Record<string, string>,
   issues = {} as Record<number, string>,
-} = {}): GuardDeps & { gitCalls: string[][] } {
+  freshness = FRESH,
+} = {}): GuardDeps & { gitCalls: string[][]; freshnessAsked: string[] } {
   const gitCalls: string[][] = [];
+  const freshnessAsked: string[] = [];
   return {
     gitCalls,
+    freshnessAsked,
+    freshness: (cwd) => {
+      freshnessAsked.push(cwd);
+      return freshness;
+    },
     git: (cwd, args) => {
       gitCalls.push([cwd, ...args]);
       if (args[0] === "symbolic-ref") return "chore/806-x";
@@ -211,6 +226,9 @@ describe("refusals", () => {
 });
 
 describe("refusals with --head, against a real repository", () => {
+  // The hook's real git, with e2e taken as fresh: these tests are about the upstream.
+  const realGit = (): GuardDeps => ({ ...defaultDeps({}), freshness: () => FRESH });
+
   /** A clone whose `pushed` branch is pushed with an upstream, and its git. */
   function clone(): { directory: string; git: (...args: string[]) => void } {
     executablePath.mockReturnValue("/usr/bin/git");
@@ -246,20 +264,14 @@ describe("refusals with --head, against a real repository", () => {
   it("lets gh pr create --head through for a pushed branch whose local head is the pushed head", async () => {
     const { directory } = clone();
 
-    expect(
-      await refusals("gh pr create -b none --head pushed", directory, defaultDeps({}))
-    ).toEqual([]);
+    expect(await refusals("gh pr create -b none --head pushed", directory, realGit())).toEqual([]);
   });
 
   it("refuses a --head branch with no upstream", async () => {
     const { directory, git } = clone();
     git("branch", "--quiet", "local-only");
 
-    const found = await refusals(
-      "gh pr create -b none --head local-only",
-      directory,
-      defaultDeps({})
-    );
+    const found = await refusals("gh pr create -b none --head local-only", directory, realGit());
 
     expect(found).toHaveLength(1);
     expect(found[0]).toContain("local-only, which has no upstream");
@@ -270,10 +282,68 @@ describe("refusals with --head, against a real repository", () => {
     git("checkout", "--quiet", "pushed");
     git("commit", "--quiet", "--allow-empty", "-m", "unpushed");
 
-    const found = await refusals("gh pr create -b none --head pushed", directory, defaultDeps({}));
+    const found = await refusals("gh pr create -b none --head pushed", directory, realGit());
 
     expect(found).toHaveLength(1);
     expect(found[0]).toContain("pushed, whose local HEAD");
+  });
+});
+
+describe("refusals that need a passing e2e run", () => {
+  it("refuses gh pr create that no passing e2e run covers, saying why and what to run", async () => {
+    const checkout = deps({ freshness: STALE });
+
+    const found = await refusals("gh pr create -b none", "/repo", checkout);
+
+    expect(found).toHaveLength(1);
+    expect(found[0]).toContain("Refused: `gh pr create` before a passing full e2e run");
+    expect(found[0]).toContain("a.ts (modified)");
+    expect(found[0]).toContain("Run `npm run test:e2e` first.");
+    expect(checkout.freshnessAsked).toEqual(["/repo"]);
+  });
+
+  it("lets gh pr create and a review request through when e2e cannot run here", async () => {
+    const checkout = deps({ freshness: CANNOT_RUN });
+
+    expect(await refusals("gh pr create -b none", "/repo", checkout)).toEqual([]);
+    expect(
+      await refusals("gh pr comment 1 --body '@sourcery-ai review'", "/repo", checkout)
+    ).toEqual([]);
+  });
+
+  it("refuses a Sourcery review request no passing e2e run covers, and lets a covered one through", async () => {
+    const stale = await refusals(
+      "gh pr comment 1 --body '@sourcery-ai review'",
+      "/repo",
+      deps({ freshness: STALE })
+    );
+
+    expect(stale).toHaveLength(1);
+    expect(stale[0]).toContain(
+      "Refused: asking Sourcery for a review before a passing full e2e run"
+    );
+    expect(await refusals("gh pr comment 1 --body '@sourcery-ai review'", "/repo", deps())).toEqual(
+      []
+    );
+  });
+
+  it("reads a comment's body file to tell a review request from any other comment, counting one it cannot read", async () => {
+    const files = { "/repo/review.md": "@sourcery-ai review", "/repo/reply.md": "Fixed in abc." };
+    const checkout = deps({ files, freshness: STALE });
+
+    expect(await refusals("gh pr comment 1 -F review.md", "/repo", checkout)).toHaveLength(1);
+    expect(await refusals("gh pr comment 1 -F reply.md", "/repo", checkout)).toEqual([]);
+    expect(await refusals("gh pr comment 1 -F gone.md", "/repo", checkout)).toHaveLength(1);
+  });
+
+  it("refuses a review request after a cd it cannot follow", async () => {
+    const found = await refusals(
+      'cd "$WT" && gh pr comment 1 --body "@sourcery-ai review"',
+      "/repo",
+      deps()
+    );
+
+    expect(found[0]).toContain("Refused: a Sourcery review request after a `cd`");
   });
 });
 
@@ -331,6 +401,10 @@ describe("githubToken", () => {
 });
 
 describe("defaultDeps", () => {
+  it("asks the checkout's own e2e marker whether a run vouches for it", () => {
+    expect(defaultDeps({}).freshness).toBe(freshnessOfCheckout);
+  });
+
   it("runs git in the given directory and reads its trimmed output", () => {
     executablePath.mockReturnValue("/usr/bin/git");
     const directory = mkdtempSync(join(tmpdir(), "guard-"));

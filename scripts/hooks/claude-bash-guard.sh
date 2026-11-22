@@ -3,9 +3,10 @@
 # to claude-bash-guard.ts only when its text could break a rule, so every other
 # command is spared tsx's start-up. Exit code 2 from the guard blocks the call.
 # decisions/806-push-and-pr-hooks.md
+# decisions/837-e2e-before-a-pull-request-and-a-review.md
 input=$(cat)
 case "$input" in
-  *"gh"*"pr"* | *"git"*"add"*) ;;
+  *"gh"*"pr"* | *"git"*"add"* | *"@sourcery-ai"*) ;;
   *) exit 0 ;;
 esac
 

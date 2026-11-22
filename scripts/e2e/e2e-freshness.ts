@@ -1,48 +1,17 @@
 /**
- * The pre-push hook's entry point: gather what the decision needs from the
- * filesystem, the environment and `docker`, then let `e2e-freshness-plan.ts`
- * decide. Exits non-zero only on a `block`.
+ * The pre-push hook's entry point: a branch's first push must be covered by a
+ * passing e2e run, judged by `e2e-freshness-verdict.ts`; a later push goes
+ * through unchecked. Exits non-zero only on a `block`.
  *
  * decisions/084-e2e-freshness-before-push.md
  * decisions/242-freshness-compares-content.md
  * decisions/661-e2e-freshness-skips-documentation.md
+ * decisions/837-e2e-before-a-pull-request-and-a-review.md
  */
-import { existsSync, readFileSync } from "node:fs";
-import { dockerIsRunning } from "../local/docker";
-import { changedFromMain, fingerprint } from "./e2e-freshness-git";
-import {
-  changedBetweenFingerprints,
-  decideFreshness,
-  describeChange,
-  describeDocumentationSkip,
-  isDocumentationOnly,
-  MARKER_PATH,
-  MAX_AGE_MS,
-  type Marker,
-  missingPrerequisites,
-  parseMarker,
-  pushedCommits,
-} from "./e2e-freshness-plan";
-
-/**
- * What the last passing run cannot vouch for, as `path (kind)` strings: the
- * fingerprint it recorded against the working tree's now.
- *
- * decisions/084-e2e-freshness-before-push.md
- * decisions/242-freshness-compares-content.md
- */
-function changesSince(marker: Marker): string[] {
-  const now = fingerprint();
-  if (now === null) {
-    // git could not describe the working tree. Treating that as "unchanged"
-    // would pass the check having verified nothing, so it fails closed.
-    return [describeChange("<git could not read the working tree>", "modified")];
-  }
-
-  return changedBetweenFingerprints(marker.files, now).map(({ path: file, kind }) =>
-    describeChange(file, kind)
-  );
-}
+import { readFileSync } from "node:fs";
+import { changedFromMain } from "./e2e-freshness-git";
+import { isFirstPush, LATER_PUSH_SKIP, pushedCommits } from "./e2e-freshness-plan";
+import { checkoutFreshness, freshnessDeps } from "./e2e-freshness-verdict";
 
 /**
  * Writes a line to stdout, as the backfill scripts do: `noConsole` forbids
@@ -55,10 +24,6 @@ function out(line = ""): void {
 }
 function err(line = ""): void {
   process.stderr.write(`${line}\n`);
-}
-
-function readMarker(): string | null {
-  return existsSync(MARKER_PATH) ? readFileSync(MARKER_PATH, "utf8") : null;
 }
 
 /**
@@ -82,39 +47,24 @@ function readPushedRefs(): string | null {
  *
  * decisions/661-e2e-freshness-skips-documentation.md
  */
-function changedByPush(): string[] | null {
-  const refs = readPushedRefs();
+function changedByPush(refs: string | null): string[] | null {
   if (refs === null) return null;
   const commits = pushedCommits(refs);
   return commits === null ? null : changedFromMain(commits);
 }
 
 function main(): void {
-  const changed = changedByPush();
-  if (isDocumentationOnly(changed)) {
-    out(describeDocumentationSkip(changed.length));
+  const refs = readPushedRefs();
+  if (refs !== null && !isFirstPush(refs)) {
+    out(LATER_PUSH_SKIP);
     return;
   }
 
-  if (existsSync(".env")) {
-    process.loadEnvFile(".env");
-  }
-
-  const marker = parseMarker(readMarker());
-  const verdict = decideFreshness({
-    marker: marker === null ? null : marker.finishedAt,
-    now: new Date(),
-    maxAgeMs: MAX_AGE_MS,
-    changedFiles: marker === null ? [] : changesSince(marker),
-    missingPrerequisites: missingPrerequisites({
-      docker: dockerIsRunning(),
-      footballDataKey: (process.env.FOOTBALL_DATA_API_KEY ?? "").trim() !== "",
-      tasoKey: (process.env.TASO_API_KEY ?? "").trim() !== "",
-      tasoSigning:
-        (process.env.TASO_HASH_SALT ?? "").trim() !== "" || process.env.E2E_TASO_STUB === "1",
-    }),
-  });
-
+  const { verdict } = checkoutFreshness(
+    process.cwd(),
+    changedByPush(refs),
+    freshnessDeps(process.cwd())
+  );
   if (verdict.kind === "pass") {
     out(verdict.message);
     return;
