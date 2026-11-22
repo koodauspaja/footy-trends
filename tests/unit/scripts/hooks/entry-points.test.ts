@@ -108,6 +108,7 @@ describe("scripts/hooks/claude-bash-guard.sh", SPAWN_TIMEOUT, () => {
     expect(started("npm test")).toBe(false);
     expect(started("gh  pr\tcreate")).toBe(true);
     expect(started("git\tadd -A")).toBe(true);
+    expect(started("gh api repos/o/r/issues/1/comments -f body='@sourcery-ai review'")).toBe(true);
   });
 
   it("skips the guard, and says so, where dependencies are not installed", () => {

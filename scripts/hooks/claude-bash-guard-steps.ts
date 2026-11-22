@@ -139,14 +139,14 @@ async function pullRequestRefusals(request: PullRequestCreate, deps: GuardDeps):
 
 /**
  * Why a command that asks Sourcery for a review may not run yet, or `null`. A
- * body file that cannot be read asks for nothing this hook can see.
+ * body file that cannot be read counts as asking.
  *
  * decisions/837-e2e-before-a-pull-request-and-a-review.md
  */
 function reviewRefusal(request: ReviewRequest, deps: GuardDeps): string | null {
   if (
     request.bodyFile !== null &&
-    !(deps.readFile(request.bodyFile) ?? "").includes(REVIEW_REQUEST)
+    !(deps.readFile(request.bodyFile) ?? REVIEW_REQUEST).includes(REVIEW_REQUEST)
   ) {
     return null;
   }

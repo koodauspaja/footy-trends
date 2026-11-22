@@ -327,13 +327,13 @@ describe("refusals that need a passing e2e run", () => {
     );
   });
 
-  it("reads a comment's body file to tell a review request from any other comment", async () => {
+  it("reads a comment's body file to tell a review request from any other comment, counting one it cannot read", async () => {
     const files = { "/repo/review.md": "@sourcery-ai review", "/repo/reply.md": "Fixed in abc." };
     const checkout = deps({ files, freshness: STALE });
 
     expect(await refusals("gh pr comment 1 -F review.md", "/repo", checkout)).toHaveLength(1);
     expect(await refusals("gh pr comment 1 -F reply.md", "/repo", checkout)).toEqual([]);
-    expect(await refusals("gh pr comment 1 -F gone.md", "/repo", checkout)).toEqual([]);
+    expect(await refusals("gh pr comment 1 -F gone.md", "/repo", checkout)).toHaveLength(1);
   });
 
   it("refuses a review request after a cd it cannot follow", async () => {

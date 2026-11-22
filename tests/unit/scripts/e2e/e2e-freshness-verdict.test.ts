@@ -17,17 +17,20 @@ import {
  * decisions/837-e2e-before-a-pull-request-and-a-review.md
  */
 
-const { fingerprint, changedFromMain, gitDepsIn, executablePath, real } = vi.hoisted(() => ({
-  fingerprint: vi.fn(),
-  changedFromMain: vi.fn(),
-  gitDepsIn: vi.fn((directory: string) => ({ directory })),
-  executablePath: vi.fn(),
-  real: { executablePath: (() => null) as (tool: string) => string | null },
-}));
+const { fingerprint, changedFromMain, uncommittedChanges, gitDepsIn, executablePath, real } =
+  vi.hoisted(() => ({
+    fingerprint: vi.fn(),
+    changedFromMain: vi.fn(),
+    uncommittedChanges: vi.fn((): string[] | null => []),
+    gitDepsIn: vi.fn((directory: string) => ({ directory })),
+    executablePath: vi.fn(),
+    real: { executablePath: (() => null) as (tool: string) => string | null },
+  }));
 
 vi.mock("../../../../scripts/e2e/e2e-freshness-git", () => ({
   fingerprint,
   changedFromMain,
+  uncommittedChanges,
   gitDepsIn,
 }));
 
@@ -148,12 +151,27 @@ describe("checkoutFreshness", () => {
 
 describe("freshnessOfCheckout", () => {
   it("judges the checkout a directory is in by what HEAD changes from origin/main", () => {
+    fingerprint.mockReturnValue(null);
+    changedFromMain.mockReturnValueOnce(["docs/a.md"]).mockReturnValueOnce(["src/a.ts"]);
+
+    expect(freshnessOfCheckout(join(process.cwd(), "scripts")).verdict.kind).toBe("pass");
+    expect(freshnessOfCheckout(process.cwd()).verdict.message).not.toContain("skipped");
+    expect(changedFromMain).toHaveBeenCalledWith(["HEAD"], { directory: process.cwd() });
+  });
+
+  it("refuses uncommitted code, naming it, but not uncommitted documentation", () => {
     changedFromMain.mockReturnValue(["docs/a.md"]);
 
-    const { verdict } = freshnessOfCheckout(join(process.cwd(), "scripts"));
+    uncommittedChanges.mockReturnValueOnce(["docs/b.md", "src/a.ts"]);
+    expect(freshnessOfCheckout(process.cwd()).reason).toBe(
+      "Code is changed and not committed (src/a.ts), and e2e vouches for the working tree, not the commit. Commit or set it aside first."
+    );
 
-    expect(verdict.kind).toBe("pass");
-    expect(changedFromMain).toHaveBeenCalledWith(["HEAD"], { directory: process.cwd() });
+    uncommittedChanges.mockReturnValueOnce(null);
+    expect(freshnessOfCheckout(process.cwd()).reason).toContain("<git could not read them>");
+
+    uncommittedChanges.mockReturnValueOnce(["docs/b.md"]);
+    expect(freshnessOfCheckout(process.cwd()).reason).toBeNull();
   });
 
   it("blocks outside a checkout, and where git cannot be found", () => {

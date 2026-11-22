@@ -220,3 +220,14 @@ export function changedFromMain(
   }
   return inFixedOrder([...changed]);
 }
+
+/**
+ * The tracked files whose working copy differs from `HEAD`, staged or not, or
+ * `null` when git cannot say.
+ *
+ * decisions/837-e2e-before-a-pull-request-and-a-review.md
+ */
+export function uncommittedChanges(deps: GitDeps = defaultGitDeps): string[] | null {
+  const out = git(deps, ["diff", "--name-only", "-z", "--no-renames", "HEAD", "--"]);
+  return out === null ? null : inFixedOrder(out.split("\0").filter(Boolean));
+}

@@ -4,13 +4,20 @@ import { join } from "node:path";
 import { parseEnv } from "node:util";
 import { dockerIsRunning } from "../local/docker";
 import { executablePath } from "../shared/executable";
-import { changedFromMain, fingerprint, type GitDeps, gitDepsIn } from "./e2e-freshness-git";
+import {
+  changedFromMain,
+  fingerprint,
+  type GitDeps,
+  gitDepsIn,
+  uncommittedChanges,
+} from "./e2e-freshness-git";
 import {
   changedBetweenFingerprints,
   decideFreshness,
   describeChange,
   describeDocumentationSkip,
   isDocumentationOnly,
+  isNonCodePath,
   MARKER_PATH,
   MAX_AGE_MS,
   missingPrerequisites,
@@ -141,8 +148,8 @@ export function freshnessDeps(top: string): FreshnessDeps {
 
 /**
  * The checkout `directory` is in, judged with what its `HEAD` changes from
- * `origin/main`: what the Claude Code hook asks before `gh pr create` and a
- * review request. Outside a checkout no run can vouch for anything.
+ * `origin/main`. Uncommitted code refuses: e2e vouches for the working tree,
+ * and a pull request or a review gets the commit.
  *
  * decisions/837-e2e-before-a-pull-request-and-a-review.md
  */
@@ -155,5 +162,16 @@ export function freshnessOfCheckout(directory: string): Freshness {
     };
   }
   const deps = freshnessDeps(top);
+  const uncommitted = uncommittedChanges(deps.git);
+  const code =
+    uncommitted === null
+      ? ["<git could not read them>"]
+      : uncommitted.filter((path) => !isNonCodePath(path));
+  if (code.length > 0) {
+    return {
+      verdict: { kind: "block", message: "" },
+      reason: `Code is changed and not committed (${code.join(", ")}), and e2e vouches for the working tree, not the commit. Commit or set it aside first.`,
+    };
+  }
   return checkoutFreshness(top, changedFromMain(["HEAD"], deps.git), deps);
 }

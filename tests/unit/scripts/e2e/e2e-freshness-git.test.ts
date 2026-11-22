@@ -9,6 +9,7 @@ import {
   type GitDeps,
   type GitOutput,
   gitDepsIn,
+  uncommittedChanges,
 } from "../../../../scripts/e2e/e2e-freshness-git";
 
 /**
@@ -331,5 +332,18 @@ describe("gitDepsIn", () => {
     expect(inDirectory.find()).toBe(defaultGitDeps.find());
     expect(inDirectory.lstat("link").isSymbolicLink()).toBe(true);
     expect(inDirectory.readlink("link")).toBe("target.txt");
+  });
+});
+
+describe("uncommittedChanges", () => {
+  it("asks git which tracked files differ from HEAD, in a fixed order", () => {
+    const d = deps({ diff: lsFiles("src/b.ts", "docs/a.md") });
+
+    expect(uncommittedChanges(d)).toEqual(["docs/a.md", "src/b.ts"]);
+    expect(d.calls).toEqual([[BINARY, "diff", "--name-only", "-z", "--no-renames", "HEAD", "--"]]);
+  });
+
+  it("is null when git cannot say", () => {
+    expect(uncommittedChanges(deps({}))).toBeNull();
   });
 });
