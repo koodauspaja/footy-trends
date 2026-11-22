@@ -99,7 +99,7 @@ async function discoverCurrentSeason(): Promise<{ season: number | null; failed:
 }
 
 export type TasoSeasonContext = {
-  /** The selector's ceiling, and the season `needsRefresh` treats as refreshable. */
+  /** The selector's ceiling: the newest season TASO lists. */
   currentSeason: number;
   /**
    * Where a page with no `kausi` param lands, and the season its analytics treat

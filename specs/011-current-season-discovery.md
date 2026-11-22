@@ -17,9 +17,10 @@ the app uses today, but any added later shares this same lookup.
 
 - Reading the current `competition_id` from TASO's `getCompetitions`
   endpoint, cached, and using it for three things spec 009 currently drives
-  off a hardcoded constant: the season selector's ceiling, the default
-  season, and the "current season" that `needsRefresh` treats as
-  refreshable.
+  off a hardcoded constant: the season selector's ceiling and the default
+  season. The default season, the newest with matches, is also the "current
+  season" that `needsRefresh` and the analytics treat as active
+  (`decisions/865-active-season-has-matches.md`).
 - A fallback that keeps every `/kotimaa` page usable when discovery fails.
 - Superseding spec 009's fixed 2015–2026 range (see Files To Update).
 
@@ -123,8 +124,9 @@ Newer published seasons still appear in the selector and are reachable via
 
 ### Cache freshness
 
-`needsRefresh`'s notion of "the current season" becomes the discovered
-season rather than a constant. A season below it is still never refetched
+`needsRefresh`'s notion of "the current season" becomes the default season
+rather than a constant: the discovered one once it has a match, played or
+scheduled, and until then the one before it. A season below it is still never refetched
 once stored; the current one still refreshes on the existing 15-minute
 threshold.
 
