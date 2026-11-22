@@ -178,9 +178,10 @@ export default withSentryConfig(nextConfig, {
   // Only print logs for uploading source maps in CI
   silent: !process.env.CI,
 
-  // A release and an upload only where there is a token to make them with, and
-  // no data about the plugin itself sent to Sentry.
-  release: { create: uploadsToSentry },
+  // A release and an upload only where there is a token to make them with: with
+  // no release name the plugin skips the release quietly. And no data about the
+  // plugin itself sent to Sentry.
+  release: uploadsToSentry ? {} : { name: "" },
   sourcemaps: { disable: uploadsToSentry ? false : "disable-upload" },
   telemetry: false,
 
