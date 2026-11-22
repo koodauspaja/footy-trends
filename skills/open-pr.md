@@ -94,7 +94,9 @@ already, and #390 found two classes that had never been written down at all.
    before the push. A later push repeats the pass on what it changed, as
    `skills/self-review.md` says, and not the skill. A change to what a page
    shows also gets `skills/ui-review.md`'s pass. **A full passing
-   `npm run test:e2e` comes before the pull request opens**, never skipped: the
+   `npm run test:e2e` comes before the pull request opens**, never skipped
+   (a documentation-only change needs none, and the hooks only warn where e2e
+   cannot run at all): the
    pre-push hook asks for it on the branch's first push, and the Claude Code
    hook refuses `gh pr create` without it (decisions/837).
 6. Fill in the PR template:

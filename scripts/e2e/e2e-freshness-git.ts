@@ -222,12 +222,14 @@ export function changedFromMain(
 }
 
 /**
- * The tracked files whose working copy differs from `HEAD`, staged or not, or
- * `null` when git cannot say.
+ * The files not committed: tracked ones that differ from `HEAD`, staged or not,
+ * and untracked ones the fingerprint watches. `null` when git cannot say.
  *
  * decisions/837-e2e-before-a-pull-request-and-a-review.md
  */
 export function uncommittedChanges(deps: GitDeps = defaultGitDeps): string[] | null {
-  const out = git(deps, ["diff", "--name-only", "-z", "--no-renames", "HEAD", "--"]);
-  return out === null ? null : inFixedOrder(out.split("\0").filter(Boolean));
+  const changed = git(deps, ["diff", "--name-only", "-z", "--no-renames", "HEAD", "--"]);
+  const untracked = git(deps, ["ls-files", "-z", "-o", "--exclude-standard"]);
+  if (changed === null || untracked === null) return null;
+  return inFixedOrder(`${changed}\0${untracked}`.split("\0").filter(Boolean));
 }

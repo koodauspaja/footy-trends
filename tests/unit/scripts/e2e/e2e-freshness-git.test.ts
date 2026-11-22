@@ -336,14 +336,18 @@ describe("gitDepsIn", () => {
 });
 
 describe("uncommittedChanges", () => {
-  it("asks git which tracked files differ from HEAD, in a fixed order", () => {
-    const d = deps({ diff: lsFiles("src/b.ts", "docs/a.md") });
+  it("lists tracked files that differ from HEAD and untracked ones, in a fixed order", () => {
+    const d = deps({ diff: lsFiles("src/b.ts", "docs/a.md"), "ls-files": lsFiles("src/new.ts") });
 
-    expect(uncommittedChanges(d)).toEqual(["docs/a.md", "src/b.ts"]);
-    expect(d.calls).toEqual([[BINARY, "diff", "--name-only", "-z", "--no-renames", "HEAD", "--"]]);
+    expect(uncommittedChanges(d)).toEqual(["docs/a.md", "src/b.ts", "src/new.ts"]);
+    expect(d.calls).toEqual([
+      [BINARY, "diff", "--name-only", "-z", "--no-renames", "HEAD", "--"],
+      [BINARY, "ls-files", "-z", "-o", "--exclude-standard"],
+    ]);
   });
 
-  it("is null when git cannot say", () => {
-    expect(uncommittedChanges(deps({}))).toBeNull();
+  it("is null when git cannot say either", () => {
+    expect(uncommittedChanges(deps({ "ls-files": lsFiles() }))).toBeNull();
+    expect(uncommittedChanges(deps({ diff: lsFiles() }))).toBeNull();
   });
 });

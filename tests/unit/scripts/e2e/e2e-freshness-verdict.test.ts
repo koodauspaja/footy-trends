@@ -134,6 +134,7 @@ describe("checkoutFreshness", () => {
 
     expect(verdict.kind).toBe("warn");
     expect(verdict.message).toContain("FOOTBALL_DATA_API_KEY is not set");
+    expect(verdict.message).toContain("TASO_API_KEY is not set");
     expect(verdict.message).toContain("TASO_HASH_SALT is not set, and E2E_TASO_STUB is not 1");
   });
 
