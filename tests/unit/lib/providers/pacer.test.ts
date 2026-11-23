@@ -4,12 +4,14 @@ import {
   delayBefore,
   FOOTBALL_DATA_PER_MINUTE,
   intervalForRatePerMinute,
+  providerPacers,
 } from "@/lib/providers/pacer";
 
 /**
  * The pacer that spaces provider requests under a rate limit.
  *
  * decisions/052-predictions-log.md
+ * decisions/080-daily-refresh-of-every-competition.md
  */
 
 describe("intervalForRatePerMinute", () => {
@@ -120,5 +122,36 @@ describe("createPacer", () => {
 
       expect(second).toBe(true);
     });
+  });
+});
+
+describe("providerPacers", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("spaces each provider at its own rate, independently of the other", async () => {
+    vi.useFakeTimers();
+    const pacers = providerPacers();
+    const started: string[] = [];
+    const run = (source: "football-data" | "taso") =>
+      pacers[source](async () => {
+        started.push(source);
+      });
+
+    await Promise.all([run("football-data"), run("taso")]);
+    const secondTaso = run("taso");
+    const secondFootballData = run("football-data");
+    // TASO's 60 a minute: one a second.
+    await vi.advanceTimersByTimeAsync(1_000);
+    await secondTaso;
+    expect(started).toEqual(["football-data", "taso", "taso"]);
+    // football-data's 9 a minute: one every 6 667 ms.
+    await vi.advanceTimersByTimeAsync(5_666);
+    expect(started).toHaveLength(3);
+    await vi.advanceTimersByTimeAsync(1);
+    await secondFootballData;
+
+    expect(started).toEqual(["football-data", "taso", "taso", "football-data"]);
   });
 });

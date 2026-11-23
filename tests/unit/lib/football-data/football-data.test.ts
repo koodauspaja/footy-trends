@@ -295,10 +295,22 @@ describe("football-data mapping", () => {
       seasons: [{ id: 2600, startDate: "2099-08-15" }],
     });
 
-    const { activeSeasonId, selectableSeasons } = await getSeasonContext("PL");
+    const { activeSeasonId, upcomingSeasonId, selectableSeasons } = await getSeasonContext("PL");
 
     expect(activeSeasonId).toBe(2025);
+    expect(upcomingSeasonId).toBe(2099);
     expect(selectableSeasons[0]).toEqual({ seasonId: 2099, label: "2099/00" });
+  });
+
+  it("names no upcoming season when the provider lists none", async () => {
+    getCachedMock.mockResolvedValue({
+      currentSeason: { id: 2403, startDate: "2025-08-15", endDate: "2026-05-24" },
+    });
+
+    const context = await getSeasonContext("PL");
+
+    expect(context.activeSeasonId).toBe(2025);
+    expect("upcomingSeasonId" in context).toBe(false);
   });
 
   it("ignores the provider's unreachable historical seasons when listing selectable ones", async () => {

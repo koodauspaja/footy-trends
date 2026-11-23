@@ -189,6 +189,19 @@ open once the next season's first fixture is stored. It logs
 `Arvauspeli season guesses settled` every run, and names a season guess that
 fails to settle in the run's failures.
 
+The run that starts at 03:00 UTC first refreshes every competition's current
+season (specs/080): the 14 domestic competitions' matches and group tables
+(and, while TASO's newest season has no matches, the season their pages show),
+and the 10 foreign ones' matches, the upcoming season too once football-data
+lists it. Not the national-team pages' competitions, and never a past season.
+It shares the run's pacers, so it adds no rate of its own, and logs `Daily
+refresh finished`; a competition that fails is named in the run's failures. The
+same step alone is `DATABASE_URL=<that environment> npm run predictions --
+refresh`: on staging, which has no cron, and after a 03:00 run that failed. Run
+by hand, it is a second process on the football-data key production's cron and
+pages use, so run it away from the top of the hour: on 2026-11-23 a run at
+:02 got 429s for two competitions.
+
 The whole backtest is still run by hand, per environment:
 `DATABASE_URL=<that environment> npm run predictions -- backtest`, from a
 checkout of the commit that environment runs. It rewrites every row.

@@ -402,6 +402,27 @@ async function withStoredStartingPoints(
 }
 
 /**
+ * Writes a season's groups, as TASO answered them, over its stored group
+ * standings and levels, carrying starting points TASO left out.
+ *
+ * decisions/272-group-standings-endpoint.md
+ * decisions/080-daily-refresh-of-every-competition.md
+ */
+export async function storeSeasonGroups(
+  groups: TasoGroup[],
+  categoryId: string,
+  competitionId: string,
+  seasonId: number
+): Promise<void> {
+  reportUnconfiguredContinuations(groups, categoryId, competitionId, seasonId);
+  const rows = normalizeGroupTeams(groups, categoryId, competitionId, seasonId);
+  const levels = normalizeGroupLevels(groups, categoryId, competitionId, seasonId);
+  await synchronizeGroupTeams(categoryId, competitionId, seasonId, rows, levels, db, {
+    carryStartingPoints: true,
+  });
+}
+
+/**
  * TASO's own group standings, stored and refreshed on the same rule as matches.
  *
  * decisions/013-more-finnish-competitions.md
@@ -429,12 +450,7 @@ export const getSyncedGroupTeams = cache(async function getSyncedGroupTeams(
 
   try {
     const groups = await getSeasonGroups(competitionId, categoryId);
-    reportUnconfiguredContinuations(groups, categoryId, competitionId, seasonId);
-    const rows = normalizeGroupTeams(groups, categoryId, competitionId, seasonId);
-    const levels = normalizeGroupLevels(groups, categoryId, competitionId, seasonId);
-    await synchronizeGroupTeams(categoryId, competitionId, seasonId, rows, levels, db, {
-      carryStartingPoints: true,
-    });
+    await storeSeasonGroups(groups, categoryId, competitionId, seasonId);
     // Re-read rather than returning `rows`: the caller needs full stored rows,
     // and the snapshot has just replaced whatever was there.
     return await db

@@ -7,6 +7,7 @@
  * decisions/014-champions-league.md
  * decisions/016-world-cup-and-euro.md
  * decisions/036-halftime-comebacks.md
+ * decisions/080-daily-refresh-of-every-competition.md
  */
 
 import { cache } from "react";
@@ -108,6 +109,8 @@ function request<T>(path: string, signal?: AbortSignal): Promise<T> {
 export type SeasonContext = {
   /** The newest season that has already started; the default the home page shows. */
   activeSeasonId: number;
+  /** The season the provider lists that has not started yet, when there is one. */
+  upcomingSeasonId?: number;
   /** Newest first, bounded by `FOOTBALL_DATA_EARLIEST_SEASON`. */
   selectableSeasons: SeasonOption[];
   /**
@@ -149,6 +152,7 @@ export const getSeasonContext = cache(async (competitionCode: string): Promise<S
 
   return {
     activeSeasonId,
+    ...(upcomingSeasonId === undefined ? {} : { upcomingSeasonId }),
     selectableSeasons: listSelectableSeasons(
       activeSeasonId,
       earliestSeason,

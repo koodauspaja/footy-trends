@@ -26,15 +26,11 @@ import {
 import type { MatchSource } from "../matches/match-source";
 import { logger } from "../platform/logger";
 import { invalidateCache } from "../providers/cache";
-import {
-  createPacer,
-  FOOTBALL_DATA_PER_MINUTE,
-  type Paced,
-  TASO_PER_MINUTE,
-} from "../providers/pacer";
+import { type Paced, providerPacers } from "../providers/pacer";
 import { categoryIdsFor, competitionForSeasonPair } from "../taso/domestic-competitions";
 import { getSeasonMatches as getTasoSeasonMatches } from "../taso/taso";
 import { synchronizeMatches as synchronizeTasoMatches } from "../taso/taso-sync";
+import { isDailyRefreshHour, runDailyRefresh } from "./daily-refresh";
 import { isRated, type TeamRating } from "./elo";
 import { replayVariants, type VariantState } from "./elo-variants";
 import { HOME_BASELINE_MODEL, isPredictedCup, PREDICTED_COMPETITIONS } from "./home-baseline";
@@ -239,18 +235,6 @@ async function writePredictions(rows: readonly PredictionRow[]): Promise<void> {
   if (failures.length > 0) throw failures[0];
 }
 
-/**
- * The run's pacers: football-data at 9 a minute, TASO at 60.
- *
- * decisions/052-predictions-log.md
- */
-function defaultPacers(): Record<MatchSource["kind"], Paced> {
-  return {
-    "football-data": createPacer(FOOTBALL_DATA_PER_MINUTE),
-    taso: createPacer(TASO_PER_MINUTE),
-  };
-}
-
 export type PredictionRunReport = {
   refreshed: number;
   logged: number;
@@ -258,6 +242,11 @@ export type PredictionRunReport = {
   backtested: number;
   /** Arvauspeli guesses settled, after the refresh stored their results. */
   settled: number;
+  /**
+   * Competition-seasons the daily refresh stored, or null in the hours it does
+   * not run.
+   */
+  daily: number | null;
   /** One line per competition that failed, to refresh or to predict. */
   failures: string[];
 };
@@ -274,13 +263,16 @@ export type PredictionRunReport = {
  * decisions/057-surprise-index.md
  * decisions/059-cup-predictions.md
  * decisions/060-elo-variants.md
+ * decisions/080-daily-refresh-of-every-competition.md
  */
 export async function runPredictionLog(
   clock: () => Date = () => new Date(),
   paced: Record<MatchSource["kind"], Paced> | undefined = undefined
 ): Promise<PredictionRunReport> {
-  const pacers = paced ?? defaultPacers();
+  const pacers = paced ?? providerPacers();
   const startedAt = clock();
+  // First, so this run's own refresh, settling and predictions see what it stores.
+  const daily = isDailyRefreshHour(startedAt) ? await runDailyRefresh(pacers) : null;
   const targets = refreshTargets(await readCandidates(startedAt), startedAt);
 
   // Started together; each provider's pacer still spaces its own requests.
@@ -296,7 +288,7 @@ export async function runPredictionLog(
     })
   );
   const refreshFailures = refreshes.filter((failure) => failure !== null);
-  const failures = [...refreshFailures];
+  const failures = [...(daily?.failures ?? []), ...refreshFailures];
 
   // Read again: the refresh may have moved a kickoff or finished a match.
   const candidates = await readCandidates(startedAt);
@@ -386,6 +378,7 @@ export async function runPredictionLog(
     logged: rows.length,
     backtested,
     settled,
+    daily: daily?.refreshed ?? null,
     failures,
   };
   logger.info(report, "Predictions run finished");
