@@ -119,8 +119,10 @@ A season with only *unplayed* fixtures is fine and does become the default:
 spec 008's roster seeding renders every team at zero stats, which is a
 correct pre-season table, not an empty state.
 
-Newer published seasons still appear in the selector and are reachable via
-`?kausi=`; only the default lags.
+A newer published season with no matches still appears in the selector, greyed
+out as "Ei otteluita tällä kaudella" and not selectable, and a `?kausi=` naming it
+is treated as an invalid season (`decisions/878-empty-season-not-selectable.md`).
+Once it has a match listed, it is offered as any season is.
 
 ### Cache freshness
 
@@ -204,8 +206,9 @@ fixed `Referer`/`Origin`/`User-Agent` constants the other TASO calls need.
 - [ ] `spljphhl26` is never selected, despite sharing the `spljp` prefix,
       the `published` status, and the `season_id`.
 - [ ] A published season with no matches does not become the default; the
-      newest season with matches does. It still appears in the selector and
-      is reachable via `?kausi=`.
+      newest season with matches does. It appears in the selector greyed out
+      as "Ei otteluita tällä kaudella", and a `?kausi=` naming it opens the
+      newest season with matches with the invalid-season notice (#878).
 - [ ] A season whose matches are all unplayed fixtures *does* become the
       default, rendering zero-stats rows rather than an empty state.
 - [ ] A failed or empty `getCompetitions` renders a usable page on the
