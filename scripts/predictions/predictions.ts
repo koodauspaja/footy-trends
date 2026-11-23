@@ -14,6 +14,7 @@ import {
   describeDailyRefresh,
   describeRun,
   exitCodeFor,
+  type PredictionCommand,
   parseCommand,
   USAGE,
 } from "./predictions-plan";
@@ -32,6 +33,42 @@ const connectionString = rawConnectionString.trim() === "" ? null : rawConnectio
 // Loaded only for the provider keys, read lazily at request time.
 if (existsSync(".env")) process.loadEnvFile(".env");
 
+// What one command prints and exits with; the database is open, and `main` closes it.
+async function runCommand(
+  command: PredictionCommand
+): Promise<{ lines: string[]; exitCode: number }> {
+  const { runPredictionBacktest, runPredictionLog, settle } = await import(
+    "../../src/lib/predictions/prediction-log-service"
+  );
+  switch (command) {
+    case "refresh": {
+      const { runDailyRefresh } = await import("../../src/lib/predictions/daily-refresh");
+      const report = await runDailyRefresh();
+      return { lines: describeDailyRefresh(report), exitCode: exitCodeFor(report) };
+    }
+    case "backtest":
+      return {
+        lines: [`Backtest     ${await runPredictionBacktest()} row(s) written`],
+        exitCode: 0,
+      };
+    case "settle": {
+      const failures: string[] = [];
+      const settled = await settle(new Date(), failures);
+      return {
+        lines: [
+          `Settled      ${settled} guess(es)`,
+          ...failures.map((failure) => `Failed       ${failure}`),
+        ],
+        exitCode: failures.length === 0 ? 0 : 1,
+      };
+    }
+    case "log": {
+      const report = await runPredictionLog();
+      return { lines: describeRun(report), exitCode: exitCodeFor(report) };
+    }
+  }
+}
+
 async function main(): Promise<void> {
   const command = parseCommand(process.argv.slice(2));
   if (command === null) {
@@ -48,31 +85,10 @@ async function main(): Promise<void> {
 
   const { closeDatabase } = await import("../../src/db");
   const { redis } = await import("../../src/lib/platform/redis");
-  const { runPredictionBacktest, runPredictionLog, settle } = await import(
-    "../../src/lib/predictions/prediction-log-service"
-  );
-  const { runDailyRefresh } = await import("../../src/lib/predictions/daily-refresh");
   try {
-    if (command === "refresh") {
-      const report = await runDailyRefresh();
-      for (const line of describeDailyRefresh(report)) out(line);
-      process.exitCode = exitCodeFor(report);
-      return;
-    }
-    if (command === "backtest") {
-      out(`Backtest     ${await runPredictionBacktest()} row(s) written`);
-      return;
-    }
-    if (command === "settle") {
-      const failures: string[] = [];
-      out(`Settled      ${await settle(new Date(), failures)} guess(es)`);
-      for (const failure of failures) out(`Failed       ${failure}`);
-      process.exitCode = failures.length === 0 ? 0 : 1;
-      return;
-    }
-    const report = await runPredictionLog();
-    for (const line of describeRun(report)) out(line);
-    process.exitCode = exitCodeFor(report);
+    const { lines, exitCode } = await runCommand(command);
+    for (const line of lines) out(line);
+    process.exitCode = exitCode;
   } finally {
     // Cleanup cannot decide whether the run succeeded.
     for (const result of await Promise.allSettled([closeDatabase(), redis.quit()])) {
