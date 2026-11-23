@@ -4,8 +4,8 @@ import { categoryIdForSeason, competitionIdForSeason } from "@/lib/taso/domestic
 
 /**
  * The daily refresh with every provider and write mocked: which seasons it asks
- * for, each request paced, and what a failure costs. Its requests go through the
- * providers' 15-minute response cache, which these mocks replace.
+ * for, each request paced, what a failure costs. The mocks replace the response
+ * cache: 15 minutes for matches and groups, an hour for a competition.
  *
  * decisions/080-daily-refresh-of-every-competition.md
  */

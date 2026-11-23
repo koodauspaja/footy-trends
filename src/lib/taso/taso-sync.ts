@@ -405,8 +405,8 @@ async function withStoredStartingPoints(
  * Writes a season's groups, as TASO answered them, over its stored group
  * standings and levels, carrying starting points TASO left out.
  *
- * decisions/272-group-standings-endpoint.md
  * decisions/080-daily-refresh-of-every-competition.md
+ * decisions/272-group-standings-endpoint.md
  */
 export async function storeSeasonGroups(
   groups: TasoGroup[],

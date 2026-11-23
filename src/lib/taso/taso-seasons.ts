@@ -150,8 +150,8 @@ export const resolveTasoSeasonCeiling = cache(async function resolveTasoSeasonCe
  * The season a page lands on while the ceiling season has no matches: the newer
  * of the newest stored and the one before, kept inside the selector's range.
  *
- * decisions/865-active-season-has-matches.md
  * decisions/080-daily-refresh-of-every-competition.md
+ * decisions/865-active-season-has-matches.md
  */
 export function seasonShownBeforeMatches(
   competitionCode: string,

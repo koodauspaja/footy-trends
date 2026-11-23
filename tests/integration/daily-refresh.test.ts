@@ -1,11 +1,11 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db";
-import { matches, tasoGroupTeams, tasoMatches } from "@/db/schema";
+import { matches, tasoGroupTeams, tasoGroupZones, tasoMatches } from "@/db/schema";
 
 /**
- * The daily refresh against a real Postgres, with the providers and their
- * 15-minute response cache mocked: every newest season is 2099, the shown one
+ * The daily refresh against Postgres, the providers and their cache (15 minutes,
+ * an hour for a competition) mocked: every newest season is 2099, the shown one
  * 2098, a past one 1990, so the rows are this suite's.
  *
  * decisions/080-daily-refresh-of-every-competition.md
@@ -94,6 +94,7 @@ async function clear() {
   await db.delete(matches).where(inArray(matches.providerMatchId, IDS));
   await db.delete(tasoMatches).where(inArray(tasoMatches.providerMatchId, IDS));
   await db.delete(tasoGroupTeams).where(inArray(tasoGroupTeams.seasonId, [2098, 2099]));
+  await db.delete(tasoGroupZones).where(inArray(tasoGroupZones.seasonId, [2098, 2099]));
 }
 
 beforeEach(async () => {
@@ -110,6 +111,8 @@ beforeEach(async () => {
           {
             group_id: "988900",
             group_name: "Runkosarja",
+            next_stage_levels: "1,1,0,0,0,0,0,0,0,0",
+            next_stage_level_texts: ["Mestaruus", "Karsinta", "", "", "", "", "", "", "", ""],
             teams: TEAMS.map((team) => ({
               team_id: String(team),
               team_name: `Team ${team}`,
@@ -152,6 +155,14 @@ describe("runDailyRefresh", () => {
       .from(tasoGroupTeams)
       .where(and(eq(tasoGroupTeams.categoryId, "VL"), eq(tasoGroupTeams.seasonId, 2099)));
     expect(rows.map((row) => row.teamProviderId).sort()).toEqual([...TEAMS].sort());
+    const zones = await db
+      .select()
+      .from(tasoGroupZones)
+      .where(and(eq(tasoGroupZones.categoryId, "VL"), eq(tasoGroupZones.seasonId, 2099)));
+    expect(zones.map((zone) => [zone.level, zone.teamCount, zone.label]).sort()).toEqual([
+      [1, 1, "Mestaruus"],
+      [2, 1, "Karsinta"],
+    ]);
   });
 
   it("stores no group rows for a season with no matches, so it does not count as stored", async () => {
