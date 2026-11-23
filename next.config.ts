@@ -191,10 +191,6 @@ export default withSentryConfig(nextConfig, {
   // Upload a larger set of source maps for prettier stack traces (increases build time)
   widenClientFileUpload: true,
 
-  // Routes browser requests to Sentry through a Next.js rewrite, past
-  // ad-blockers. The route must not match the app's middleware.
-  tunnelRoute: "/monitoring",
-
   webpack: {
     // Tree-shaking options for reducing bundle size
     treeshake: {
