@@ -7,6 +7,7 @@
  * decisions/014-champions-league.md
  * decisions/016-world-cup-and-euro.md
  * decisions/036-halftime-comebacks.md
+ * decisions/080-daily-refresh-of-every-competition.md
  */
 
 import { cache } from "react";

@@ -71,7 +71,12 @@ function failure(
   return `daily ${source} ${code} ${seasonId ?? "season"}`;
 }
 
-// A season's matches and groups: how many matches TASO sent, or the failure, named and logged.
+/**
+ * A season's matches, then its groups once it has matches: group rows alone
+ * would make a page treat an unstarted season as its newest stored one.
+ *
+ * decisions/080-daily-refresh-of-every-competition.md
+ */
 async function refreshDomesticSeason(
   code: string,
   seasonId: number,
@@ -81,6 +86,7 @@ async function refreshDomesticSeason(
   const competitionId = competitionIdForSeason(code, seasonId);
   try {
     const matches = await paced(() => getTasoSeasonMatches(competitionId, categoryId, seasonId));
+    if (matches.length === 0) return { matches: 0 };
     await synchronizeTasoMatches(matches);
     const groups = await paced(() => getSeasonGroups(competitionId, categoryId));
     await storeSeasonGroups(groups, categoryId, competitionId, seasonId);
@@ -112,8 +118,8 @@ async function refreshDomestic(code: string, paced: Paced): Promise<DailyRefresh
   }
   const current = await refreshDomesticSeason(code, ceiling.currentSeason, paced);
   reports.push(reportOf(current));
-  // A published season with no matches yet: the page shows the one before, and refreshes it.
-  if ("matches" in current && current.matches === 0) {
+  // Unless the newest season refreshed with matches, the page shows the one before, and refreshes it.
+  if (!("matches" in current && current.matches > 0)) {
     const shown = seasonShownBeforeMatches(code, ceiling.currentSeason, ceiling.newestStored);
     if (shown !== ceiling.currentSeason) {
       reports.push(reportOf(await refreshDomesticSeason(code, shown, paced)));

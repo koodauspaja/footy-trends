@@ -3,8 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db";
 import { matches, tasoGroupTeams, tasoMatches } from "@/db/schema";
 
-// No provider request from a test: every competition's current season is 2099,
-// and the providers answer with this suite's rows or nothing.
+/**
+ * The daily refresh against a real Postgres, with the providers and their
+ * 15-minute response cache mocked: every newest season is 2099, the shown one
+ * 2098, a past one 1990, so the rows are this suite's.
+ *
+ * decisions/080-daily-refresh-of-every-competition.md
+ */
+
 const providers = vi.hoisted(() => ({
   taso: vi.fn(),
   groups: vi.fn(),
@@ -32,14 +38,7 @@ vi.mock("@/lib/football-data/football-data", async (importOriginal) => ({
 
 import { runDailyRefresh } from "@/lib/predictions/daily-refresh";
 import { competitionIdForSeason } from "@/lib/taso/domestic-competitions";
-
-/**
- * The daily refresh against a real Postgres: a fixture that only the provider
- * has is stored with no page visited, group tables are written, and a past
- * season is left alone. Seasons are 2099 and 1990, so the rows are this suite's.
- *
- * decisions/080-daily-refresh-of-every-competition.md
- */
+import { storedTasoSeasons } from "@/lib/taso/taso-seasons";
 
 const IDS = [988_001, 988_002, 988_003];
 const TEAMS = [988_101, 988_102];
@@ -153,6 +152,27 @@ describe("runDailyRefresh", () => {
       .from(tasoGroupTeams)
       .where(and(eq(tasoGroupTeams.categoryId, "VL"), eq(tasoGroupTeams.seasonId, 2099)));
     expect(rows.map((row) => row.teamProviderId).sort()).toEqual([...TEAMS].sort());
+  });
+
+  it("stores no group rows for a season with no matches, so it does not count as stored", async () => {
+    // TASO answers groups for every category; only VL's 2099 has a match.
+    providers.groups.mockImplementation(async () => [
+      {
+        group_id: "988900",
+        group_name: "Runkosarja",
+        teams: TEAMS.map((team) => ({ team_id: String(team), team_name: `Team ${team}` })),
+      },
+    ]);
+
+    await runDailyRefresh(immediate);
+
+    const m1Rows = await db
+      .select()
+      .from(tasoGroupTeams)
+      .where(and(eq(tasoGroupTeams.categoryId, "M1"), eq(tasoGroupTeams.seasonId, 2099)));
+    expect(m1Rows).toEqual([]);
+    expect(await storedTasoSeasons("M1")).not.toContain(2099);
+    expect(await storedTasoSeasons("VL")).toContain(2099);
   });
 
   it("moves a stored fixture the provider has rescheduled", async () => {

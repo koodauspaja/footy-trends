@@ -3,9 +3,9 @@ import type { Paced, ProviderPacers } from "@/lib/providers/pacer";
 import { categoryIdForSeason, competitionIdForSeason } from "@/lib/taso/domestic-competitions";
 
 /**
- * The daily refresh with every provider and write mocked: which competitions
- * and seasons it asks for, that each request is paced, and what a failure
- * costs.
+ * The daily refresh with every provider and write mocked: which seasons it asks
+ * for, each request paced, and what a failure costs. Its requests go through the
+ * providers' 15-minute response cache, which these mocks replace.
  *
  * decisions/080-daily-refresh-of-every-competition.md
  */
@@ -178,6 +178,47 @@ describe("runDailyRefresh", () => {
     expect(calls["football-data"]).toBe(FOREIGN.length * 2);
   });
 
+  it("makes each provider request inside its own pacer's turn, not beside it", async () => {
+    const open = { "football-data": 0, taso: 0 };
+    const unpaced: string[] = [];
+    const turn =
+      (source: keyof ProviderPacers): Paced =>
+      async (work) => {
+        open[source]++;
+        try {
+          return await work();
+        } finally {
+          open[source]--;
+        }
+      };
+    const checked =
+      (source: keyof ProviderPacers, name: string, answer: (...args: never[]) => unknown) =>
+      async (...args: never[]) => {
+        if (open[source] === 0) unpaced.push(name);
+        return answer(...args);
+      };
+    mocks.resolveTasoSeasonCeiling.mockImplementation(
+      checked("taso", "ceiling", () => ({
+        currentSeason: SEASON,
+        newestStored: SEASON,
+        discoveryFailed: false,
+      }))
+    );
+    mocks.getTasoSeasonMatches.mockImplementation(checked("taso", "taso matches", () => [{}]));
+    mocks.getSeasonGroups.mockImplementation(checked("taso", "groups", () => GROUPS));
+    mocks.getSeasonContext.mockImplementation(
+      checked("football-data", "context", () => ({ activeSeasonId: SEASON }))
+    );
+    mocks.getFootballDataSeasonMatches.mockImplementation(
+      checked("football-data", "football-data matches", () => [{}])
+    );
+
+    await runDailyRefresh({ "football-data": turn("football-data"), taso: turn("taso") });
+
+    expect(unpaced).toEqual([]);
+    expect(mocks.getSeasonGroups).toHaveBeenCalledTimes(DOMESTIC.length);
+  });
+
   it("uses the providers' own pacers when given none", async () => {
     const { pacers, calls } = countingPacers();
     mocks.providerPacers.mockReturnValue(pacers);
@@ -186,6 +227,7 @@ describe("runDailyRefresh", () => {
 
     expect(mocks.providerPacers).toHaveBeenCalledTimes(1);
     expect(calls.taso).toBeGreaterThan(0);
+    expect(calls["football-data"]).toBeGreaterThan(0);
   });
 
   it("also refreshes a football-data season that is listed but has not started", async () => {
@@ -275,6 +317,33 @@ describe("runDailyRefresh", () => {
     // Each ceiling is also the season its page shows, so nothing else is fetched.
     expect(report).toEqual({ refreshed: 24, failures: [] });
     expect(mocks.getTasoSeasonMatches).toHaveBeenCalledTimes(DOMESTIC.length);
+    // Group rows alone would make a page land on a season with no matches.
+    expect(mocks.getSeasonGroups).not.toHaveBeenCalled();
+    expect(mocks.storeSeasonGroups).not.toHaveBeenCalled();
+    expect(mocks.synchronizeTasoMatches).not.toHaveBeenCalled();
+  });
+
+  it("refreshes the shown season when the newest one fails", async () => {
+    mocks.resolveTasoSeasonCeiling.mockImplementation(async (code: string) => ({
+      currentSeason: code === "M2" ? SEASON + 1 : SEASON,
+      newestStored: SEASON,
+      discoveryFailed: false,
+    }));
+    mocks.getTasoSeasonMatches.mockImplementation(
+      async (_competitionId: string, categoryId: string, seasonId: number) => {
+        if (categoryId === categoryIdForSeason("M2", seasonId) && seasonId === SEASON + 1) {
+          throw new Error("TASO 500");
+        }
+        return [{ categoryId, seasonId }];
+      }
+    );
+
+    const report = await runDailyRefresh(countingPacers().pacers);
+
+    expect(report).toEqual({ refreshed: 24, failures: [`daily taso M2 ${SEASON + 1}`] });
+    expect(mocks.synchronizeTasoMatches).toHaveBeenCalledWith([
+      { categoryId: categoryIdForSeason("M2", SEASON), seasonId: SEASON },
+    ]);
   });
 
   it("also refreshes the season a page shows while the newest one TASO lists has no matches", async () => {
@@ -289,11 +358,15 @@ describe("runDailyRefresh", () => {
         seasonId === SEASON + 1 && categoryId !== vlNext ? [] : [{ categoryId, seasonId }]
     );
 
-    const report = await runDailyRefresh(countingPacers().pacers);
+    const { pacers, calls } = countingPacers();
+    const report = await runDailyRefresh(pacers);
 
     // VL's next season has matches, so its page shows that one alone; the other
     // thirteen show the season before, and both are fetched.
     expect(report).toEqual({ refreshed: 24 + 13, failures: [] });
+    // Discovery and the empty season's matches, then the shown season's matches
+    // and groups: four each, and VL's three.
+    expect(calls.taso).toBe(13 * 4 + 3);
     expect(mocks.getTasoSeasonMatches).not.toHaveBeenCalledWith(
       competitionIdForSeason("VL", SEASON),
       categoryIdForSeason("VL", SEASON),
@@ -309,6 +382,10 @@ describe("runDailyRefresh", () => {
       categoryIdForSeason("M1", SEASON),
       competitionIdForSeason("M1", SEASON),
       SEASON
+    );
+    expect(mocks.getSeasonGroups).not.toHaveBeenCalledWith(
+      competitionIdForSeason("M1", SEASON + 1),
+      categoryIdForSeason("M1", SEASON + 1)
     );
   });
 

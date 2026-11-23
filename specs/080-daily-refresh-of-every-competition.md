@@ -55,7 +55,7 @@ What a competition's "current season" is:
 
 | Provider | Competitions | Current season | Refreshed |
 |---|---|---|---|
-| TASO | VL, M1L, M1, M2, NL, N1, P21SM, P211, P18SM, T18SM, MSC, NSC, LC, M1LCUP (`DOMESTIC_COMPETITIONS`) | the newest season TASO lists (`resolveTasoSeasonCeiling`), and while that one has no matches, also the season the page shows (`seasonShownBeforeMatches`, the rule `resolveTasoSeasonContext` uses) | its matches (`taso_matches`), and its group tables (`taso_group_teams`, `taso_group_zones`), which every domestic page reads |
+| TASO | VL, M1L, M1, M2, NL, N1, P21SM, P211, P18SM, T18SM, MSC, NSC, LC, M1LCUP (`DOMESTIC_COMPETITIONS`) | the newest season TASO lists (`resolveTasoSeasonCeiling`), and while that one has no matches, also the season the page shows (`seasonShownBeforeMatches`, the rule `resolveTasoSeasonContext` uses) | its matches (`taso_matches`), and once it has matches, its group tables (`taso_group_teams`, `taso_group_zones`), which every domestic page reads |
 | football-data | PL, ELC, FL1, BL1, SA, DED, PPL, PD, BSA, CL (`SUPPORTED_COMPETITIONS` whose region is `foreign`; the predicted ones) | the active season (the newest started, as the pages read it), and the upcoming season when the competition response lists one | its matches (`matches`) |
 
 - **The same fetches and writes as the pages and the hourly run, each request
@@ -83,9 +83,11 @@ What a competition's "current season" is:
   competition is named in the run's failures. With nothing stored at all, the
   fallback would be the competition's first season, which is past: nothing is
   fetched, and the competition is named.
-- **TASO lists a new season with no matches yet:** that season is fetched and
-  stores nothing, which is not a failure. The season the page shows, the newest
-  with matches, is fetched too, as a page visit refreshes it. Once the new
+- **TASO lists a new season with no matches yet:** its matches are fetched and
+  store nothing, which is not a failure, and its group tables are not fetched:
+  group rows alone would make a page count the season as stored and land on it.
+  The season the page shows, the newest with matches, is fetched too, as a page
+  visit refreshes it. It is fetched as well when the newest season fails. Once the new
   season has matches, the page and the step both move to it, and the old one is
   past.
 - **football-data lists no upcoming season:** only the active one is fetched.
@@ -104,12 +106,12 @@ What a competition's "current season" is:
 
 ## Performance & Limits
 
-- Per competition, at most five TASO calls (discovery, then matches and group
-  tables for the newest season and for the shown one) or three football-data
-  calls (competition, active and upcoming season matches): at most 70 TASO and
-  30 football-data calls a day. At the pacers' rates
-  (`src/lib/providers/pacer.ts`: TASO 60/min, football-data 9/min), about
-  70 s and 3½ min at worst. Usually fewer, because cached responses are reused
+- Per competition, at most four TASO calls (discovery, the newest season's
+  matches, then either its group tables or the shown season's matches and
+  group tables) or three football-data calls (competition, active and upcoming
+  season matches): at most 56 TASO and 30 football-data calls a day. At the
+  pacers' rates (`src/lib/providers/pacer.ts`: TASO 60/min, football-data
+  9/min), about 56 s and 3½ min at worst. Usually fewer, because cached responses are reused
   and there is an upcoming season only between seasons.
 - The step shares the hourly run's pacers, so it and the near-kickoff refresh
   together never exceed either provider's rate. That is why it is a step of the
@@ -160,8 +162,9 @@ No new variables. The step uses what the `predictions` service already holds:
 
 - `tests/unit/lib/predictions/daily-refresh.test.ts`: every domestic and
   football-data competition is visited once; the upcoming season only when
-  listed; the shown season while the newest has no matches, and not
-  otherwise; nothing when discovery failed with nothing stored; Huuhkajat, Helmarit, WC and EC never; a failing competition does not stop the rest
+  listed; the shown season while the newest has no matches or failed, and not
+  otherwise; no group tables for a season with no matches; nothing when
+  discovery failed with nothing stored; every request inside its pacer's turn; Huuhkajat, Helmarit, WC and EC never; a failing competition does not stop the rest
   and is named; a season with no matches is not a failure.
 - `tests/unit/lib/predictions/prediction-log-service.test.ts`: the step runs
   when the run's clock is in hour 03 UTC and not at 02 or 04, and before the
@@ -170,8 +173,9 @@ No new variables. The step uses what the `predictions` service already holds:
   is in the usage, and its summary and exit code.
 - `tests/integration/daily-refresh.test.ts`: with the providers stubbed, a
   fixture only at the provider is stored for a TASO and a football-data
-  competition; a moved fixture is moved; group tables are written; the shown
-  season's fixture is stored while the newest season has none; a past
+  competition; a moved fixture is moved; group tables are written; no group
+  rows for a season with no matches, which then does not count as stored; the
+  shown season's fixture is stored while the newest season has none; a past
   season's rows are untouched.
 - `tests/unit/lib/providers/pacer.test.ts`: the shared pacers space each
   provider at its own rate. `tests/unit/lib/football-data/football-data.test.ts`:
