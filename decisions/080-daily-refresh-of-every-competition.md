@@ -17,3 +17,16 @@ Feature #828, spec `specs/080-daily-refresh-of-every-competition.md`. Arvauspeli
 | **One `error` line per failure, `Daily refresh of a competition failed`**, with `source`, `code` and `seasonId` | The pages' refresh functions log their own warnings, but the step does not go through them. The spec's Logging section was corrected to this line |
 | **A competition's matches and groups are one unit**: if the matches fail, the groups are not fetched, and either failing names the competition-season once | The count is of competition-seasons refreshed, and a half-refreshed one is not refreshed |
 | **The run's report gains `daily`**: the count, or null in the hours the step does not run | The printed summary puts `Daily …` first in that hour, and the run's failures list the step's first |
+
+## Measured
+
+On 2026-11-23, `npm run predictions -- refresh` against the real providers, into a scratch database (created, migrated and dropped afterwards):
+
+| Run | Result |
+|---|---|
+| 20:02 UTC, while production's hourly cron was still using the shared football-data key | `Daily 22 competition-season(s) refreshed`, exit 1. football-data answered 429 for `PD`'s competition and `PPL`'s matches; both were named (`daily football-data PD season`, `daily football-data PPL 2026`), the other 22 stored, and 2 754 foreign matches written |
+| 20:22 UTC, nothing else on the key | `Daily 24 competition-season(s) refreshed`, no failure, no 429. All ten foreign competitions' 2026 seasons stored |
+
+TASO already lists 2027 (`spljp27`, `Liigacup27`, `M1LCUP27`) as every domestic competition's current season, and it has no matches yet. Both runs fetched each competition's 2027 matches and groups, one TASO call a second (42 calls in the first run, 28 in the second, whose season discovery came from its cache), stored nothing, and counted that as refreshed. 2026 was not fetched: the spec's case of a published season with no matches, as it happens in November. No upcoming football-data season was listed.
+
+The first run took 131 s. The second's football-data calls stopped twice for minutes, which `pmset -g log` shows were the machine sleeping (20:23–20:25 and 20:26–20:37 UTC), not the step.
