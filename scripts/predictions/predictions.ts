@@ -1,15 +1,22 @@
 /**
  * The predictions log's entry point: `npm run predictions -- log`, which the
  * Railway cron service runs hourly, `-- backtest`, run by hand after a deploy,
- * and `-- settle`, Arvauspeli's settling alone, for staging. `DATABASE_URL` must come from the environment, not `.env`.
+ * and `-- settle` and `-- refresh`, settling or the daily refresh alone. `DATABASE_URL` must come from the environment, not `.env`.
  *
  * decisions/052-predictions-log.md
  * decisions/571-bounded-database-close.md
  * decisions/072-match-guesses.md
+ * decisions/080-daily-refresh-of-every-competition.md
  */
 import { existsSync } from "node:fs";
 import { describeError } from "../backfill/backfill-plan";
-import { describeRun, exitCodeFor, parseCommand, USAGE } from "./predictions-plan";
+import {
+  describeDailyRefresh,
+  describeRun,
+  exitCodeFor,
+  parseCommand,
+  USAGE,
+} from "./predictions-plan";
 
 function out(line = ""): void {
   process.stdout.write(`${line}\n`);
@@ -44,7 +51,14 @@ async function main(): Promise<void> {
   const { runPredictionBacktest, runPredictionLog, settle } = await import(
     "../../src/lib/predictions/prediction-log-service"
   );
+  const { runDailyRefresh } = await import("../../src/lib/predictions/daily-refresh");
   try {
+    if (command === "refresh") {
+      const report = await runDailyRefresh();
+      for (const line of describeDailyRefresh(report)) out(line);
+      process.exitCode = exitCodeFor(report);
+      return;
+    }
     if (command === "backtest") {
       out(`Backtest     ${await runPredictionBacktest()} row(s) written`);
       return;

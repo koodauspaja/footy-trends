@@ -49,6 +49,8 @@ export function intervalForRatePerMinute(perMinute: number): number {
 
 export type Paced = <T>(work: () => Promise<T>) => Promise<T>;
 
+export type ProviderPacers = Record<"football-data" | "taso", Paced>;
+
 const defaultSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -75,5 +77,19 @@ export function createPacer(
     queue = turn;
     await turn;
     return work();
+  };
+}
+
+/**
+ * A pacer per provider at the rates above. The hourly run makes one and its
+ * daily refresh shares it, so the two never add up to more than either rate.
+ *
+ * decisions/052-predictions-log.md
+ * decisions/080-daily-refresh-of-every-competition.md
+ */
+export function providerPacers(): ProviderPacers {
+  return {
+    "football-data": createPacer(FOOTBALL_DATA_PER_MINUTE),
+    taso: createPacer(TASO_PER_MINUTE),
   };
 }

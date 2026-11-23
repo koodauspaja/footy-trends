@@ -54,17 +54,19 @@ What a competition's "current season" is:
 
 | Provider | Competitions | Current season | Refreshed |
 |---|---|---|---|
-| TASO | VL, M1L, M1, M2, NL, N1, P21SM, P211, P18SM, T18SM, MSC, NSC, LC, M1LCUP (`DOMESTIC_COMPETITIONS`) | the newest season TASO lists, found as a domestic page finds it (`resolveTasoSeasonContext`) | its matches (`taso_matches`), and the group tables its standings page shows (`taso_group_teams`, `taso_group_zones`), through the same calls the pages make |
+| TASO | VL, M1L, M1, M2, NL, N1, P21SM, P211, P18SM, T18SM, MSC, NSC, LC, M1LCUP (`DOMESTIC_COMPETITIONS`) | the newest season TASO lists, found as a domestic page finds its ceiling (`resolveTasoSeasonCeiling`) | its matches (`taso_matches`), and its group tables (`taso_group_teams`, `taso_group_zones`), which every domestic page reads |
 | football-data | PL, ELC, FL1, BL1, SA, DED, PPL, PD, BSA, CL (`SUPPORTED_COMPETITIONS` whose region is `foreign`; the predicted ones) | the active season (the newest started, as the pages read it), and the upcoming season when the competition response lists one | its matches (`matches`) |
 
-- **The pages' own refresh path, not a new one.** Each season is refreshed
-  through the functions a page visit uses, with the refreshed season as the
-  active one, so the rule is theirs: fetched when nothing is stored or the
-  stored rows are 15 minutes old or more, and written by the same sync. After a
-  day, every season is older than that.
+- **The same fetches and writes as the pages and the hourly run, each request
+  paced.** A season is fetched with the provider functions every reader uses
+  and written by the same sync (`synchronizeMatches` of each provider, and the
+  group write the standings pages use, `storeSeasonGroups`). The pages' own
+  refresh functions call the providers unpaced, so the step calls these
+  directly, each request through the run's pacer.
 - **Caching:** unchanged. Requests go through the existing 15-minute Redis
-  response cache and the 15-minute season-context cache, so a season a page or
-  the hourly run fetched in the last 15 minutes is not fetched again.
+  response cache (an hour for a football-data competition) and the 15-minute
+  season-ceiling cache, so a response a page or the hourly run fetched in the
+  last 15 minutes is reused rather than fetched again.
 - Endpoints: TASO's competition listing (season discovery), season matches and
   group standings; football-data's `/competitions/{code}` and
   `/competitions/{code}/matches?season={year}`. All already used.
@@ -122,11 +124,11 @@ No new variables. The step uses what the `predictions` service already holds:
   number of competition-seasons refreshed and each failure as `source`, `code`
   and `seasonId`. This is the record of the shared data it changes; it acts for
   no person, so it has no user id.
-- **Each failure:** the `warn` lines the pages' refresh already writes (`TASO
-  refresh failed; using stored matches`, `TASO group refresh failed; falling
-  back to stored group standings`, `Competition refresh failed; using stored
-  matches`) stay as they are, and the run's printed summary gains one line
-  per failure, `Failed       daily <source> <code> <season>`.
+- **Each failure:** one `error` line, `Daily refresh of a competition failed`,
+  with `source`, `code` and `seasonId` (none for a failed season discovery),
+  and one line in the run's printed summary, `Failed       daily <source>
+  <code> <season>`, `season` in place of the year when the season could not be
+  resolved.
 - **The run's printed summary** gains `Daily        <n> competition-season(s)
   refreshed` on the 03:00 run and on `-- refresh`.
 - No personal data: the step handles none.
@@ -160,13 +162,20 @@ No new variables. The step uses what the `predictions` service already holds:
   is in the usage, and its summary and exit code.
 - `tests/integration/daily-refresh.test.ts`: with the providers stubbed, a
   fixture only at the provider is stored for a TASO and a football-data
-  competition; a past season's rows are untouched; rows refreshed in the last
-  15 minutes are not fetched again.
+  competition; a moved fixture is moved; group tables are written; a past
+  season's rows are untouched.
+- `tests/unit/lib/providers/pacer.test.ts`: the shared pacers space each
+  provider at its own rate. `tests/unit/lib/football-data/football-data.test.ts`:
+  the season context names the upcoming season. The 15-minute reuse is the
+  response cache's, already tested there.
 
 ## Files To Update
 
 - `specs/080-daily-refresh-of-every-competition.md`
-- `src/lib/predictions/` (the step, and the hourly run calling it)
+- `src/lib/predictions/` (the step, and the hourly run calling it),
+  `src/lib/providers/pacer.ts` (the pacers both share),
+  `src/lib/taso/taso-sync.ts` (the group write on its own),
+  `src/lib/football-data/football-data.ts` (the upcoming season named)
 - `scripts/predictions/predictions.ts`, `scripts/predictions/predictions-plan.ts`
   (the `refresh` command)
 - `docs/infrastructure.md` (the predictions cron section)
