@@ -147,6 +147,24 @@ export const resolveTasoSeasonCeiling = cache(async function resolveTasoSeasonCe
 });
 
 /**
+ * The season a page lands on while the ceiling season has no matches: the newer
+ * of the newest stored and the one before, kept inside the selector's range.
+ *
+ * decisions/865-active-season-has-matches.md
+ * decisions/080-daily-refresh-of-every-competition.md
+ */
+export function seasonShownBeforeMatches(
+  competitionCode: string,
+  currentSeason: number,
+  newestStored: number | null
+): number {
+  return Math.max(
+    earliestSeasonFor(competitionCode),
+    Math.min(Math.max(newestStored ?? 0, currentSeason - 1), currentSeason)
+  );
+}
+
+/**
  * A competition's season ceiling, and the season a page lands on: the newest
  * with matches, so a just-published season does not open empty.
  *
@@ -188,13 +206,7 @@ export const resolveTasoSeasonContext = cache(async function resolveTasoSeasonCo
       );
     }
 
-    // The newer of the newest stored season and the one before the empty one.
-    // Clamped to both ends of the selector's range: a default outside it lands
-    // the page on a season the selector does not offer.
-    const fallbackDefault = Math.max(
-      earliestSeasonFor(competitionCode),
-      Math.min(Math.max(newestStored ?? 0, currentSeason - 1), currentSeason)
-    );
+    const fallbackDefault = seasonShownBeforeMatches(competitionCode, currentSeason, newestStored);
     return {
       value: { currentSeason, defaultSeason: fallbackDefault },
       degraded: discoveryFailed || syncFailed,

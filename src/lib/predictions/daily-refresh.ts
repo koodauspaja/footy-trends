@@ -20,7 +20,7 @@ import {
   DOMESTIC_COMPETITIONS,
 } from "../taso/domestic-competitions";
 import { getSeasonGroups, getSeasonMatches as getTasoSeasonMatches } from "../taso/taso";
-import { resolveTasoSeasonCeiling } from "../taso/taso-seasons";
+import { resolveTasoSeasonCeiling, seasonShownBeforeMatches } from "../taso/taso-seasons";
 import { storeSeasonGroups, synchronizeMatches as synchronizeTasoMatches } from "../taso/taso-sync";
 
 /**
@@ -71,18 +71,12 @@ function failure(
   return `daily ${source} ${code} ${seasonId ?? "season"}`;
 }
 
-async function refreshDomestic(code: string, paced: Paced): Promise<DailyRefreshReport> {
-  let ceiling: Awaited<ReturnType<typeof resolveTasoSeasonCeiling>>;
-  try {
-    ceiling = await paced(() => resolveTasoSeasonCeiling(code));
-  } catch (error) {
-    return { refreshed: 0, failures: [failure("taso", code, null, error)] };
-  }
-  // A failed discovery still refreshes the season it fell back to, as a page does.
-  const failures = ceiling.discoveryFailed
-    ? [failure("taso", code, null, new Error("TASO season discovery failed"))]
-    : [];
-  const seasonId = ceiling.currentSeason;
+// A season's matches and groups: how many matches TASO sent, or the failure, named and logged.
+async function refreshDomesticSeason(
+  code: string,
+  seasonId: number,
+  paced: Paced
+): Promise<{ matches: number } | { failure: string }> {
   const categoryId = categoryIdForSeason(code, seasonId);
   const competitionId = competitionIdForSeason(code, seasonId);
   try {
@@ -90,10 +84,42 @@ async function refreshDomestic(code: string, paced: Paced): Promise<DailyRefresh
     await synchronizeTasoMatches(matches);
     const groups = await paced(() => getSeasonGroups(competitionId, categoryId));
     await storeSeasonGroups(groups, categoryId, competitionId, seasonId);
-    return { refreshed: 1, failures };
+    return { matches: matches.length };
   } catch (error) {
-    return { refreshed: 0, failures: [...failures, failure("taso", code, seasonId, error)] };
+    return { failure: failure("taso", code, seasonId, error) };
   }
+}
+
+function reportOf(outcome: { matches: number } | { failure: string }): DailyRefreshReport {
+  return "failure" in outcome
+    ? { refreshed: 0, failures: [outcome.failure] }
+    : { refreshed: 1, failures: [] };
+}
+
+async function refreshDomestic(code: string, paced: Paced): Promise<DailyRefreshReport> {
+  let ceiling: Awaited<ReturnType<typeof resolveTasoSeasonCeiling>>;
+  try {
+    ceiling = await paced(() => resolveTasoSeasonCeiling(code));
+  } catch (error) {
+    return { refreshed: 0, failures: [failure("taso", code, null, error)] };
+  }
+  const reports: DailyRefreshReport[] = [];
+  if (ceiling.discoveryFailed) {
+    const discovery = failure("taso", code, null, new Error("TASO season discovery failed"));
+    // With nothing stored, the fallback is the competition's first season: past.
+    if (ceiling.newestStored === null) return { refreshed: 0, failures: [discovery] };
+    reports.push({ refreshed: 0, failures: [discovery] });
+  }
+  const current = await refreshDomesticSeason(code, ceiling.currentSeason, paced);
+  reports.push(reportOf(current));
+  // A published season with no matches yet: the page shows the one before, and refreshes it.
+  if ("matches" in current && current.matches === 0) {
+    const shown = seasonShownBeforeMatches(code, ceiling.currentSeason, ceiling.newestStored);
+    if (shown !== ceiling.currentSeason) {
+      reports.push(reportOf(await refreshDomesticSeason(code, shown, paced)));
+    }
+  }
+  return combined(reports);
 }
 
 async function refreshForeignSeason(

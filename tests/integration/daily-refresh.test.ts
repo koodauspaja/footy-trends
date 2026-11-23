@@ -11,10 +11,11 @@ const providers = vi.hoisted(() => ({
   footballData: vi.fn(),
 }));
 
-vi.mock("@/lib/taso/taso-seasons", () => ({
+vi.mock("@/lib/taso/taso-seasons", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/taso/taso-seasons")>()),
   resolveTasoSeasonCeiling: async () => ({
     currentSeason: 2099,
-    newestStored: null,
+    newestStored: 2098,
     discoveryFailed: false,
   }),
 }));
@@ -93,7 +94,7 @@ const footballDataFixture = {
 async function clear() {
   await db.delete(matches).where(inArray(matches.providerMatchId, IDS));
   await db.delete(tasoMatches).where(inArray(tasoMatches.providerMatchId, IDS));
-  await db.delete(tasoGroupTeams).where(eq(tasoGroupTeams.seasonId, 2099));
+  await db.delete(tasoGroupTeams).where(inArray(tasoGroupTeams.seasonId, [2098, 2099]));
 }
 
 beforeEach(async () => {
@@ -129,7 +130,9 @@ describe("runDailyRefresh", () => {
   it("stores a fixture only the provider has, for both providers, with no page visited", async () => {
     const report = await runDailyRefresh(immediate);
 
-    expect(report).toEqual({ refreshed: 24, failures: [] });
+    // VL's 2099 has a fixture; the other thirteen have none, so each also
+    // refreshes the 2098 its page shows.
+    expect(report).toEqual({ refreshed: 24 + 13, failures: [] });
     const [taso] = await db
       .select()
       .from(tasoMatches)
@@ -187,6 +190,30 @@ describe("runDailyRefresh", () => {
       .from(tasoMatches)
       .where(eq(tasoMatches.providerMatchId, IDS[2] as number));
     expect(row).toMatchObject({ homeGoals: 2, awayGoals: 1, updatedAt: written });
-    expect(providers.taso.mock.calls.every(([, , seasonId]) => seasonId === 2099)).toBe(true);
+    expect(providers.taso.mock.calls.some(([, , seasonId]) => seasonId === 1990)).toBe(false);
+  });
+
+  it("stores the shown season's new fixture while the newest season has none", async () => {
+    providers.taso.mockImplementation(
+      async (_competitionId: string, categoryId: string, seasonId: number) =>
+        categoryId === "M1" && seasonId === 2098
+          ? [
+              tasoFixture({
+                providerMatchId: IDS[2] as number,
+                competitionCode: competitionIdForSeason("M1", 2098),
+                categoryId: "M1",
+                seasonId: 2098,
+              }),
+            ]
+          : []
+    );
+
+    await runDailyRefresh(immediate);
+
+    const [row] = await db
+      .select()
+      .from(tasoMatches)
+      .where(eq(tasoMatches.providerMatchId, IDS[2] as number));
+    expect(row).toMatchObject({ categoryId: "M1", seasonId: 2098 });
   });
 });
