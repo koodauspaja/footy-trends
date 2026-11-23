@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_EARLIEST_SEASON,
   formatSeasonLabel,
+  isChoosable,
   listSelectableSeasons,
   parseSeasonParam,
   resolveEarliestSeason,
+  withNoMatches,
 } from "@/lib/competitions/seasons";
 
 /**
@@ -13,6 +15,7 @@ import {
  * decisions/002-season-selector-and-backfill.md
  * decisions/005-listing-matches-for-selected-season.md
  * decisions/016-world-cup-and-euro.md
+ * decisions/878-empty-season-not-selectable.md
  */
 
 describe("formatSeasonLabel", () => {
@@ -155,5 +158,30 @@ describe("seasons that do not span two calendar years", () => {
     const options = listSelectableSeasons(2024, 2024, 2025, false);
 
     expect(options.map((option) => option.label)).toEqual(["2025", "2024"]);
+  });
+});
+
+describe("a season with no matches", () => {
+  const options = [
+    { seasonId: 2027, label: "2027" },
+    { seasonId: 2026, label: "2026" },
+  ];
+
+  it("is marked in the options it belongs to, and nothing else is", () => {
+    expect(withNoMatches(options, 2027)).toEqual([
+      { seasonId: 2027, label: "2027", noMatches: true },
+      { seasonId: 2026, label: "2026" },
+    ]);
+    expect(withNoMatches(options, null)).toBe(options);
+  });
+
+  it("is listed but not choosable, and a kausi naming it is invalid", () => {
+    const marked = withNoMatches(options, 2027);
+
+    expect(isChoosable(marked, 2027)).toBe(false);
+    expect(isChoosable(marked, 2026)).toBe(true);
+    expect(isChoosable(marked, 2025)).toBe(false);
+    expect(parseSeasonParam("2027", marked)).toEqual({ kind: "invalid" });
+    expect(parseSeasonParam("2026", marked)).toEqual({ kind: "valid", seasonId: 2026 });
   });
 });

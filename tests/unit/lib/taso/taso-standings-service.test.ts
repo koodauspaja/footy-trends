@@ -2517,9 +2517,9 @@ describe("resolveTasoSeasonContext", () => {
   // The seasons held, for the newest-stored fallback, then the season's own
   // rows.
   function mockDb(newestStored: number | null, seasonMatches: unknown[]) {
-    // `storedTasoSeasons` lists the seasons we hold, across both TASO tables,
-    // and `newestStoredSeason` is the newest of them: one query shape and not a
-    // `max()` aggregate, so "what do we hold" has a single answer.
+    // `storedTasoSeasons` and `newestStoredSeason` read the seasons we hold with
+    // one query shape and not a `max()` aggregate; this answers both tables
+    // alike, and the test below tells them apart.
     dbMock.selectDistinct.mockImplementation(() => ({
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockResolvedValue(newestStored === null ? [] : [{ seasonId: newestStored }]),
@@ -2559,10 +2559,37 @@ describe("resolveTasoSeasonContext", () => {
 
   it("keeps a published-but-empty season out of the default while still raising the ceiling", async () => {
     // TASO publishes a competition_id before the season kicks off. Landing
-    // there would render the empty state, so the default lags — but the
-    // season is still selectable.
+    // there would render the empty state, so the default lags; the selector
+    // lists the season greyed out.
     getCurrentSeasonMock.mockResolvedValue(2027);
     mockDb(2026, []);
+    getSeasonMatchesMock.mockResolvedValue([]);
+
+    await expect(resolveTasoSeasonContext("VL")).resolves.toEqual({
+      currentSeason: 2027,
+      defaultSeason: 2026,
+    });
+  });
+
+  it("lands on the newest season with matches, whatever group rows the empty newest season holds", async () => {
+    // Group standings stored for 2027 before any 2027 match: they must not
+    // make 2027 the newest stored season a page can land on.
+    getCurrentSeasonMock.mockResolvedValue(2027);
+    dbMock.selectDistinct.mockImplementation(() => ({
+      from: vi.fn((table: unknown) => ({
+        where: vi
+          .fn()
+          .mockResolvedValue(
+            table === tasoGroupTeams
+              ? [{ seasonId: 2026 }, { seasonId: 2027 }]
+              : [{ seasonId: 2026 }]
+          ),
+      })),
+    }));
+    dbMock.select.mockImplementation(() => {
+      const orderBy = vi.fn().mockResolvedValue([]);
+      return { from: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ orderBy }) }) };
+    });
     getSeasonMatchesMock.mockResolvedValue([]);
 
     await expect(resolveTasoSeasonContext("VL")).resolves.toEqual({
