@@ -3,15 +3,18 @@ import postgres from "postgres";
 import { testDatabaseUrl } from "./test-database";
 
 /**
- * A real signed-in reader for the e2e server: a user and a session stored in
- * the test database, and the session cookie signed as better-auth signs it.
- * It reaches what a page reads on the server, which intercepting the client's
- * session call cannot.
+ * A real signed-in reader for the e2e server: a user and session stored in the test database, the
+ * cookie signed as better-auth signs it. It reaches what a page reads on the server, which
+ * intercepting the client's session call cannot.
  *
  * decisions/695-ux-sweep.md
  */
 
-/** better-auth's session cookie, as named over plain HTTP on localhost. */
+/**
+ * better-auth's session cookie, as named over plain HTTP on localhost.
+ *
+ * decisions/695-ux-sweep.md
+ */
 export const SESSION_COOKIE = "better-auth.session_token";
 
 /**
@@ -26,10 +29,9 @@ export function signedSessionCookie(token: string, secret: string): string {
 }
 
 /**
- * A stored reader with the given role, signed in for an hour: the user id, the
- * name the header shows, the cookie's value, and how to remove the reader
- * again, sessions with it. Each call is a reader of its own, so concurrent runs
- * never share one.
+ * A stored reader with the given role, signed in for an hour: its user id, the name the header
+ * shows, the cookie's value, and how to remove it with its sessions. Each call is a reader of its
+ * own, so concurrent runs never share one.
  *
  * decisions/695-ux-sweep.md
  * decisions/074-against-the-models.md

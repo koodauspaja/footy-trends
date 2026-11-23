@@ -1,0 +1,6 @@
+# The age public keys every database backup is encrypted to, one per line.
+# Either private key alone decrypts a backup. Why: decisions/807-database-backup.md
+# Miikka
+age1lv5x2lca72chz3ystnunj89gaq8fnmnnyp270w3dx3tjavqskp6sry9a6c
+# Kalle
+age1zvugemefrw2h7vvndhnzzvth75st202jjcxch0sel0mzaxes8v5svzgfzz

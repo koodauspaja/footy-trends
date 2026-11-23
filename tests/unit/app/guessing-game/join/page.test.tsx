@@ -18,11 +18,11 @@ const { currentUserId, readInvite, logger, redirect } = vi.hoisted(() => ({
   }),
 }));
 
-vi.mock("@/lib/current-user", () => ({ currentUserId }));
-vi.mock("@/lib/guessing-game-group-store", () => ({ readInvite }));
-vi.mock("@/lib/logger", () => ({ logger }));
-vi.mock("@/lib/guessing-game-group-actions", () => ({ joinGroupAction: vi.fn() }));
-vi.mock("@/lib/auth-client", () => ({ signIn: { social: vi.fn() } }));
+vi.mock("@/lib/auth/current-user", () => ({ currentUserId }));
+vi.mock("@/lib/guessing-game/guessing-game-group-store", () => ({ readInvite }));
+vi.mock("@/lib/platform/logger", () => ({ logger }));
+vi.mock("@/lib/guessing-game/guessing-game-group-actions", () => ({ joinGroupAction: vi.fn() }));
+vi.mock("@/lib/auth/auth-client", () => ({ signIn: { social: vi.fn() } }));
 vi.mock("next/navigation", () => ({
   redirect,
   usePathname: () => "/arvauspeli/liity/x",

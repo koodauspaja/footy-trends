@@ -1,16 +1,13 @@
 import { expect, test } from "@playwright/test";
 import postgres from "postgres";
-import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
+import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/auth/e2e-analytics";
 import { testDatabaseUrl } from "../support/test-database";
 import { openAnalytics } from "./folds";
 
 /**
- * `Kauden suurimmat yllätykset` and the match page's line, end to end, on the
- * seeded 2017 Veikkausliiga season. Signed in the way league-position.spec.ts
- * explains. Elo's backtest row is seeded on one of the season's own wins, and
- * a 2016 match beside it so that 2017 is not the competition's first stored
- * season; both are removed afterwards, and a row the match already had is put
- * back.
+ * `Kauden suurimmat yllätykset` and the match page's line, end to end, on seeded 2017
+ * Veikkausliiga, signed in as league-position.spec.ts explains. Elo's row is seeded on a 2017 win,
+ * with a 2016 match so 2017 is not the first season; both go after, and a prior row is put back.
  *
  * decisions/057-surprise-index.md
  */

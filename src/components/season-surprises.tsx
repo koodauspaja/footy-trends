@@ -1,10 +1,10 @@
 import { percentText } from "@/components/charts/line-chart";
 import { matchDateFormatter } from "@/components/match-list-table";
 import { RowLink } from "@/components/row-link";
-import { teamDisplayName } from "@/lib/match-detail";
-import type { MatchSource } from "@/lib/match-source";
-import { formatMatchResult } from "@/lib/standings";
-import type { SeasonSurprises, Surprise } from "@/lib/surprise";
+import { formatMatchResult } from "@/lib/competitions/standings";
+import { teamDisplayName } from "@/lib/matches/match-detail";
+import type { MatchSource } from "@/lib/matches/match-source";
+import type { SeasonSurprises, Surprise } from "@/lib/predictions/surprise";
 
 /**
  * The panel's strings.
@@ -79,11 +79,9 @@ const EMPTY_LINES: Record<
 };
 
 /**
- * A season's biggest surprises: a numbered list of the wins Elo thought least
- * likely, each linking to its match, or the line saying why there is none.
- * `inProgressLine` names the season, and is shown while it is being played:
- * above the list, the no-matches line, the unpredicted line and the all-drawn
- * line.
+ * A season's biggest surprises: a numbered list of the wins Elo thought least likely, each linking
+ * to its match, or the line saying why there is none. While the season is played, `inProgressLine`
+ * names it, above the list or above whichever line says there is none.
  *
  * decisions/057-surprise-index.md
  * decisions/702-surprises-without-backtest.md

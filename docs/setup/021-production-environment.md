@@ -163,6 +163,7 @@ more once the Sentry configs read their settings from the environment.
 | `FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS` | manual | |
 | `TASO_API_KEY` | manual | **Shared with staging**, and scraped — see *TASO key* below |
 | `TASO_HASH_SALT` | manual | **Shared with staging**; signs TASO requests, also on the `predictions` service — 020, decisions/681 |
+| `HEALTH_PROVIDERS_TOKEN` | manual | `openssl rand -hex 32`, **its own** rather than staging's; the same value as the Actions secret of that name — 018, decisions/814 |
 | `GOOGLE_CLIENT_ID` | manual | From the **production** Google Cloud project — a different project from the one local and staging use. Do 014's production half now: `docs/setup/014-google-oauth-setup.md` |
 | `GOOGLE_CLIENT_SECRET` | manual | Same project as above. Shown once at creation; see 014 |
 | `BETTER_AUTH_SECRET` | manual | `openssl rand -base64 32`, **its own** rather than staging's. Changing it invalidates every session cookie |
@@ -171,6 +172,7 @@ more once the Sentry configs read their settings from the environment.
 | `AUTH_TRUSTED_PROXIES` | optional | Configure together with `AUTH_CLIENT_IP_HEADERS=x-forwarded-for` when the client address has to come from a multi-hop `x-forwarded-for`. If set, add it to production's `ENVIRONMENTS` entry first (025, *Later*), or the next apply deletes it |
 | `AUTH_ALLOWED_EMAILS` | **leave unset** | Restricts sign-in to the listed addresses. Production is deliberately open — see *Sign-in is restricted only where a list says so* below |
 | `NEXT_PUBLIC_SENTRY_DSN` | manual | |
+| `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN` | manual | Production's project slug, and **its own** organisation token rather than staging's. Read by the build, not `src/`; they upload source maps — 017, decisions/830 |
 | `AXIOM_TOKEN` | manual | |
 | `AXIOM_DATASET` | manual | A separate dataset from staging, so the two do not interleave |
 | `LOG_LEVEL` | manual | See Step 6 |
@@ -180,7 +182,7 @@ more once the Sentry configs read their settings from the environment.
 They are in the table above rather than in a "not set here" list, because
 `specs/023-google-oauth-login.md` shipped the sign-in that reads them. This
 section previously said nothing in `src/` read them and to leave them unset;
-that stopped being true when `src/lib/auth.ts` landed, and it fails loudly —
+that stopped being true when `src/lib/auth/auth.ts` landed, and it fails loudly —
 the module throws on a missing variable, naming it, rather than letting the
 break surface when a reader first clicks `Kirjaudu sisään`.
 
@@ -357,7 +359,7 @@ everybody looks at.
 
 These were **code** rather than configuration, so staging and production got the
 same values — the wizard's development ones. All three now read the sample rate
-from the environment via `src/lib/sentry-config.ts`, with `0.1` as the in-code
+from the environment via `src/lib/platform/sentry-config.ts`, with `0.1` as the in-code
 default (decisions/656), and take what an event may carry from the same file's
 `DATA_COLLECTION`, the same in every environment.
 
@@ -378,7 +380,7 @@ the server behaves.
 
 `Number("")` is `0`, so an empty `SENTRY_TRACES_SAMPLE_RATE` — copied from
 `.env.example`, or added in the dashboard without a value — would switch tracing
-off entirely while looking configured. `src/lib/sentry-config.ts` parses these
+off entirely while looking configured. `src/lib/platform/sentry-config.ts` parses these
 rather than trusting `Number`: blank, non-numeric, and anything outside 0–1 all
 fall back to the default.
 
@@ -466,7 +468,7 @@ defence in depth rather than the fix.
 
 ## Step 6 — Set `LOG_LEVEL`
 
-`src/lib/logger.ts` defaults to `info` in production and `debug` elsewhere.
+`src/lib/platform/logger.ts` defaults to `info` in production and `debug` elsewhere.
 
 **Recommended: `info`.** It is worth understanding why this is safe rather than
 assuming it, because "info in production" is usually the wrong answer.
@@ -474,30 +476,28 @@ assuming it, because "info in production" is usually the wrong answer.
 These paths log at `info` through the Pino logger, and none scales with user
 traffic:
 
-- `src/lib/provider-request.ts`, once per *outbound provider request*. This is
+- `src/lib/providers/provider-request.ts`, once per *outbound provider request*. This is
   bounded by **cache misses rather than user traffic** — a busy day does not
   multiply it — but the bound lives in the service layer, not here.
-  `src/lib/taso.ts` and `src/lib/football-data.ts` call the helper directly
-  with no caching of their own; `standings-service.ts` and
-  `taso-standings-service.ts` are what bound them, through Redis TTL caches,
+  `src/lib/taso/taso.ts` and `src/lib/football-data/football-data.ts` call the helper directly
+  with no caching of their own; `standings-service.ts`, and for TASO
+  `taso-sync.ts` and `taso-seasons.ts`, are what bound them, through Redis TTL caches,
   matches stored in Postgres and refreshed only when `needsRefresh` says so,
   and React `cache()` for per-request deduplication.
 - `src/app/api/health/route.ts`, once per request to it. Railway probes
   `healthcheckPath` only while gating a new deployment and stops once the
   deploy is live, so this is per-deploy volume plus whatever hits it by hand.
 
-  Note the one deliberate hole in the paragraph above: `?providers=1` calls
-  `getCurrentSeason` straight from `taso.ts`, bypassing the service-layer
-  cache, so each such request is a real uncached TASO call and its own info
-  log. That is why it is opt-in rather than part of the default probe — but it
-  does mean a scripted monitor hitting `?providers=1` on a short interval would
-  turn an unbounded provider call into a per-interval one.
+  `?providers=1` calls `getCurrentSeason` straight from `taso.ts`, bypassing
+  the service-layer cache, so each such request is a real uncached TASO call.
+  It needs `HEALTH_PROVIDERS_TOKEN` in a header, so only the daily monitor and
+  whoever holds the token can make one (decisions/814).
 
-- `src/lib/admin-users.ts` and `src/lib/refresh-actions.ts`, once per write an
+- `src/lib/admin/admin-users.ts` and `src/lib/refresh/refresh-actions.ts`, once per write an
   admin asks for (decisions/603).
-- `src/lib/prediction-log-service.ts`, once per hourly predictions run
+- `src/lib/predictions/prediction-log-service.ts`, once per hourly predictions run
   (decisions/603).
-- `src/lib/rate-limit-storage.ts`, once when Redis is reachable again after a
+- `src/lib/auth/rate-limit-storage.ts`, once when Redis is reachable again after a
   failure.
 
 Everything else in `src/` logs at `warn` or `error`.
@@ -577,9 +577,8 @@ curl -s https://<production-service>.up.railway.app/api/health | jq
 ```
 
 Expect `status: "ok"`, with `checks.database` and `checks.redis` both `"ok"` —
-they sit under `checks`, not at the top level. Add `?providers=1` to include a
-live TASO check; it is opt-in precisely because a probe should not call a
-provider on every request.
+they sit under `checks`, not at the top level. Add `?providers=1` and the
+token header to include a live TASO check (018).
 
 Then confirm the isolation actually holds:
 

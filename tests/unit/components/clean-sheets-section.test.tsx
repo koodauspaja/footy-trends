@@ -6,7 +6,7 @@ import {
   cleanSheetsPanel,
 } from "@/components/clean-sheets-section";
 import { NO_MATCHES_MESSAGE } from "@/components/goals-section";
-import type { CleanSheetSeries } from "@/lib/clean-sheets";
+import type { CleanSheetSeries } from "@/lib/teams/clean-sheets";
 
 /**
  * The `Nollapelit` panel.

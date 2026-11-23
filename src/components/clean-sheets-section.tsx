@@ -1,7 +1,7 @@
 import { ChartPanel } from "@/components/charts/chart-panel";
 import { CleanSheetChart } from "@/components/charts/clean-sheet-chart";
 import { NO_MATCHES_MESSAGE } from "@/components/goals-section";
-import type { CleanSheetSeries } from "@/lib/clean-sheets";
+import type { CleanSheetSeries } from "@/lib/teams/clean-sheets";
 
 /**
  * The panel's strings.

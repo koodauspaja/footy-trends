@@ -1,18 +1,20 @@
 /**
  * Next's configuration: the route table behind every Finnish URL, the
- * server-action body limit, and Sentry's build settings.
+ * security headers, and Sentry's build settings.
  *
  * decisions/012-finnish-urls-english-code.md
- * decisions/025-custom-avatar.md
  * decisions/042-head-to-head-view.md
  * decisions/293-sentry-config-subpath.md
  * decisions/527-one-route-table.md
+ * decisions/808-security-headers.md
+ * decisions/830-sentry-source-maps.md
  */
 
 // From `@sentry/nextjs/config`, not the package root, whose export is
 // deprecated and stops working in v11.
 import { withSentryConfig } from "@sentry/nextjs/config";
 import type { NextConfig } from "next";
+import { securityHeaders } from "./src/lib/platform/security-headers";
 
 /**
  * The Finnish prefix each head-to-head route is reached by, and the directory
@@ -126,6 +128,14 @@ const OTHER_SPELLINGS: ReadonlyArray<readonly [source: string, url: string]> = [
 ];
 
 const nextConfig: NextConfig = {
+  // Says nothing a reader needs, and names the framework to anyone probing.
+  poweredByHeader: false,
+
+  // Evaluated at build time, like the browser's inlined DSN.
+  headers() {
+    return Promise.resolve([{ source: "/:path*", headers: securityHeaders(process.env) }]);
+  },
+
   // Public URLs are Finnish; the App Router folders are English. `ROUTES` is
   // the only place the two meet — the browser always shows the Finnish path.
   rewrites() {
@@ -144,14 +154,6 @@ const nextConfig: NextConfig = {
       ].map(([source, destination]) => ({ source, destination, permanent: true }))
     );
   },
-
-  experimental: {
-    serverActions: {
-      // Raised from Next's default of 1 MB for the avatar upload, whose own cap is
-      // 8 MB: Next rejects an oversized action body before the action runs.
-      bodySizeLimit: "10mb",
-    },
-  },
 };
 
 export default withSentryConfig(nextConfig, {
@@ -160,7 +162,8 @@ export default withSentryConfig(nextConfig, {
 
   org: "koodauspaja",
 
-  project: "javascript-nextjs",
+  // No `project`: each environment names its own in `SENTRY_PROJECT`. Source maps
+  // upload only where `SENTRY_AUTH_TOKEN` is set, which is Railway's builds.
 
   // Only print logs for uploading source maps in CI
   silent: !process.env.CI,
@@ -176,10 +179,6 @@ export default withSentryConfig(nextConfig, {
   tunnelRoute: "/monitoring",
 
   webpack: {
-    // Automatic instrumentation of Vercel Cron Monitors. Does not yet work with
-    // App Router route handlers.
-    automaticVercelMonitors: true,
-
     // Tree-shaking options for reducing bundle size
     treeshake: {
       // Automatically tree-shake Sentry logger statements to reduce bundle size

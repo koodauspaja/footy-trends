@@ -16,10 +16,18 @@ import {
  * decisions/674-e2e-on-an-empty-database.md
  */
 
-/** Malformed, a space in the host, with a password that must never be printed. */
+/**
+ * Malformed, a space in the host, with a password that must never be printed.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
 const MALFORMED = "postgresql://postgres:hunter2@bad host:5432/footy-trends";
 
-/** The error `run` throws, as the recorder prints it: the whole object, `input` and cause included. */
+/**
+ * The error `run` throws, as the recorder prints it: the whole object, `input` and cause included.
+ *
+ * decisions/674-e2e-on-an-empty-database.md
+ */
 function printed(run: () => unknown): string {
   try {
     run();

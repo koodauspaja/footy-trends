@@ -18,13 +18,13 @@ const { socialSignIn, pathname, search, replace } = vi.hoisted(() => ({
 
 const { reportClientError } = vi.hoisted(() => ({ reportClientError: vi.fn() }));
 
-vi.mock("@/lib/report-client-error", () => ({ reportClientError }));
+vi.mock("@/lib/platform/report-client-error", () => ({ reportClientError }));
 
 beforeEach(() => {
   reportClientError.mockClear();
 });
 
-vi.mock("@/lib/auth-client", () => ({ signIn: { social: socialSignIn } }));
+vi.mock("@/lib/auth/auth-client", () => ({ signIn: { social: socialSignIn } }));
 vi.mock("next/navigation", () => ({
   usePathname: () => pathname.current,
   useSearchParams: () => new URLSearchParams(search.current),

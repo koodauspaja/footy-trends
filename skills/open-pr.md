@@ -88,12 +88,18 @@ already, and #390 found two classes that had never been written down at all.
 5. **Review your own diff, then** push the branch and open a PR against
    main. The author's review comes before Sourcery's, and it is two things,
    both run on the diff as it will be pushed: the pass in
-   `skills/self-review.md`, and the `code-review` skill at its lowest effort
-   (`/code-review low` in Claude Code). It is the quick pass for what an
-   author should have seen; the thorough one is Sourcery's. Fix what they find
-   before the push. A later push repeats the pass on what it changed, as
+   `skills/self-review.md`, and the `code-review` skill. **Before a feature
+   pull request opens, the skill runs once at medium effort**
+   (`/code-review medium` in Claude Code), as its longer runs found most of its
+   defects; a chore or a bug runs it at low (`/code-review low`). Fix what they
+   find before the push. A later push repeats the pass on what it changed, as
    `skills/self-review.md` says, and not the skill. A change to what a page
-   shows also gets `skills/ui-review.md`'s pass.
+   shows also gets `skills/ui-review.md`'s pass. **A full passing
+   `npm run test:e2e` comes before the pull request opens**, never skipped
+   (a documentation-only change needs none, and the hooks only warn where e2e
+   cannot run at all): the
+   pre-push hook asks for it on the branch's first push, and the Claude Code
+   hook refuses `gh pr create` without it (decisions/837).
 6. Fill in the PR template:
    - Reference the GitHub Issue number with a closing keyword — `Closes #NNN`
      (or `Fixes #NNN` / `Resolves #NNN`) — never a bare mention like
@@ -304,8 +310,11 @@ already, and #390 found two classes that had never been written down at all.
    The quick check is enough for a fix that changes documentation alone, and
    so is a green check-run with no review of the push at all. Those are when
    step 7 exits 0 without a full review of the head. After any other
-   fix, comment `@sourcery-ai review` on the PR, with nothing else in the
-   comment, and wait until step 7 reports a full review before handing off.
+   fix, whether to ask for a new round is a call made with the human, by
+   "e2e and Sourcery rounds" below. For a round, run e2e, then comment
+   `@sourcery-ai review` on the PR, with nothing else in the comment, and wait
+   until step 7 reports a full review before handing off. Without one, merging
+   needs the human's word that the full review is waived.
 
    A fix that changes only comments in code is a person's call. The script
    cannot tell a comment from code and exits 1; whoever hands the PR off may
@@ -322,6 +331,27 @@ already, and #390 found two classes that had never been written down at all.
    stacked series, which are *meant* to merge without closing — there, do the
    retroactive body edit from step 5 instead and leave the issue open until
    the last PR merges.
+
+## e2e and Sourcery rounds
+
+The hooks are the floor (decisions/837): e2e before a branch's first push,
+before `gh pr create`, and before any `@sourcery-ai review` Claude posts. No
+other push forces a run. Above that, judge each push by its risk, say the call
+and its reason in one line before pushing, and let the human overrule it:
+
+| | Do it when | Skip it when |
+|---|---|---|
+| A new Sourcery round | a fix changed behaviour (logic, data, queries, caching, auth), touched code beyond the finding, answered a high or critical finding, or changed tests in a way worth a second look | the fixes are wording, comments, docs, or a one-line change a test proves, or the findings were repeats and edge-case wishes answered on their threads |
+| An e2e run the hooks do not ask for | the change touches what e2e exercises: pages, routes, data fetching, migrations, caching, configuration | it touches scripts, hooks, tooling, tests or docs that unit tests prove |
+
+**From the third on, a full review only when the one before it found a
+behaviour defect.** A behaviour defect is always fixed; from round 2 on, every
+other finding gets an answer on its thread, with no push. On #817 no round after
+the second found a behaviour defect when the round before it had none
+(decisions/838).
+
+An e2e failure called a flake gets an issue of its own, with the run's output:
+the nondeterminism #832 fixed was waved off twice as one.
 
 ## When Sourcery skips
 

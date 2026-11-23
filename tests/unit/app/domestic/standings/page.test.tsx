@@ -1,8 +1,9 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { CupForecastResult } from "@/lib/knockout-simulation-service";
-import type { NormalizedTasoMatch } from "@/lib/taso";
-import type { GroupStandingsResult, SeasonStandingsResult } from "@/lib/taso-standings-service";
+import type { CupForecastResult } from "@/lib/predictions/knockout-simulation-service";
+import type { NormalizedTasoMatch } from "@/lib/taso/taso";
+import type { SeasonStandingsResult } from "@/lib/taso/taso-standings-service";
+import type { GroupStandingsResult } from "@/lib/taso/taso-tables";
 import { resetStoredSections, storedSections } from "../../../../support/page-sections";
 import { warmModules } from "../../../../support/warm-module";
 
@@ -28,7 +29,7 @@ import { warmModules } from "../../../../support/warm-module";
 // The favourite star in this tree calls `useSession`, and the real client must
 // not load in a unit test: its cleanup timer outlives the file's jsdom. Signed
 // out is what these tests assume.
-vi.mock("@/lib/auth-client", () => ({
+vi.mock("@/lib/auth/auth-client", () => ({
   useSession: () => ({ data: null, refetch: vi.fn() }),
 }));
 
@@ -43,13 +44,19 @@ const resolveTasoSeasonContextMock = vi.hoisted(() =>
   vi.fn().mockResolvedValue({ currentSeason: 2026, defaultSeason: 2026 })
 );
 
-vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/taso-standings-service")>();
+vi.mock("@/lib/taso/taso-standings-service", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/taso/taso-standings-service")>();
   return {
     ...actual,
     listSeasonRounds: listSeasonRoundsMock,
-    getSeasonCategoryName: getSeasonCategoryNameMock,
     getSeasonStandings: getSeasonStandingsMock,
+  };
+});
+vi.mock("@/lib/taso/taso-seasons", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/taso/taso-seasons")>();
+  return {
+    ...actual,
+    getSeasonCategoryName: getSeasonCategoryNameMock,
     resolveTasoSeasonContext: resolveTasoSeasonContextMock,
   };
 });
@@ -60,10 +67,10 @@ const canSeeAnalyticsMock = vi.hoisted(() => vi.fn<() => Promise<boolean>>());
 const getCupForecastMock = vi.hoisted(() =>
   vi.fn<(code: string, season: number, active: number) => Promise<CupForecastResult>>()
 );
-vi.mock("@/lib/section-choices", () => import("../../../../support/page-sections"));
-vi.mock("@/lib/analytics-access", () => ({ canSeeAnalytics: canSeeAnalyticsMock }));
-vi.mock("@/lib/knockout-simulation-service", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/knockout-simulation-service")>()),
+vi.mock("@/lib/preferences/section-choices", () => import("../../../../support/page-sections"));
+vi.mock("@/lib/auth/analytics-access", () => ({ canSeeAnalytics: canSeeAnalyticsMock }));
+vi.mock("@/lib/predictions/knockout-simulation-service", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/predictions/knockout-simulation-service")>()),
   getCupForecast: getCupForecastMock,
 }));
 
@@ -634,6 +641,22 @@ describe("Domestic standings page, cup competitions", () => {
     );
     expect(getCupForecastMock).toHaveBeenCalledWith("MSC", 2026, 2026);
     expect(screen.getByRole("region", { name: "Cupin ennuste" })).toBeInTheDocument();
+  });
+
+  it("forecasts the newest season with matches while TASO's newest has none", async () => {
+    canSeeAnalyticsMock.mockResolvedValue(true);
+    getCupForecastMock.mockResolvedValue({ status: "no-fixtures" });
+    getSeasonStandingsMock.mockResolvedValue({ status: "ok", levels: [], groups: closingRounds });
+    resolveTasoSeasonContextMock.mockResolvedValueOnce({
+      currentSeason: 2027,
+      defaultSeason: 2026,
+    });
+
+    await renderStandings({ kilpailu: "MSC", kausi: "2025" });
+
+    expect(getCupForecastMock).toHaveBeenCalledWith("MSC", 2025, 2026);
+    expect(competitionAnalyticsMock.mock.calls[0]?.[0]).toMatchObject({ activeSeasonId: 2026 });
+    expect(listSeasonRoundsMock).toHaveBeenCalledWith("MSC", expect.any(String), 2025, 2026);
   });
 
   it("has no cup forecast for a signed-out reader, and does not read one", async () => {

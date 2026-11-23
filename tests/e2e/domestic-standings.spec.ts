@@ -45,10 +45,9 @@ test.describe("Domestic standings page (Veikkausliiga)", () => {
   }) => {
     await page.goto("/kotimaa/sarjataulukko?kausi=2025");
 
-    // 2025 Mestaruussarja's real final table, carry-over included, as TASO
-    // itself reports it — the end-to-end check that our own calculation
-    // reproduces the official numbers.
-    // Mestaruussarja is the page's first table.
+    // 2025 Mestaruussarja's real final table, carry-over included, as TASO reports it: the
+    // end-to-end check that our calculation reproduces the official numbers. Mestaruussarja is the
+    // page's first table.
     const rows = page.getByRole("table").nth(0).locator("tbody tr");
     await expect(rows.nth(0)).toContainText("KuPS");
     await expect(rows.nth(0)).toContainText("67");

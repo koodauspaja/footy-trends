@@ -20,7 +20,7 @@ documents cite them, so they stay as they are.
 
 | Step | File | What it does |
 |---|---|---|
-| 1 | [001-github-repo-setup.md](001-github-repo-setup.md) | Your copy of the repository, and who may run its workflows |
+| 1 | [001-github-repo-setup.md](001-github-repo-setup.md) | Your copy of the repository, who may run its workflows, and secret scanning |
 | 2 | [002-github-project-board.md](002-github-project-board.md) | The project board, the labels and the Issue Types |
 | 3 | [003-pr-template.md](003-pr-template.md) | Confirm the pull request template; where the working agreements live |
 | 4 | [012-project-init.md](012-project-init.md) | The application running locally |
@@ -45,6 +45,7 @@ documents cite them, so they stay as they are.
 | 23 | [023-admin-access.md](023-admin-access.md) | The first admin, once per environment |
 | 24 | [024-predictions-cron.md](024-predictions-cron.md) | The hourly predictions cron, production only, and the backtest |
 | 25 | [026-railway-environment-from-code.md](026-railway-environment-from-code.md) | Another environment from one command: its databases, the web service and its keys |
+| 26 | [027-database-backup.md](027-database-backup.md) | Production's daily encrypted backup to B2, and a restore |
 
 `019` described `railway.toml`, which Railway stops reading on 2026-12-01; step
 13 replaced it (#521).

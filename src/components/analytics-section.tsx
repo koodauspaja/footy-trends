@@ -18,19 +18,19 @@ import { SignInPrompt } from "@/components/sign-in-prompt";
 import { streakRecordsPanel } from "@/components/streak-records-section";
 import { streaksPanel } from "@/components/streaks-section";
 import { TeamPageFold } from "@/components/team-page-fold";
-import { canSeeAnalytics } from "@/lib/analytics-access";
-import type { AnalyticsAxis } from "@/lib/analytics-axis";
-import type { CleanSheetSeries } from "@/lib/clean-sheets";
-import type { ComebacksSeries } from "@/lib/comebacks";
-import type { FormSeries } from "@/lib/form-series";
-import type { GoalsSeries } from "@/lib/goals-series";
-import type { OpponentsSeries } from "@/lib/head-to-head";
-import type { HomeAwaySeries } from "@/lib/home-away";
-import type { PositionSeries } from "@/lib/position-series";
-import type { SeasonComparisonSeries } from "@/lib/season-comparison";
-import { foldFor, type PageSectionsOf } from "@/lib/section-keys";
-import type { StreakRecordsSeries } from "@/lib/streak-records";
-import type { StreaksSeries } from "@/lib/streaks";
+import type { AnalyticsAxis } from "@/lib/analytics/analytics-axis";
+import { canSeeAnalytics } from "@/lib/auth/analytics-access";
+import type { OpponentsSeries } from "@/lib/matches/head-to-head";
+import { foldFor, type PageSectionsOf } from "@/lib/preferences/section-keys";
+import type { CleanSheetSeries } from "@/lib/teams/clean-sheets";
+import type { ComebacksSeries } from "@/lib/teams/comebacks";
+import type { FormSeries } from "@/lib/teams/form-series";
+import type { GoalsSeries } from "@/lib/teams/goals-series";
+import type { HomeAwaySeries } from "@/lib/teams/home-away";
+import type { PositionSeries } from "@/lib/teams/position-series";
+import type { SeasonComparisonSeries } from "@/lib/teams/season-comparison";
+import type { StreakRecordsSeries } from "@/lib/teams/streak-records";
+import type { StreaksSeries } from "@/lib/teams/streaks";
 
 /**
  * Over every analytics panel on the team page, and over the one sign-in prompt.

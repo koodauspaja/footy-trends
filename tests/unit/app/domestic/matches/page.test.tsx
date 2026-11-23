@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { NormalizedTasoMatch } from "@/lib/taso";
-import type { SeasonMatchesResult } from "@/lib/taso-standings-service";
+import type { NormalizedTasoMatch } from "@/lib/taso/taso";
+import type { SeasonMatchesResult } from "@/lib/taso/taso-standings-service";
 import { warmModules } from "../../../../support/warm-module";
 
 /**
@@ -24,11 +24,17 @@ const resolveTasoSeasonContextMock = vi.hoisted(() =>
 // the configured competition name.
 const getSeasonCategoryNameMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 
-vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/taso-standings-service")>();
+vi.mock("@/lib/taso/taso-standings-service", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/taso/taso-standings-service")>();
   return {
     ...actual,
     getSeasonMatchList: getSeasonMatchListMock,
+  };
+});
+vi.mock("@/lib/taso/taso-seasons", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/taso/taso-seasons")>();
+  return {
+    ...actual,
     getSeasonCategoryName: getSeasonCategoryNameMock,
     resolveTasoSeasonContext: resolveTasoSeasonContextMock,
   };
@@ -83,6 +89,17 @@ describe("Domestic matches page", () => {
     expect(screen.getByText("01.04.2026")).toBeInTheDocument();
     expect(screen.getByText("2–1")).toBeInTheDocument();
     expect(screen.getByText("Runkosarja")).toBeInTheDocument();
+  });
+
+  it("reads the newest season with matches as active while TASO's newest has none", async () => {
+    resolveTasoSeasonContextMock.mockResolvedValueOnce({
+      currentSeason: 2027,
+      defaultSeason: 2026,
+    });
+
+    await renderMatches({ kausi: "2025" });
+
+    expect(getSeasonMatchListMock).toHaveBeenCalledWith("VL", "spljp25", 2025, 2026);
   });
 
   it("shows a dash for an unplayed match's result", async () => {

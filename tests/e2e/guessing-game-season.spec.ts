@@ -1,14 +1,13 @@
 import { expect, test } from "@playwright/test";
 import postgres from "postgres";
-import { e2eAppPort } from "../../scripts/e2e-target";
+import { e2eAppPort } from "../../scripts/e2e/e2e-target";
 import { SESSION_COOKIE, storeSignedInReader } from "../support/e2e-session";
 import { testDatabaseUrl } from "../support/test-database";
 
 /**
- * Arvauspeli's season guesses as a player sees them: placing a champion guess
- * before the season's first kickoff and changing it for free, and a settled
- * one after it. The season's fixtures, and the settled guess, are stored as
- * the refresh and the hourly run leave them.
+ * Arvauspeli's season guesses as a player sees them: a champion guess placed before the season's
+ * first kickoff and changed for free, and a settled one after it. The fixtures and the settled
+ * guess are stored as the refresh and the hourly run leave them.
  *
  * decisions/075-season-guesses.md
  */

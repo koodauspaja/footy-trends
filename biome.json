@@ -40,7 +40,11 @@
       "suspicious": {
         "noUnknownAtRules": "off",
         "noExplicitAny": "error",
-        "noConsole": "error"
+        "noConsole": "error",
+        "noImportCycles": {
+          "level": "error",
+          "options": { "ignoreTypes": false }
+        }
       },
       "style": {
         "noNonNullAssertion": "warn"

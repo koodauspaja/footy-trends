@@ -1,7 +1,7 @@
 import { ChartPanel } from "@/components/charts/chart-panel";
 import { HomeAwayChart } from "@/components/charts/home-away-chart";
 import { NO_MATCHES_MESSAGE } from "@/components/goals-section";
-import type { HomeAwaySeries } from "@/lib/home-away";
+import type { HomeAwaySeries } from "@/lib/teams/home-away";
 
 /**
  * The panel's strings.

@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { sectionChoice, user } from "@/db/schema";
-import { readSectionChoices, writeSectionChoice } from "@/lib/section-choices";
+import { readSectionChoices, writeSectionChoice } from "@/lib/preferences/section-choices";
 
 /**
  * A reader's section choices against a real Postgres: a choice round trips, a

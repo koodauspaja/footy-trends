@@ -1,14 +1,13 @@
 import { expect, test } from "@playwright/test";
 import postgres from "postgres";
-import { e2eAppPort } from "../../scripts/e2e-target";
+import { e2eAppPort } from "../../scripts/e2e/e2e-target";
 import { SESSION_COOKIE, storeSignedInReader } from "../support/e2e-session";
 import { testDatabaseUrl } from "../support/test-database";
 
 /**
- * Arvauspeli as a player meets it: signed out, the way in; signed in, joining,
- * a 1X2 guess and a change to a score, each paid from the balance, and a
- * postponed match's free change. Its matches are seeded in a late season, ids
- * and names carrying the run's port.
+ * Arvauspeli as a player meets it: signed out, the way in; signed in, joining, a 1X2 guess and a
+ * change to a score, each paid from the balance, and a postponed match's free change. Its matches
+ * are seeded in a late season, ids and names carrying the run's port.
  *
  * decisions/072-match-guesses.md
  * decisions/076-guesses-on-irregular-matches.md

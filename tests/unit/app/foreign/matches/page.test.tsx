@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SeasonContext } from "@/lib/football-data";
-import type { CupSeasonResult, RoundMatchesResult } from "@/lib/standings-service";
+import type { SeasonContext } from "@/lib/football-data/football-data";
+import type { CupSeasonResult, RoundMatchesResult } from "@/lib/football-data/standings-service";
 import { warmModules } from "../../../../support/warm-module";
 
 /**
@@ -13,6 +13,7 @@ import { warmModules } from "../../../../support/warm-module";
  * decisions/007-back-navigation.md
  * decisions/014-champions-league.md
  * decisions/016-world-cup-and-euro.md
+ * decisions/832-cup-forecast-tie-order.md
  */
 
 const getSeasonContextMock = vi.fn<() => Promise<SeasonContext>>();
@@ -21,17 +22,17 @@ const getRoundMatchesMock = vi.fn<() => Promise<RoundMatchesResult>>();
 const getCupSeasonMock = vi.fn<() => Promise<CupSeasonResult>>();
 const loggerErrorMock = vi.fn();
 
-vi.mock("@/lib/football-data", () => ({
+vi.mock("@/lib/football-data/football-data", () => ({
   getSeasonContext: getSeasonContextMock,
 }));
 
-vi.mock("@/lib/standings-service", () => ({
+vi.mock("@/lib/football-data/standings-service", () => ({
   getMaxMatchday: getMaxMatchdayMock,
   getRoundMatches: getRoundMatchesMock,
   getCupSeason: getCupSeasonMock,
 }));
 
-vi.mock("@/lib/logger", () => ({
+vi.mock("@/lib/platform/logger", () => ({
   logger: { error: loggerErrorMock },
 }));
 
@@ -480,6 +481,24 @@ describe("Matches page, cup competitions", () => {
 
     expect(screen.getByText("Osaottelu")).toBeInTheDocument();
     expect(screen.queryByText("Kierros")).not.toBeInTheDocument();
+  });
+
+  it("lists a stage's matches that kick off together by match id, whatever order they were read in", async () => {
+    const quarterFinal = (id: number, home: [number, string], away: [number, string]) =>
+      cupMatch({ id, stage: "QUARTER_FINALS", matchday: 1, home, away, score: [1, 0] });
+    getCupSeasonMock.mockResolvedValue({
+      status: "ok",
+      matches: [
+        quarterFinal(5, [5, "Inter"], [6, "FC Barcelona"]),
+        quarterFinal(4, [3, "PSG"], [4, "Aston Villa FC"]),
+      ],
+    });
+
+    await renderMatchesPage({ kilpailu: "CL", vaihe: "QUARTER_FINALS" });
+
+    const [first, second] = screen.getAllByRole("row").slice(1);
+    expect(first).toHaveTextContent("PSG");
+    expect(second).toHaveTextContent("Inter");
   });
 
   it("labels the league phase's matchdays as rounds", async () => {

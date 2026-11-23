@@ -10,12 +10,13 @@ import { PageShell } from "@/components/page-shell";
 import { SameRouteLink } from "@/components/same-route-link";
 import { SignInPrompt } from "@/components/sign-in-prompt";
 import { ViewSwitch } from "@/components/view-switch";
-import { canSeeAnalytics } from "@/lib/analytics-access";
-import { ELO_MODEL } from "@/lib/elo";
-import { ELO_FORM_MODEL, ELO_HOME_MODEL } from "@/lib/elo-variants";
-import { HOME_BASELINE_MODEL, isPredictedCup } from "@/lib/home-baseline";
-import type { MatchSource } from "@/lib/match-source";
-import { POISSON_MODEL } from "@/lib/poisson";
+import { canSeeAnalytics } from "@/lib/auth/analytics-access";
+import { formatSeasonLabel } from "@/lib/competitions/seasons";
+import type { MatchSource } from "@/lib/matches/match-source";
+import { ELO_MODEL } from "@/lib/predictions/elo";
+import { ELO_FORM_MODEL, ELO_HOME_MODEL } from "@/lib/predictions/elo-variants";
+import { HOME_BASELINE_MODEL, isPredictedCup } from "@/lib/predictions/home-baseline";
+import { POISSON_MODEL } from "@/lib/predictions/poisson";
 import {
   type CalibrationBin,
   comparedCompetitionName,
@@ -25,14 +26,13 @@ import {
   type RollingPoint,
   SCORE_DECIMALS,
   toggleDrawn,
-} from "@/lib/prediction-quality";
+} from "@/lib/predictions/prediction-quality";
 import {
   getPredictionQuality,
   type PredictionKind,
   type QualityResult,
   qualityCompetitions,
-} from "@/lib/prediction-quality-service";
-import { formatSeasonLabel } from "@/lib/seasons";
+} from "@/lib/predictions/prediction-quality-service";
 
 /**
  * The page's strings.
@@ -171,10 +171,9 @@ export function filteredSentence(name: string): string {
 const score = (value: number) => formatDecimal(value, SCORE_DECIMALS);
 
 /**
- * The page's parameters, as Next gives them: `alue`, `tyyppi`, `kilpailu` and
- * `mallit`, the defaults `kotimaa`, backtest, every competition and
- * `DEFAULT_DRAWN`. A repeated one is an array, and falls back, as does a
- * `kilpailu` that is not one of the provider's compared competitions.
+ * The page's parameters as Next gives them: `alue`, `tyyppi`, `kilpailu` and `mallit`, defaulting
+ * to `kotimaa`, backtest, every competition and `DEFAULT_DRAWN`. A repeated one is an array and
+ * falls back, as does a `kilpailu` not among the provider's compared competitions.
  *
  * decisions/054-prediction-quality.md
  * decisions/056-accuracy-by-competition.md
@@ -571,10 +570,9 @@ function Body({
 }
 
 /**
- * `/ennusteet`: the models judged against the results, one
- * provider and one kind at a time, over all its competitions or one, its charts
- * drawing the models chosen. Signed in only, the gate asked before anything is
- * read.
+ * `/ennusteet`: the models judged against the results, one provider and one kind at a time, over
+ * all its competitions or one, its charts drawing the models chosen. Signed in only, the gate asked
+ * before anything is read.
  *
  * decisions/054-prediction-quality.md
  * decisions/056-accuracy-by-competition.md

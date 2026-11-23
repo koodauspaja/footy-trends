@@ -2,10 +2,11 @@ import { eq, gte, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db";
 import { gameGuess, gameLedger, gamePlayer, tasoMatches, user } from "@/db/schema";
-import { joinGame, openGame, placeGuess, settleGuesses } from "@/lib/guessing-game-store";
-import { logger } from "@/lib/logger";
-import type { NormalizedTasoMatch } from "@/lib/taso";
-import { synchronizeMatches } from "@/lib/taso-standings-service";
+import { settleGuesses } from "@/lib/guessing-game/guessing-game-settle";
+import { joinGame, openGame, placeGuess } from "@/lib/guessing-game/guessing-game-store";
+import { logger } from "@/lib/platform/logger";
+import type { NormalizedTasoMatch } from "@/lib/taso/taso";
+import { synchronizeMatches } from "@/lib/taso/taso-sync";
 
 /**
  * Arvauspeli against a real Postgres: joining and the grant, guesses and the

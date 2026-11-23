@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AdminUserTable } from "@/components/admin-user-table";
-import type { AdminUser } from "@/lib/admin-user-view";
+import type { AdminUser } from "@/lib/admin/admin-user-view";
 
 /**
  * The admin's user list and its controls. The actions are mocked as a `"use server"`
@@ -11,6 +11,7 @@ import type { AdminUser } from "@/lib/admin-user-view";
  * decisions/028-admin-tools-and-roles.md
  * decisions/408-refusal-cleared-waits-for-the-button.md
  * decisions/077-nickname.md
+ * decisions/847-quiet-unit-run.md
  */
 
 const { promoteUserAction, demoteUserAction, deleteUserAction, clearNicknameAction } = vi.hoisted(
@@ -24,13 +25,13 @@ const { promoteUserAction, demoteUserAction, deleteUserAction, clearNicknameActi
 
 const { reportClientError } = vi.hoisted(() => ({ reportClientError: vi.fn() }));
 
-vi.mock("@/lib/report-client-error", () => ({ reportClientError }));
+vi.mock("@/lib/platform/report-client-error", () => ({ reportClientError }));
 
 beforeEach(() => {
   reportClientError.mockClear();
 });
 
-vi.mock("@/lib/admin-actions", () => ({
+vi.mock("@/lib/admin/admin-actions", () => ({
   promoteUserAction,
   demoteUserAction,
   deleteUserAction,
@@ -210,7 +211,13 @@ describe("deleting", () => {
 });
 
 describe("clearing a nickname", () => {
-  const NAMED: AdminUser = { ...READER, nickname: "Lauri L" };
+  // A user of their own, so a table holding both READER and NAMED keys each row once.
+  const NAMED: AdminUser = {
+    ...READER,
+    id: "reader-2",
+    email: "nimetty@example.fi",
+    nickname: "Lauri L",
+  };
   const CLEAR = "Tyhjennä nimimerkki";
 
   it("shows each user's nickname, and nothing for one without", () => {
@@ -236,7 +243,7 @@ describe("clearing a nickname", () => {
 
     expect(
       screen.getByRole("alertdialog", {
-        name: "Tyhjennetäänkö käyttäjän lukija@example.fi nimimerkki?",
+        name: "Tyhjennetäänkö käyttäjän nimetty@example.fi nimimerkki?",
       })
     ).toBeInTheDocument();
     expect(screen.queryByText(/Tätä ei voi perua/)).toBeNull();
@@ -249,7 +256,7 @@ describe("clearing a nickname", () => {
     fireEvent.click(screen.getByRole("button", { name: CLEAR }));
     fireEvent.click(screen.getAllByRole("button", { name: CLEAR }).at(-1) as HTMLElement);
 
-    expect(clearNicknameAction).toHaveBeenCalledWith("reader-1");
+    expect(clearNicknameAction).toHaveBeenCalledWith("reader-2");
     expect(deleteUserAction).not.toHaveBeenCalled();
     expect(await screen.findByRole("alert")).toHaveTextContent("Nimimerkki tyhjennetty.");
   });

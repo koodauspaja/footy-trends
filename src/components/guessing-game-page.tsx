@@ -25,19 +25,29 @@ import {
 import { SeasonGuessForm } from "@/components/guessing-game-season-form";
 import { PANEL_HEADING, TABLE_HEADING } from "@/components/heading-classes";
 import { Notice } from "@/components/notice";
-import { type Board, type Shares, STARTING_BALANCE } from "@/lib/guessing-game";
-import type { GroupSummary } from "@/lib/guessing-game-group-store";
-import type { ModelGuess } from "@/lib/guessing-game-models";
+import {
+  type AwaitingGuess,
+  type Board,
+  type GameView,
+  type Shares,
+  STARTING_BALANCE,
+  type UpcomingMatch,
+} from "@/lib/guessing-game/guessing-game";
+import type { GroupSummary } from "@/lib/guessing-game/guessing-game-group-store";
+import type { ModelGuess } from "@/lib/guessing-game/guessing-game-models";
 import {
   SEASON_KINDS,
   SEASON_PRICES,
   SEASON_REWARDS,
   type SeasonKind,
-} from "@/lib/guessing-game-season";
-import type { PickShares, SeasonSection, ShownSeasonGuess } from "@/lib/guessing-game-season-store";
-import type { AwaitingGuess, GameView, UpcomingMatch } from "@/lib/guessing-game-store";
-import { matchCountLabel } from "@/lib/match-count";
-import { formatKickoff } from "@/lib/match-detail";
+} from "@/lib/guessing-game/guessing-game-season";
+import type {
+  PickShares,
+  SeasonSection,
+  ShownSeasonGuess,
+} from "@/lib/guessing-game/guessing-game-season-store";
+import { matchCountLabel } from "@/lib/matches/match-count";
+import { formatKickoff } from "@/lib/matches/match-detail";
 
 const dayFormatter = new Intl.DateTimeFormat("fi-FI", {
   timeZone: "Europe/Helsinki",

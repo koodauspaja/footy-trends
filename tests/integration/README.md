@@ -14,7 +14,7 @@ npm run test:integration
 
 `npm run test:integration` runs against **`<your database>_integration_test`**,
 neither the one `npm run dev` uses nor the e2e suite's `<your database>_test`.
-`scripts/with-test-db.ts` creates and migrates it first, then runs vitest with
+`scripts/db/with-test-db.ts` creates and migrates it first, then runs vitest with
 `DATABASE_URL` pointed at it.
 
 These tests insert and delete rows — `itest-*` users among them — and used to do

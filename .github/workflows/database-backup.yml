@@ -1,0 +1,49 @@
+# Why each setting is as it is: decisions/531-configuration-files.md
+# Why the backup is made this way: decisions/807-database-backup.md
+# Backs up production's database daily, encrypted, to Backblaze B2, outside
+# Railway. A failed backup is a failed run.
+name: Database backup
+
+on:
+  schedule:
+    # 02:17 UTC daily: at night, and off the hour most schedules use.
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+# The token every job gets unless it asks for more.
+permissions:
+  contents: read
+
+concurrency:
+  group: database-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: Back up production's database to B2
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # The secrets live in this Environment, which only `main` can use.
+    environment: backup
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: npm
+          check-latest: true
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Install age
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq age
+
+      - name: Back up
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          B2_KEY_ID: ${{ secrets.B2_KEY_ID }}
+          B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY }}
+        run: npm run backup

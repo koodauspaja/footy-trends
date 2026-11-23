@@ -2,7 +2,7 @@ import { and, gte, inArray, lte } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { matches, tasoMatches } from "@/db/schema";
-import { MAX_RESULTS, searchTeams } from "@/lib/team-search";
+import { MAX_RESULTS, searchTeams } from "@/lib/teams/team-search";
 
 /**
  * Team search against a real Postgres: Finnish letters fold in the database, a
@@ -11,6 +11,7 @@ import { MAX_RESULTS, searchTeams } from "@/lib/team-search";
  *
  * decisions/027-team-search.md
  * decisions/325-taso-finland-links.md
+ * decisions/834-team-search-tie-order.md
  */
 
 // Every provider match id these fixtures use, as a range, not a list: a range
@@ -370,5 +371,22 @@ describe("searching real rows", () => {
     expect(ids).not.toContain(972000);
     // And they come back newest first.
     expect(ids[0]).toBe(972000 + total - 1);
+  });
+
+  it("keeps the lowest team ids when more match than the cap at one kickoff", async () => {
+    // The cap's own order decides which teams of one kickoff are kept: the lowest ids.
+    const total = MAX_RESULTS + 5;
+    await db.insert(tasoMatches).values(
+      Array.from({ length: total }, (_, index) => ({
+        ...tasoRow(),
+        providerMatchId: 993400 + index,
+        homeTeamProviderId: 973000 + total - 1 - index,
+        homeTeamName: `Järvenpää ${index}`,
+      }))
+    );
+
+    const ids = idsOf(await searchTeams("jarvenpaa"));
+
+    expect(ids).toEqual(Array.from({ length: MAX_RESULTS }, (_, index) => 973000 + index));
   });
 });

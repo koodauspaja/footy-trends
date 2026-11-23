@@ -12,8 +12,8 @@ import {
   LONGEST_UNBEATEN_LABEL,
   LONGEST_WINS_LABEL,
 } from "@/components/streaks-section";
-import { HISTORY_AXIS, SEASON_AXIS } from "@/lib/analytics-axis";
-import type { StreakRecords } from "@/lib/streak-records";
+import { HISTORY_AXIS, SEASON_AXIS } from "@/lib/analytics/analytics-axis";
+import type { StreakRecords } from "@/lib/teams/streak-records";
 
 /**
  * The `Ennätykset` panel.

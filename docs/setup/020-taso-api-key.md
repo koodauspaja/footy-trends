@@ -35,7 +35,7 @@ every server-to-server request too:
 | `Origin` | `https://tulospalvelu.palloliitto.fi` |
 | `User-Agent` | A real desktop browser UA string |
 
-`Referer`/`Origin`/`User-Agent` are fixed constants in `src/lib/taso.ts`,
+`Referer`/`Origin`/`User-Agent` are fixed constants in `src/lib/taso/taso.ts`,
 not secrets — the key and the signing salt (Step 3b) need environment variables.
 
 ---
@@ -86,8 +86,8 @@ frontend bundle.
 
 **A scheduled check asks production every day** —
 `.github/workflows/taso-key-check.yml`, added by #113. It calls production's
-`/api/health?providers=1`, which makes a real TASO request with production's own
-key, and fails the workflow if the answer is anything but `ok`. A red scheduled
+`/api/health?providers=1` with the token that check needs (018), which makes a
+real TASO request with production's own key, and fails the workflow if the answer is anything but `ok`. A red scheduled
 workflow emails repo watchers, the same as a failed CI run.
 
 It deliberately holds no key of its own: a copy in Actions secrets could pass

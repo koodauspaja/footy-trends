@@ -1,0 +1,121 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { currentUserId } from "@/lib/auth/current-user";
+import { logger } from "@/lib/platform/logger";
+import { isFavouriteSource, isTeamProviderId } from "@/lib/preferences/favourite-keys";
+import {
+  removeFavouriteCompetition,
+  removeFavouriteTeam,
+  toggleFavouriteCompetition,
+  toggleFavouriteTeam,
+} from "@/lib/preferences/favourites";
+import { isRegionSegment } from "@/lib/preferences/regions";
+
+/**
+ * What a favourite write answers. `ok: false` carries a reason, because the
+ * reader's next move differs.
+ *
+ * decisions/026-favourites.md
+ */
+export type ToggleResult =
+  | { ok: true; favorite: boolean }
+  | { ok: false; reason: "limit" | "failed" };
+
+export type ActionResult = { ok: true } | { ok: false };
+
+/**
+ * Both spellings of the favourites page: the route is defined at `/favorites`
+ * and read at `/suosikit`, and both are revalidated.
+ *
+ * decisions/026-favourites.md
+ */
+const FAVOURITES_PATHS = ["/suosikit", "/favorites"] as const;
+
+function revalidateFavourites(): void {
+  for (const path of FAVOURITES_PATHS) revalidatePath(path);
+}
+
+export async function toggleFavouriteTeamAction(
+  source: string,
+  teamProviderId: number
+): Promise<ToggleResult> {
+  try {
+    const userId = await currentUserId();
+    if (userId === null) return { ok: false, reason: "failed" };
+
+    // Validated here, not trusted from the caller: these cross a network
+    // boundary as plain arguments, and a source the app does not have would
+    // become a row nothing can ever match or remove.
+    if (!isFavouriteSource(source)) return { ok: false, reason: "failed" };
+    if (!isTeamProviderId(teamProviderId)) return { ok: false, reason: "failed" };
+
+    const written = await toggleFavouriteTeam(userId, source, teamProviderId);
+    if (!written.ok) return written;
+
+    revalidateFavourites();
+    return written;
+  } catch (error) {
+    logger.error({ err: error }, "Toggling a favourite team failed");
+    return { ok: false, reason: "failed" };
+  }
+}
+
+export async function toggleFavouriteCompetitionAction(
+  region: string,
+  code: string
+): Promise<ToggleResult> {
+  try {
+    const userId = await currentUserId();
+    if (userId === null) return { ok: false, reason: "failed" };
+    if (!isRegionSegment(region) || code.trim() === "") return { ok: false, reason: "failed" };
+
+    const written = await toggleFavouriteCompetition(userId, region, code);
+    if (!written.ok) return written;
+
+    revalidateFavourites();
+    return written;
+  } catch (error) {
+    logger.error({ err: error }, "Toggling a favourite competition failed");
+    return { ok: false, reason: "failed" };
+  }
+}
+
+export async function removeFavouriteTeamAction(
+  source: string,
+  teamProviderId: number
+): Promise<ActionResult> {
+  try {
+    const userId = await currentUserId();
+    if (userId === null) return { ok: false };
+    // The same two checks the toggle makes: this id crosses the same boundary,
+    // and an asymmetry between the two would only invite one of them to drift.
+    if (!isFavouriteSource(source)) return { ok: false };
+    if (!isTeamProviderId(teamProviderId)) return { ok: false };
+
+    await removeFavouriteTeam(userId, source, teamProviderId);
+    revalidateFavourites();
+    return { ok: true };
+  } catch (error) {
+    logger.error({ err: error }, "Removing a favourite team failed");
+    return { ok: false };
+  }
+}
+
+export async function removeFavouriteCompetitionAction(
+  region: string,
+  code: string
+): Promise<ActionResult> {
+  try {
+    const userId = await currentUserId();
+    if (userId === null) return { ok: false };
+    if (!isRegionSegment(region)) return { ok: false };
+
+    await removeFavouriteCompetition(userId, region, code);
+    revalidateFavourites();
+    return { ok: true };
+  } catch (error) {
+    logger.error({ err: error }, "Removing a favourite competition failed");
+    return { ok: false };
+  }
+}

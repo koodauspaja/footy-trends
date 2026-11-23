@@ -3,11 +3,11 @@ import { redirect } from "next/navigation";
 import { InviteView } from "@/components/guessing-game-groups";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
-import { currentUserId } from "@/lib/current-user";
-import { isInviteToken } from "@/lib/guessing-game-group";
-import { groupPath } from "@/lib/guessing-game-group-paths";
-import { type Invite, readInvite } from "@/lib/guessing-game-group-store";
-import { logger } from "@/lib/logger";
+import { currentUserId } from "@/lib/auth/current-user";
+import { isInviteToken } from "@/lib/guessing-game/guessing-game-group";
+import { groupPath } from "@/lib/guessing-game/guessing-game-group-paths";
+import { type Invite, readInvite } from "@/lib/guessing-game/guessing-game-group-store";
+import { logger } from "@/lib/platform/logger";
 
 const HEADING = "Arvauspeli";
 

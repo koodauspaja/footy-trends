@@ -13,7 +13,7 @@ import {
   spanText,
   streaksPanel,
 } from "@/components/streaks-section";
-import type { StreaksSeries } from "@/lib/streaks";
+import type { StreaksSeries } from "@/lib/teams/streaks";
 
 /**
  * The `Putket` panel.

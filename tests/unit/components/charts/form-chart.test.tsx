@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { FormChart, formSentence } from "@/components/charts/form-chart";
 import { CHART, MARGIN } from "@/components/charts/line-chart";
-import type { FormPoint } from "@/lib/form-series";
+import type { FormPoint } from "@/lib/teams/form-series";
 
 /**
  * The form chart and its text alternative.

@@ -1,8 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import type { Competition } from "@/lib/competitions";
-import type { SeasonOption } from "@/lib/seasons";
+import type { Competition } from "@/lib/competitions/competitions";
+import type { SeasonOption } from "@/lib/competitions/seasons";
 import { CompetitionSelect } from "./competition-select";
 import { SeasonSelect } from "./season-select";
 

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { FavouriteToggle } from "@/components/favourite-toggle";
 import { PageShell } from "@/components/page-shell";
-import { DOMESTIC_COMPETITIONS } from "@/lib/domestic-competitions";
+import { DOMESTIC_COMPETITIONS } from "@/lib/taso/domestic-competitions";
 
 const HEADING = "Valitse kilpailu";
 

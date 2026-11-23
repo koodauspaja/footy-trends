@@ -2,15 +2,15 @@ import { asc, eq, inArray } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db";
 import { tasoGroupTeams, tasoGroupZones, tasoMatches } from "@/db/schema";
-import type { NormalizedTasoGroupLevel, NormalizedTasoGroupTeam } from "@/lib/taso";
-import { getSeasonGroups } from "@/lib/taso";
+import type { NormalizedTasoGroupLevel, NormalizedTasoGroupTeam } from "@/lib/taso/taso";
+import { getSeasonGroups } from "@/lib/taso/taso";
+import { getSeasonStandings } from "@/lib/taso/taso-standings-service";
 import {
-  getSeasonStandings,
   synchronizeGroupLevels,
   synchronizeGroupTeams,
   synchronizeMatches,
-} from "@/lib/taso-standings-service";
-import { backfillZones } from "@/lib/zone-backfill";
+} from "@/lib/taso/taso-sync";
+import { backfillZones } from "@/lib/taso/zone-backfill";
 
 /**
  * Zone levels against a real Postgres: written with a season's group rows and
@@ -19,8 +19,8 @@ import { backfillZones } from "@/lib/zone-backfill";
  *
  * decisions/063-competition-zones.md
  */
-vi.mock("@/lib/taso", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/taso")>();
+vi.mock("@/lib/taso/taso", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/taso/taso")>();
   return { ...actual, getSeasonMatches: vi.fn(), getSeasonGroups: vi.fn() };
 });
 
@@ -186,13 +186,14 @@ describe("a sync of a season's group rows", () => {
   });
 
   it("survives two syncs of the same season at once", async () => {
-    const results = await Promise.allSettled([
-      synchronizeGroupTeams("VL", COMPETITION, SEASON, [team()], [level()]),
-      synchronizeGroupTeams("VL", COMPETITION, SEASON, [team()], [level()]),
-      synchronizeGroupTeams("VL", COMPETITION, SEASON, [team()], [level()]),
-    ]);
+    // Eight, not two: unlocked, two deadlock only now and then, eight nearly always.
+    const results = await Promise.allSettled(
+      Array.from({ length: 8 }, () =>
+        synchronizeGroupTeams("VL", COMPETITION, SEASON, [team()], [level()])
+      )
+    );
 
-    expect(results.map((result) => result.status)).toEqual(["fulfilled", "fulfilled", "fulfilled"]);
+    expect(results.map((result) => result.status)).toEqual(Array(8).fill("fulfilled"));
     expect(await storedLevels()).toEqual([["VL", 1, 1, 1, "Kultaa"]]);
   });
 });

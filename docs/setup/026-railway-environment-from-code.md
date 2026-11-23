@@ -28,6 +28,7 @@ Have these before the first run:
 | `TASO_API_KEY` | no | 020 |
 | `TASO_HASH_SALT` | no | 020 |
 | `AXIOM_TOKEN`, `AXIOM_DATASET` | no; the workflow does not pass them | 009 |
+| `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN` | no; the workflow does not pass them | 017 |
 | `NEXT_PUBLIC_SENTRY_DSN` | no; the workflow does not pass it | 017 |
 
 One left out is set in Railway afterwards. The command sets `DATABASE_URL`,
@@ -48,7 +49,7 @@ new environment.
 
 - **In your own organisation,** do 025's Step 1 first: `.railway/railway.ts`
   names the repository the site deploys from. If you rename the web service
-  there, change `WEB_SERVICE` in `scripts/railway-environment-plan.ts` to
+  there, change `WEB_SERVICE` in `scripts/environments/railway-environment-plan.ts` to
   match, and the name in its tests.
 - **The CLI is looked for** in `/usr/bin`, `/usr/local/bin` and
   `/opt/homebrew/bin`. Installed elsewhere:
@@ -112,6 +113,4 @@ branch's code holding these keys.
 
 ## Next
 
-→ Nothing: the setup is complete. `docs/infrastructure.md` describes what now
-  exists, and is the document to keep true from here on. `skills/release.md` is
-  how `main` reaches production.
+→ `027-database-backup.md`

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { type Browser, expect, type Page, test } from "@playwright/test";
-import { e2eAppPort } from "../../scripts/e2e-target";
+import { e2eAppPort } from "../../scripts/e2e/e2e-target";
 import { SESSION_COOKIE, storeSignedInReader } from "../support/e2e-session";
 
 /**

@@ -2,9 +2,9 @@ import { eq, inArray, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { user, userNickname } from "@/db/schema";
-import { listUsers } from "@/lib/admin-users";
-import { nicknameKey } from "@/lib/nickname";
-import { clearNickname, getNickname, saveNickname } from "@/lib/nickname-store";
+import { nicknameKey } from "@/lib/account/nickname";
+import { clearNickname, getNickname, saveNickname } from "@/lib/account/nickname-store";
+import { listUsers } from "@/lib/admin/admin-users";
 
 /**
  * The nickname against a real Postgres: one user per key, whatever the case,
@@ -17,7 +17,11 @@ const FIRST = "itest-nickname-first";
 const SECOND = "itest-nickname-second";
 const USERS = [FIRST, SECOND];
 
-/** Polls until a query of this database is waiting on a lock, so a race is set up, not hoped for. */
+/**
+ * Polls until a query of this database is waiting on a lock, so a race is set up, not hoped for.
+ *
+ * decisions/077-nickname.md
+ */
 async function waitForABlockedQuery() {
   for (let attempt = 0; attempt < 200; attempt += 1) {
     const [row] = await db.execute<{ waiting: number }>(
@@ -33,6 +37,8 @@ async function waitForABlockedQuery() {
 /**
  * Another save of the user's, as `saveNickname` makes it, stopped after its
  * write and before its commit until `commit` is called.
+ *
+ * decisions/077-nickname.md
  */
 async function saveHeldOpen(userId: string, nickname: string) {
   let release: () => void = () => {};

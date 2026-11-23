@@ -1,0 +1,11 @@
+# Why each setting is as it is: decisions/531-configuration-files.md
+# Refuses a commit subject that names the review instead of the change
+# (decisions/841-commit-subject-gate.md). `git commit --no-verify` skips it; CI's
+# `Commit messages` job checks the pull request's commits again. Skipped quietly
+# when dependencies are not installed.
+if [ ! -x node_modules/.bin/tsx ]; then
+  echo "commit message check skipped: run npm install to enable it."
+  exit 0
+fi
+
+node_modules/.bin/tsx scripts/hooks/commit-subjects.ts --message "$1"

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { type Device, type RegionOptions, SettingsPage } from "@/components/settings-page";
-import { NO_PREFERENCES, type Preferences } from "@/lib/regions";
+import { NO_PREFERENCES, type Preferences } from "@/lib/preferences/regions";
 
 /**
  * The settings page a signed-in reader sees: preferences, the picture, devices
@@ -23,13 +23,13 @@ const { saveSettings, signOutOtherDevices, deleteAccount } = vi.hoisted(() => ({
   deleteAccount: vi.fn(async () => ({ ok: true })),
 }));
 
-const { saveAvatarAction, removeAvatarAction } = vi.hoisted(() => ({
+const { uploadAvatar, removeAvatarAction } = vi.hoisted(() => ({
   // Typed by hand: inferred from the happy path alone, the mock would not
   // accept the rejections half these tests exist to cover.
-  saveAvatarAction:
+  uploadAvatar:
     vi.fn<
       (
-        formData: FormData
+        file: File
       ) => Promise<
         | { ok: true; version: string }
         | { ok: false; reason: "missing" | "too-large" | "unsupported" | "unreadable" | "failed" }
@@ -40,18 +40,25 @@ const { saveAvatarAction, removeAvatarAction } = vi.hoisted(() => ({
 
 const { reportClientError } = vi.hoisted(() => ({ reportClientError: vi.fn() }));
 
-vi.mock("@/lib/report-client-error", () => ({ reportClientError }));
+vi.mock("@/lib/platform/report-client-error", () => ({ reportClientError }));
 
 beforeEach(() => {
   reportClientError.mockClear();
 });
 
-vi.mock("@/lib/settings-actions", () => ({ saveSettings, signOutOtherDevices, deleteAccount }));
-vi.mock("@/lib/avatar-actions", () => ({ saveAvatarAction, removeAvatarAction }));
-vi.mock("@/lib/nickname-actions", () => ({ saveNicknameAction: vi.fn() }));
+vi.mock("@/lib/account/settings-actions", () => ({
+  saveSettings,
+  signOutOtherDevices,
+  deleteAccount,
+}));
+vi.mock("@/lib/account/avatar-actions", () => ({ removeAvatarAction }));
+vi.mock("@/lib/account/avatar-upload", () => ({ uploadAvatar }));
+vi.mock("@/lib/account/nickname-actions", () => ({ saveNicknameAction: vi.fn() }));
 // Wrapped, so the component gets a promise of its own: a mock handles the
 // rejection of the one it returns, which would hide one the component ignored.
-vi.mock("@/lib/auth-client", () => ({ useSession: () => ({ refetch: async () => refetch() }) }));
+vi.mock("@/lib/auth/auth-client", () => ({
+  useSession: () => ({ refetch: async () => refetch() }),
+}));
 
 const REGION_OPTIONS: RegionOptions[] = [
   {
@@ -547,8 +554,8 @@ describe("Profiilikuva", () => {
   }
 
   beforeEach(() => {
-    saveAvatarAction.mockClear();
-    saveAvatarAction.mockResolvedValue({ ok: true, version: VERSION });
+    uploadAvatar.mockClear();
+    uploadAvatar.mockResolvedValue({ ok: true, version: VERSION });
     removeAvatarAction.mockClear();
     removeAvatarAction.mockResolvedValue({ ok: true });
   });
@@ -581,11 +588,13 @@ describe("Profiilikuva", () => {
 
   it("stores a chosen file and shows the new picture without a reload", async () => {
     const { container } = renderPicture(null);
-    chooseFile(imageOf(1024));
+    const file = imageOf(1024);
+    chooseFile(file);
 
     fireEvent.click(screen.getByRole("button", { name: "Tallenna kuva" }));
 
     await waitFor(() => expect(screen.getByText("Profiilikuva päivitetty.")).toBeInTheDocument());
+    expect(uploadAvatar).toHaveBeenCalledWith(file);
     expect(container.querySelector("img")).toHaveAttribute("src", `/api/avatar/me?v=${VERSION}`);
     // The header reads the version off the session, so it only changes once
     // the session is refetched.
@@ -636,12 +645,12 @@ describe("Profiilikuva", () => {
     fireEvent.click(screen.getByRole("button", { name: "Tallenna kuva" }));
 
     await waitFor(() => expect(screen.getByText("Valitse ensin kuva.")).toBeInTheDocument());
-    expect(saveAvatarAction).not.toHaveBeenCalled();
+    expect(uploadAvatar).not.toHaveBeenCalled();
   });
 
   it("disables its file button while a save is pending", async () => {
     let finish: (value: { ok: true; version: string }) => void = () => undefined;
-    saveAvatarAction.mockImplementationOnce(
+    uploadAvatar.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           finish = resolve;
@@ -670,13 +679,12 @@ describe("Profiilikuva", () => {
     fireEvent.click(screen.getByRole("button", { name: "Tallenna kuva" }));
 
     await waitFor(() => expect(screen.getByText("Valitse ensin kuva.")).toBeInTheDocument());
-    expect(saveAvatarAction).not.toHaveBeenCalled();
+    expect(uploadAvatar).not.toHaveBeenCalled();
   });
 
   it("refuses an oversized file in the browser, before the upload starts", async () => {
-    // Not validation: the server decides what is stored. This tells the reader
-    // which rule they hit, because past Next's configured body limit the action
-    // is rejected before it runs, and a rejection carries no reason.
+    // Not validation: the server decides what is stored. This refuses the file
+    // before eight megabytes are sent only to be refused.
     renderPicture(null);
     chooseFile(imageOf(9 * 1024 * 1024));
 
@@ -685,7 +693,7 @@ describe("Profiilikuva", () => {
     await waitFor(() =>
       expect(screen.getByText("Kuva on liian suuri. Enimmäiskoko on 8 Mt.")).toBeInTheDocument()
     );
-    expect(saveAvatarAction).not.toHaveBeenCalled();
+    expect(uploadAvatar).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -696,7 +704,7 @@ describe("Profiilikuva", () => {
   ] as const)("renders the %s rejection in its own words", async (reason, message) => {
     // Four strings rather than one, because the reader's next action differs:
     // pick a smaller file, a different format, another image, or try again.
-    saveAvatarAction.mockResolvedValue({ ok: false, reason });
+    uploadAvatar.mockResolvedValue({ ok: false, reason });
     renderPicture(null);
     chooseFile(imageOf(1024));
 
@@ -707,12 +715,11 @@ describe("Profiilikuva", () => {
 
   it.each([
     ["a dropped connection", new Error("Failed to fetch")],
-    ["Next's body limit", new Error("Body exceeded 10mb limit.")],
+    ["an answer it cannot read", new Error("The avatar upload answered 502")],
   ])("reports %s as a save failure, not as a wrong diagnosis", async (_case, error) => {
-    // A rejected invocation cannot be told apart from here: the message is redacted in
-    // production, so a dropped connection and a body limit arrive identically. Naming one would
-    // be wrong more often than right, and the size case is caught before anything is sent.
-    saveAvatarAction.mockRejectedValue(error);
+    // A rejected upload says nothing the reader can act on: a dropped connection and a proxy's
+    // error page arrive the same way, and the size case is caught before anything is sent.
+    uploadAvatar.mockRejectedValue(error);
     renderPicture(null);
     chooseFile(imageOf(1024));
 
@@ -803,7 +810,7 @@ describe("Profiilikuva", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Tallenna kuva" }));
-    expect(saveAvatarAction).toHaveBeenCalledTimes(2);
+    expect(uploadAvatar).toHaveBeenCalledTimes(2);
     await waitFor(() => expect(screen.queryByText(STALE_PICTURE)).not.toBeInTheDocument());
     expect(screen.getByText("Profiilikuva päivitetty.")).toBeInTheDocument();
   });

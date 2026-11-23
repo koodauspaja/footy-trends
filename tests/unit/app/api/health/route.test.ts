@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { HEALTH_PROVIDERS_HEADER, HEALTH_PROVIDERS_TOKEN } from "@/lib/platform/health-providers";
 import { warmModules } from "../../../../support/warm-module";
 
 /**
@@ -9,6 +10,7 @@ import { warmModules } from "../../../../support/warm-module";
  * decisions/113-taso-key-monitor.md
  * decisions/182-national-team-pages-not-prerendered.md
  * decisions/309-client-ip-resolution.md
+ * decisions/814-health-providers-token.md
  */
 
 const executeMock = vi.fn();
@@ -24,17 +26,17 @@ vi.mock("@/db", () => ({
   },
 }));
 
-vi.mock("@/lib/redis", () => ({
+vi.mock("@/lib/platform/redis", () => ({
   redis: {
     ping: pingMock,
   },
 }));
 
-vi.mock("@/lib/taso", () => ({
+vi.mock("@/lib/taso/taso", () => ({
   getCurrentSeason: getCurrentSeasonMock,
 }));
 
-vi.mock("@/lib/logger", () => ({
+vi.mock("@/lib/platform/logger", () => ({
   logger: {
     error: loggerErrorMock,
     warn: loggerWarnMock,
@@ -52,9 +54,11 @@ function probeRequest() {
   return new Request("http://localhost/api/health");
 }
 
-// A human asking the deeper question while debugging.
-function providerRequest() {
-  return new Request("http://localhost/api/health?providers=1");
+const TOKEN = "the-monitor-token";
+
+// The daily monitor's request: the provider check, with the token.
+function providerRequest(headers: Record<string, string> = { [HEALTH_PROVIDERS_HEADER]: TOKEN }) {
+  return new Request("http://localhost/api/health?providers=1", { headers });
 }
 
 warmModules(() => import("@/app/api/health/route"));
@@ -187,6 +191,12 @@ describe("GET /api/health — provider check", () => {
     vi.resetModules();
     executeMock.mockResolvedValue(undefined);
     pingMock.mockResolvedValue("PONG");
+    getCurrentSeasonMock.mockResolvedValue(2026);
+    vi.stubEnv(HEALTH_PROVIDERS_TOKEN, TOKEN);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("is not run at all for a plain probe, so routine checks never call the provider", async () => {
@@ -196,6 +206,48 @@ describe("GET /api/health — provider check", () => {
 
     expect(body.checks).not.toHaveProperty("taso");
     expect(getCurrentSeasonMock).not.toHaveBeenCalled();
+  });
+
+  it("reaches the provider for the monitor's request, which carries the token", async () => {
+    const GET = await loadGetRoute();
+
+    const body = await (await GET(providerRequest())).json();
+
+    expect(getCurrentSeasonMock).toHaveBeenCalledTimes(1);
+    expect(body.checks.taso).toBe("ok");
+  });
+
+  it("never calls the provider for repeated requests without the token", async () => {
+    const GET = await loadGetRoute();
+
+    const responses = await Promise.all(Array.from({ length: 20 }, () => GET(providerRequest({}))));
+
+    expect(getCurrentSeasonMock).not.toHaveBeenCalled();
+    for (const response of responses) {
+      expect(response.status).toBe(200);
+      expect((await response.json()).checks).toEqual({ database: "ok", redis: "ok" });
+    }
+  });
+
+  it("never calls the provider for a request carrying the wrong token", async () => {
+    const GET = await loadGetRoute();
+
+    const body = await (
+      await GET(providerRequest({ [HEALTH_PROVIDERS_HEADER]: `${TOKEN}-guess` }))
+    ).json();
+
+    expect(getCurrentSeasonMock).not.toHaveBeenCalled();
+    expect(body.checks).not.toHaveProperty("taso");
+  });
+
+  it("never calls the provider when the environment holds no token", async () => {
+    vi.stubEnv(HEALTH_PROVIDERS_TOKEN, "");
+    const GET = await loadGetRoute();
+
+    const body = await (await GET(providerRequest({ [HEALTH_PROVIDERS_HEADER]: "" }))).json();
+
+    expect(getCurrentSeasonMock).not.toHaveBeenCalled();
+    expect(body.checks).not.toHaveProperty("taso");
   });
 
   it("bounds the provider request, so a stalled connection cannot hang the probe", async () => {

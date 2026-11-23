@@ -1,6 +1,6 @@
 "use client";
 
-import type { SeasonOption } from "@/lib/seasons";
+import type { SeasonOption } from "@/lib/competitions/seasons";
 import { RoundSelect } from "./round-select";
 import { SeasonForm } from "./season-form";
 import { SeasonSelect } from "./season-select";

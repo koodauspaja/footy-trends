@@ -2,24 +2,24 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EloPanelData } from "@/components/elo-section";
 import type { SeasonSummaryPanelData } from "@/components/season-summary-section";
-import type { CleanSheetSeries } from "@/lib/clean-sheets";
-import type { ComebacksSeries } from "@/lib/comebacks";
-import { categoryIdForSeason, competitionIdForSeason } from "@/lib/domestic-competitions";
-import type { TeamEloSeries } from "@/lib/elo-service";
-import type { FormSeries } from "@/lib/form-series";
-import type { GoalsSeries } from "@/lib/goals-series";
-import type { OpponentsSeries } from "@/lib/head-to-head";
-import type { HomeAwaySeries } from "@/lib/home-away";
-import type { PositionSeries } from "@/lib/position-series";
-import type { SeasonComparisonSeries } from "@/lib/season-comparison";
-import type { SeasonSummarySeries } from "@/lib/season-summary";
-import type { StreakRecordsSeries } from "@/lib/streak-records";
-import type { StreaksSeries } from "@/lib/streaks";
-import type { NormalizedTasoMatch } from "@/lib/taso";
-import type { TeamMatchesResult } from "@/lib/taso-standings-service";
-import type { TeamContextResult } from "@/lib/team-context";
-import type { TeamPanelMatches } from "@/lib/team-panels";
-import type { TeamNameResult, TeamSeasonsResult } from "@/lib/team-seasons";
+import type { OpponentsSeries } from "@/lib/matches/head-to-head";
+import type { TeamEloSeries } from "@/lib/predictions/elo-service";
+import { categoryIdForSeason, competitionIdForSeason } from "@/lib/taso/domestic-competitions";
+import type { NormalizedTasoMatch } from "@/lib/taso/taso";
+import type { TeamMatchesResult } from "@/lib/taso/taso-standings-service";
+import type { CleanSheetSeries } from "@/lib/teams/clean-sheets";
+import type { ComebacksSeries } from "@/lib/teams/comebacks";
+import type { FormSeries } from "@/lib/teams/form-series";
+import type { GoalsSeries } from "@/lib/teams/goals-series";
+import type { HomeAwaySeries } from "@/lib/teams/home-away";
+import type { PositionSeries } from "@/lib/teams/position-series";
+import type { SeasonComparisonSeries } from "@/lib/teams/season-comparison";
+import type { SeasonSummarySeries } from "@/lib/teams/season-summary";
+import type { StreakRecordsSeries } from "@/lib/teams/streak-records";
+import type { StreaksSeries } from "@/lib/teams/streaks";
+import type { TeamContextResult } from "@/lib/teams/team-context";
+import type { TeamPanelMatches } from "@/lib/teams/team-panels";
+import type { TeamNameResult, TeamSeasonsResult } from "@/lib/teams/team-seasons";
 import { resetStoredSections, storedSections } from "../../../../../support/page-sections";
 import { warmModules } from "../../../../../support/warm-module";
 
@@ -62,17 +62,17 @@ const { session, toggleFavouriteTeamActionMock } = vi.hoisted(() => ({
     favorite: true,
   })),
 }));
-vi.mock("@/lib/auth-client", () => ({
+vi.mock("@/lib/auth/auth-client", () => ({
   useSession: () => ({ data: session.data, refetch: vi.fn(async () => {}) }),
 }));
-vi.mock("@/lib/favourite-actions", () => ({
+vi.mock("@/lib/preferences/favourite-actions", () => ({
   toggleFavouriteTeamAction: toggleFavouriteTeamActionMock,
   toggleFavouriteCompetitionAction: vi.fn(),
 }));
 
 const getTeamMatchesMock = vi.fn<() => Promise<TeamMatchesResult>>();
 const loggerErrorMock = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/logger", () => ({ logger: { error: loggerErrorMock } }));
+vi.mock("@/lib/platform/logger", () => ({ logger: { error: loggerErrorMock } }));
 // The matches the six result panels count. The panels themselves are
 // `team-panels.test.ts`'s; what this file owns is that the page asks for the
 // right team's matches.
@@ -112,16 +112,16 @@ const analyticsSectionMock = vi.fn(
   }) => "analytics section placeholder"
 );
 const getTeamEloMock = vi.fn(async (): Promise<TeamEloSeries> => ({ status: "empty" }));
-vi.mock("@/lib/elo-service", () => ({ getTeamElo: getTeamEloMock }));
+vi.mock("@/lib/predictions/elo-service", () => ({ getTeamElo: getTeamEloMock }));
 const getWorstOpponentsMock = vi.fn(
   async (): Promise<OpponentsSeries> => ({ status: "ok", rows: [], windowSentence: "" })
 );
-vi.mock("@/lib/match-service", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/match-service")>()),
+vi.mock("@/lib/matches/match-service", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/matches/match-service")>()),
   getWorstOpponents: getWorstOpponentsMock,
 }));
 
-vi.mock("@/lib/section-choices", () => import("../../../../../support/page-sections"));
+vi.mock("@/lib/preferences/section-choices", () => import("../../../../../support/page-sections"));
 vi.mock("@/components/analytics-section", () => ({
   AnalyticsSection: analyticsSectionMock,
 }));
@@ -138,16 +138,28 @@ const resolveTasoSeasonContextMock = vi.hoisted(() =>
 // the configured competition name.
 const getSeasonCategoryNameMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 
-vi.mock("@/lib/taso-standings-service", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/taso-standings-service")>();
+vi.mock("@/lib/taso/taso-standings-service", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/taso/taso-standings-service")>();
   return {
     ...actual,
     getTeamMatches: getTeamMatchesMock,
+  };
+});
+vi.mock("@/lib/taso/taso-team-panels", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/taso/taso-team-panels")>();
+  return {
+    ...actual,
     getTeamPanelMatches: getTeamPanelMatchesMock,
     getTeamSeasonComparison: getTeamSeasonComparisonMock,
     getTeamSeasonSummary: getTeamSeasonSummaryMock,
     getTeamStreakRecords: getTeamStreakRecordsMock,
     getTeamPositionSeries: getTeamPositionSeriesMock,
+  };
+});
+vi.mock("@/lib/taso/taso-seasons", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/taso/taso-seasons")>();
+  return {
+    ...actual,
     getSeasonCategoryName: getSeasonCategoryNameMock,
     resolveTasoSeasonContext: resolveTasoSeasonContextMock,
   };
@@ -177,12 +189,12 @@ const getTeamSeasonsMock = vi.fn(async (): Promise<TeamSeasonsResult> => ({ stat
 
 const getTeamNameMock = vi.fn(async (): Promise<TeamNameResult> => ({ status: "not_found" }));
 
-vi.mock("@/lib/team-seasons", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/team-seasons")>();
+vi.mock("@/lib/teams/team-seasons", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/teams/team-seasons")>();
   return { ...actual, getTeamSeasons: getTeamSeasonsMock, getTeamName: getTeamNameMock };
 });
 
-vi.mock("@/lib/team-context", () => ({ getTeamContext: getTeamContextMock }));
+vi.mock("@/lib/teams/team-context", () => ({ getTeamContext: getTeamContextMock }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -927,6 +939,22 @@ describe("Domestic team page league position", () => {
     // A Finnish season is a plain year, as the selector writes it.
     const label = getTeamStreakRecordsMock.mock.calls[0]?.[4] as (year: number) => string;
     expect(label(2025)).toBe("2025");
+  });
+
+  it("reads the newest season with matches as active while TASO's newest has none", async () => {
+    resolveTasoSeasonContextMock.mockResolvedValue({ currentSeason: 2027, defaultSeason: 2026 });
+
+    await renderTeam("1", { kilpailu: "VL", kausi: "2025" });
+    await analyticsSectionMock.mock.calls[0]?.[0].loadRecords?.();
+
+    expect(getTeamMatchesMock).toHaveBeenCalledWith("VL", "spljp25", 1, 2025, 2026);
+    expect(getTeamStreakRecordsMock).toHaveBeenCalledWith(
+      "VL",
+      1,
+      2026,
+      expect.any(Array),
+      expect.any(Function)
+    );
   });
 
   it("asks for this club's worst opponents across its whole region, linked under its own prefix", async () => {

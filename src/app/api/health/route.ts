@@ -1,19 +1,21 @@
 /**
- * The health endpoint: the database and Redis on every call, TASO and the
- * shape of the forwarded headers only when asked.
+ * The health endpoint: the database and Redis on every call, TASO only when
+ * asked with the token, and the shape of the forwarded headers when asked.
  *
  * decisions/017-huuhkajat.md
  * decisions/085-release-workflow.md
  * decisions/113-taso-key-monitor.md
  * decisions/309-client-ip-resolution.md
+ * decisions/814-health-providers-token.md
  */
 
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
-import { forwardingShape } from "@/lib/forwarding";
-import { logger } from "@/lib/logger";
-import { redis } from "@/lib/redis";
-import { getCurrentSeason } from "@/lib/taso";
+import { forwardingShape } from "@/lib/platform/forwarding";
+import { providersCheckAllowed } from "@/lib/platform/health-providers";
+import { logger } from "@/lib/platform/logger";
+import { redis } from "@/lib/platform/redis";
+import { getCurrentSeason } from "@/lib/taso/taso";
 
 export const dynamic = "force-dynamic";
 
@@ -64,9 +66,12 @@ export async function GET(request: Request) {
     logger.warn(toLogError(error), "Redis health check failed");
   }
 
-  // Opt-in with `?providers=1`: a platform probe hits this endpoint constantly,
-  // and provider responses are never fetched per request.
-  if (new URL(request.url).searchParams.has("providers")) {
+  // Opt-in with `?providers=1`, and only with the token: the endpoint is public,
+  // and every such request is a real call to TASO.
+  if (
+    new URL(request.url).searchParams.has("providers") &&
+    providersCheckAllowed(request.headers)
+  ) {
     try {
       // A real request, not a ping: only a genuine call proves the key and headers.
       // Bounded, so the endpoint cannot hang until the probe times out.

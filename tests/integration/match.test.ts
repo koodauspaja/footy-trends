@@ -2,7 +2,9 @@ import { inArray, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { matches, tasoMatches } from "@/db/schema";
-import { headToHeadRecord } from "@/lib/head-to-head";
+import { toFinishedMatches } from "@/lib/competitions/standings";
+import { headToHeadRecord } from "@/lib/matches/head-to-head";
+import type { TasoMatchRow } from "@/lib/matches/match-detail";
 import {
   FOOTBALL_DATA_AWAY_GOALS,
   FOOTBALL_DATA_HOME_GOALS,
@@ -15,9 +17,7 @@ import {
   getOutcomeShares,
   getTeamForm,
   getWorstOpponents,
-  type TasoMatchRow,
-} from "@/lib/match-service";
-import { toFinishedMatches } from "@/lib/standings";
+} from "@/lib/matches/match-service";
 
 /**
  * The match page's queries, and the reads built on the same rows, against a

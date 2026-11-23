@@ -1,0 +1,150 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { warmModules } from "../../../support/warm-module";
+
+/**
+ * The `"use server"` boundary for administration. The gate is the point: a server action is
+ * a public endpoint whether or not anything renders a control for it, so the tests that
+ * matter assert that a refused caller performed no write, not merely that it was told no.
+ *
+ * decisions/028-admin-tools-and-roles.md
+ * decisions/077-nickname.md
+ */
+
+const { requireAdmin, changeRole, deleteUser, clearNicknameOf, revalidatePath } = vi.hoisted(
+  () => ({
+    requireAdmin: vi.fn(),
+    changeRole: vi.fn(),
+    deleteUser: vi.fn(),
+    clearNicknameOf: vi.fn(),
+    revalidatePath: vi.fn(),
+  })
+);
+
+vi.mock("@/lib/admin/admin-guard", () => ({ requireAdmin }));
+vi.mock("@/lib/admin/admin-users", () => ({ changeRole, deleteUser, clearNicknameOf }));
+vi.mock("next/cache", () => ({ revalidatePath }));
+
+beforeEach(() => {
+  requireAdmin.mockReset();
+  changeRole.mockReset();
+  deleteUser.mockReset();
+  clearNicknameOf.mockReset();
+  revalidatePath.mockReset();
+  requireAdmin.mockResolvedValue("admin-1");
+  changeRole.mockResolvedValue({ ok: true });
+  deleteUser.mockResolvedValue({ ok: true });
+  clearNicknameOf.mockResolvedValue({ ok: true });
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+warmModules(() => import("@/lib/admin/admin-actions"));
+
+describe("every admin action refuses a caller that is not an admin", () => {
+  it.each([
+    ["promoteUserAction", "promoteUserAction"],
+    ["demoteUserAction", "demoteUserAction"],
+    ["deleteUserAction", "deleteUserAction"],
+    ["clearNicknameAction", "clearNicknameAction"],
+  ])("%s writes nothing when the gate refuses", async (_name, exported) => {
+    requireAdmin.mockResolvedValue(null);
+    const actions = await import("@/lib/admin/admin-actions");
+    const action = actions[exported as keyof typeof actions] as (id: string) => Promise<unknown>;
+
+    await expect(action("victim")).resolves.toEqual({ ok: false, reason: "failed" });
+    // The assertion that matters: refused means nothing happened, not that
+    // something happened and was reported as a failure.
+    expect(changeRole).not.toHaveBeenCalled();
+    expect(deleteUser).not.toHaveBeenCalled();
+    expect(clearNicknameOf).not.toHaveBeenCalled();
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("clearNicknameAction", () => {
+  it("passes the acting admin from the gate, and refreshes both spellings of the page", async () => {
+    const { clearNicknameAction } = await import("@/lib/admin/admin-actions");
+
+    await expect(clearNicknameAction("reader-1")).resolves.toEqual({ ok: true });
+    expect(clearNicknameOf).toHaveBeenCalledWith("admin-1", "reader-1");
+    expect(revalidatePath).toHaveBeenCalledWith("/yllapito");
+    expect(revalidatePath).toHaveBeenCalledWith("/admin");
+  });
+
+  it("refreshes nothing when the clear failed", async () => {
+    clearNicknameOf.mockResolvedValue({ ok: false, reason: "failed" });
+    const { clearNicknameAction } = await import("@/lib/admin/admin-actions");
+
+    await expect(clearNicknameAction("reader-1")).resolves.toEqual({ ok: false, reason: "failed" });
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("promoteUserAction", () => {
+  it("passes the acting admin from the gate, never from the caller", async () => {
+    const { promoteUserAction } = await import("@/lib/admin/admin-actions");
+
+    await promoteUserAction("target-9");
+
+    // "do this as someone else" is removed as a category rather than checked
+    // for: the id comes from the session via the gate.
+    expect(changeRole).toHaveBeenCalledWith("admin-1", "target-9", "admin");
+  });
+
+  it("revalidates both spellings of the page on success", async () => {
+    const { promoteUserAction } = await import("@/lib/admin/admin-actions");
+
+    await promoteUserAction("target-9");
+
+    expect(revalidatePath).toHaveBeenCalledWith("/yllapito");
+    expect(revalidatePath).toHaveBeenCalledWith("/admin");
+  });
+
+  it("does not revalidate when the write was refused", async () => {
+    changeRole.mockResolvedValue({ ok: false, reason: "self" });
+    const { promoteUserAction } = await import("@/lib/admin/admin-actions");
+
+    await expect(promoteUserAction("me")).resolves.toEqual({ ok: false, reason: "self" });
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("demoteUserAction", () => {
+  it("asks for the reader role, not for the admin one", async () => {
+    const { demoteUserAction } = await import("@/lib/admin/admin-actions");
+
+    await demoteUserAction("target-9");
+
+    expect(changeRole).toHaveBeenCalledWith("admin-1", "target-9", "user");
+  });
+
+  it("passes a last-admin refusal back unchanged", async () => {
+    changeRole.mockResolvedValue({ ok: false, reason: "last_admin" });
+    const { demoteUserAction } = await import("@/lib/admin/admin-actions");
+
+    await expect(demoteUserAction("target-9")).resolves.toEqual({
+      ok: false,
+      reason: "last_admin",
+    });
+  });
+});
+
+describe("deleteUserAction", () => {
+  it("deletes the target as the acting admin", async () => {
+    const { deleteUserAction } = await import("@/lib/admin/admin-actions");
+
+    await deleteUserAction("target-9");
+
+    expect(deleteUser).toHaveBeenCalledWith("admin-1", "target-9");
+  });
+
+  it("passes a not_found refusal back unchanged", async () => {
+    deleteUser.mockResolvedValue({ ok: false, reason: "not_found" });
+    const { deleteUserAction } = await import("@/lib/admin/admin-actions");
+
+    await expect(deleteUserAction("gone")).resolves.toEqual({ ok: false, reason: "not_found" });
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+});

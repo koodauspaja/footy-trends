@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { MatchPage, type MatchPageOptions, matchMetadata } from "@/components/match-page";
-import { MENS_TEAM } from "@/lib/national-team";
+import { MENS_TEAM } from "@/lib/national-team/national-team";
 
 export const dynamic = "force-dynamic";
 

@@ -1,21 +1,23 @@
 import { expect, type Page, test } from "@playwright/test";
-import postgres from "postgres";
-import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
+import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/auth/e2e-analytics";
+import { competitionIdForSeason } from "../../src/lib/taso/domestic-competitions";
 import { dropCached } from "../support/e2e-redis";
-import { testDatabaseUrl } from "../support/test-database";
 import { openFolds } from "./folds";
+import { activeSeason, withDatabase } from "./seeded-season";
 
 /**
- * A Suomen Cup's `Cupin ennuste`, end to end, on a round of 16 in progress.
- * The recorded cups are finished, so the season in progress is seeded: eight
- * league sides who have played each other, and a round of 16 half played. No
- * value is named.
+ * A Suomen Cup's `Cupin ennuste`, end to end, on a round of 16 in progress, seeded in the active
+ * season whatever year that is: eight league sides who have played each other, and a round of 16
+ * half played. No value is named.
  *
  * decisions/067-knockout-simulation.md
+ * decisions/832-cup-forecast-tie-order.md
+ * decisions/867-e2e-forecasts-seed-their-season.md
  */
 
-const SEASON = 2026;
-const STANDINGS = `/kotimaa/sarjataulukko?kilpailu=MSC&kausi=${SEASON}`;
+// Read from the page before anything is seeded: only the active season has a forecast.
+let season = 0;
+const standings = () => `/kotimaa/sarjataulukko?kilpailu=MSC&kausi=${season}`;
 const HEADING = "Cupin ennuste";
 const CHANCE = /^(<\s1|>\s99|\d{1,3})\s%$/;
 const SHARE = String.raw`(?:[<>]\s)?\d{1,3}\s%`;
@@ -39,9 +41,9 @@ function row(
   nextId += 1;
   return {
     taso_match_id: nextId,
-    competition_id: `spljp${SEASON % 100}`,
+    competition_id: competitionIdForSeason(categoryId, season),
     category_id: categoryId,
-    season_id: SEASON,
+    season_id: season,
     group_id: group.id,
     group_name: group.name,
     kickoff_at: new Date(Date.now() - daysAgo * 86_400_000),
@@ -63,25 +65,26 @@ const SEASON_GROUP = { id: 1, name: "Runkosarja" };
 const LAST_SIXTEEN = { id: 7, name: "Kierros 6" };
 
 // Each pair once, the lower number winning by how far apart the two are.
-const LEAGUE_ROWS = [1, 2, 3, 4, 5, 6, 7, 8].flatMap((home) =>
-  [1, 2, 3, 4, 5, 6, 7, 8]
-    .filter((away) => away > home)
-    .map((away, index) =>
-      row(
-        "VL",
-        SEASON_GROUP,
-        league(home),
-        league(away),
-        [Math.ceil((away - home) / 3), 0],
-        null,
-        10 + index
+const leagueRows = () =>
+  [1, 2, 3, 4, 5, 6, 7, 8].flatMap((home) =>
+    [1, 2, 3, 4, 5, 6, 7, 8]
+      .filter((away) => away > home)
+      .map((away, index) =>
+        row(
+          "VL",
+          SEASON_GROUP,
+          league(home),
+          league(away),
+          [Math.ceil((away - home) / 3), 0],
+          null,
+          10 + index
+        )
       )
-    )
-);
+  );
 
 // Four ties played, one on penalties; two to play between league sides, two
 // with a side the fit does not know.
-const CUP_ROWS = [
+const cupRows = () => [
   row("MSC", LAST_SIXTEEN, league(1), league(2), [2, 1], "home"),
   row("MSC", LAST_SIXTEEN, league(3), unrated(1), [3, 0], "home"),
   row("MSC", LAST_SIXTEEN, unrated(3), unrated(4), [1, 1], "away"),
@@ -92,27 +95,19 @@ const CUP_ROWS = [
   row("MSC", LAST_SIXTEEN, unrated(5), unrated(6), null),
 ];
 
-async function withDatabase(run: (sql: postgres.Sql) => Promise<unknown>) {
-  const sql = postgres(testDatabaseUrl());
-  try {
-    await run(sql);
-  } finally {
-    await sql.end();
-  }
-}
-
 // The fit, the forecast and the season's tables are cached: dropped, so the
 // page computes them from the rows stored now, and so does the next spec.
 async function dropCaches() {
-  await dropCached("poisson:v1:taso", "elo:v1:taso", `knockout:v1:taso:MSC:${SEASON}:*`);
+  await dropCached("poisson:v1:taso", "elo:v1:taso", `knockout:v1:taso:MSC:${season}:*`);
 }
 
-test.beforeAll(async () => {
+test.beforeAll(async ({ browser }) => {
+  season = await activeSeason(browser, "MSC");
   await withDatabase(async (sql) => {
     // The recorded cup, finished, would be read before the seeded round. Gone,
     // the next read of the season asks the stand-in for it again.
-    await sql`delete from taso_matches where category_id = 'MSC' and season_id = ${SEASON}`;
-    await sql`insert into taso_matches ${sql([...LEAGUE_ROWS, ...CUP_ROWS])}`;
+    await sql`delete from taso_matches where category_id = 'MSC' and season_id = ${season}`;
+    await sql`insert into taso_matches ${sql([...leagueRows(), ...cupRows()])}`;
   });
   await dropCaches();
 });
@@ -121,7 +116,7 @@ test.afterAll(async () => {
   await withDatabase(
     (sql) =>
       sql`delete from taso_matches where taso_match_id between 999067000 and 999067999
-        or (category_id = 'MSC' and season_id = ${SEASON})`
+        or (category_id = 'MSC' and season_id = ${season})`
   );
   await dropCaches();
 });
@@ -136,7 +131,7 @@ test.describe("Suomen Cup forecast, signed in", () => {
   });
 
   test("comes last on the cup's page, after its rounds", async ({ page }) => {
-    await page.goto(STANDINGS);
+    await page.goto(standings());
     await section(page).waitFor();
     const headings = await page.getByRole("heading", { level: 2 }).allTextContents();
 
@@ -152,7 +147,7 @@ test.describe("Suomen Cup forecast, signed in", () => {
   test("from the round of 16, gives every side left its chance of each round and of the cup", async ({
     page,
   }) => {
-    await page.goto(STANDINGS);
+    await page.goto(standings());
     await openFolds(page, HEADING);
     const table = section(page).getByRole("table");
 
@@ -175,18 +170,19 @@ test.describe("Suomen Cup forecast, signed in", () => {
   test("gives the ties between two rated sides, and none with an unrated side", async ({
     page,
   }) => {
-    await page.goto(STANDINGS);
+    await page.goto(standings());
     await openFolds(page, HEADING);
     const ties = section(page).getByRole("listitem");
 
-    // The two still to play between league sides, 4 against 5 and 7 against 8.
+    // The two still to play between league sides, 4 against 5 and 7 against 8:
+    // by kickoff and then match id, since both are seeded at the same moment.
     await expect(ties).toHaveText([tie(104, 105), tie(107, 108)]);
   });
 
   test("says what the figures are, and the division an unrated side counts as", async ({
     page,
   }) => {
-    await page.goto(STANDINGS);
+    await page.goto(standings());
     await openFolds(page, HEADING);
 
     await expect(section(page).getByText(/^Loppukilpailu on pelattu 10 000 kertaa/)).toBeVisible();
@@ -194,7 +190,7 @@ test.describe("Suomen Cup forecast, signed in", () => {
   });
 
   test("an earlier season has no section", async ({ page }) => {
-    await page.goto(`/kotimaa/sarjataulukko?kilpailu=MSC&kausi=${SEASON - 1}`);
+    await page.goto(`/kotimaa/sarjataulukko?kilpailu=MSC&kausi=${season - 1}`);
 
     // The bracket the section would follow, so the page has rendered that far.
     await expect(page.getByRole("heading", { level: 2, name: "Pudotuspelit" })).toBeVisible();
@@ -203,7 +199,7 @@ test.describe("Suomen Cup forecast, signed in", () => {
 });
 
 test("sends no figure to a signed-out reader", async ({ page }) => {
-  const response = await page.goto(STANDINGS);
+  const response = await page.goto(standings());
   const html = (await response?.text()) ?? "";
 
   expect(html).not.toContain(HEADING);

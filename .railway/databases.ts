@@ -1,8 +1,7 @@
 /**
- * A new environment's Postgres and Redis. Applied once, by
- * `scripts/railway-environment.ts`, to an environment that holds nothing. It
- * evaluates only for the one environment that script names, and never for this
- * project's staging or production, whose databases stay in the dashboard.
+ * A new environment's Postgres and Redis, applied once by
+ * `scripts/environments/railway-environment.ts` to an empty environment and evaluated only for the
+ * one it names, never staging or production, whose databases stay in the dashboard.
  *
  * decisions/522-railway-environment-from-code.md
  */

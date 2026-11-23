@@ -17,7 +17,7 @@ import type {
   SeasonSummarySeries,
   SideFact,
   UpsetFact,
-} from "@/lib/season-summary";
+} from "@/lib/teams/season-summary";
 
 /**
  * `Kausi lyhyesti`: every sentence as the reader sees it, and the block's states.

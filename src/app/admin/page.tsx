@@ -2,10 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminUserTable } from "@/components/admin-user-table";
 import { PageShell } from "@/components/page-shell";
-import { requireAdmin } from "@/lib/admin-guard";
-import { pageFrom } from "@/lib/admin-user-view";
-import { listUsers } from "@/lib/admin-users";
-import { logger } from "@/lib/logger";
+import { requireAdmin } from "@/lib/admin/admin-guard";
+import { pageFrom } from "@/lib/admin/admin-user-view";
+import { listUsers } from "@/lib/admin/admin-users";
+import { logger } from "@/lib/platform/logger";
 
 const HEADING = "Ylläpito";
 /**

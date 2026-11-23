@@ -6,7 +6,7 @@ import type {
   ForecastRow,
   ForecastTable,
   SeasonForecast,
-} from "@/lib/season-simulation";
+} from "@/lib/predictions/season-simulation";
 
 /**
  * The season forecast panel: its three column sets, how a chance is printed,

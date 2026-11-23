@@ -2,16 +2,15 @@
 
 import Link from "next/link";
 import { useId, useRef, useState, useTransition } from "react";
-import { useSession } from "@/lib/auth-client";
-import { reportClientError } from "@/lib/report-client-error";
-import type { TeamSearchView } from "@/lib/team-search";
-import { searchTeamsAction } from "@/lib/team-search-actions";
+import { useSession } from "@/lib/auth/auth-client";
+import { reportClientError } from "@/lib/platform/report-client-error";
+import type { TeamSearchView } from "@/lib/teams/team-search";
+import { searchTeamsAction } from "@/lib/teams/team-search-actions";
 
 /**
- * Finding a team by name. A client component, rendered in the site header on
- * every page. A unit test rendering anything that contains it mocks
- * `@/lib/auth-client`, or runs the real client's cleanup as
- * `session-hydration.test.tsx` does.
+ * Finding a team by name, a client component in the site header on every page. A unit test
+ * rendering anything that contains it mocks `@/lib/auth/auth-client`, or runs the real client's
+ * cleanup as `session-hydration.test.tsx` does.
  *
  * decisions/027-team-search.md
  * decisions/373-team-search-header-row.md

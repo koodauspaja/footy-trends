@@ -1,8 +1,8 @@
 import { COLUMN_WIDTHS, DataTable, type DataTableColumn } from "@/components/data-table";
 import { FavouriteToggle } from "@/components/favourite-toggle";
 import { RowLink } from "@/components/row-link";
-import type { Zone } from "@/lib/competition-zones";
-import type { FavouriteSource } from "@/lib/favourite-keys";
+import type { FavouriteSource } from "@/lib/preferences/favourite-keys";
+import type { Zone } from "@/lib/taso/competition-zones";
 
 const statColumns = [
   ["O", "Ottelut", (row: StandingsRow) => row.played],

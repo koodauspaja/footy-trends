@@ -7,7 +7,7 @@ spec path), follow this process to implement it.
 - Read the spec file in full (`specs/NNN-feature-name.md`).
 - Read `REVIEW_RULES.md` — every rule there applies to this PR.
 - Check `docs/setup/` for any relevant infrastructure context (e.g. caching
-  utility in `src/lib/cache.ts`, DB client in `src/db/`).
+  utility in `src/lib/providers/cache.ts`, DB client in `src/db/`).
 
 ## 2. Branch
 Create a feature branch named `feature/NNN-short-description`, matching the

@@ -24,7 +24,9 @@
   dated heading naming the file and the commit it was cut at.
 - **A comment says what a thing is for**: one to three lines about the thing
   itself, or a constraint the code cannot show. Then the decision records behind
-  it, the original feature's first and the later ones after it, oldest first:
+  it, the original feature's first and the others after it; any other record
+  added to a comment goes below the ones already there. Nothing checks the order
+  (`decisions/859-record-order-without-a-check.md`):
 
   ```ts
   /**
@@ -40,10 +42,13 @@
   comment and a comment inside a function are covered by the declaration they
   sit in, or by the header. History (how it used to work, which pull request
   found it, what a reviewer said) goes in the record, never the comment, and no comment cites an issue or
-  pull request number. `tests/unit/scripts/comment-rules.test.ts` fails on a new
+  pull request number. `tests/unit/scripts/checks/comment-rules.test.ts` fails on a new
   citation, on a cited record that does not exist, on a doc comment stacked
-  on another, and on a test name that cites an issue, a spec or a spec section or is
-  not written as a string (`decisions/584-test-names-carry-no-citations.md`). Comments not yet in this shape are trimmed file by file, by the
+  on another, on a new declaration doc comment that cites no record, on a new comment
+  over three lines before its paths, and on a test name that cites an issue, a
+  spec or a spec section or is not written as a string
+  (`decisions/584-test-names-carry-no-citations.md`,
+  `decisions/839-mechanical-comment-rules.md`). Comments not yet in this shape are trimmed file by file, by the
   next pull request that rewrites them or in batches of at most 150 000 diff
   characters. A comment a pull request only moves, word for word, onto the
   thing it describes is not rewritten, and waits for its batch. `decisions/531-comments-say-what-code-is-for.md` has the reasons.
@@ -69,8 +74,13 @@
   authorisation, and neither is being confident or being green. When Claude sets
   `Ready` itself it quotes the sentence it is acting on, so the evidence is
   visible rather than in its head.
+- **e2e runs before a pull request opens and before any new Sourcery round**,
+  never skipped, unless the change is documentation only; no other push forces
+  one. Hooks enforce it, and
+  `skills/open-pr.md` ("e2e and Sourcery rounds") says how to judge the rest
+  (`decisions/837-e2e-before-a-pull-request-and-a-review.md`).
 - **Every new source file is imported by a test, or excluded with a reason.**
-  `npm run test:unit` fails otherwise — `scripts/coverage-gaps.ts` compares the
+  `npm run test:unit` fails otherwise — `scripts/checks/coverage-gaps.ts` compares the
   source tree against the coverage report and names anything missing, then
   checks lcov for a condition never taken. Neither is the same as low coverage:
   `vitest --coverage` measures only what a test *imports*, so a file nothing

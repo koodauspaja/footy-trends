@@ -26,7 +26,7 @@ vi.mock("next/navigation", () => ({
 
 // The header now renders the auth control, which reads a session. Mocked here
 // so these breadcrumb assertions keep testing the breadcrumb.
-vi.mock("@/lib/auth-client", () => ({
+vi.mock("@/lib/auth/auth-client", () => ({
   useSession: () => session.current,
   signIn: { social: vi.fn() },
   signOut: vi.fn(),

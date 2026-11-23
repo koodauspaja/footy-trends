@@ -31,24 +31,24 @@ const {
   logger: { error: vi.fn() },
 }));
 
-vi.mock("@/lib/current-user", () => ({ currentUserId }));
-vi.mock("@/lib/guessing-game-store", () => ({ openGame }));
-vi.mock("@/lib/nickname-store", () => ({ getNickname }));
-vi.mock("@/lib/guessing-game-board", () => ({
+vi.mock("@/lib/auth/current-user", () => ({ currentUserId }));
+vi.mock("@/lib/guessing-game/guessing-game-store", () => ({ openGame }));
+vi.mock("@/lib/account/nickname-store", () => ({ getNickname }));
+vi.mock("@/lib/guessing-game/guessing-game-board", () => ({
   readOthers,
   boardSeason: (view: { seasonId?: number }) => view.seasonId ?? null,
 }));
-vi.mock("@/lib/guessing-game-group-store", () => ({ readGroupsOf }));
-vi.mock("@/lib/guessing-game-group-actions", () => ({ createGroupAction: vi.fn() }));
-vi.mock("@/lib/guessing-game-season-store", () => ({ readSeasonSectionOf }));
-vi.mock("@/lib/logger", () => ({ logger }));
-vi.mock("@/lib/guessing-game-actions", () => ({
+vi.mock("@/lib/guessing-game/guessing-game-group-store", () => ({ readGroupsOf }));
+vi.mock("@/lib/guessing-game/guessing-game-group-actions", () => ({ createGroupAction: vi.fn() }));
+vi.mock("@/lib/guessing-game/guessing-game-season-store", () => ({ readSeasonSectionOf }));
+vi.mock("@/lib/platform/logger", () => ({ logger }));
+vi.mock("@/lib/guessing-game/guessing-game-actions", () => ({
   joinGameAction: vi.fn(),
   placeGuessAction: vi.fn(),
   placeSeasonGuessAction: vi.fn(),
 }));
-vi.mock("@/lib/auth-client", () => ({ signIn: { social: vi.fn() } }));
-vi.mock("@/lib/section-choice-actions", () => ({ saveSectionChoiceAction: vi.fn() }));
+vi.mock("@/lib/auth/auth-client", () => ({ signIn: { social: vi.fn() } }));
+vi.mock("@/lib/preferences/section-choice-actions", () => ({ saveSectionChoiceAction: vi.fn() }));
 vi.mock("next/navigation", () => ({
   usePathname: () => "/arvauspeli",
   useSearchParams: () => new URLSearchParams(),

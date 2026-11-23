@@ -2,9 +2,8 @@
 
 Purpose
 Catch the defects this repository's reviews keep finding, before a reviewer has
-to. Not general advice — every class below is measured from the review history,
-bar section 11, which comes from an audit and says so, and each has a counter
-that takes minutes. The table says which to weight
+to. Not general advice: every class below is measured from the review history,
+and each has a counter that takes minutes. The table says which to weight
 today; it is re-measured, not maintained by hand.
 
 When to use
@@ -14,44 +13,27 @@ When to use
 
 ## Why these classes
 
-Measured with `npm run review:findings`, which counts every Sourcery inline
-comment on recent merged pull requests and sorts it by class. On 2026-09-14,
-across the last 14 merged PRs:
+Measured on #817 over the last 50 merged pull requests (#689 to #835, to
+2026-11-21): of Sourcery's 191 catches, 89 fell in the eleven classes the pass
+then had, and the pass itself found 2 defects in about 30 visible runs. Five
+classes held 79 of the 89, and only those five stay (decisions/838):
 
-| Findings | Class | Pull requests |
-|---|---|---|
-| **21** | **a comment or spec contradicting the code beside it** | #372 #375 #376 #381 #387 #389 |
-| 10 | a read and a write that do not span one transaction | #372 #375 #381 |
-| 9 | the same value compared under two normalisations | #372 #375 #381 #385 |
-| 3 | a test that proves nothing | #381 #387 |
-| 3 | a failure path dropped, or turned into a plausible wrong value | #372 #375 #381 |
-| 1 | English reaching a Finnish UI | #389 |
-| 1 | a shared cache key that is not per-reader | #381 |
-| 1 | a guard covering the named line instead of the class | #376 |
-| 0 | a parser accepting what it should not | — |
-| 15 | unclassified | #372 #374 #375 #376 #381 #385 #389 |
+| Findings | Class |
+|---|---|
+| **34** | **a test that proves nothing** |
+| 23 | a comment or spec contradicting the code beside it |
+| 10 | a read and a write that do not span one transaction |
+| 8 | a failure path dropped, or turned into a plausible wrong value |
+| 4 | the same value compared under two normalisations |
 
-    GH_TOKEN=$(gh auth token) npm run review:findings -- 14
+The other six classes held 10 between them, and English reaching a Finnish UI
+none; they left the pass.
 
-Re-run it. The numbers are a snapshot, and a class that stops appearing has
-earned its removal from this document as much as a new one earns its place.
+    GH_TOKEN=$(gh auth token) npm run review:findings -- 50
 
-**Read the top row with its cause.** #389 alone supplied 12 of those 21. It was
-a documentation-only pull request reviewed over roughly fifteen rounds, so it
-is not evidence that prose drifts four times more often than anything else.
-Excluding it, the largest class is the transaction one at 10.
-
-**A zero means "look", not "delete".** Twice now a class has read as extinct
-while its findings sat in `unclassified`: "a failure path dropped" showed 0 on
-2026-09-14 with three real instances, because recent reviews say "is not
-caught" where older ones said "unhandled". Parsing shows 0 here for a different
-reason — its one recent instance, a `--role=ADMIN` flag, files under
-normalisation now, which is the better home for it. Check where a vanished
-class's findings went before removing the section.
-
-**`unclassified` is 15 of 64, and that is the honest number.** A finding is
-filed by the words it uses, so the table is a coarse indicator of where to look
-— not a verdict on any one finding, and no substitute for reading them.
+Re-run it. The numbers are a snapshot. A finding is filed by the words it uses,
+so a class that reads as zero may have moved to `unclassified`: look before
+removing it.
 
 ---
 
@@ -70,7 +52,7 @@ fifth existed.
 it is for in one to three lines, then links the decision records behind it, and
 the history goes in the record (`CLAUDE.md`,
 `decisions/531-comments-say-what-code-is-for.md`).
-`tests/unit/scripts/comment-rules.test.ts` fails on a doc comment stacked on
+`tests/unit/scripts/checks/comment-rules.test.ts` fails on a doc comment stacked on
 another, which is how a comment ends up on the wrong function.
 
 Then, any commit that changes behaviour searches for the old
@@ -174,91 +156,6 @@ diff: who catches it, and what does the reader see? A failure must never share
 a value with "there is nothing" — if a function can fail, its result type
 carries failure as its own case.
 
-## 6. A parser accepting what it should not
-
-**What it looks like.** `Number("")` is `0`, `Number("0x10")` is 16,
-`Number.parseInt("2abc")` is 2. A class-name pattern that stopped at the first
-bracket. A regex anchored so a variant prefix walked past it.
-
-**The counter.** Write down what the field *is* — "a positive decimal integer
-the column can hold" — then test the boundary from both sides: the largest
-accepted value and the smallest rejected one. And put the rule in one place;
-this class arrived three pull requests running, on two copies of a rule that
-had drifted apart.
-
-
-## 7. A guard covering the named line
-
-**What it looks like.** A validation added where the diagnostic reads the
-value, while the path that *stores* it parses the same value independently and
-keeps its own copy of the rule.
-
-**The counter.** After fixing the reported line, grep for every other reader of
-the same input. If there are two, the fix is one shared function, not two
-guards — see `feedback: remove the path, do not add a guard` in the review
-history.
-
-## 8. English reaching a Finnish UI
-
-CLAUDE.md makes this a hard rule, and review has still had to say it twice — a
-rule that is only written down is not a check.
-
-**The counter.** Read every new string a reader can see. Browser and
-platform names, provider errors and library defaults are the usual leaks.
-
-## 9. A shared key that is not per-reader
-
-**What it looks like.** `/api/avatar/me?v=<timestamp>` — one path for every
-reader, cached `private, immutable` for a year, with a query parameter that two
-readers could hold identically. Switching accounts in one browser profile would
-have served the first reader's picture to the second, without the authenticated
-route being asked at all.
-
-**The counter.** For anything cached, name the two things separately: what makes
-it change when the content changes, and what keeps one reader's copy off another
-reader's URL. A per-user timestamp answers the first and not the second. If one
-value has to do both jobs, it has to be unguessable and unique — not merely
-fresh.
-
-## 10. A check that passes what it cannot classify
-
-Not in the table above, which counts merged pull requests. From #596, where
-two Sourcery reviews found sixteen things in one script and most were this.
-
-**What it looks like.** A rule that decides "this is only a comment" from how
-a line starts, so a multiplication carried onto a line beginning `* ` passes.
-A list of the comments tools read, so one not on the list passes. A file
-called documentation by its new name after a rename from source. One page of
-results read as all of them.
-
-**The counter.** For every check, gate or classifier, ask what it does with an
-input it does not recognise, and make that answer "fail". Name the things that
-pass, never the things that fail: an allowlist a reader can check, not a
-denylist someone has to keep complete. If the allowlist cannot be written
-down, the check is trying to judge something it should not.
-
-## 11. A failure or a write that leaves no record
-
-Not in the table above, and not from a review: from an audit on 2026-10-04 of
-every `catch` in `src/`. Failures on the server were nearly all logged. What
-left no line were the things nobody thinks of as failing: an admin changing a
-role, deleting a user or forcing a refresh, a sign-in being refused, and the
-hourly run's result. `npm run review:findings` does not count this class, so it
-stays until a human removes it.
-
-**What it looks like.** A new server action that writes and returns `{ ok: true
-}` with no log line. A refusal returned to the caller and recorded nowhere. A
-summary printed with `console` in a script, which reaches Railway's log and not
-Axiom. A log line carrying an email address because the object was to hand.
-
-**The counter.** For each new call that can fail, name the line it logs. For
-each new write to shared data, name the line that says who did it, to what, and
-the outcome, a refusal included. Then read each line's fields: ids only. Put
-the line where a test imports it, and run its mutation, so removing the line
-fails a test.
-
----
-
 ## The pass itself
 
 1. `GH_TOKEN=$(gh auth token) npm run review:findings` if it has been a while —
@@ -266,14 +163,14 @@ fails a test.
    fourth merge is often enough.
 2. Read the whole diff as if reviewing someone else's work.
 3. For every test added: run its mutation.
-4. For every call added that can fail: name its catcher, its reader-visible
-   outcome and the line it logs. For every write added to shared data: name the
-   line that records it.
+4. For every call added that can fail: name its catcher and its reader-visible
+   outcome.
 5. For every behaviour changed: search the repository for sentences describing
    the old one.
 6. **`npm run verify`** — lint, typecheck, `test:unit` (100% on all four
    metrics), `test:shuffle`, integration and end-to-end, in that order, stopping
-   at the first failure and naming it (#401). The stages are checked against the
+   at the first failure and naming it (#401). End-to-end is due when a hook or
+   `skills/open-pr.md` ("e2e and Sourcery rounds") asks for it (decisions/837). The stages are checked against the
    workflows by a unit test, so a green run here is a green CI; running them
    one at a time is the same gate, and the one that gets skipped when they are
    separate commands is always the slow one.

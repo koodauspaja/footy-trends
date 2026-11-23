@@ -2,21 +2,22 @@ import { and, eq, gte, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db";
 import { gameLedger, gameSeasonGuess, tasoMatches, user } from "@/db/schema";
-import { placeSeasonGuess, settleSeasonGuesses } from "@/lib/guessing-game-season-store";
-import { joinGame } from "@/lib/guessing-game-store";
+import {
+  placeSeasonGuess,
+  settleSeasonGuesses,
+} from "@/lib/guessing-game/guessing-game-season-store";
+import { joinGame } from "@/lib/guessing-game/guessing-game-store";
 
 /**
- * Arvauspeli's season guesses against a real Postgres: placing pays once, a
- * change is free, the lock, settling once by the season's tables, and the void
- * with the next season, in seasons of their own. The tables are the standings
- * page's, stood in for here: that path reads TASO, with its own freshness
- * rules, which these tests leave as they are.
+ * Arvauspeli's season guesses against a real Postgres: placing pays once, a change is free, the
+ * lock, settling once by the season's tables and the void with the next season. The tables are
+ * stood in for: the standings page's path reads TASO, with its own freshness rules.
  *
  * decisions/075-season-guesses.md
  */
 
 const { standings } = vi.hoisted(() => ({ standings: vi.fn() }));
-vi.mock("@/lib/taso-standings-service", () => ({ getSeasonStandings: standings }));
+vi.mock("@/lib/taso/taso-standings-service", () => ({ getSeasonStandings: standings }));
 
 const SEASON = 2094;
 const NOW = new Date("2094-03-01T12:00:00Z");
@@ -26,7 +27,11 @@ const FIRST_MATCH_ID = 9_400_000;
 const PLAYER = "itest-season-player";
 const OTHER = "itest-season-other";
 const PLAYERS = [PLAYER, OTHER];
-/** The season's twelve teams, TASO ids 1 to 12, the table's order by id. */
+/**
+ * The season's twelve teams, TASO ids 1 to 12, the table's order by id.
+ *
+ * decisions/075-season-guesses.md
+ */
 const TEAMS = Array.from({ length: 12 }, (_, index) => index + 1);
 
 let nextMatchId = FIRST_MATCH_ID;

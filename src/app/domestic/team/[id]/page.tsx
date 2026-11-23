@@ -9,28 +9,27 @@ import {
   type TeamPageData,
   teamPageMetadata,
 } from "@/components/team-page";
+import { resolveDomesticPageContext } from "@/lib/competitions/domestic-page-context";
+import { getWorstOpponents } from "@/lib/matches/match-service";
+import { getTeamElo } from "@/lib/predictions/elo-service";
+import { parseWholeNumber } from "@/lib/providers/provider-ids";
 import {
   earliestSeasonFor,
   getDomesticCompetitionName,
   isDomesticCup,
   parseDomesticCompetitionParam,
-} from "@/lib/domestic-competitions";
-import { resolveDomesticPageContext } from "@/lib/domestic-page-context";
-import { getTeamElo } from "@/lib/elo-service";
-import { getWorstOpponents } from "@/lib/match-service";
-import { parseWholeNumber } from "@/lib/provider-ids";
+} from "@/lib/taso/domestic-competitions";
+import { getTeamMatches, type TeamMatchesResult } from "@/lib/taso/taso-standings-service";
 import {
-  getTeamMatches,
   getTeamPanelMatches,
   getTeamPositionSeries,
   getTeamSeasonComparison,
   getTeamSeasonSummary,
   getTeamStreakRecords,
-  type TeamMatchesResult,
-} from "@/lib/taso-standings-service";
-import type { TeamContextFilter, TeamPageSource } from "@/lib/team-context";
-import { resolveTeamDefaults, seasonCandidate } from "@/lib/team-page-context";
-import { teamPanelLoaders } from "@/lib/team-panels";
+} from "@/lib/taso/taso-team-panels";
+import type { TeamContextFilter, TeamPageSource } from "@/lib/teams/team-context";
+import { resolveTeamDefaults, seasonCandidate } from "@/lib/teams/team-page-context";
+import { teamPanelLoaders } from "@/lib/teams/team-panels";
 
 export const dynamic = "force-dynamic";
 
@@ -93,6 +92,7 @@ async function resolveTeamPage({
     competitionParam,
     competitionName,
     currentSeason,
+    activeSeason,
     season,
     seasonId,
     seasonLabel,
@@ -102,7 +102,7 @@ async function resolveTeamPage({
     competitionId,
     teamProviderId,
     seasonId,
-    currentSeason
+    activeSeason
   );
   const [firstMatch] = result.status === "ok" ? result.matches : [];
   const { name, seasons } = await resolveTeamIdentity(SOURCE, teamProviderId, firstMatch);
@@ -144,18 +144,18 @@ async function resolveTeamPage({
       // The same season wording the selector above the panel uses, so a
       // record names a season the way the rest of the page does.
       loadRecords: () =>
-        getTeamStreakRecords(competitionCode, teamProviderId, currentSeason, played, String),
+        getTeamStreakRecords(competitionCode, teamProviderId, activeSeason, played, String),
       // By competition code, not by TASO category: the comparison reads many
       // seasons, and a category id belongs to one.
       loadComparison: () =>
-        getTeamSeasonComparison(competitionCode, teamProviderId, seasonId, currentSeason, played),
+        getTeamSeasonComparison(competitionCode, teamProviderId, seasonId, activeSeason, played),
       // The club's latest league season only; a cup page has no block.
       loadSummary: (seasons) =>
         getTeamSeasonSummary(
           competitionCode,
           teamProviderId,
           seasonId,
-          currentSeason,
+          activeSeason,
           seasons,
           String
         ),
@@ -169,11 +169,11 @@ async function resolveTeamPage({
               competitionId,
               teamProviderId,
               seasonId,
-              currentSeason
+              activeSeason
             ),
       // The six result panels, over one read of the season's matches.
       ...teamPanelLoaders({ teamProviderId, categoryId, competitionId, seasonId }, () =>
-        getTeamPanelMatches(categoryId, competitionId, teamProviderId, seasonId, currentSeason)
+        getTeamPanelMatches(categoryId, competitionId, teamProviderId, seasonId, activeSeason)
       ),
       // Every competition in /kotimaa and every stored season, whatever season is
       // shown.

@@ -7,14 +7,14 @@ import {
   deleteUserAction,
   demoteUserAction,
   promoteUserAction,
-} from "@/lib/admin-actions";
+} from "@/lib/admin/admin-actions";
 import {
   type AdminRefusal,
   type AdminUser,
   type AdminWriteResult,
   isAdminRole,
-} from "@/lib/admin-user-view";
-import { reportClientError } from "@/lib/report-client-error";
+} from "@/lib/admin/admin-user-view";
+import { reportClientError } from "@/lib/platform/report-client-error";
 
 /**
  * The user list and its controls. A client component: it imports

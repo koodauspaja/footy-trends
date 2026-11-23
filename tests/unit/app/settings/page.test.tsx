@@ -63,14 +63,14 @@ const { getSession, listSessions, currentPreferencesRow, getAvatar, getNickname,
   });
 
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
-vi.mock("@/lib/auth", () => ({ auth: { api: { getSession, listSessions } } }));
-vi.mock("@/lib/settings-actions", () => ({
+vi.mock("@/lib/auth/auth", () => ({ auth: { api: { getSession, listSessions } } }));
+vi.mock("@/lib/account/settings-actions", () => ({
   currentPreferencesRow,
   saveSettings: vi.fn(),
   signOutOtherDevices: vi.fn(),
   deleteAccount: vi.fn(),
 }));
-vi.mock("@/lib/auth-client", () => ({
+vi.mock("@/lib/auth/auth-client", () => ({
   useSession: () => ({ refetch: vi.fn() }),
   signIn: { social: vi.fn() },
 }));
@@ -79,10 +79,10 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({ replace: vi.fn() }),
 }));
-vi.mock("@/lib/logger", () => ({ logger }));
-vi.mock("@/lib/avatar", () => ({ getAvatar }));
-vi.mock("@/lib/nickname-store", () => ({ getNickname }));
-vi.mock("@/lib/nickname-actions", () => ({ saveNicknameAction: vi.fn() }));
+vi.mock("@/lib/platform/logger", () => ({ logger }));
+vi.mock("@/lib/account/avatar", () => ({ getAvatar }));
+vi.mock("@/lib/account/nickname-store", () => ({ getNickname }));
+vi.mock("@/lib/account/nickname-actions", () => ({ saveNicknameAction: vi.fn() }));
 
 async function renderPage() {
   const { default: Settings } = await import("@/app/settings/page");

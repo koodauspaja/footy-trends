@@ -26,6 +26,7 @@ it was read, so it can be read again.
 | Postgres, Redis, Sentry DSN, Axiom token and dataset | its own | its own |
 | Provider API keys | **shared**: one football-data key and one TASO key serve both | |
 | Hourly predictions cron | none | `predictions` service |
+| Database backup | none | daily, encrypted, to Backblaze B2 (*Backups*) |
 | Volumes | 500 MB each | 5 GB each |
 
 ## Railway
@@ -107,14 +108,16 @@ By name; no value is in the repository. The lists are in `.railway/railway.ts`.
 | `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` | set | set | per environment |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | set | set | from that environment's Google project |
 | `FOOTBALL_DATA_API_KEY`, `TASO_API_KEY` | set | set | **the same key in both** |
-| `TASO_HASH_SALT` | absent | absent | signs each TASO request when set; absent sends them unsigned, which TASO refuses since 2026-10-15. Temporary, until official access (decisions/681) |
+| `TASO_HASH_SALT` | set | set | signs each TASO request when set; absent sends them unsigned, which TASO refuses since 2026-10-15. Temporary, until official access (decisions/681) |
 | `FOOTBALL_DATA_EARLIEST_SEASON`, `FOOTBALL_DATA_REFRESH_INTERVAL_SECONDS` | `2023`, `3600` | `2023`, `3600` | how far back history is stored, and how old stored matches may be before a refresh |
 | `AXIOM_TOKEN`, `AXIOM_DATASET` | dataset `footy-trends` | dataset `footy-trends-prod` | a token per environment |
 | `NEXT_PUBLIC_SENTRY_DSN` | set | set | per environment |
+| `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN` | set | set | read by the build, which uploads source maps to that environment's own Sentry project. The token is an organisation token, **its own in each**. Only Railway's builds hold one; CI's build uploads nothing (decisions/830) |
+| `HEALTH_PROVIDERS_TOKEN` | set | set | **its own in each**; without it in a request's header, `?providers=1` makes no TASO call. Production's is also the Actions secret (decisions/814) |
 | `LOG_LEVEL` | `info` | `info` | why `info` is safe: `docs/setup/021` |
 | `AUTH_ALLOWED_EMAILS` | set | absent | unset means anyone may sign in |
 | `AUTH_CLIENT_IP_HEADERS`, `AUTH_TRUSTED_PROXIES` | present, **empty on purpose** | absent | the default, `x-real-ip`, is right behind Railway's edge (decisions/309) |
-| `SENTRY_TRACES_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` | absent | set | production: 0.1. Absent means the in-code default, also 0.1 (decisions/656). What an event carries is not a variable: `DATA_COLLECTION` in `src/lib/sentry-config.ts`, every environment (decisions/565) |
+| `SENTRY_TRACES_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` | absent | set | production: 0.1. Absent means the in-code default, also 0.1 (decisions/656). What an event carries is not a variable: `DATA_COLLECTION` in `src/lib/platform/sentry-config.ts`, every environment (decisions/565) |
 
 The `predictions` service holds its own: `DATABASE_URL`, `REDIS_URL`, the two
 provider keys, `TASO_HASH_SALT` when the web service has it, `FOOTBALL_DATA_EARLIEST_SEASON`, `AXIOM_TOKEN`, `AXIOM_DATASET`
@@ -156,7 +159,7 @@ with nothing done in Railway.
   staging rebuilt from zero needs them set again by hand.
 - **An upgrade of `ioredis` or `postgres` can undo it** (6.0.0 and 3.4.9 when
   this was measured). Two tests pin what the query strings rely on, so a
-  Renovate bump that changes it fails: `tests/unit/lib/staging-sleep-settings.test.ts`
+  Renovate bump that changes it fails: `tests/unit/lib/platform/staging-sleep-settings.test.ts`
   connects ioredis to a local listener and checks which keepalive it puts on
   the socket, and `tests/integration/staging-sleep-settings.test.ts` checks
   against the test database that postgres.js closes a connection idle past
@@ -243,6 +246,41 @@ settle`: on staging, which has no cron, whenever its guesses should be settled.
   and Redis container, so it reaches neither TASO nor development's Redis (decisions/672,
   decisions/674).
 
+### Backups
+
+Production's database only: staging's data can be made again, and Redis holds
+nothing that cannot be rebuilt (decisions/807).
+
+| | |
+|---|---|
+| What | `pg_dump --format=custom` of production, and every table's row count from the same snapshot (`npm run backup`) |
+| When | daily 02:17 UTC, `database-backup.yml` |
+| Where | Backblaze B2, account `Koodauspaja`, private bucket `footy-trends-db-backups`, region `eu-central-003` (Amsterdam) |
+| Encrypted | with `age` on the runner, to the public keys in `scripts/backup/recipients.txt`. Each private key alone decrypts, and is held by its person, nowhere else: Miikka and Kalle |
+| Kept | 30 days. Object Lock, governance mode, locks each file for 30 days; a lifecycle rule hides it 30 days after upload and deletes it a day later |
+| Read by production as | `backup_reader`, a member of `pg_read_all_data`: reads every table, writes nothing. Created by hand (`docs/setup/027`) |
+| Restore | `npm run backup:restore -- --b2-key=<file> --identity=<file>`: the newest backup into `footy-trends_restore_check` on the local Docker Postgres, then every table's count compared with the backup's |
+| Last restored | 2026-11-21, from `20261121T142846Z`: 23 tables, 195 204 rows, every count equal |
+
+- **Three B2 keys.** The workflow's, `footy-trends-db-backup-upload`, can only
+  upload (`writeFiles`), to that bucket only: it cannot list, read or delete.
+  The console's "Write Only" choice is not that: it includes `deleteFiles` and
+  `bypassGovernance`, so such keys are made through the API. The restore's,
+  `footy-trends-db-backup-read`, lists and reads, and stays with the people who
+  restore. An account-wide key exists only while the bucket is being set up.
+- **Railway's own volume backups: none,** in staging or production, and this
+  plan cannot make them: new backups, schedules and point-in-time recovery are
+  Railway Pro's. Read in the dashboard (`Postgres` → **Backups**, the only
+  place they show) on 2026-11-21.
+- **A failed run is a red run.** GitHub emails it only to whoever last changed
+  the workflow's `cron` line. A run that never starts goes unnoticed: GitHub
+  turns off a scheduled workflow after 60 days without repository activity.
+- **Production's Postgres has a public address,** Railway's TCP proxy
+  (`*.proxy.rlwy.net`). The backup connects through it and verifies the server
+  against production's own root certificate, pinned in
+  `scripts/backup/railway-postgres-ca.pem`, `CN=root-ca`, valid until
+  **2028-11-23**. A new root turns the backup red until that file is replaced.
+
 ## GitHub
 
 Repository `koodauspaja/footy-trends`, **public**. Read with `gh api
@@ -255,7 +293,7 @@ repos/:owner/:repo/rulesets` and its neighbours.
 | Pull request required | yes, 0 approvals | yes, **1 approval** |
 | Merge methods | squash, merge or rebase; history must stay linear | **merge commit only**, so `release` keeps `main`'s SHAs |
 | Up to date before merge | required | **not** required (#221) |
-| Required checks | `Typecheck, lint and unit tests`, `Integration tests`, `Issue checkboxes`, `SonarCloud scan`, `Sourcery review` | `Release — typecheck, lint and unit tests`, `Release — integration tests`, `Release — end-to-end tests` |
+| Required checks | `Typecheck, lint and unit tests`, `Production build`, `Integration tests`, `Issue checkboxes`, `Commit messages`, `SonarCloud scan`, `Sourcery review` | `Release — typecheck, lint and unit tests`, `Release — integration tests`, `Release — end-to-end tests` |
 | Force push, deletion | blocked | blocked |
 
 - **A required check is satisfied by `skipped`.** Sourcery skips when its
@@ -269,15 +307,20 @@ repos/:owner/:repo/rulesets` and its neighbours.
 
 | File | Runs on | Jobs | Notes |
 |---|---|---|---|
-| `ci.yml` | push to `main`, pull requests to `main` | unit (typecheck, lint, unit, shuffled unit), production build (`next build` with placeholder variables, the Axiom ones included), integration (Postgres 18 and Redis 8 as services), issue checkboxes | only for `OWNER_USERNAME`, `COLLABORATOR_USERNAME` and `renovate[bot]` |
+| `ci.yml` | push to `main`, pull requests to `main` | unit (typecheck, lint, unit, shuffled unit), production build (`next build` with placeholder variables, the Axiom ones included), integration (Postgres 18 and Redis 8 as services), issue checkboxes, commit messages (every subject the pull request adds, and its title, decisions/841) | only for `OWNER_USERNAME`, `COLLABORATOR_USERNAME` and `renovate[bot]` |
 | `sonarcloud.yml` | the same | scan, with coverage; the job waits for the quality gate | the same allowlist |
 | `release.yml` | pull requests to `release`, push to `release`, by hand | unit, integration, **e2e against a production build**, then tag and publish on a push | uses the two provider keys; e2e runs nowhere else in CI |
-| `taso-key-check.yml` | daily 06:00 UTC, by hand | asks production's `/api/health?providers=1` whether TASO still answers | #113 |
+| `taso-key-check.yml` | daily 06:00 UTC, by hand | asks production's `/api/health?providers=1`, with the token, whether TASO still answers | #113, decisions/814 |
+| `database-backup.yml` | daily 02:17 UTC, by hand | `npm run backup`: production's database, encrypted, to B2 (*Backups*) | runs in the GitHub Environment `backup`, which only `main` can use and which has no reviewers, so the schedule never waits (decisions/807) |
 | `railway-environment.yml` | by hand, with a name and a branch | `npm run railway:environment`: a new Railway environment, from nothing to a site that answers `/api/health` | runs in the GitHub Environment `railway-provisioning`, so it waits for a required reviewer; one run at a time (decisions/522) |
 
 - **Every workflow's token is `contents: read`**, and a job widens only what it
   needs: the issue-checkbox job reads issues and pull requests, the Sonar job
   reads pull requests, the release's tag job writes contents.
+- **Every action is pinned to a full commit hash**, with its release in a
+  trailing comment, and Renovate keeps the hashes current
+  (`helpers:pinGitHubActionDigests`). A `uses:` on a tag fails
+  `tests/unit/config/workflow-action-pins.test.ts` (decisions/813).
 - **Every job has a timeout**, three to four times its longest recent run
   (measured 2026-10-05).
 - **A pull request's newer run cancels its older one** in `ci.yml`,
@@ -287,10 +330,15 @@ repos/:owner/:repo/rulesets` and its neighbours.
 
 Actions variables: `OWNER_USERNAME`, `COLLABORATOR_USERNAME`,
 `FIRST_RELEASE_VERSION`. Secrets: `SONAR_TOKEN`, `FOOTBALL_DATA_API_KEY`,
-`TASO_API_KEY`, `TASO_HASH_SALT` once set, which the release workflow's e2e and PR environments read (decisions/681), and `CI_POSTGRES_PASSWORD`, the password of the Postgres
+`TASO_API_KEY`, `TASO_HASH_SALT` once set, which the release workflow's e2e and PR environments read (decisions/681), `HEALTH_PROVIDERS_TOKEN`, production's value, which `taso-key-check.yml` sends (decisions/814), and `CI_POSTGRES_PASSWORD`, the password of the Postgres
 container a workflow run creates (any random value; nothing outside a run uses it). `SONAR_ORGANIZATION` and `SONAR_PROJECT_KEY` also exist as
 secrets and nothing reads them: the values are in `sonar-project.properties`.
 Workflows from forks need approval for all outside contributors.
+
+`database-backup.yml` reads `BACKUP_DATABASE_URL`, `backup_reader`'s address,
+and `B2_KEY_ID` and `B2_APPLICATION_KEY`, the upload-only key, all secrets of
+the GitHub Environment `backup`. A repository secret could be read by a workflow
+on any branch; an Environment limited to `main` cannot.
 
 `railway-environment.yml` reads more, all of it secrets of the GitHub
 Environment `railway-provisioning`: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
@@ -316,7 +364,7 @@ commit is the version.
 Organization project `Footy Trends` (number 2), private. Status: `Backlog`,
 `Ready`, `In Progress`, `In Review`, `Done`.
 
-- **The names are read by code.** `scripts/release-pr-plan.ts` finds the status
+- **The names are read by code.** `scripts/release/release-pr-plan.ts` finds the status
   options by name; renaming a column breaks `npm run release:pr`.
 - **Nothing adds an issue to the board.** Every new issue is added by hand and
   set to `Backlog`. Merging a pull request moves its card to `Done`.
@@ -332,16 +380,33 @@ Organization project `Footy Trends` (number 2), private. Status: `Backlog`,
 |---|---|---|
 | Sourcery | rules in its dashboard, mirrored and explained in `REVIEW_RULES.md`; `.sourcery.yaml` only enables the defaults | Pro plan: 300 000 diff characters per pull request, 1 500 000 per seat per rolling 7 days. Out of budget it posts a notice and its check-run reads `skipped`, which a required check accepts. A later push gets the quick check, a review whose whole body is `### Sourcery assessment` and `**Approved.**`, which is not a full review; `npm run check:sourcery -- <PR>` says which the head has, and a bare `@sourcery-ai review` comment forces a full one (`docs/setup/004`, `skills/open-pr.md`) |
 | SonarCloud | `sonar-project.properties`, `sonarcloud.yml` | indexes the whole repository, so a source file no test imports scores 0%; `npm run test:unit` fails on such a file first (CLAUDE.md). The gate judges new code only, and the built-in profile gains rules without notice, so open issues can appear on `main` with the gate green. One rule, `await` in a loop, is ignored in five named files, and no security rule is ignored anywhere (`decisions/592-sonar-zero-open-issues-again.md`) |
-| Renovate | `renovate.json` | Mondays before 07:00 Helsinki, at most 10 open, no automerge. TypeScript is held below 7 (#43) |
-| Local gate | `npm run verify`, the pre-commit hook (lint, typecheck) and the pre-push hook (a fresh e2e run, against a production build, unless the push changes only `specs/`, `decisions/`, `docs/`, `skills/` or root `.md` files) | the stages are checked against the workflows by a unit test |
+| Secret scanning | repository settings, section **Secret Protection** (`gh api repos/:owner/:repo --jq .security_and_analysis`) | scanning and push protection on since 2026-11-20; a push carrying a recognised key is rejected with `GH013`, and the rejection links to a page where the pusher can still allow the key by giving a reason, so it stops a mistake, not a pusher who means it. Non-provider patterns and validity checks stay `disabled`: the organisation is on the Free plan, and the API accepts a request to enable them with a 200 and changes nothing. The first scan of the history found no alerts (`decisions/809-secret-scanning.md`) |
+| Renovate | `renovate.json` | Mondays before 07:00 Helsinki, at most 10 open, no automerge. TypeScript is held below 7 (#43). It keeps the actions' pinned hashes current and pins any action that arrives on a tag (decisions/813) |
+| Local gate | `npm run verify`, the pre-commit hook (lint, typecheck), the commit-msg hook (a subject that names the review instead of the change is refused, decisions/841), the pre-push hook (a branch other than `main` or `release` up to date with `origin/main`, skipped when the fetch fails; then, on a branch's first push only, a fresh e2e run, against a production build, unless the push changes only `specs/`, `decisions/`, `docs/`, `skills/` or root `.md` files), and Claude Code's `PreToolUse` hook on Bash in `.claude/settings.json`, which refuses `git add -A`/`--all`/`.`, `gh pr create` on an unpushed head or closing an issue with a box neither ticked nor explained (decisions/806), and `gh pr create` or a `@sourcery-ai review` request that no fresh e2e run covers (decisions/837) | the stages are checked against the workflows by a unit test |
 
 ## Observability
 
 | | Where | Constraints |
 |---|---|---|
-| Errors | Sentry: `sentry.server.config.ts`, `sentry.edge.config.ts`, `src/instrumentation-client.ts`, all reading `src/lib/sentry-config.ts` | three files, and the browser needs a `NEXT_PUBLIC_` copy of the sample rate. A blank variable means unset, not zero. A failure a client component catches goes to Sentry, not Axiom, through `reportClientError`, tagged `where` (decisions/604) |
-| Logs | Pino with the `@axiomhq/pino` transport (`src/lib/logger.ts`), one dataset per environment | **Policy (2026-10-04): deploy-time failures show in Railway's log; everything the app does goes to Axiom.** With Axiom configured, the app's logger writes to Axiom only, so Railway's log holds the build, the migrations and Next's startup lines, and nothing from the running app. `info` logs once per outbound provider request and once per health check, so volume follows cache misses, not traffic (`docs/setup/021`). An admin's write (a role change, a deletion, a forced refresh) and each hourly predictions run are one `info` line each, with ids and never an address. A refused sign-in is a `warn` with no fields (decisions/603). Logging is a feature requirement: a spec says what the feature logs (`skills/write-spec.md`, item 8), and the pass before a review checks it (`skills/self-review.md`, section 11). |
-| Health | `/api/health`; `?providers=1` also asks TASO | `?providers=1` is an uncached provider call: not for a short-interval monitor |
+| Errors | Sentry: `sentry.server.config.ts`, `sentry.edge.config.ts`, `src/instrumentation-client.ts`, all reading `src/lib/platform/sentry-config.ts` | three files, and the browser needs a `NEXT_PUBLIC_` copy of the sample rate. A blank variable means unset, not zero. A failure a client component catches goes to Sentry, not Axiom, through `reportClientError`, tagged `where` (decisions/604) |
+| Logs | Pino with the `@axiomhq/pino` transport (`src/lib/platform/logger.ts`), one dataset per environment | **Policy (2026-10-04): deploy-time failures show in Railway's log; everything the app does goes to Axiom.** With Axiom configured, the app's logger writes to Axiom only, so Railway's log holds the build, the migrations and Next's startup lines, and nothing from the running app. `info` logs once per outbound provider request and once per health check, so volume follows cache misses, not traffic (`docs/setup/021`). An admin's write (a role change, a deletion, a forced refresh) and each hourly predictions run are one `info` line each, with ids and never an address. A refused sign-in is a `warn` with no fields (decisions/603). Logging is a feature requirement: a spec says what the feature logs (`skills/write-spec.md`, item 8). |
+| Health | `/api/health`; `?providers=1` also asks TASO, given the token | an uncached provider call, so it needs `HEALTH_PROVIDERS_TOKEN` in the `x-health-providers-token` header; without it the answer has no `checks.taso` (decisions/814) |
+| CSP reports | the Sentry project of the build's `NEXT_PUBLIC_SENTRY_DSN`, as security events | sent only by builds with a DSN, so not by e2e or CI (decisions/656). The address is fixed at build time (decisions/808) |
+
+## Response headers
+
+Every route, from `src/lib/platform/security-headers.ts` through `headers()` in
+`next.config.ts` (decisions/808). Railway's edge adds none of its own.
+
+| Header | Value |
+|---|---|
+| `Strict-Transport-Security` | `max-age=63072000`, no `includeSubDomains` |
+| `X-Frame-Options` | `DENY` |
+| `X-Content-Type-Options` | `nosniff` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` |
+| `Permissions-Policy` | camera, microphone, geolocation, payment, USB and topics off |
+| `Content-Security-Policy-Report-Only` | **report-only, not enforced.** Own origin only, but inline scripts and styles allowed and images from any HTTPS host; no framing, plugins or foreign form targets |
+| `X-Powered-By` | not sent (`poweredByHeader: false`) |
 
 ## Sign-in
 
@@ -371,9 +436,9 @@ A change to the thing on the left needs the script on the right checked.
 
 | Thing | Script |
 |---|---|
-| The board's status names | `scripts/release-pr-plan.ts` |
-| The local services in `docker-compose.yml` | `scripts/services-plan.ts`, `scripts/ensure-services.ts` |
-| The test databases' names: `_test` for e2e, `_integration_test` for integration | `scripts/with-test-db.ts`, the integration suite's global setup |
-| The checkbox and reason shape on issues | `scripts/issue-boxes-plan.ts` |
-| Conventional commit subjects | `scripts/next-version.ts`, the release notes |
+| The board's status names | `scripts/release/release-pr-plan.ts` |
+| The local services in `docker-compose.yml` | `scripts/local/services-plan.ts`, `scripts/local/ensure-services.ts` |
+| The test databases' names: `_test` for e2e, `_integration_test` for integration | `scripts/db/with-test-db.ts`, the integration suite's global setup |
+| The checkbox and reason shape on issues | `scripts/checks/issue-boxes-plan.ts` |
+| Conventional commit subjects | `scripts/release/next-version.ts`, the release notes |
 | CI's stages | `npm run verify`, compared with the workflows by a unit test |

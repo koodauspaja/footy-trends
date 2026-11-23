@@ -7,19 +7,24 @@ import { MatchesControls } from "@/components/matches-controls";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { SameRouteLink } from "@/components/same-route-link";
-import { type CompetitionRegion, isCupCompetition } from "@/lib/competitions";
-import { localiseForRegion } from "@/lib/country-names";
+import { type CompetitionRegion, isCupCompetition } from "@/lib/competitions/competitions";
 import {
   getStageName,
   isTwoLeggedRound,
   listSeasonStages,
   parseStageParam,
   resolveCurrentStage,
-} from "@/lib/cup-stages";
-import type { BasePageContext, CompetitionPageOptions } from "@/lib/page-context";
-import { resolveBasePageContext } from "@/lib/page-context";
-import { listSelectableRounds, parseRoundParam } from "@/lib/rounds";
-import { getCupSeason, getMaxMatchday, getRoundMatches } from "@/lib/standings-service";
+} from "@/lib/competitions/cup-stages";
+import type { BasePageContext, CompetitionPageOptions } from "@/lib/competitions/page-context";
+import { resolveBasePageContext } from "@/lib/competitions/page-context";
+import { listSelectableRounds, parseRoundParam } from "@/lib/competitions/rounds";
+import { localiseForRegion } from "@/lib/football-data/country-names";
+import {
+  getCupSeason,
+  getMaxMatchday,
+  getRoundMatches,
+} from "@/lib/football-data/standings-service";
+import { byKickoffThenId } from "@/lib/matches/match-order";
 
 const ERROR_MESSAGE = "Otteluiden lataaminen epäonnistui. Yritä myöhemmin uudelleen.";
 const EMPTY_MESSAGE = "Otteluita ei ole saatavilla.";
@@ -38,6 +43,12 @@ export async function matchesMetadata({
   return { title: `${resolved.competitionName} ${resolved.seasonLabel}` };
 }
 
+/**
+ * A cup's matches page: one stage's matches, by kickoff and then match id.
+ *
+ * decisions/014-champions-league.md
+ * decisions/832-cup-forecast-tie-order.md
+ */
 async function renderCupMatches({
   resolved,
   params,
@@ -62,7 +73,7 @@ async function renderCupMatches({
 
   const stageMatches = seasonMatches
     .filter((match) => match.stage === selectedStage)
-    .sort((left, right) => left.kickoffAt.getTime() - right.kickoffAt.getTime());
+    .sort(byKickoffThenId);
 
   const heading =
     selectedStage === undefined

@@ -1,6 +1,6 @@
 import { ChartPanel } from "@/components/charts/chart-panel";
 import { LineChart } from "@/components/charts/line-chart";
-import type { TeamEloSeries } from "@/lib/elo-service";
+import type { TeamEloSeries } from "@/lib/predictions/elo-service";
 
 /**
  * The panel's strings.

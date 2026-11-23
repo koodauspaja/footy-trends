@@ -1,9 +1,9 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { signIn } from "@/lib/auth-client";
-import { reportClientError } from "@/lib/report-client-error";
-import { returnPath, withError } from "@/lib/return-path";
+import { signIn } from "@/lib/auth/auth-client";
+import { returnPath, withError } from "@/lib/auth/return-path";
+import { reportClientError } from "@/lib/platform/report-client-error";
 
 /**
  * What a signed-out reader gets in place of a page of their own: an

@@ -21,7 +21,7 @@ const { toNextJsHandler, auth } = vi.hoisted(() => ({
 }));
 
 vi.mock("better-auth/next-js", () => ({ toNextJsHandler }));
-vi.mock("@/lib/auth", () => ({ auth }));
+vi.mock("@/lib/auth/auth", () => ({ auth }));
 
 warmModules(() => import("@/app/api/auth/[...all]/route"));
 

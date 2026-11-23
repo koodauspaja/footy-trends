@@ -1,0 +1,254 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  listSelectableTasoSeasons,
+  parseTasoSeasonParam,
+  resolveDomesticPageContext,
+} from "@/lib/competitions/domestic-page-context";
+
+/**
+ * Which competition and season a Kotimaa page resolves from its URL and the
+ * reader's stored default, and which seasons are selectable.
+ *
+ * decisions/009-veikkausliiga.md
+ * decisions/011-current-season-discovery.md
+ * decisions/012-finnish-urls-english-code.md
+ * decisions/013-more-finnish-competitions.md
+ * decisions/024-account-settings.md
+ */
+
+const { resolveTasoSeasonContextMock, getSeasonCategoryNameMock, getViewerPreferences } =
+  vi.hoisted(() => ({
+    resolveTasoSeasonContextMock: vi.fn(),
+    getSeasonCategoryNameMock: vi.fn(),
+    getViewerPreferences: vi.fn<() => Promise<unknown>>(async () => null),
+  }));
+
+// A signed-in reader's stored default.
+vi.mock("@/lib/auth/viewer", () => ({ getViewerPreferences }));
+vi.mock("@/lib/taso/taso-seasons", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/taso/taso-seasons")>();
+  return {
+    ...actual,
+    resolveTasoSeasonContext: resolveTasoSeasonContextMock,
+    getSeasonCategoryName: getSeasonCategoryNameMock,
+  };
+});
+
+// At file level, so no test inherits another's arrangement: a stored viewer
+// preference decides the competition when the URL says nothing, and the
+// competition decides which seasons exist, so one left behind changes both.
+beforeEach(() => {
+  getViewerPreferences.mockResolvedValue(null);
+  getSeasonCategoryNameMock.mockResolvedValue(null);
+  resolveTasoSeasonContextMock.mockResolvedValue({ currentSeason: 2026, defaultSeason: 2026 });
+});
+
+describe("listSelectableTasoSeasons", () => {
+  it("lists 2015 up to the given current season, newest first, labeled as bare years", () => {
+    const seasons = listSelectableTasoSeasons(2026, 2015);
+
+    expect(seasons[0]).toEqual({ seasonId: 2026, label: "2026" });
+    expect(seasons.at(-1)).toEqual({ seasonId: 2015, label: "2015" });
+    expect(seasons).toHaveLength(12);
+  });
+
+  it("extends the range as the discovered season moves, with no code change", () => {
+    const seasons = listSelectableTasoSeasons(2027, 2015);
+
+    expect(seasons[0]).toEqual({ seasonId: 2027, label: "2027" });
+    expect(seasons).toHaveLength(13);
+  });
+});
+
+describe("parseTasoSeasonParam", () => {
+  const seasons = listSelectableTasoSeasons(2026, 2015);
+
+  it("treats an absent value as absent", () => {
+    expect(parseTasoSeasonParam(undefined, seasons)).toEqual({ kind: "absent" });
+  });
+
+  it("accepts a season within the selectable range", () => {
+    expect(parseTasoSeasonParam("2020", seasons)).toEqual({ kind: "valid", seasonId: 2020 });
+  });
+
+  it("rejects a season outside the range, a non-numeric value, and an array value", () => {
+    expect(parseTasoSeasonParam("2014", seasons)).toEqual({ kind: "invalid" });
+    expect(parseTasoSeasonParam("not-a-year", seasons)).toEqual({ kind: "invalid" });
+    // Each of these is 2020 to `Number()`, a selectable season.
+    for (const value of ["0x7E4", "2.02e3", "2020.0", " 2020"]) {
+      expect(parseTasoSeasonParam(value, seasons)).toEqual({ kind: "invalid" });
+    }
+    expect(parseTasoSeasonParam(["2020"], seasons)).toEqual({ kind: "invalid" });
+  });
+});
+
+describe("resolveDomesticPageContext", () => {
+  beforeEach(() => {
+    resolveTasoSeasonContextMock.mockResolvedValue({ currentSeason: 2026, defaultSeason: 2026 });
+  });
+
+  it("follows the discovered ceiling, making a newly published season selectable", async () => {
+    resolveTasoSeasonContextMock.mockResolvedValue({ currentSeason: 2027, defaultSeason: 2027 });
+
+    const context = await resolveDomesticPageContext({ kausi: "2027" });
+
+    expect(context.currentSeason).toBe(2027);
+    expect(context.season).toEqual({ kind: "valid", seasonId: 2027 });
+    expect(context.competitionId).toBe("spljp27");
+    expect(context.selectableSeasons[0]).toEqual({ seasonId: 2027, label: "2027" });
+  });
+
+  it("lands on the default season, which can lag the ceiling when the new one has no matches", async () => {
+    resolveTasoSeasonContextMock.mockResolvedValue({ currentSeason: 2027, defaultSeason: 2026 });
+
+    const context = await resolveDomesticPageContext({});
+
+    expect(context.seasonId).toBe(2026);
+    expect(context.competitionId).toBe("spljp26");
+    // Still reachable, just not the landing season.
+    expect(context.selectableSeasons[0]).toEqual({ seasonId: 2027, label: "2027" });
+  });
+
+  it("treats the newest season with matches as active while the ceiling's has none", async () => {
+    resolveTasoSeasonContextMock.mockResolvedValue({ currentSeason: 2027, defaultSeason: 2026 });
+
+    const context = await resolveDomesticPageContext({ kausi: "2027" });
+
+    expect(context.currentSeason).toBe(2027);
+    expect(context.activeSeason).toBe(2026);
+    expect(getSeasonCategoryNameMock).toHaveBeenCalledWith("VL", "spljp27", 2027, 2026);
+  });
+
+  it("defaults to Veikkausliiga and the latest season with no params", async () => {
+    const context = await resolveDomesticPageContext({});
+
+    expect(context.competitionCode).toBe("VL");
+    expect(context.competitionName).toBe("Veikkausliiga");
+    expect(context.seasonId).toBe(2026);
+    expect(context.seasonLabel).toBe("2026");
+    expect(context.competitionId).toBe("spljp26");
+  });
+
+  it("resolves a valid kausi param to its own competition_id", async () => {
+    const context = await resolveDomesticPageContext({ kausi: "2015" });
+
+    expect(context.seasonId).toBe(2015);
+    expect(context.competitionId).toBe("spljp15");
+    expect(context.season).toEqual({ kind: "valid", seasonId: 2015 });
+  });
+
+  it("falls back to the latest season for an invalid kausi param", async () => {
+    const context = await resolveDomesticPageContext({ kausi: "1999" });
+
+    expect(context.seasonId).toBe(2026);
+    expect(context.season).toEqual({ kind: "invalid" });
+  });
+
+  it("falls back to VL for an invalid kilpailu param", async () => {
+    const context = await resolveDomesticPageContext({ kilpailu: "XX" });
+
+    expect(context.competitionCode).toBe("VL");
+    expect(context.competitionParam).toEqual({ kind: "invalid" });
+  });
+
+  it("accepts a valid kilpailu param explicitly", async () => {
+    const context = await resolveDomesticPageContext({ kilpailu: "VL" });
+
+    expect(context.competitionCode).toBe("VL");
+    expect(context.competitionParam).toEqual({ kind: "valid", code: "VL" });
+  });
+});
+
+describe("resolveDomesticPageContext competition naming", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resolveTasoSeasonContextMock.mockResolvedValue({ currentSeason: 2026, defaultSeason: 2026 });
+  });
+
+  it("shows the season's own name and where it has since been renamed to", async () => {
+    getSeasonCategoryNameMock.mockResolvedValue("Naisten Liiga");
+
+    const context = await resolveDomesticPageContext({ kilpailu: "NL", kausi: "2016" });
+
+    expect(context.seasonCompetitionName).toBe("Naisten Liiga");
+    expect(context.renamedTo).toBe("Briotech Kansallinen Liiga");
+  });
+
+  it("shows no rename line when the season's name is the current one", async () => {
+    getSeasonCategoryNameMock.mockResolvedValue("Briotech Kansallinen Liiga");
+
+    const context = await resolveDomesticPageContext({ kilpailu: "NL", kausi: "2026" });
+
+    expect(context.seasonCompetitionName).toBe("Briotech Kansallinen Liiga");
+    expect(context.renamedTo).toBeNull();
+  });
+
+  it("falls back to the configured name when TASO cannot be asked", async () => {
+    // A name must never be the reason a page fails.
+    getSeasonCategoryNameMock.mockResolvedValue(null);
+
+    const context = await resolveDomesticPageContext({ kilpailu: "NL", kausi: "2016" });
+
+    expect(context.seasonCompetitionName).toBe("Briotech Kansallinen Liiga");
+    expect(context.renamedTo).toBeNull();
+  });
+
+  it("asks for the category that season used, not the competition's current one", async () => {
+    getSeasonCategoryNameMock.mockResolvedValue("P20 SM");
+
+    const context = await resolveDomesticPageContext({ kilpailu: "P21SM", kausi: "2020" });
+
+    expect(getSeasonCategoryNameMock).toHaveBeenCalledWith("P20SM", "spljp20", 2020, 2026);
+    expect(context.categoryId).toBe("P20SM");
+    expect(context.renamedTo).toBe("P21 SM");
+  });
+});
+
+describe("a reader's stored competition default", () => {
+  const preferences = (defaultCompetitionDomestic: string | null) => ({
+    defaultRegion: null,
+    defaultCompetitionDomestic,
+    defaultCompetitionForeign: null,
+    defaultCompetitionNational: null,
+  });
+
+  beforeEach(() => {
+    resolveTasoSeasonContextMock.mockResolvedValue({ currentSeason: 2026, defaultSeason: 2026 });
+    // Cleared, not just re-stubbed: these tests assert on call counts, and
+    // `mockResolvedValue` leaves earlier calls recorded.
+    getViewerPreferences.mockClear();
+    getViewerPreferences.mockResolvedValue(null);
+  });
+
+  // The same shape as `page-context.test.ts`: stored preference plus a URL,
+  // resolved for Kotimaa. A table rather than five near-identical tests.
+  it.each([
+    ["the competition they chose", "M1L", {}, "M1L"],
+    // A shared link must render what it says.
+    ["Veikkausliiga, because the URL says so", "M1L", { kilpailu: "VL" }, "VL"],
+    ["Veikkausliiga for a signed-out reader", null, {}, "VL"],
+    // A competition can be retired long after someone chose it.
+    ["Veikkausliiga when the stored code has left the registry", "GONE", {}, "VL"],
+  ] as const)("opens %s", async (_case, stored, params, expected) => {
+    getViewerPreferences.mockResolvedValue(stored === null ? null : preferences(stored));
+
+    const context = await resolveDomesticPageContext(params);
+
+    expect(context.competitionCode).toBe(expected);
+  });
+
+  it("falls back when the reader has a row but no domestic preference", async () => {
+    // Distinct from having no row at all: the row exists, that column is null.
+    getViewerPreferences.mockResolvedValue(preferences(null));
+
+    const context = await resolveDomesticPageContext({});
+
+    expect(context.competitionCode).toBe("VL");
+  });
+
+  it("does not look preferences up when the URL already settles it", async () => {
+    await resolveDomesticPageContext({ kilpailu: "VL" });
+
+    expect(getViewerPreferences).not.toHaveBeenCalled();
+  });
+});

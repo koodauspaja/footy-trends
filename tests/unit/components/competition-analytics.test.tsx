@@ -1,10 +1,10 @@
 import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { GoalsPerGameSeries } from "@/lib/goals-per-game";
-import type { OutcomeRow, OutcomeShares } from "@/lib/outcome-shares";
-import type { SeasonForecast } from "@/lib/season-simulation";
-import type { SeasonSurprises } from "@/lib/surprise";
-import type { TableVolatilitySeries } from "@/lib/table-volatility";
+import type { GoalsPerGameSeries } from "@/lib/analytics/goals-per-game";
+import type { OutcomeRow, OutcomeShares } from "@/lib/analytics/outcome-shares";
+import type { TableVolatilitySeries } from "@/lib/analytics/table-volatility";
+import type { SeasonForecast } from "@/lib/predictions/season-simulation";
+import type { SeasonSurprises } from "@/lib/predictions/surprise";
 
 /**
  * A competition's Analyysit: its gate, which competitions have it, and its
@@ -38,12 +38,12 @@ const {
   getKnockoutForecast: vi.fn<() => Promise<KnockoutForecast>>(),
 }));
 
-vi.mock("@/lib/analytics-access", () => ({ canSeeAnalytics }));
-vi.mock("@/lib/match-service", () => ({ getGoalsPerGame, getOutcomeShares }));
-vi.mock("@/lib/table-volatility-service", () => ({ getTableVolatility }));
-vi.mock("@/lib/surprise-service", () => ({ getSeasonSurprises }));
-vi.mock("@/lib/season-simulation-service", () => ({ getSeasonForecast }));
-vi.mock("@/lib/knockout-simulation-service", () => ({ getKnockoutForecast }));
+vi.mock("@/lib/auth/analytics-access", () => ({ canSeeAnalytics }));
+vi.mock("@/lib/matches/match-service", () => ({ getGoalsPerGame, getOutcomeShares }));
+vi.mock("@/lib/analytics/table-volatility-service", () => ({ getTableVolatility }));
+vi.mock("@/lib/predictions/surprise-service", () => ({ getSeasonSurprises }));
+vi.mock("@/lib/predictions/season-simulation-service", () => ({ getSeasonForecast }));
+vi.mock("@/lib/predictions/knockout-simulation-service", () => ({ getKnockoutForecast }));
 // `Ennuste`'s link string, which the forecast panel reuses; its component reads the models.
 vi.mock("@/components/match-prediction", () => ({
   QUALITY_LINK: "Kuinka hyvin ennusteet ovat osuneet?",
@@ -54,6 +54,11 @@ vi.mock("@/components/sign-in-prompt", () => ({
   SignInPrompt: ({ message }: { message: string }) => <p>{message}</p>,
 }));
 
+import {
+  IN_PROGRESS_NOTE,
+  inProgressSeasonLine,
+  ROUNDING_NOTE,
+} from "@/components/analytics-notes";
 import { ANALYTICS_HEADING, SIGNED_OUT_MESSAGE } from "@/components/analytics-section";
 import {
   advantageText,
@@ -62,12 +67,9 @@ import {
   GOALS_PER_GAME_HEADING,
   HOME_ADVANTAGE_ERROR_MESSAGE,
   HOME_ADVANTAGE_HEADING,
-  IN_PROGRESS_NOTE,
-  inProgressSeasonLine,
   leftOutSentence,
   MID_SEASON_NOTE,
   NO_OWN_MATCHES_MESSAGE,
-  ROUNDING_NOTE,
   SEASON_BY_SEASON_HEADING,
   SIDE_BY_SIDE_HEADING,
   STORED_SEASONS_NOTE,
@@ -84,7 +86,7 @@ import {
 import { KNOCKOUT_NOTE } from "@/components/knockout-forecast";
 import { FORECAST_ERROR_MESSAGE, FORECAST_HEADING } from "@/components/season-forecast";
 import { SURPRISES_ERROR_MESSAGE, SURPRISES_HEADING } from "@/components/season-surprises";
-import type { KnockoutForecast } from "@/lib/knockout-simulation-service";
+import type { KnockoutForecast } from "@/lib/predictions/knockout-simulation-service";
 
 const inProgress = { seasonId: 2025, matches: 60, perGame: 3.1, inProgress: true };
 const series: GoalsPerGameSeries = {

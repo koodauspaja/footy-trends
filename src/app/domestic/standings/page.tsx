@@ -13,24 +13,28 @@ import { RenamedNotice } from "@/components/renamed-notice";
 import { FoldsFor } from "@/components/section-fold";
 import { StandingsLegend, StandingsTable } from "@/components/standings-table";
 import { TasoStandingsControls } from "@/components/taso-standings-controls";
-import { canSeeAnalytics } from "@/lib/analytics-access";
-import { type GroupZones, groupZones, zoneLine } from "@/lib/competition-zones";
-import { buildCupBracket, buildPlayoffBracket, normaliseRoundName } from "@/lib/cup-rounds";
-import { KNOCKOUT_PHASE } from "@/lib/cup-stages";
-import { cupFormatFor, isDomesticCup } from "@/lib/domestic-competitions";
-import { resolveDomesticPageContext } from "@/lib/domestic-page-context";
-import { cupGroupOrder, openCupGroups } from "@/lib/group-order";
-import { getCupForecast, hasCupForecast } from "@/lib/knockout-simulation-service";
-import { matchCountLabel } from "@/lib/match-count";
-import { getPageSections } from "@/lib/section-choices";
-import { type FoldState, foldFor } from "@/lib/section-keys";
+import { canSeeAnalytics } from "@/lib/auth/analytics-access";
+import {
+  buildCupBracket,
+  buildPlayoffBracket,
+  normaliseRoundName,
+} from "@/lib/competitions/cup-rounds";
+import { KNOCKOUT_PHASE } from "@/lib/competitions/cup-stages";
+import { resolveDomesticPageContext } from "@/lib/competitions/domestic-page-context";
+import { cupGroupOrder, openCupGroups } from "@/lib/competitions/group-order";
+import { matchCountLabel } from "@/lib/matches/match-count";
+import { getCupForecast, hasCupForecast } from "@/lib/predictions/knockout-simulation-service";
+import { getPageSections } from "@/lib/preferences/section-choices";
+import { type FoldState, foldFor } from "@/lib/preferences/section-keys";
+import { type GroupZones, groupZones, zoneLine } from "@/lib/taso/competition-zones";
+import { cupFormatFor, isDomesticCup } from "@/lib/taso/domestic-competitions";
 import {
   type GroupLevel,
-  type GroupStandingsResult,
   getSeasonStandings,
   listSeasonRounds,
   parseTasoRoundParam,
-} from "@/lib/taso-standings-service";
+} from "@/lib/taso/taso-standings-service";
+import type { GroupStandingsResult } from "@/lib/taso/taso-tables";
 
 export const dynamic = "force-dynamic";
 
@@ -345,17 +349,12 @@ export default async function DomesticStandingsPage({
     seasonLabel,
     competitionId,
     categoryId,
-    currentSeason,
+    activeSeason,
     seasonCompetitionName,
     renamedTo,
   } = await resolveDomesticPageContext(params);
 
-  const availableRounds = await listSeasonRounds(
-    categoryId,
-    competitionId,
-    seasonId,
-    currentSeason
-  );
+  const availableRounds = await listSeasonRounds(categoryId, competitionId, seasonId, activeSeason);
   const roundParam = parseTasoRoundParam(params.kierros, availableRounds);
   const selectedRound = roundParam.kind === "valid" ? roundParam.round : undefined;
 
@@ -364,7 +363,7 @@ export default async function DomesticStandingsPage({
     categoryId,
     competitionId,
     seasonId,
-    currentSeason,
+    activeSeason,
     selectedRound,
     isCup ? "taso" : "league"
   );
@@ -378,14 +377,14 @@ export default async function DomesticStandingsPage({
     kind: "taso",
     competitionCode,
     selectedSeasonId: seasonId,
-    activeSeasonId: currentSeason,
+    activeSeasonId: activeSeason,
     seasonLabel: String,
   });
 
   // A Suomen Cup's forecast, signed in only; the gate is asked only for a cup that has one.
   const cupForecast =
     hasCupForecast(competitionCode) && (await canSeeAnalytics())
-      ? await getCupForecast(competitionCode, seasonId, currentSeason)
+      ? await getCupForecast(competitionCode, seasonId, activeSeason)
       : { status: "unavailable" as const };
 
   const isGroupsAndPlayoff = cupFormatFor(competitionCode) === "groups-and-playoff";

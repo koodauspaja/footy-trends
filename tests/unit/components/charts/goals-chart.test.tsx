@@ -12,7 +12,7 @@ import {
   totalsTop,
 } from "@/components/charts/goals-chart";
 import { CHART, MARGIN } from "@/components/charts/line-chart";
-import type { GoalsPoint } from "@/lib/goals-series";
+import type { GoalsPoint } from "@/lib/teams/goals-series";
 
 /**
  * The two goals charts: their axes and their text alternatives.

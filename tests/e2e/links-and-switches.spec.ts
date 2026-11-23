@@ -1,18 +1,16 @@
 import { expect, type Locator, test } from "@playwright/test";
 import postgres from "postgres";
-import { e2eAppPort } from "../../scripts/e2e-target";
-import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/e2e-analytics";
+import { e2eAppPort } from "../../scripts/e2e/e2e-target";
+import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/auth/e2e-analytics";
 import { SESSION_COOKIE, storeSignedInReader } from "../support/e2e-session";
 import { testDatabaseUrl } from "../support/test-database";
 import { openEveryFold } from "./folds";
 import { signedInAs } from "./session";
 
 /**
- * A link can be told from plain text in both schemes: underlined in the colour
- * of the text around it, unless a box or its place among many alike says it is
- * a link. A switch fills its chosen view. jsdom has no CSS, so only a browser
- * shows either. Each link the rows look for is on a page whose data stays put:
- * the seeded 2017 season, a finished season, or a match seeded here in 2099.
+ * A link is told from plain text in both schemes, underlined in its text's colour unless a box or
+ * its place among many alike says it is one, and a switch fills its chosen view; jsdom has no CSS.
+ * Each link looked for is on a page whose data stays put: seeded 2017, a finished season, or 2099.
  *
  * decisions/701-links-and-switches.md
  * decisions/735-links-spec-seeds-its-matches.md

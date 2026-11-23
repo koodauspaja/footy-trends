@@ -3,7 +3,7 @@
 ## Goal
 
 The app's logs in Axiom. Railway has no log drain: the app ships its own logs,
-through Pino's Axiom transport (`src/lib/logger.ts`), when a token is set.
+through Pino's Axiom transport (`src/lib/platform/logger.ts`), when a token is set.
 
 This project: datasets `footy-trends` (staging) and `footy-trends-prod`
 (production).

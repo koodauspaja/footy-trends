@@ -9,7 +9,7 @@ import {
   TOTALS_HEADING,
   totalGoalsPanel,
 } from "@/components/goals-section";
-import type { GoalsSeries } from "@/lib/goals-series";
+import type { GoalsSeries } from "@/lib/teams/goals-series";
 
 /**
  * The two goals panels.

@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { HEADLINE } from "../../../scripts/sourcery-review-plan";
+import { HEADLINE } from "../../../scripts/checks/sourcery-review-plan";
 
 /**
  * No document says a push after the first review leaves no review object

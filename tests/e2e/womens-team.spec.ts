@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { NATIONAL_TEAM_YEARS } from "@/lib/national-team";
+import { NATIONAL_TEAM_YEARS } from "@/lib/national-team/national-team";
 
 /**
  * Helmarit's page, end to end. Structure and labels only: scores and future

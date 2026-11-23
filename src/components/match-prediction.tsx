@@ -1,25 +1,25 @@
 import Link from "next/link";
+import { ROUNDING_NOTE } from "@/components/analytics-notes";
 import { formatDecimal, percentText } from "@/components/charts/line-chart";
-import { ROUNDING_NOTE } from "@/components/competition-analytics";
 import { ELO_ERROR_MESSAGE } from "@/components/elo-section";
 import { type ScoreGridCell, ScoreGridTable, shadeLevel } from "@/components/score-grid-table";
 import { SignInPrompt } from "@/components/sign-in-prompt";
-import { canSeeAnalytics } from "@/lib/analytics-access";
-import { ELO_HOME_ADVANTAGE, isRated, predictElo } from "@/lib/elo";
-import { type EloRatings, getEloRatings } from "@/lib/elo-service";
-import { SCORE_GRID_CAP } from "@/lib/head-to-head";
+import { canSeeAnalytics } from "@/lib/auth/analytics-access";
+import { formatSeasonLabel } from "@/lib/competitions/seasons";
+import { SCORE_GRID_CAP } from "@/lib/matches/head-to-head";
+import { type StoredMatch, teamDisplayName } from "@/lib/matches/match-detail";
+import { getHomeBaseline } from "@/lib/matches/match-service";
+import { ELO_HOME_ADVANTAGE, isRated, predictElo } from "@/lib/predictions/elo";
+import { type EloRatings, getEloRatings } from "@/lib/predictions/elo-service";
 import {
   type BaselineCompetition,
   baselineCompetition,
   type HomeBaseline,
   isPredictedCup,
-} from "@/lib/home-baseline";
-import { teamDisplayName } from "@/lib/match-detail";
-import { getHomeBaseline, type StoredMatch } from "@/lib/match-service";
-import { foldScoreGrid, type PoissonPrediction, predictPoisson } from "@/lib/poisson";
-import { getPoissonFit, type PoissonFitResult } from "@/lib/poisson-service";
-import { qualityHref } from "@/lib/prediction-quality";
-import { formatSeasonLabel } from "@/lib/seasons";
+} from "@/lib/predictions/home-baseline";
+import { foldScoreGrid, type PoissonPrediction, predictPoisson } from "@/lib/predictions/poisson";
+import { getPoissonFit, type PoissonFitResult } from "@/lib/predictions/poisson-service";
+import { qualityHref } from "@/lib/predictions/prediction-quality";
 
 /**
  * The section's strings.
@@ -380,10 +380,9 @@ export async function predictsSides(
 }
 
 /**
- * The match page's `Ennuste`: the competition's home-win baseline and, beside
- * it, the Elo and Poisson predictions, on an upcoming match in a compared
- * competition, or nothing. Gated before anything is read; awaited by the page,
- * not rendered.
+ * The match page's `Ennuste`: the competition's home-win baseline beside the Elo and Poisson
+ * predictions, on an upcoming match in a compared competition, or nothing. Gated before anything is
+ * read; awaited by the page, not rendered.
  *
  * decisions/049-home-advantage-and-draw-rate.md
  * decisions/051-home-win-baseline.md

@@ -1,0 +1,479 @@
+import { describe, expect, it } from "vitest";
+import { PLACEHOLDER_TEAM_ID } from "@/lib/matches/match-detail";
+import {
+  fitPoisson,
+  type PoissonPrediction,
+  predictPoisson,
+  utcDay,
+} from "@/lib/predictions/poisson";
+import {
+  backtestKey,
+  backtestRows,
+  eloBacktestRows,
+  eloVariantBacktestRows,
+  type FinishedMatch,
+  missingBacktestRows,
+  poissonBacktestRows,
+} from "@/lib/predictions/prediction-backtest";
+import type { PredictionRow } from "@/lib/predictions/prediction-log";
+
+/**
+ * The rows a backtest writes.
+ *
+ * decisions/052-predictions-log.md
+ * decisions/051-home-win-baseline.md
+ * decisions/055-poisson-goal-model.md
+ * decisions/057-surprise-index.md
+ * decisions/059-cup-predictions.md
+ * decisions/060-elo-variants.md
+ */
+
+const NOW = new Date("2026-10-03T12:00:00Z");
+const day = (n: number) => new Date(Date.UTC(2026, 3, n, 15));
+
+let nextId = 1;
+function played(
+  n: number,
+  home: number,
+  away: number,
+  overrides: Partial<FinishedMatch> = {}
+): FinishedMatch {
+  return {
+    source: "taso" as const,
+    code: "VL",
+    seasonId: 2026,
+    providerMatchId: nextId++,
+    kickoffAt: day(n),
+    homeTeam: 1,
+    awayTeam: 2,
+    homeGoals: home,
+    awayGoals: away,
+    ...overrides,
+  };
+}
+
+describe("backtestRows", () => {
+  it("predicts each match from the matches strictly before it, as the home-win baseline would have", () => {
+    const first = played(1, 2, 0);
+    const second = played(2, 1, 1);
+    const third = played(3, 0, 1);
+
+    const rows = backtestRows([third, first, second], "home-baseline-v1", NOW);
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        providerMatchId: second.providerMatchId,
+        homeProbability: 1,
+        drawProbability: 0,
+        awayProbability: 0,
+      }),
+      expect.objectContaining({
+        providerMatchId: third.providerMatchId,
+        homeProbability: 0.5,
+        drawProbability: 0.5,
+        awayProbability: 0,
+      }),
+    ]);
+  });
+
+  it("gives a competition's first match no row: nothing came before it", () => {
+    const first = played(1, 2, 0);
+
+    expect(backtestRows([first], "home-baseline-v1", NOW)).toEqual([]);
+  });
+
+  it("does not let matches sharing a kickoff inform each other", () => {
+    const opener = played(1, 0, 2);
+    const together = [played(5, 3, 0), played(5, 3, 0)];
+    const after = played(6, 1, 1);
+
+    const rows = backtestRows([opener, ...together, after], "home-baseline-v1", NOW);
+
+    for (const match of together) {
+      expect(rows.find((row) => row.providerMatchId === match.providerMatchId)).toMatchObject({
+        homeProbability: 0,
+        awayProbability: 1,
+      });
+    }
+    // Both count for the match after them.
+    expect(rows.find((row) => row.providerMatchId === after.providerMatchId)).toMatchObject({
+      homeProbability: expect.closeTo(2 / 3, 10),
+      awayProbability: expect.closeTo(1 / 3, 10),
+    });
+  });
+
+  it("keeps each competition's history, and each provider's, apart", () => {
+    const rows = backtestRows(
+      [
+        played(1, 2, 0),
+        played(2, 0, 1, { code: "M1" }),
+        played(3, 0, 1, { code: "M1" }),
+        played(3, 1, 0, { source: "football-data", code: "VL" }),
+      ],
+      "home-baseline-v1",
+      NOW
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ competitionCode: "M1", awayProbability: 1 });
+  });
+
+  it("counts a level score as a draw — the shoot-out is already out of it", () => {
+    const rows = backtestRows([played(1, 1, 1), played(2, 4, 0)], "home-baseline-v1", NOW);
+
+    expect(rows[0]).toMatchObject({ drawProbability: 1 });
+  });
+
+  it("writes backtest rows, under the model, against each match's kickoff", () => {
+    const later = played(9, 0, 0);
+    const [row] = backtestRows([played(8, 1, 0), later], "home-baseline-v1", NOW);
+
+    expect(row).toEqual({
+      source: "taso",
+      providerMatchId: later.providerMatchId,
+      competitionCode: "VL",
+      model: "home-baseline-v1",
+      kind: "backtest",
+      homeProbability: 1,
+      drawProbability: 0,
+      awayProbability: 0,
+      predictedAt: NOW,
+      kickoffAt: later.kickoffAt,
+    });
+  });
+});
+
+describe("poissonBacktestRows", () => {
+  it("predicts each match from a fit of the strictly earlier days, and writes it as a backtest row", () => {
+    const first = played(1, 2, 0);
+    const second = played(3, 1, 1, { homeTeam: 2, awayTeam: 1 });
+    const third = played(6, 0, 1);
+
+    const rows = poissonBacktestRows([third, first, second], NOW);
+
+    // The first day has nothing before it.
+    expect(rows.map((row) => row.providerMatchId)).toEqual([
+      second.providerMatchId,
+      third.providerMatchId,
+    ]);
+    const fit = fitPoisson([first, second, third], utcDay(third.kickoffAt));
+    const expected = (predictPoisson(fit, "VL", 1, 2) as PoissonPrediction).prediction;
+    expect(rows[1]).toEqual({
+      source: "taso",
+      providerMatchId: third.providerMatchId,
+      competitionCode: "VL",
+      model: "poisson-v1",
+      kind: "backtest",
+      homeProbability: expect.closeTo(expected.home, 3),
+      drawProbability: expect.closeTo(expected.draw, 3),
+      awayProbability: expect.closeTo(expected.away, 3),
+      predictedAt: NOW,
+      kickoffAt: third.kickoffAt,
+    });
+    // Team 1 won the first meeting 2–0 and drew away: the favourite at home.
+    expect(rows[1]?.homeProbability).toBeGreaterThan(rows[1]?.awayProbability as number);
+  });
+
+  it("does not let an earlier match of the same day inform a later one", () => {
+    const earlier = played(1, 2, 0);
+    const noon = (homeGoals: number) =>
+      played(4, homeGoals, 0, {
+        providerMatchId: 7_000,
+        kickoffAt: new Date(Date.UTC(2026, 3, 4, 12)),
+      });
+    const evening = played(4, 1, 0, { providerMatchId: 7_001, homeTeam: 2, awayTeam: 1 });
+    const eveningRow = (rows: ReturnType<typeof poissonBacktestRows>) =>
+      rows.find((row) => row.providerMatchId === 7_001);
+
+    const afterNil = eveningRow(poissonBacktestRows([earlier, noon(0), evening], NOW));
+    const afterNine = eveningRow(poissonBacktestRows([earlier, noon(9), evening], NOW));
+
+    expect(afterNil).toBeDefined();
+    expect(afterNine).toEqual(afterNil);
+  });
+
+  it("fits each provider apart: the same team ids never meet", () => {
+    const taso = [played(1, 5, 0), played(3, 1, 0)];
+    const footballData = [
+      played(1, 0, 5, { source: "football-data", code: "PL" }),
+      played(3, 1, 0, { source: "football-data", code: "PL" }),
+    ];
+
+    const rows = poissonBacktestRows([...taso, ...footballData], NOW);
+
+    expect(rows.map((row) => [row.source, row.competitionCode])).toEqual([
+      ["football-data", "PL"],
+      ["taso", "VL"],
+    ]);
+    expect(rows[0]?.homeProbability).toBeLessThan(rows[0]?.awayProbability as number);
+    expect(rows[1]?.homeProbability).toBeGreaterThan(rows[1]?.awayProbability as number);
+    expect(rows[1]).toEqual(poissonBacktestRows(taso, NOW)[0]);
+  });
+
+  it("writes no row for a placeholder side", () => {
+    const rows = poissonBacktestRows([played(1, 2, 0), played(3, 1, 0, { awayTeam: 0 })], NOW);
+
+    expect(rows).toEqual([]);
+  });
+});
+
+describe("backtestKey", () => {
+  it("names a row by its provider, match and model", () => {
+    expect(backtestKey({ source: "taso", providerMatchId: 5, model: "elo-v1" })).toBe(
+      "taso:5:elo-v1"
+    );
+  });
+});
+
+describe("missingBacktestRows", () => {
+  const history = () => [
+    played(1, 2, 0),
+    played(3, 1, 1, { homeTeam: 2, awayTeam: 1 }),
+    played(6, 0, 1),
+    played(6, 3, 1, { source: "football-data", code: "PL" }),
+    played(8, 0, 0, { source: "football-data", code: "PL" }),
+  ];
+  const whole = (finished: readonly FinishedMatch[]) => {
+    const baseline = backtestRows(finished, "home-baseline-v1", NOW);
+    return [
+      ...baseline,
+      ...eloBacktestRows(finished, baseline, NOW),
+      ...eloVariantBacktestRows(finished, baseline, NOW),
+      ...poissonBacktestRows(finished, NOW),
+    ];
+  };
+
+  it("is the whole backtest of all five models when nothing is written", () => {
+    const finished = history();
+
+    const rows = missingBacktestRows(finished, new Set(), NOW);
+
+    expect(rows).toEqual(whole(finished));
+    expect(new Set(rows.map((row) => row.model))).toEqual(
+      new Set(["home-baseline-v1", "elo-v1", "elo-form-v1", "elo-home-v1", "poisson-v1"])
+    );
+  });
+
+  it("is nothing when every row is written", () => {
+    const finished = history();
+    const written = new Set(whole(finished).map(backtestKey));
+
+    expect(missingBacktestRows(finished, written, NOW)).toEqual([]);
+  });
+
+  it.each(["home-baseline-v1", "elo-v1", "elo-form-v1", "elo-home-v1"])(
+    "is the one %s row that is not written, as the whole backtest has it",
+    (model) => {
+      const finished = history();
+      const rows = whole(finished);
+      const lacking = rows.findLast((row) => row.model === model && row.source === "taso");
+      const written = new Set(rows.filter((row) => row !== lacking).map(backtestKey));
+
+      expect(missingBacktestRows(finished, written, NOW)).toEqual([lacking]);
+    }
+  );
+
+  it("is the one Poisson row that is not written, the whole backtest's to three decimals", () => {
+    const finished = history();
+    const rows = whole(finished);
+    const lacking = rows.findLast((row) => row.model === "poisson-v1" && row.source === "taso");
+    const written = new Set(rows.filter((row) => row !== lacking).map(backtestKey));
+
+    expect(missingBacktestRows(finished, written, NOW)).toEqual([
+      {
+        ...lacking,
+        homeProbability: expect.closeTo(lacking?.homeProbability as number, 3),
+        drawProbability: expect.closeTo(lacking?.drawProbability as number, 3),
+        awayProbability: expect.closeTo(lacking?.awayProbability as number, 3),
+      },
+    ]);
+  });
+
+  it("does not take one provider's written row for the other's match of the same id", () => {
+    const taso = played(1, 2, 0, { providerMatchId: 8_000 });
+    const later = played(3, 1, 0, { providerMatchId: 8_001 });
+    const written = new Set(
+      ["home-baseline-v1", "elo-v1", "elo-form-v1", "elo-home-v1", "poisson-v1"].map((model) =>
+        backtestKey({ source: "football-data", providerMatchId: 8_001, model })
+      )
+    );
+
+    expect(missingBacktestRows([taso, later], written, NOW)).toHaveLength(5);
+  });
+});
+
+describe("a cup's backtest rows", () => {
+  const cup = (n: number, home: number, away: number, overrides: Partial<FinishedMatch> = {}) =>
+    played(n, home, away, { code: "MSC", cup: true, ...overrides });
+
+  it("predicts a tie only between sides with a league match at an earlier kickoff", () => {
+    const league = played(1, 1, 0, { homeTeam: 1, awayTeam: 2 });
+    const opener = cup(2, 2, 0, { homeTeam: 1, awayTeam: 2 });
+    const rated = cup(3, 1, 1, { homeTeam: 2, awayTeam: 1 });
+    const outsider = cup(4, 0, 1, { homeTeam: 9, awayTeam: 1 });
+    const sameKickoff = cup(5, 1, 0, { homeTeam: 7, awayTeam: 1 });
+    const seven = played(5, 1, 0, { homeTeam: 7, awayTeam: 2 });
+
+    const rows = backtestRows(
+      [league, opener, rated, outsider, sameKickoff, seven],
+      "home-baseline-v1",
+      NOW
+    );
+    const ids = rows.map((row) => row.providerMatchId);
+
+    // The opener is the cup's first tie: no history yet.
+    expect(ids).toContain(rated.providerMatchId);
+    expect(ids).not.toContain(outsider.providerMatchId);
+    expect(ids).not.toContain(sameKickoff.providerMatchId);
+  });
+
+  it("rates no side from a league match against a placeholder, as Elo does not", () => {
+    const rating = played(1, 1, 0, { homeTeam: 1, awayTeam: 2 });
+    // Team 3's only league match is against an unresolved slot.
+    const againstSlot = played(2, 1, 0, { homeTeam: 3, awayTeam: PLACEHOLDER_TEAM_ID });
+    const opener = cup(3, 1, 0, { homeTeam: 1, awayTeam: 2 });
+    const slot = cup(4, 1, 0, { homeTeam: 1, awayTeam: PLACEHOLDER_TEAM_ID });
+    const three = cup(5, 1, 0, { homeTeam: 3, awayTeam: 1 });
+    const rated = cup(6, 1, 0, { homeTeam: 2, awayTeam: 1 });
+
+    const ids = backtestRows(
+      [rating, againstSlot, opener, slot, three, rated],
+      "home-baseline-v1",
+      NOW
+    ).map((row) => row.providerMatchId);
+
+    expect(ids).not.toContain(slot.providerMatchId);
+    expect(ids).not.toContain(three.providerMatchId);
+    expect(ids).toContain(rated.providerMatchId);
+  });
+
+  it("tallies every tie of the cup, rated or not, into its own baseline", () => {
+    // An away win in the league, so a tally mixing it in would show.
+    const league = played(1, 0, 1, { homeTeam: 1, awayTeam: 2 });
+    // Two ties with an outsider, both won at home, then a rated tie.
+    const ties = [
+      cup(2, 1, 0, { homeTeam: 9, awayTeam: 1 }),
+      cup(3, 1, 0, { homeTeam: 8, awayTeam: 2 }),
+    ];
+    const rated = cup(4, 0, 0, { homeTeam: 1, awayTeam: 2 });
+
+    const [row] = backtestRows([league, ...ties, rated], "home-baseline-v1", NOW).filter(
+      (candidate) => candidate.providerMatchId === rated.providerMatchId
+    );
+
+    // The cup's own two ties, both home wins: none of the league's away win.
+    expect(row).toMatchObject({
+      competitionCode: "MSC",
+      homeProbability: 1,
+      drawProbability: 0,
+      awayProbability: 0,
+    });
+    expect(
+      backtestRows([league, rated], "home-baseline-v1", NOW).map((r) => r.providerMatchId)
+    ).not.toContain(rated.providerMatchId);
+  });
+
+  it("writes Elo and Poisson rows for a rated tie and none for an outsider's", () => {
+    const league = [1, 2, 3, 4, 5, 6].map((n) =>
+      played(n, n % 3, 1, { homeTeam: n % 2 === 0 ? 1 : 2, awayTeam: n % 2 === 0 ? 2 : 1 })
+    );
+    const opener = cup(7, 2, 1, { homeTeam: 1, awayTeam: 2 });
+    const rated = cup(9, 1, 1, { homeTeam: 2, awayTeam: 1 });
+    const outsider = cup(10, 0, 3, { homeTeam: 9, awayTeam: 1 });
+    const finished = [...league, opener, rated, outsider];
+    const baseline = backtestRows(finished, "home-baseline-v1", NOW);
+
+    const elo = eloBacktestRows(finished, baseline, NOW).map((row) => row.providerMatchId);
+    const poisson = poissonBacktestRows(finished, NOW).map((row) => row.providerMatchId);
+
+    expect(elo).toContain(rated.providerMatchId);
+    expect(elo).not.toContain(outsider.providerMatchId);
+    expect(poisson).toContain(rated.providerMatchId);
+    expect(poisson).not.toContain(outsider.providerMatchId);
+  });
+});
+
+describe("the leagues' backtest beside a cup", () => {
+  it("writes every league row exactly as without the cup, under each model", () => {
+    const league = [1, 2, 3, 4, 5, 6, 7, 8].map((n) =>
+      played(n, (n * 7) % 4, (n * 3) % 3, { homeTeam: 1 + (n % 3), awayTeam: 1 + ((n + 1) % 3) })
+    );
+    const cup = [3, 6, 9].map((n) =>
+      played(n, 4, 0, { code: "MSC", cup: true, homeTeam: 1 + (n % 2), awayTeam: 3 })
+    );
+    const leagueRows = (finished: FinishedMatch[]) => {
+      const baseline = backtestRows(finished, "home-baseline-v1", NOW);
+      return [
+        ...baseline,
+        ...eloBacktestRows(finished, baseline, NOW),
+        ...poissonBacktestRows(finished, NOW),
+      ].filter((row) => row.competitionCode !== "MSC");
+    };
+
+    expect(leagueRows([...league, ...cup])).toEqual(leagueRows(league));
+  });
+});
+
+describe("eloVariantBacktestRows", () => {
+  // Team 1 at home on days 1 and 3, team 2 at home on day 2.
+  const season = (third: [number, number] = [0, 1]) => {
+    const first = played(1, 2, 0);
+    const second = played(2, 1, 1, { homeTeam: 2, awayTeam: 1 });
+    const last = played(3, third[0], third[1], { providerMatchId: 9_003 });
+    return { first, second, last, finished: [last, first, second] };
+  };
+  const rowsOf = (finished: readonly FinishedMatch[]) => {
+    const baseline = backtestRows(finished, "home-baseline-v1", NOW);
+    return {
+      elo: eloBacktestRows(finished, baseline, NOW),
+      variants: eloVariantBacktestRows(finished, baseline, NOW),
+    };
+  };
+  const rowFor = (rows: readonly PredictionRow[], model: string, id: number) =>
+    rows.find((row) => row.model === model && row.providerMatchId === id);
+
+  it("writes one row of each variant for every match elo-v1's backtest has, at its draw share", () => {
+    const { elo, variants } = rowsOf(season().finished);
+
+    for (const model of ["elo-form-v1", "elo-home-v1"]) {
+      const own = variants.filter((row) => row.model === model);
+      expect(own.map((row) => [row.providerMatchId, row.drawProbability])).toEqual(
+        elo.map((row) => [row.providerMatchId, row.drawProbability])
+      );
+      expect(own.every((row) => row.kind === "backtest" && row.predictedAt === NOW)).toBe(true);
+    }
+  });
+
+  it("gives elo-form-v1 a form term once both sides have played, and elo-home-v1 none at a first home match", () => {
+    const { second, finished } = season();
+    const { elo, variants } = rowsOf(finished);
+    const plain = rowFor(elo, "elo-v1", second.providerMatchId)?.homeProbability as number;
+
+    // Day 2: both teams have day 1 behind them, and team 2 has never been at home.
+    expect(
+      rowFor(variants, "elo-form-v1", second.providerMatchId)?.homeProbability
+    ).not.toBeCloseTo(plain, 6);
+    expect(rowFor(variants, "elo-home-v1", second.providerMatchId)?.homeProbability).toBeCloseTo(
+      plain,
+      12
+    );
+  });
+
+  it("gives elo-home-v1 the home side's own advantage once it has been at home", () => {
+    const { elo, variants } = rowsOf(season().finished);
+
+    // Day 3: team 1 won at home on day 1, so its advantage is above 60.
+    expect(rowFor(variants, "elo-home-v1", 9_003)?.homeProbability).toBeGreaterThan(
+      rowFor(elo, "elo-v1", 9_003)?.homeProbability as number
+    );
+  });
+
+  it("predicts a match from what came before it: its own result moves none of its rows", () => {
+    const lost = rowsOf(season([0, 1]).finished).variants;
+    const won = rowsOf(season([3, 0]).finished).variants;
+
+    for (const model of ["elo-form-v1", "elo-home-v1"]) {
+      expect(rowFor(won, model, 9_003)).toEqual(rowFor(lost, model, 9_003));
+    }
+  });
+});

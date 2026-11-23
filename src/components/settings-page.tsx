@@ -3,18 +3,19 @@
 import { useRef, useState, useTransition } from "react";
 import { NicknameSettings } from "@/components/nickname-settings";
 import { Notice } from "@/components/notice";
-import { useSession } from "@/lib/auth-client";
-import { removeAvatarAction, saveAvatarAction } from "@/lib/avatar-actions";
-import { MAX_UPLOAD_BYTES } from "@/lib/avatar-limits";
-import type { CompetitionOption } from "@/lib/competition-preferences";
-import { type Preferences, REGION_SEGMENTS, type RegionSegment } from "@/lib/regions";
-import { reportClientError } from "@/lib/report-client-error";
+import { removeAvatarAction } from "@/lib/account/avatar-actions";
+import { MAX_UPLOAD_BYTES } from "@/lib/account/avatar-limits";
+import { uploadAvatar } from "@/lib/account/avatar-upload";
 import {
   type ActionResult,
   deleteAccount,
   saveSettings,
   signOutOtherDevices,
-} from "@/lib/settings-actions";
+} from "@/lib/account/settings-actions";
+import { useSession } from "@/lib/auth/auth-client";
+import { reportClientError } from "@/lib/platform/report-client-error";
+import type { CompetitionOption } from "@/lib/preferences/competition-preferences";
+import { type Preferences, REGION_SEGMENTS, type RegionSegment } from "@/lib/preferences/regions";
 
 export type Device = {
   id: string;
@@ -327,19 +328,15 @@ function ProfilePicture({
               announce(null, "missing");
               return;
             }
-            // Checked here too so the reader is told which rule they hit: past Next's body
-            // limit the action is rejected before it runs, with no reason.
+            // Checked here too, so an oversized file is refused before it is sent.
             if (chosen.size > MAX_UPLOAD_BYTES) {
               announce(null, "too-large");
               return;
             }
 
-            const formData = new FormData();
-            formData.set("avatar", chosen);
-
             startTransition(async () => {
               try {
-                const outcome = await saveAvatarAction(formData);
+                const outcome = await uploadAvatar(chosen);
                 if (outcome.ok) {
                   setCurrent(outcome.version);
                   announce("saved", null);
@@ -354,7 +351,7 @@ function ProfilePicture({
                   announce(null, outcome.reason);
                 }
               } catch (error) {
-                // A rejected invocation gets the generic notice: what it means is not
+                // A rejected upload gets the generic notice: what it means is not
                 // knowable from here.
                 reportClientError(error, "avatar.save");
                 announce(null, "failed");

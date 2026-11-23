@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { COLUMN_WIDTHS, DataTable, type DataTableColumn } from "@/components/data-table";
 import { RowLink } from "@/components/row-link";
-import { formatScore, type ScoreBreakdown } from "@/lib/match-detail";
+import { formatScore, type ScoreBreakdown } from "@/lib/matches/match-detail";
 
 export const matchDateFormatter = new Intl.DateTimeFormat("fi-FI", {
   timeZone: "Europe/Helsinki",

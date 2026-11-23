@@ -15,7 +15,7 @@ import Home, { metadata } from "@/app/page";
 
 // The picker hosts `StartRedirect`, which reads the session and the router to
 // honour a stored start page. Mocked so these assertions stay about the picker.
-vi.mock("@/lib/auth-client", () => ({
+vi.mock("@/lib/auth/auth-client", () => ({
   useSession: () => ({ data: null, isPending: false }),
   signIn: { social: vi.fn() },
   signOut: vi.fn(),

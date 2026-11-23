@@ -1,0 +1,11 @@
+# 871 — A season's group-row write holds a per-season lock: decisions
+
+Bug #871. `synchronizeGroupTeams` deletes a season's team rows, then its zone rows, then upserts both, in one transaction. Several such transactions for the same season at once took those row locks in crossing orders, and Postgres aborted one with `40P01 deadlock detected`. #864's release run failed on `tests/integration/zones.test.ts`, whose test of three concurrent syncs failed in 8 of 25 local runs. In production the losing sync is a failed refresh, and its page serves the stored rows. Narrows `decisions/196-concurrent-group-syncs.md` and `decisions/678-stale-snapshot-written-last.md`, where concurrent syncs of a season ran unserialised.
+
+| Decision | Why |
+|---|---|
+| **The transaction first takes `pg_advisory_xact_lock` on a key naming the category, competition and season** | One write of a season's group rows at a time, so no two take the same rows' locks in different orders. Postgres releases the lock when the transaction ends, so nothing has to unlock it, a rollback included |
+| **Only around the write, never the provider fetch** | 678 rejected a per-season lock held across the fetch, which can back off for 35 seconds. This one is held for one transaction of a delete and an upsert per table, the same wait the syncs already had on each other's row locks. It counts toward the 10-second statement timeout (`decisions/665`), as those waits did |
+| **What 678 accepted still holds** | The writes are serialised, not ordered by snapshot age, so an older snapshot written last still wins until the next refresh. The levels and the team rows are now both entirely the last writer's, because its delete runs after the earlier write committed |
+| **The integration test runs eight syncs at once, not three** | Without the lock, three deadlocked about once in three runs; eight did in 9 of 10. With the lock, 50 of 50 pass |
+| **A caller's own transaction keeps the lock until it ends** | `executor.transaction` inside a caller's transaction is a savepoint, and a transaction-level lock is held to the outer commit. The forced refresh's `SERIALIZABLE` apply holds it for its whole apply, which writes only that season |

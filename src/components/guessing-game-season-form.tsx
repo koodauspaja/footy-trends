@@ -10,9 +10,12 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { placeSeasonGuessAction, type SeasonGuessRefusalShown } from "@/lib/guessing-game-actions";
-import { SEASON_TEAM_COUNTS, type SeasonKind } from "@/lib/guessing-game-season";
-import { reportClientError } from "@/lib/report-client-error";
+import {
+  placeSeasonGuessAction,
+  type SeasonGuessRefusalShown,
+} from "@/lib/guessing-game/guessing-game-actions";
+import { SEASON_TEAM_COUNTS, type SeasonKind } from "@/lib/guessing-game/guessing-game-season";
+import { reportClientError } from "@/lib/platform/report-client-error";
 
 const BUTTON =
   "rounded border border-border px-3 py-2 text-sm hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50";

@@ -22,14 +22,14 @@ const { removeTeam, removeCompetition, refetch } = vi.hoisted(() => ({
 
 const { reportClientError } = vi.hoisted(() => ({ reportClientError: vi.fn() }));
 
-vi.mock("@/lib/report-client-error", () => ({ reportClientError }));
+vi.mock("@/lib/platform/report-client-error", () => ({ reportClientError }));
 
 beforeEach(() => {
   reportClientError.mockClear();
 });
 
-vi.mock("@/lib/auth-client", () => ({ useSession: () => ({ data: null, refetch }) }));
-vi.mock("@/lib/favourite-actions", () => ({
+vi.mock("@/lib/auth/auth-client", () => ({ useSession: () => ({ data: null, refetch }) }));
+vi.mock("@/lib/preferences/favourite-actions", () => ({
   removeFavouriteTeamAction: removeTeam,
   removeFavouriteCompetitionAction: removeCompetition,
 }));

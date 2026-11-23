@@ -6,16 +6,16 @@ import {
   SUMMARY_ERROR_MESSAGE,
   SUMMARY_HEADING,
 } from "@/components/season-summary-section";
-import type { CleanSheetSeries } from "@/lib/clean-sheets";
-import type { ComebacksSeries } from "@/lib/comebacks";
-import type { FormSeries } from "@/lib/form-series";
-import type { GoalsSeries } from "@/lib/goals-series";
-import type { HomeAwaySeries } from "@/lib/home-away";
-import type { PositionSeries } from "@/lib/position-series";
-import { MEASURES, type SeasonComparisonSeries } from "@/lib/season-comparison";
-import type { PageSectionsOf } from "@/lib/section-keys";
-import type { StreakRecordsSeries } from "@/lib/streak-records";
-import type { StreaksSeries } from "@/lib/streaks";
+import type { PageSectionsOf } from "@/lib/preferences/section-keys";
+import type { CleanSheetSeries } from "@/lib/teams/clean-sheets";
+import type { ComebacksSeries } from "@/lib/teams/comebacks";
+import type { FormSeries } from "@/lib/teams/form-series";
+import type { GoalsSeries } from "@/lib/teams/goals-series";
+import type { HomeAwaySeries } from "@/lib/teams/home-away";
+import type { PositionSeries } from "@/lib/teams/position-series";
+import { MEASURES, type SeasonComparisonSeries } from "@/lib/teams/season-comparison";
+import type { StreakRecordsSeries } from "@/lib/teams/streak-records";
+import type { StreaksSeries } from "@/lib/teams/streaks";
 
 /**
  * The Analyysit section: the sign-in gate, which panels a page gets, and the
@@ -36,7 +36,7 @@ const { canSeeAnalytics } = vi.hoisted(() => ({
   canSeeAnalytics: vi.fn<() => Promise<boolean>>(),
 }));
 
-vi.mock("@/lib/analytics-access", () => ({ canSeeAnalytics }));
+vi.mock("@/lib/auth/analytics-access", () => ({ canSeeAnalytics }));
 // The prompt's button and its sign-in flow are sign-in-prompt.test.tsx's. Here
 // it only has to show which message it was given.
 vi.mock("@/components/sign-in-prompt", () => ({
@@ -58,8 +58,8 @@ import { POSITION_HEADING } from "@/components/league-position-section";
 import { OPPONENTS_GROUP_HEADING, OPPONENTS_HEADING } from "@/components/opponents-section";
 import { RECORDS_HEADING } from "@/components/streak-records-section";
 import { STREAKS_HEADING } from "@/components/streaks-section";
-import { HISTORY_AXIS, SEASON_AXIS } from "@/lib/analytics-axis";
-import type { OpponentsSeries } from "@/lib/head-to-head";
+import { HISTORY_AXIS, SEASON_AXIS } from "@/lib/analytics/analytics-axis";
+import type { OpponentsSeries } from "@/lib/matches/head-to-head";
 
 const position: PositionSeries = {
   status: "ok",

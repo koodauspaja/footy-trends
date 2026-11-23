@@ -1,0 +1,477 @@
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { type Freshness, freshnessOfCheckout } from "../../../../scripts/e2e/e2e-freshness-verdict";
+import {
+  ALLOW,
+  bashCall,
+  defaultDeps,
+  type GuardDeps,
+  githubToken,
+  REFUSE,
+  refusals,
+  runGuard,
+  startGuard,
+} from "../../../../scripts/hooks/claude-bash-guard-steps";
+
+/**
+ * The Bash hook as Claude Code runs it: its input, the git state and issues it
+ * reads, and the exit code that lets a command run or stops it.
+ *
+ * decisions/806-push-and-pr-hooks.md
+ */
+
+const { readFileSync, executablePath } = vi.hoisted(() => ({
+  readFileSync: vi.fn(),
+  executablePath: vi.fn(),
+}));
+
+vi.mock("node:fs", async (original) => {
+  const actual = await original<typeof import("node:fs")>();
+  readFileSync.mockImplementation(actual.readFileSync);
+  return { ...actual, readFileSync };
+});
+
+vi.mock("../../../../scripts/shared/executable", () => ({ executablePath }));
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  readFileSync.mockClear();
+  executablePath.mockReset();
+});
+
+const PUSHED = "a".repeat(40);
+const LOCAL = "b".repeat(40);
+
+const FRESH: Freshness = { verdict: { kind: "pass", message: "e2e is fresh" }, reason: null };
+const STALE: Freshness = {
+  verdict: { kind: "block", message: "Push blocked" },
+  reason: "1 file(s) changed since the last passing e2e run: a.ts (modified).",
+};
+const CANNOT_RUN: Freshness = { verdict: { kind: "warn", message: "Warning" }, reason: null };
+
+/**
+ * A checkout and its issues, as the hook would find them.
+ *
+ * decisions/806-push-and-pr-hooks.md
+ * decisions/837-e2e-before-a-pull-request-and-a-review.md
+ */
+function deps({
+  head = PUSHED,
+  upstream = PUSHED as string | null,
+  files = {} as Record<string, string>,
+  issues = {} as Record<number, string>,
+  freshness = FRESH,
+} = {}): GuardDeps & { gitCalls: string[][]; freshnessAsked: string[] } {
+  const gitCalls: string[][] = [];
+  const freshnessAsked: string[] = [];
+  return {
+    gitCalls,
+    freshnessAsked,
+    freshness: (cwd) => {
+      freshnessAsked.push(cwd);
+      return freshness;
+    },
+    git: (cwd, args) => {
+      gitCalls.push([cwd, ...args]);
+      if (args[0] === "symbolic-ref") return "chore/806-x";
+      if (args.includes("@{upstream}")) return upstream;
+      return head;
+    },
+    readFile: (path) => files[path] ?? null,
+    readIssue: (issue) => {
+      const body = issues[issue];
+      return body === undefined
+        ? Promise.reject(new Error(`GitHub answered 404 for #${issue}`))
+        : Promise.resolve(body);
+    },
+  };
+}
+
+function consoleSpy() {
+  const err: string[] = [];
+  return { out: () => undefined, err: (line: string) => err.push(line), lines: err };
+}
+
+function hookInput(command: string, toolName = "Bash"): string {
+  return JSON.stringify({ tool_name: toolName, tool_input: { command }, cwd: "/repo" });
+}
+
+describe("refusals", () => {
+  it("lets an ordinary command through without reading anything", async () => {
+    const found = deps();
+
+    expect(await refusals("git status && npm test", "/repo", found)).toEqual([]);
+    expect(found.gitCalls).toEqual([]);
+  });
+
+  it("refuses git add of everything", async () => {
+    const found = await refusals("git add -A", "/repo", deps());
+
+    expect(found).toHaveLength(1);
+    expect(found[0]).toContain("Stage the paths by name");
+  });
+
+  it("lets gh pr create through when the head is pushed and every closed issue's boxes are settled", async () => {
+    const found = await refusals(
+      "gh pr create --body-file /b.md",
+      "/repo",
+      deps({
+        files: { "/b.md": "Closes #806\nFixes #7" },
+        issues: { 806: "- [x] done", 7: "- [ ] later — **not ticked: needs a release.**" },
+      })
+    );
+
+    expect(found).toEqual([]);
+  });
+
+  it("asks git in the directory the command runs in", async () => {
+    const checkout = deps({ files: { "/wt/b.md": "no issue" } });
+
+    await refusals("cd /wt && gh pr create --body-file b.md", "/repo", checkout);
+
+    expect(checkout.gitCalls.map(([cwd]) => cwd)).toEqual(["/wt", "/wt", "/wt"]);
+  });
+
+  it("refuses gh pr create when the local HEAD is not what was pushed", async () => {
+    const found = await refusals("gh pr create -b none", "/repo", deps({ head: LOCAL }));
+
+    expect(found).toHaveLength(1);
+    expect(found[0]).toContain("is not the pushed head");
+  });
+
+  it("checks the branch --head names, not the checkout's", async () => {
+    const checkout = deps();
+
+    await refusals("gh pr create -b none --head chore/1-x", "/repo", checkout);
+
+    expect(checkout.gitCalls).toEqual([
+      ["/repo", "rev-parse", "--verify", "--quiet", "refs/heads/chore/1-x"],
+      ["/repo", "rev-parse", "--verify", "--quiet", "chore/1-x@{upstream}"],
+    ]);
+  });
+
+  it("refuses a --head branch whose local commit is not what was pushed", async () => {
+    const checkout = {
+      ...deps(),
+      git: (_cwd: string, args: readonly string[]) =>
+        String(args.at(-1)).endsWith("@{upstream}") ? PUSHED : LOCAL,
+    };
+
+    const found = await refusals("gh pr create -b none -H chore/1-x", "/repo", checkout);
+
+    expect(found[0]).toContain("chore/1-x, whose local HEAD");
+  });
+
+  it("refuses gh pr create on a branch with no upstream", async () => {
+    const found = await refusals("gh pr create -b none", "/repo", deps({ upstream: null }));
+
+    expect(found[0]).toContain("git push -u origin chore/806-x");
+  });
+
+  it("refuses gh pr create that closes an issue with a bare box, naming the box", async () => {
+    const found = await refusals(
+      "gh pr create -b 'Closes #806'",
+      "/repo",
+      deps({
+        issues: { 806: "- [x] one\n- [ ] the table is on the issue" },
+      })
+    );
+
+    expect(found).toHaveLength(1);
+    expect(found[0]).toContain("neither ticked nor explained");
+    expect(found[0]).toContain("the table is on the issue");
+  });
+
+  it("refuses gh pr create that closes an issue it cannot read", async () => {
+    const found = await refusals("gh pr create -b 'Closes #9'", "/repo", deps());
+
+    expect(found).toEqual([expect.stringContaining("GitHub answered 404 for #9")]);
+  });
+
+  it("names a problem that is not an Error by its text", async () => {
+    const checkout = { ...deps(), readIssue: () => Promise.reject("offline") };
+
+    const found = await refusals("gh pr create -b 'Closes #9'", "/repo", checkout);
+
+    expect(found[0]).toContain("offline");
+  });
+
+  it("refuses a body it cannot read, from the command line or from disk", async () => {
+    const shell = await refusals(`gh pr create --body "$(cat b.md)"`, "/repo", deps());
+    const missing = await refusals("gh pr create --body-file /gone.md", "/repo", deps());
+
+    expect(shell[0]).toContain("built by the shell");
+    expect(missing[0]).toContain("/gone.md cannot be read");
+  });
+
+  it("refuses gh pr create after a cd it cannot follow, without asking git", async () => {
+    const checkout = deps();
+
+    const found = await refusals("cd ~/wt && gh pr create -b x", "/repo", checkout);
+
+    expect(found[0]).toContain("cannot tell which branch");
+    expect(checkout.gitCalls).toEqual([]);
+  });
+
+  it("gives every refusal a line earns, the head's before the boxes'", async () => {
+    const found = await refusals(
+      "git add . && gh pr create -b 'Closes #9'",
+      "/repo",
+      deps({ head: LOCAL })
+    );
+
+    expect(found).toHaveLength(3);
+    expect(found[0]).toContain("git add");
+    expect(found[1]).toContain("pushed head");
+    expect(found[2]).toContain("#9");
+  });
+});
+
+describe("refusals with --head, against a real repository", () => {
+  // The hook's real git, with e2e taken as fresh: these tests are about the upstream.
+  const realGit = (): GuardDeps => ({ ...defaultDeps({}), freshness: () => FRESH });
+
+  /** A clone whose `pushed` branch is pushed with an upstream, and its git. */
+  function clone(): { directory: string; git: (...args: string[]) => void } {
+    executablePath.mockReturnValue("/usr/bin/git");
+    const root = mkdtempSync(join(tmpdir(), "guard-head-"));
+    const run = (cwd: string, args: string[]) => {
+      const result = spawnSync(
+        "git",
+        [
+          "-c",
+          "user.name=t",
+          "-c",
+          "user.email=t@example.com",
+          "-c",
+          "commit.gpgsign=false",
+          ...args,
+        ],
+        { cwd, encoding: "utf8" }
+      );
+      if (result.status !== 0) throw new Error(result.stderr);
+    };
+    run(root, ["init", "--quiet", "--bare", "origin.git"]);
+    run(root, ["clone", "--quiet", "origin.git", "work"]);
+    const directory = join(root, "work");
+    const git = (...args: string[]) => run(directory, args);
+    git("commit", "--quiet", "--allow-empty", "-m", "first");
+    git("push", "--quiet", "-u", "origin", "HEAD:refs/heads/pushed");
+    git("branch", "--quiet", "--set-upstream-to=origin/pushed", "HEAD");
+    git("branch", "--quiet", "pushed", "origin/pushed");
+    git("branch", "--quiet", "--set-upstream-to=origin/pushed", "pushed");
+    return { directory, git };
+  }
+
+  it("lets gh pr create --head through for a pushed branch whose local head is the pushed head", async () => {
+    const { directory } = clone();
+
+    expect(await refusals("gh pr create -b none --head pushed", directory, realGit())).toEqual([]);
+  });
+
+  it("refuses a --head branch with no upstream", async () => {
+    const { directory, git } = clone();
+    git("branch", "--quiet", "local-only");
+
+    const found = await refusals("gh pr create -b none --head local-only", directory, realGit());
+
+    expect(found).toHaveLength(1);
+    expect(found[0]).toContain("local-only, which has no upstream");
+  });
+
+  it("refuses a --head branch whose local head is not the pushed head", async () => {
+    const { directory, git } = clone();
+    git("checkout", "--quiet", "pushed");
+    git("commit", "--quiet", "--allow-empty", "-m", "unpushed");
+
+    const found = await refusals("gh pr create -b none --head pushed", directory, realGit());
+
+    expect(found).toHaveLength(1);
+    expect(found[0]).toContain("pushed, whose local HEAD");
+  });
+});
+
+describe("refusals that need a passing e2e run", () => {
+  it("refuses gh pr create that no passing e2e run covers, saying why and what to run", async () => {
+    const checkout = deps({ freshness: STALE });
+
+    const found = await refusals("gh pr create -b none", "/repo", checkout);
+
+    expect(found).toHaveLength(1);
+    expect(found[0]).toContain("Refused: `gh pr create` before a passing full e2e run");
+    expect(found[0]).toContain("a.ts (modified)");
+    expect(found[0]).toContain("Run `npm run test:e2e` first.");
+    expect(checkout.freshnessAsked).toEqual(["/repo"]);
+  });
+
+  it("lets gh pr create and a review request through when e2e cannot run here", async () => {
+    const checkout = deps({ freshness: CANNOT_RUN });
+
+    expect(await refusals("gh pr create -b none", "/repo", checkout)).toEqual([]);
+    expect(
+      await refusals("gh pr comment 1 --body '@sourcery-ai review'", "/repo", checkout)
+    ).toEqual([]);
+  });
+
+  it("refuses a Sourcery review request no passing e2e run covers, and lets a covered one through", async () => {
+    const stale = await refusals(
+      "gh pr comment 1 --body '@sourcery-ai review'",
+      "/repo",
+      deps({ freshness: STALE })
+    );
+
+    expect(stale).toHaveLength(1);
+    expect(stale[0]).toContain(
+      "Refused: asking Sourcery for a review before a passing full e2e run"
+    );
+    expect(await refusals("gh pr comment 1 --body '@sourcery-ai review'", "/repo", deps())).toEqual(
+      []
+    );
+  });
+
+  it("reads a comment's body file to tell a review request from any other comment, counting one it cannot read", async () => {
+    const files = { "/repo/review.md": "@sourcery-ai review", "/repo/reply.md": "Fixed in abc." };
+    const checkout = deps({ files, freshness: STALE });
+
+    expect(await refusals("gh pr comment 1 -F review.md", "/repo", checkout)).toHaveLength(1);
+    expect(await refusals("gh pr comment 1 -F reply.md", "/repo", checkout)).toEqual([]);
+    expect(await refusals("gh pr comment 1 -F gone.md", "/repo", checkout)).toHaveLength(1);
+  });
+
+  it("refuses a review request after a cd it cannot follow", async () => {
+    const found = await refusals(
+      'cd "$WT" && gh pr comment 1 --body "@sourcery-ai review"',
+      "/repo",
+      deps()
+    );
+
+    expect(found[0]).toContain("Refused: a Sourcery review request after a `cd`");
+  });
+});
+
+describe("bashCall", () => {
+  it("reads the command and directory of a Bash call", () => {
+    expect(bashCall(hookInput("ls"))).toEqual({ command: "ls", cwd: "/repo" });
+  });
+
+  it("returns null for another tool, a missing field, or input that is not JSON", () => {
+    expect(bashCall(hookInput("ls", "Read"))).toBeNull();
+    expect(
+      bashCall(JSON.stringify({ tool_name: "Bash", tool_input: {}, cwd: "/repo" }))
+    ).toBeNull();
+    expect(
+      bashCall(JSON.stringify({ tool_name: "Bash", tool_input: { command: "ls" } }))
+    ).toBeNull();
+    expect(bashCall(JSON.stringify({ tool_name: "Bash", cwd: "/repo" }))).toBeNull();
+    expect(bashCall("not json")).toBeNull();
+  });
+});
+
+describe("runGuard", () => {
+  it("exits 0 and prints nothing for a command no rule covers", async () => {
+    const console = consoleSpy();
+
+    expect(await runGuard(hookInput("ls"), deps(), console)).toBe(ALLOW);
+    expect(console.lines).toEqual([]);
+  });
+
+  it("exits 2 with every refusal on stderr, which is what blocks the call", async () => {
+    const console = consoleSpy();
+
+    expect(await runGuard(hookInput("git add --all"), deps(), console)).toBe(REFUSE);
+    expect(REFUSE).toBe(2);
+    expect(console.lines.join("\n")).toContain("Stage the paths by name");
+  });
+
+  it("lets the command run, and says so, when its input cannot be read", async () => {
+    const console = consoleSpy();
+
+    expect(await runGuard("{", deps(), console)).toBe(ALLOW);
+    expect(console.lines[0]).toContain("runs unchecked");
+  });
+});
+
+describe("githubToken", () => {
+  it("prefers GH_TOKEN, then GITHUB_TOKEN, then the GitHub CLI's, skipping empty ones", () => {
+    const cli = vi.fn(() => "from-cli");
+
+    expect(githubToken({ GH_TOKEN: "a", GITHUB_TOKEN: "b" }, cli)).toBe("a");
+    expect(githubToken({ GH_TOKEN: "", GITHUB_TOKEN: "b" }, cli)).toBe("b");
+    expect(githubToken({ GH_TOKEN: "" }, cli)).toBe("from-cli");
+    expect(githubToken({}, () => null)).toBeNull();
+  });
+});
+
+describe("defaultDeps", () => {
+  it("asks the checkout's own e2e marker whether a run vouches for it", () => {
+    expect(defaultDeps({}).freshness).toBe(freshnessOfCheckout);
+  });
+
+  it("runs git in the given directory and reads its trimmed output", () => {
+    executablePath.mockReturnValue("/usr/bin/git");
+    const directory = mkdtempSync(join(tmpdir(), "guard-"));
+
+    expect(defaultDeps({}).git(directory, ["rev-parse", "--show-toplevel"])).toBeNull();
+    expect(defaultDeps({}).git(process.cwd(), ["rev-parse", "--is-inside-work-tree"])).toBe("true");
+  });
+
+  it("answers null when git cannot be found", () => {
+    executablePath.mockReturnValue(null);
+
+    expect(defaultDeps({}).git(process.cwd(), ["status"])).toBeNull();
+  });
+
+  it("reads a file, and answers null for one that is not there", () => {
+    const path = join(mkdtempSync(join(tmpdir(), "guard-")), "body.md");
+    writeFileSync(path, "Closes #1");
+
+    expect(defaultDeps({}).readFile(path)).toBe("Closes #1");
+    expect(defaultDeps({}).readFile(`${path}.gone`)).toBeNull();
+  });
+
+  it("reads an issue's body from the repository's issues route, with the token", async () => {
+    const fetch = vi.fn(async () => Response.json({ body: "- [x] one" }));
+    vi.stubGlobal("fetch", fetch);
+
+    const body = await defaultDeps({ GH_TOKEN: "t", GITHUB_REPOSITORY: "o/r" }).readIssue(5);
+
+    expect(body).toBe("- [x] one");
+    expect(fetch).toHaveBeenCalledWith(
+      "https://api.github.com/repos/o/r/issues/5",
+      expect.objectContaining({ headers: expect.objectContaining({ Authorization: "Bearer t" }) })
+    );
+  });
+
+  it("reads this repository's issues by default, with the GitHub CLI's token", async () => {
+    executablePath.mockReturnValue("/bin/echo");
+    const fetch = vi.fn(async () => Response.json({ body: "" }));
+    vi.stubGlobal("fetch", fetch);
+
+    await defaultDeps({}).readIssue(5);
+
+    expect(fetch).toHaveBeenCalledWith(
+      "https://api.github.com/repos/koodauspaja/footy-trends/issues/5",
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: "Bearer auth token" }),
+      })
+    );
+  });
+
+  it("fails to read an issue when there is no token at all", async () => {
+    executablePath.mockReturnValue(null);
+
+    await expect(defaultDeps({}).readIssue(5)).rejects.toThrow("no GitHub token");
+  });
+});
+
+describe("startGuard", () => {
+  it("reads the hook input from stdin", async () => {
+    readFileSync.mockImplementationOnce(() => hookInput("ls"));
+
+    expect(await startGuard()).toBe(ALLOW);
+    expect(readFileSync).toHaveBeenCalledWith(0, "utf8");
+  });
+});

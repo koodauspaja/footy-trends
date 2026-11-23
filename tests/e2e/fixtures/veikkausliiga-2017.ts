@@ -200,6 +200,8 @@ type ZoneRow = {
 /**
  * The league group's levels, seeded as TASO publishes them from 2021 on: the
  * first place, two places that lead nowhere, and the last.
+ *
+ * decisions/063-competition-zones.md
  */
 export const ZONE_ROWS: ZoneRow[] = [
   { group_id: GROUPS.league.id, level: 1, team_count: 1, label: "Kultaa" },

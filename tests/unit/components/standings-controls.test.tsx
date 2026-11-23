@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { StandingsControls } from "@/components/standings-controls";
-import type { Competition } from "@/lib/competitions";
+import type { Competition } from "@/lib/competitions/competitions";
 
 /**
  * The controls above a league's standings.

@@ -4,13 +4,12 @@ import { renderToString } from "react-dom/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { FavouriteToggle } from "@/components/favourite-toggle";
 import { SiteHeader } from "@/components/site-header";
-import { useSession } from "@/lib/auth-client";
+import { useSession } from "@/lib/auth/auth-client";
 
 /**
- * The header, the team search and the star read the sign-in state on their
- * first render, and hydrate cleanly even when the browser already holds a
- * session. `@/lib/auth-client` is the real one here, because the hydration
- * snapshot under test is better-auth's.
+ * The header, the team search and the star read the sign-in state on first render, and hydrate
+ * cleanly when the browser already holds a session. `@/lib/auth/auth-client` is the real one: the
+ * hydration snapshot under test is better-auth's.
  *
  * decisions/535-session-read-needs-no-hydration-wait.md
  */
@@ -30,11 +29,11 @@ vi.mock("next/navigation", () => ({
 }));
 
 // Server actions, which reach the database when imported.
-vi.mock("@/lib/favourite-actions", () => ({
+vi.mock("@/lib/preferences/favourite-actions", () => ({
   toggleFavouriteTeamAction: vi.fn(),
   toggleFavouriteCompetitionAction: vi.fn(),
 }));
-vi.mock("@/lib/team-search-actions", () => ({ searchTeamsAction: vi.fn() }));
+vi.mock("@/lib/teams/team-search-actions", () => ({ searchTeamsAction: vi.fn() }));
 
 const SESSION = {
   session: {

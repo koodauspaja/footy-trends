@@ -5,34 +5,31 @@ import { matches, predictions, tasoMatches } from "@/db/schema";
 
 // No provider request from a test: the refresh fetches nothing new, and what
 // is stored is what the run logs.
-vi.mock("@/lib/football-data", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/football-data")>()),
+vi.mock("@/lib/football-data/football-data", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/football-data/football-data")>()),
   getSeasonMatches: vi.fn(async () => []),
 }));
-vi.mock("@/lib/taso", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/taso")>()),
+vi.mock("@/lib/taso/taso", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/taso/taso")>()),
   getSeasonMatches: vi.fn(async () => []),
 }));
 
-import { expectedHome } from "@/lib/elo";
-import type { StoredMatch } from "@/lib/match-service";
+import type { StoredMatch } from "@/lib/matches/match-detail";
+import { expectedHome } from "@/lib/predictions/elo";
 import {
   fitPoisson,
   type PoissonMatch,
   type PoissonPrediction,
   predictPoisson,
   utcDay,
-} from "@/lib/poisson";
-import { runPredictionBacktest, runPredictionLog } from "@/lib/prediction-log-service";
-import { getMatchSurprise } from "@/lib/surprise-service";
+} from "@/lib/predictions/poisson";
+import { runPredictionBacktest, runPredictionLog } from "@/lib/predictions/prediction-log-service";
+import { getMatchSurprise } from "@/lib/predictions/surprise-service";
 
 /**
- * The predictions log against a real Postgres. The hourly run is set in 2099
- * and the backtest in 1990, so the live rows and the rows asserted on are this
- * suite's. Both also backtest every finished match stored, other suites'
- * included, so every backtest row in the database is deleted either side of
- * each test, with this suite's own rows. Their time follows what the database
- * holds, which an end-to-end run fills with whole seasons, so each test has 30 s.
+ * The predictions log against a real Postgres, the hourly run in 2099 and the backtest in 1990 so
+ * the rows asserted on are this suite's. Both backtest every stored match, so every backtest row is
+ * deleted around each test; an e2e run's whole seasons slow them, so each test has 30 s.
  *
  * decisions/051-home-win-baseline.md
  * decisions/052-predictions-log.md

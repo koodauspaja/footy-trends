@@ -27,7 +27,7 @@ if the test does not share the database.
 | Redis | database 1 on the server `REDIS_URL` names; with `E2E_TASO_STUB=1`, a container of its own (below). Specs drop cache entries through `dropCached` in `tests/support/e2e-redis.ts` |
 
 `tests/integration` uses a database of its own, `<your database>_integration_test`,
-through `scripts/with-test-db.ts`. It creates and deletes rows, and used to do
+through `scripts/db/with-test-db.ts`. It creates and deletes rows, and used to do
 that in whatever database the developer was signed into; kept apart from this
 one, a test interrupted before its cleanup leaves nothing the TASO recorder,
 which reads this database, would record.
@@ -75,8 +75,9 @@ Remove the line from `.env` when TASO answers again; e2e tests against the real
 TASO connection then take this one's place.
 
 `tests/e2e/taso.spec.ts` is the one spec that fails when TASO refuses: it asks the
-suite's own `/api/health?providers=1`, whose TASO check makes a real, signed
-request, and needs `TASO_HASH_SALT`. With `E2E_TASO_STUB=1` the same test only checks that
+suite's own `/api/health?providers=1`, with the token `playwright.config.ts`
+gives the suite's server, whose TASO check makes a real, signed request, and
+needs `TASO_HASH_SALT`. With `E2E_TASO_STUB=1` the same test only checks that
 the request is answered: it does not tell the stand-in from TASO (decisions/681,
 decisions/685).
 
@@ -135,8 +136,9 @@ Measured on one machine on 2026-10-09, 358 tests: 4 min 39 s against `next dev`,
 and 3 min 54 s against the build, 32 s of it the build.
 `decisions/568-e2e-against-a-production-build.md` has the reasons.
 
-A server already on port 3001 stops the run at once, with Playwright's message
-that the address is already used.
+A server already on one of its ports stops the run at once: `pretest:e2e`
+names each holder and the checkout it runs from, and says whether to wait or to
+stop it (`decisions/849-e2e-names-port-holders.md`).
 
 ### The suite runs serially, everywhere
 
@@ -208,7 +210,7 @@ cover it.
 
 ### A narrowed run writes no freshness marker
 
-`scripts/e2e-freshness-reporter.ts` records a run only when it **passed,
+`scripts/e2e/e2e-freshness-reporter.ts` records a run only when it **passed,
 covered every spec file and built the server it ran against** — no `-g`, no file
 path, no shard, no `--grep-invert`, and no `E2E_TARGET`.
 So a debugging session leaves the pre-push hook exactly as it found it, and the
@@ -236,7 +238,11 @@ It skips quietly when dependencies are not installed, and `git commit
 
 `npm run test:e2e` is easy to forget, and this suite is the only thing that
 exercises the app end to end before a release. A git `pre-push` hook nudges,
-and blocks, when nothing vouches for what you are pushing (#84).
+and blocks, when nothing vouches for what you are pushing (#84), but only on a
+branch's first push, which comes before its pull request. A later push goes
+through unchecked. Claude Code's hook asks the same question before
+`gh pr create` and before a `@sourcery-ai review` request
+(`decisions/837-e2e-before-a-pull-request-and-a-review.md`).
 
 It is installed by `npm install` — Husky's `prepare` script wires
 `core.hooksPath` to `.husky/`, so a fresh clone gets it with no manual step.
@@ -294,7 +300,7 @@ does not need it: the hook passes that on its own.
 
 ### Only a full run counts
 
-The marker is written by a Playwright reporter (`scripts/e2e-freshness-reporter.ts`)
+The marker is written by a Playwright reporter (`scripts/e2e/e2e-freshness-reporter.ts`)
 wired into `playwright.config.ts`, and only when the run both **passed** and
 covered **every spec file**. `--grep`, `--shard`, and naming a spec on the
 command line all leave the marker untouched, because a marker from a filtered
@@ -314,8 +320,16 @@ appends a script's extra arguments to the end of the whole command, so
 `npm run test:e2e -- --grep x` would have handed `--grep x` to the marker
 writer instead of to Playwright.
 
-The decision logic lives in `scripts/e2e-freshness-plan.ts`, kept free of the
+The decision logic lives in `scripts/e2e/e2e-freshness-plan.ts`, kept free of the
 filesystem and `docker` so it is unit-tested directly.
+
+## Never the newest season as an example
+
+The newest season is the one most likely to change under a test: it moves mid-season, finishes, and is overtaken when TASO lists the next. The release run reads real TASO, so a test tied to it passes on the stand-in and fails at release.
+
+- A test that needs some season names a **finished** one, one the stand-in serves too (`tests/e2e/fixtures/taso-domestic.json.gz`).
+- A test of something that exists only in the season in progress, such as a forecast, **seeds** that season in whichever season is active, read from the page (`tests/e2e/seeded-season.ts`, `decisions/867-e2e-forecasts-seed-their-season.md`).
+- Only a test about the default season itself, or about what only the active season shows, such as `Tämä kausi`, opens a page without `kausi`.
 
 ## What's covered
 

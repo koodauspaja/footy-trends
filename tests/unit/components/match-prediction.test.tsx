@@ -1,9 +1,9 @@
 import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { EloRatings } from "@/lib/elo-service";
-import type { HomeBaseline } from "@/lib/home-baseline";
-import type { StoredMatch } from "@/lib/match-service";
-import type { PoissonFitResult } from "@/lib/poisson-service";
+import type { StoredMatch } from "@/lib/matches/match-detail";
+import type { EloRatings } from "@/lib/predictions/elo-service";
+import type { HomeBaseline } from "@/lib/predictions/home-baseline";
+import type { PoissonFitResult } from "@/lib/predictions/poisson-service";
 
 /**
  * The `Ennuste` panel: the baseline, Elo's and Poisson's rows beside it, and
@@ -26,17 +26,17 @@ const { canSeeAnalytics, getHomeBaseline, getEloRatings, getPoissonFit } = vi.ho
   getEloRatings: vi.fn<() => Promise<EloRatings>>(),
 }));
 
-vi.mock("@/lib/analytics-access", () => ({ canSeeAnalytics }));
-vi.mock("@/lib/match-service", () => ({ getHomeBaseline }));
-vi.mock("@/lib/elo-service", () => ({ getEloRatings }));
-vi.mock("@/lib/poisson-service", () => ({ getPoissonFit }));
+vi.mock("@/lib/auth/analytics-access", () => ({ canSeeAnalytics }));
+vi.mock("@/lib/matches/match-service", () => ({ getHomeBaseline }));
+vi.mock("@/lib/predictions/elo-service", () => ({ getEloRatings }));
+vi.mock("@/lib/predictions/poisson-service", () => ({ getPoissonFit }));
 // The prompt's sign-in flow is sign-in-prompt.test.tsx's; here it only has to
 // show which message it was given.
 vi.mock("@/components/sign-in-prompt", () => ({
   SignInPrompt: ({ message }: { message: string }) => <p>{message}</p>,
 }));
 
-import { ROUNDING_NOTE } from "@/components/competition-analytics";
+import { ROUNDING_NOTE } from "@/components/analytics-notes";
 import { ELO_ERROR_MESSAGE } from "@/components/elo-section";
 import {
   BASELINE_ROW,
@@ -58,7 +58,12 @@ import {
   SCORE_GRID_INTRO,
   scoreGridCells,
 } from "@/components/match-prediction";
-import { foldScoreGrid, type PoissonPrediction, predictPoisson, scoreGrid } from "@/lib/poisson";
+import {
+  foldScoreGrid,
+  type PoissonPrediction,
+  predictPoisson,
+  scoreGrid,
+} from "@/lib/predictions/poisson";
 
 const baseline: Extract<HomeBaseline, { status: "ok" }> = {
   status: "ok",

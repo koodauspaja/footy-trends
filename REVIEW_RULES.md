@@ -11,7 +11,9 @@ Scope
   reaches. Finnish UI copy — in source, asserted in a test, or quoted in any
   document, a spec or a decision record among them — is data, not a language
   violation. `CLAUDE.md` carries the same carve-out, so the two do not disagree.
-- Commit messages: English too, but unchecked — see below.
+- Commit messages: English too, but unchecked — see below. A subject that
+  names the review instead of the change is refused, by the `commit-msg` hook
+  and CI's `Commit messages` job (`decisions/841-commit-subject-gate.md`).
 - Configuration files and tooling settings: English unless they are end-user
   visible (Block 6 covers these too).
 
@@ -29,8 +31,11 @@ Secrets and credentials
 - Never commit API keys, secrets, or credentials. Use environment variables
   (e.g. `FOOTBALL_DATA_API_KEY`) and `.env.example` to document names.
 - Block 4 asks only about secrets the pull request introduces or modifies — a
-  rule sees changed lines, so it cannot vouch for files nobody touched. There
-  is no repo-wide secret scanner here; that gap is real and unclaimed.
+  rule sees changed lines, so it cannot vouch for files nobody touched. GitHub
+  secret scanning covers the whole history, and push protection every push,
+  but only for keys of providers it recognises: a private key or a database
+  connection string goes unchecked on the Free plan (`docs/infrastructure.md`,
+  Review and analysis).
 
 Testing
 - New features require tests in `tests/`. Tests must cover happy paths and the
@@ -39,7 +44,8 @@ Testing
 Comments
 - A comment says what the code beside it is for, in one to three lines, or a
   constraint the code cannot show. Then the decision records behind it, the
-  original feature's first and the later ones after it, oldest first:
+  original feature's first and the others after it; any other record added to a
+  comment goes below the ones already there, and nothing checks the order:
 
   ```ts
   /**
@@ -52,12 +58,15 @@ Comments
   ```
 
 - History lives in `decisions/`, not in comments, and no comment cites an issue
-  or pull request number. `tests/unit/scripts/comment-rules.test.ts` holds the
+  or pull request number. `tests/unit/scripts/checks/comment-rules.test.ts` holds the
   deterministic part: no new number, no cited record that does not exist, no
-  doc comment stacked on another, and no test name that cites an issue, a spec
-  or a spec section or is not written as a string. Block 7 judges the rest. See
-  `decisions/531-comments-say-what-code-is-for.md` and
-  `decisions/584-test-names-carry-no-citations.md`.
+  doc comment stacked on another, no new declaration doc comment without a
+  record path, no new comment over three lines before its paths, and no test
+  name that cites an issue, a spec or a spec section or is not written as a
+  string. Block 7 judges the rest. See
+  `decisions/531-comments-say-what-code-is-for.md`,
+  `decisions/584-test-names-carry-no-citations.md` and
+  `decisions/839-mechanical-comment-rules.md`.
 
 Specs and decision records
 - A decision record in `decisions/` must faithfully interpret the spec it is
@@ -119,8 +128,9 @@ Deliberately not Sourcery rules
   `a11y/useAltText` and `a11y/noSvgWithoutTitle`. Both already deterministic.
 - **`noExplicitAny`, `noConsoleLog`** — Biome, as above.
 - **Commit messages in English** — a rule reads files, never the commit log,
-  and there is no `commit-msg` hook or commitlint here. Convention only, and
-  named as such rather than left looking enforced.
+  and there is no commitlint here. Convention only, and named as such rather
+  than left looking enforced. The `commit-msg` hook checks one thing only: that
+  the subject does not name the review instead of the change (decisions/841).
 
 Authority
 - The Sourcery dashboard rules are the authoritative automated checks. This

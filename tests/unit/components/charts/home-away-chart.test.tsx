@@ -8,7 +8,7 @@ import {
   measureText,
 } from "@/components/charts/home-away-chart";
 import { percentText } from "@/components/charts/line-chart";
-import type { SideStats } from "@/lib/home-away";
+import type { SideStats } from "@/lib/teams/home-away";
 
 /**
  * The home and away chart: its measures and its text alternative.

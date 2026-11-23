@@ -4,13 +4,13 @@ import { db } from "@/db";
 import { matches, predictions, tasoMatches } from "@/db/schema";
 
 // No Redis in the integration job: every read reaches Postgres.
-vi.mock("@/lib/cache", () => ({
+vi.mock("@/lib/providers/cache", () => ({
   getCached: vi.fn(async (_key: string, _ttl: number, fetcher: () => Promise<unknown>) =>
     fetcher()
   ),
 }));
 
-import { getPredictionQuality } from "@/lib/prediction-quality-service";
+import { getPredictionQuality } from "@/lib/predictions/prediction-quality-service";
 
 /**
  * The prediction quality's join against a real Postgres. Every row is `live`:

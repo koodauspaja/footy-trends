@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { MIGRATION_TAG } from "../../../scripts/migration-name";
+import { MIGRATION_TAG } from "../../../scripts/db/migration-name";
 
 /**
  * The migration folder's own invariants: every migration is named for what it
@@ -13,7 +13,7 @@ import { MIGRATION_TAG } from "../../../scripts/migration-name";
 
 const FOLDER = path.join(process.cwd(), "drizzle/migrations");
 
-// The rule itself lives in `scripts/migration-name.ts`, shared with the
+// The rule itself lives in `scripts/db/migration-name.ts`, shared with the
 // generator that refuses to create a bad name: a copy here would be free to
 // drift from the one that does the refusing.
 const NAME = MIGRATION_TAG;

@@ -11,10 +11,14 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import type { Guess, Outcome } from "@/lib/guessing-game";
-import { MAX_GUESSED_GOALS, sameGuess } from "@/lib/guessing-game";
-import { type GuessRefusal, joinGameAction, placeGuessAction } from "@/lib/guessing-game-actions";
-import { reportClientError } from "@/lib/report-client-error";
+import type { Guess, Outcome } from "@/lib/guessing-game/guessing-game";
+import { MAX_GUESSED_GOALS, sameGuess } from "@/lib/guessing-game/guessing-game";
+import {
+  type GuessRefusal,
+  joinGameAction,
+  placeGuessAction,
+} from "@/lib/guessing-game/guessing-game-actions";
+import { reportClientError } from "@/lib/platform/report-client-error";
 
 const BUTTON =
   "rounded border border-border px-3 py-2 text-sm hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50";

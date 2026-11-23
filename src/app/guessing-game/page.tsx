@@ -3,15 +3,18 @@ import { GuessingGamePage } from "@/components/guessing-game-page";
 import { Notice } from "@/components/notice";
 import { PageShell } from "@/components/page-shell";
 import { SignInPrompt } from "@/components/sign-in-prompt";
-import { currentUserId } from "@/lib/current-user";
-import type { Board, Shares } from "@/lib/guessing-game";
-import { boardSeason, readOthers } from "@/lib/guessing-game-board";
-import { type GroupSummary, readGroupsOf } from "@/lib/guessing-game-group-store";
-import type { ModelGuess } from "@/lib/guessing-game-models";
-import { readSeasonSectionOf, type SeasonSections } from "@/lib/guessing-game-season-store";
-import { type GameView, openGame } from "@/lib/guessing-game-store";
-import { logger } from "@/lib/logger";
-import { getNickname } from "@/lib/nickname-store";
+import { getNickname } from "@/lib/account/nickname-store";
+import { currentUserId } from "@/lib/auth/current-user";
+import type { Board, GameView, Shares } from "@/lib/guessing-game/guessing-game";
+import { boardSeason, readOthers } from "@/lib/guessing-game/guessing-game-board";
+import { type GroupSummary, readGroupsOf } from "@/lib/guessing-game/guessing-game-group-store";
+import type { ModelGuess } from "@/lib/guessing-game/guessing-game-models";
+import {
+  readSeasonSectionOf,
+  type SeasonSections,
+} from "@/lib/guessing-game/guessing-game-season-store";
+import { openGame } from "@/lib/guessing-game/guessing-game-store";
+import { logger } from "@/lib/platform/logger";
 
 const HEADING = "Arvauspeli";
 

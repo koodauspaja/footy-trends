@@ -1,6 +1,7 @@
 import { readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { securityHeaders } from "@/lib/platform/security-headers";
 import config from "../../next.config";
 
 /**
@@ -88,5 +89,36 @@ describe("next.config.ts, Finnish URLs over English folders", () => {
     const { redirects } = await evaluated();
 
     expect(redirects).toContainEqual({ source, destination, permanent: true });
+  });
+});
+
+/**
+ * Every route carries the security headers, and the response does not name the
+ * framework.
+ *
+ * decisions/808-security-headers.md
+ */
+describe("next.config.ts, security headers", () => {
+  it("sends the security headers on every path", async () => {
+    expect(await config.headers?.()).toEqual([
+      { source: "/:path*", headers: securityHeaders(process.env) },
+    ]);
+  });
+
+  it("does not send x-powered-by", () => {
+    expect(config.poweredByHeader).toBe(false);
+  });
+});
+
+/**
+ * Server actions keep Next's own 1 MB body limit: the avatar upload, the one
+ * write that needed more, is a route handler.
+ *
+ * decisions/025-custom-avatar.md
+ * decisions/810-avatar-upload-route.md
+ */
+describe("next.config.ts, server actions", () => {
+  it("leaves the body limit at Next's default", () => {
+    expect(config.experimental?.serverActions?.bodySizeLimit).toBeUndefined();
   });
 });

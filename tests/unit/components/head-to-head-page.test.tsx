@@ -1,22 +1,19 @@
 import { render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { FootballDataMatchRow, StoredMatch, TasoMatchRow } from "@/lib/matches/match-detail";
 import type {
   CompetitionAverages,
-  FootballDataMatchRow,
   HeadToHeadResult,
   NextMeeting,
-  StoredMatch,
-  TasoMatchRow,
   TeamForm,
-} from "@/lib/match-service";
-import type { MatchSource } from "@/lib/match-source";
-import { MENS_TEAM } from "@/lib/national-team";
+} from "@/lib/matches/match-service";
+import type { MatchSource } from "@/lib/matches/match-source";
+import { MENS_TEAM } from "@/lib/national-team/national-team";
 
 /**
- * The full head-to-head page: its sections (two signed out, four signed in, a form group while
- * the rivalry is current, and the next meeting's group when one is stored and predicted), the
- * ids it resolves, and the cases with nothing to show. The
- * record's arithmetic is `head-to-head.test.ts`'s and the row labels are `meeting-labels`'.
+ * The full head-to-head page: its sections (two signed out, four signed in, a form group while the
+ * rivalry is current, the next meeting's group when stored and predicted), its ids, and nothing to
+ * show. The record's arithmetic is `head-to-head.test.ts`'s, the row labels `meeting-labels`'.
  *
  * decisions/042-head-to-head-view.md
  * decisions/044-scorelines-and-goal-averages.md
@@ -63,7 +60,7 @@ const predictionBodyMock = vi.fn(
   }) => <p>{`ennuste ${competition.kind} ${competition.code} ${stored.match.providerMatchId}`}</p>
 );
 
-vi.mock("@/lib/match-service", () => ({
+vi.mock("@/lib/matches/match-service", () => ({
   getHeadToHeadHistory: getHeadToHeadHistoryMock,
   getCompetitionAverages: getCompetitionAveragesMock,
   getTeamForm: getTeamFormMock,
@@ -77,18 +74,18 @@ vi.mock("@/components/match-prediction", () => ({
   predictsSides: predictsSidesMock,
 }));
 
-vi.mock("@/lib/analytics-access", () => ({ canSeeAnalytics: canSeeAnalyticsMock }));
+vi.mock("@/lib/auth/analytics-access", () => ({ canSeeAnalytics: canSeeAnalyticsMock }));
 // The prompt's button and its sign-in flow are sign-in-prompt.test.tsx's. Here
 // it only has to show which message it was given.
 vi.mock("@/components/sign-in-prompt", () => ({
   SignInPrompt: ({ message }: { message: string }) => <p>{message}</p>,
 }));
 
-vi.mock("@/lib/taso-standings-service", () => ({
+vi.mock("@/lib/taso/taso-seasons", () => ({
   getSeasonCategoryNameMap: vi.fn(async () => null),
 }));
 
-// Nothing mocks `@/lib/football-data`, deliberately: the page promises to make
+// Nothing mocks `@/lib/football-data/football-data`, deliberately: the page promises to make
 // no provider request, and an unmocked provider module makes that testable. If
 // the page reaches for one, these tests hang and do not quietly pass.
 
