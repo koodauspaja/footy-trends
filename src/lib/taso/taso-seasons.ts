@@ -72,14 +72,19 @@ export async function storedSeasonSides(code: string, seasonId: number): Promise
 }
 
 /**
- * The newest season we hold for a competition, or `null` for none.
+ * The newest season we hold matches of, or `null` for none: group rows alone do
+ * not make a season one a page can land on.
  *
  * decisions/011-current-season-discovery.md
  * decisions/029-forced-season-refresh.md
+ * decisions/878-empty-season-not-selectable.md
  */
 async function newestStoredSeason(competitionCode: string): Promise<number | null> {
-  const seasons = await storedTasoSeasons(competitionCode);
-  return seasons.size === 0 ? null : Math.max(...seasons);
+  const seasons = await db
+    .selectDistinct({ seasonId: tasoMatches.seasonId })
+    .from(tasoMatches)
+    .where(inArray(tasoMatches.categoryId, categoryIdsFor(competitionCode)));
+  return seasons.length === 0 ? null : Math.max(...seasons.map((row) => row.seasonId));
 }
 
 /**

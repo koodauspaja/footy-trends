@@ -14,6 +14,7 @@ import {
  * decisions/012-finnish-urls-english-code.md
  * decisions/013-more-finnish-competitions.md
  * decisions/024-account-settings.md
+ * decisions/878-empty-season-not-selectable.md
  */
 
 const { resolveTasoSeasonContextMock, getSeasonCategoryNameMock, getViewerPreferences } =
@@ -105,18 +106,27 @@ describe("resolveDomesticPageContext", () => {
 
     expect(context.seasonId).toBe(2026);
     expect(context.competitionId).toBe("spljp26");
-    // Still reachable, just not the landing season.
-    expect(context.selectableSeasons[0]).toEqual({ seasonId: 2027, label: "2027" });
+    // Listed, greyed out, and not chosen; every season below it is offered as before.
+    expect(context.selectableSeasons[0]).toEqual({
+      seasonId: 2027,
+      label: "2027",
+      noMatches: true,
+    });
+    expect(context.selectableSeasons[1]).toEqual({ seasonId: 2026, label: "2026" });
   });
 
-  it("treats the newest season with matches as active while the ceiling's has none", async () => {
+  it("opens the newest season with matches, with the invalid-season notice, for a typed season that has none", async () => {
     resolveTasoSeasonContextMock.mockResolvedValue({ currentSeason: 2027, defaultSeason: 2026 });
 
     const context = await resolveDomesticPageContext({ kausi: "2027" });
 
+    expect(context.season).toEqual({ kind: "invalid" });
+    expect(context.seasonId).toBe(2026);
+    expect(context.competitionId).toBe("spljp26");
     expect(context.currentSeason).toBe(2027);
     expect(context.activeSeason).toBe(2026);
-    expect(getSeasonCategoryNameMock).toHaveBeenCalledWith("VL", "spljp27", 2027, 2026);
+    // Nothing of the empty season is read, so nothing of it is stored.
+    expect(getSeasonCategoryNameMock).toHaveBeenCalledWith("VL", "spljp26", 2026, 2026);
   });
 
   it("defaults to Veikkausliiga and the latest season with no params", async () => {

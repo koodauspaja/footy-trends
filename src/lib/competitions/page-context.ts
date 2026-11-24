@@ -10,8 +10,10 @@ import {
   formatSeasonLabel,
   parseSeasonParam,
   type SeasonParamResult,
+  withNoMatches,
 } from "@/lib/competitions/seasons";
 import { getSeasonContext, type SeasonContext } from "@/lib/football-data/football-data";
+import { storedForeignSeasons } from "@/lib/football-data/standings-service";
 import { logger } from "@/lib/platform/logger";
 import { preferredCompetitionFor } from "@/lib/preferences/competition-preferences";
 import type { TeamContext } from "@/lib/teams/team-context";
@@ -45,9 +47,39 @@ export type BasePageContext =
       seasonLabel: string;
     };
 
-async function resolveSeasonContext(competitionCode: string): Promise<SeasonContext | null> {
+/**
+ * A foreign league's upcoming season, marked as having no matches until its
+ * fixtures are stored: read from the database, never asked of the provider.
+ *
+ * decisions/878-empty-season-not-selectable.md
+ */
+async function withUpcomingMarked(
+  competitionCode: string,
+  context: SeasonContext
+): Promise<SeasonContext> {
+  const upcoming = context.upcomingSeasonId;
+  if (upcoming === undefined) return context;
+  let stored: Set<number>;
   try {
-    return await getSeasonContext(competitionCode);
+    stored = await storedForeignSeasons(competitionCode);
+  } catch (error) {
+    // Unknown is not offered: the page still renders, with the season greyed out.
+    logger.error({ err: error, competitionCode }, "Unable to read the stored seasons");
+    stored = new Set();
+  }
+  return stored.has(upcoming)
+    ? context
+    : { ...context, selectableSeasons: withNoMatches(context.selectableSeasons, upcoming) };
+}
+
+async function resolveSeasonContext(
+  competitionCode: string,
+  region: CompetitionRegion
+): Promise<SeasonContext | null> {
+  try {
+    const context = await getSeasonContext(competitionCode);
+    // The national-team tournaments keep their selector as it is.
+    return region === "foreign" ? await withUpcomingMarked(competitionCode, context) : context;
   } catch (error) {
     logger.error({ err: error, competitionCode }, "Unable to resolve the selectable seasons");
     return null;
@@ -89,7 +121,7 @@ export async function resolveBasePageContext(
     defaultCompetitionFor(region);
   const competitionName = getCompetitionName(competitionCode);
 
-  const context = await resolveSeasonContext(competitionCode);
+  const context = await resolveSeasonContext(competitionCode, region);
   if (context === null) return { status: "error", competitionName };
 
   const season = parseSeasonParam(params.kausi, context.selectableSeasons);

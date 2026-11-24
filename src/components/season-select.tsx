@@ -7,11 +7,19 @@ type SeasonSelectProps = {
 };
 
 /**
+ * What a season with no matches yet says in the selector, beside its year.
+ *
+ * decisions/878-empty-season-not-selectable.md
+ */
+export const NO_MATCHES = "Ei otteluita tällä kaudella";
+
+/**
  * The `Kausi` label and `<select>` only: no `<form>`, no navigation. Shared
  * between the home page and the team page.
  *
  * decisions/004-listing-matches-for-selected-team.md
  * decisions/696-headings-and-spacing.md
+ * decisions/878-empty-season-not-selectable.md
  */
 export function SeasonSelect({ seasons, selectedSeasonId, onChange }: Readonly<SeasonSelectProps>) {
   return (
@@ -27,8 +35,8 @@ export function SeasonSelect({ seasons, selectedSeasonId, onChange }: Readonly<S
         onChange={(event) => onChange(Number(event.target.value))}
       >
         {seasons.map((season) => (
-          <option key={season.seasonId} value={season.seasonId}>
-            {season.label}
+          <option disabled={season.noMatches} key={season.seasonId} value={season.seasonId}>
+            {season.noMatches ? `${season.label} – ${NO_MATCHES}` : season.label}
           </option>
         ))}
       </select>

@@ -12,7 +12,7 @@ import {
 } from "../taso/domestic-competitions";
 import { getSeasonCategoryName, resolveTasoSeasonContext } from "../taso/taso-seasons";
 import type { TeamContext } from "../teams/team-context";
-import type { SeasonOption, SeasonParamResult } from "./seasons";
+import { isChoosable, type SeasonOption, type SeasonParamResult, withNoMatches } from "./seasons";
 
 /**
  * The seasons a Finnish competition offers, as calendar years, newest first.
@@ -38,6 +38,7 @@ export function listSelectableTasoSeasons(
  *
  * decisions/009-veikkausliiga.md
  * decisions/011-current-season-discovery.md
+ * decisions/878-empty-season-not-selectable.md
  */
 export function parseTasoSeasonParam(
   rawValue: string | string[] | undefined,
@@ -47,9 +48,7 @@ export function parseTasoSeasonParam(
   const seasonId = parseWholeNumber(rawValue);
   if (seasonId === null) return { kind: "invalid" };
 
-  return selectable.some((option) => option.seasonId === seasonId)
-    ? { kind: "valid", seasonId }
-    : { kind: "invalid" };
+  return isChoosable(selectable, seasonId) ? { kind: "valid", seasonId } : { kind: "invalid" };
 }
 
 export type DomesticPageContext = {
@@ -93,6 +92,7 @@ export type DomesticPageContext = {
  * decisions/020-context-free-team-page.md
  * decisions/024-account-settings.md
  * decisions/865-active-season-has-matches.md
+ * decisions/878-empty-season-not-selectable.md
  */
 export async function resolveDomesticPageContext(
   params: Record<string, string | string[] | undefined>,
@@ -113,9 +113,10 @@ export async function resolveDomesticPageContext(
   const competitionName = getDomesticCompetitionName(competitionCode);
 
   const { currentSeason, defaultSeason } = await resolveTasoSeasonContext(competitionCode);
-  const selectableSeasons = listSelectableTasoSeasons(
-    currentSeason,
-    earliestSeasonFor(competitionCode)
+  // The page lands below TASO's newest season only when that one has no matches.
+  const selectableSeasons = withNoMatches(
+    listSelectableTasoSeasons(currentSeason, earliestSeasonFor(competitionCode)),
+    defaultSeason === currentSeason ? null : currentSeason
   );
   const season = parseTasoSeasonParam(params.kausi, selectableSeasons);
   // A team's own season stands in wherever `kausi` does not decide. An invalid
