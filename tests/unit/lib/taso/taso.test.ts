@@ -814,20 +814,20 @@ describe("getCurrentSeason", () => {
   // by identity: it is combined with the per-attempt bound by `AbortSignal.any`, so this
   // asserts what the caller depends on, that aborting theirs aborts the request.
   it("aborts the request when the caller's signal aborts", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(
-        (_url: string, init?: RequestInit) =>
-          new Promise<Response>((_resolve, reject) => {
-            const signal = init?.signal;
-            // As real fetch does: an already aborted signal rejects at once.
-            if (signal?.aborted) reject(signal.reason);
-            signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
-          })
-      )
+    const fetchMock = vi.fn(
+      (_url: string, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          const signal = init?.signal;
+          // As real fetch does: an already aborted signal rejects at once.
+          if (signal?.aborted) reject(signal.reason);
+          signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+        })
     );
+    vi.stubGlobal("fetch", fetchMock);
     const controller = new AbortController();
     const pending = getCurrentSeason(controller.signal);
+    // Aborted once the request is out, not while the cooldown is read before it.
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
     controller.abort(new Error("health gave up"));
 
     await expect(pending).rejects.toThrow("health gave up");

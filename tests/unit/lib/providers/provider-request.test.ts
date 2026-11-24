@@ -403,7 +403,15 @@ describe("fetchProviderJson failure cooldown", () => {
     const controller = new AbortController();
 
     const pending = fetchProviderJson("Test", "https://x", "/y", () => ({}), controller.signal);
+    let settled = false;
+    pending.then(
+      () => (settled = true),
+      () => (settled = true)
+    );
     await vi.waitFor(() => expect(redisSetex).toHaveBeenCalledTimes(1));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    // The write is awaited, so a request after this one finds the cooldown.
+    expect(settled).toBe(false);
     controller.abort(new Error("health gave up"));
 
     await expect(pending).rejects.toThrow("Test request failed: 503");
