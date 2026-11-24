@@ -141,6 +141,31 @@ export async function fetchProviderJson<T>(
       `${providerLabel} request skipped: the path failed within ${FAILURE_COOLDOWN_SECONDS} s`
     );
   }
+  try {
+    return await requestWithRetry<T>(
+      providerLabel,
+      baseUrl,
+      path,
+      buildHeaders,
+      signal,
+      attemptTimeoutMs
+    );
+  } catch (error) {
+    // A caller giving up is not the provider failing; its own timeout per attempt is.
+    if (!signal?.aborted) await startCooldown(cooldown);
+    throw error;
+  }
+}
+
+// `fetchProviderJson`'s request and its one retry, with the parameters it documents.
+async function requestWithRetry<T>(
+  providerLabel: string,
+  baseUrl: string,
+  path: string,
+  buildHeaders: () => Record<string, string>,
+  signal?: AbortSignal,
+  attemptTimeoutMs?: number
+): Promise<T> {
   const startedAt = Date.now();
 
   for (let attempt = 1; ; attempt += 1) {
@@ -163,8 +188,6 @@ export async function fetchProviderJson<T>(
         { err: error, method: "GET", path, durationMs: Date.now() - startedAt },
         `${providerLabel} request failed`
       );
-      // A caller giving up is not the provider failing; its own timeout per attempt is.
-      if (!signal?.aborted) await startCooldown(cooldown);
       throw error;
     }
 
@@ -189,7 +212,6 @@ export async function fetchProviderJson<T>(
         { method: "GET", path, status: response.status, durationMs },
         `${providerLabel} request failed`
       );
-      await startCooldown(cooldown);
       throw new Error(`${providerLabel} request failed: ${response.status}`);
     }
 
