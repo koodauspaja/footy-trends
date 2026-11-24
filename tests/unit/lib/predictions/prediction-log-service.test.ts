@@ -18,6 +18,7 @@ import type { HomeBaseline } from "@/lib/predictions/home-baseline";
  * decisions/074-against-the-models.md
  * decisions/075-season-guesses.md
  * decisions/080-daily-refresh-of-every-competition.md
+ * decisions/883-real-clock-tests-and-the-daily-hour.md
  */
 
 const mocks = vi.hoisted(() => ({
@@ -473,21 +474,28 @@ describe("runPredictionLog", () => {
     expect(mocks.getHomeBaseline).not.toHaveBeenCalled();
   });
 
-  it("uses the real clock and its own pacers when given none", async () => {
-    const soon = new Date(Date.now() + 5 * HOUR);
-    stored([footballDataRow({ kickoffAt: soon })], []);
+  it("uses the system clock and its own pacers when given none", async () => {
+    // The system clock pinned outside the daily refresh's hour, whenever the suite runs.
+    vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+    vi.setSystemTime(NOW);
+    try {
+      const soon = at(5);
+      stored([footballDataRow({ kickoffAt: soon })], []);
 
-    const report = await runPredictionLog();
+      const report = await runPredictionLog();
 
-    expect(report).toEqual({
-      refreshed: 1,
-      logged: 4,
-      backtested: 0,
-      settled: 0,
-      daily: null,
-      failures: [],
-    });
-    expect(written()).toEqual([expect.objectContaining({ kickoffAt: soon })]);
+      expect(report).toEqual({
+        refreshed: 1,
+        logged: 4,
+        backtested: 0,
+        settled: 0,
+        daily: null,
+        failures: [],
+      });
+      expect(written()).toEqual([expect.objectContaining({ kickoffAt: soon })]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("logs elo-v1 from the current ratings and the baseline's draw share", async () => {
