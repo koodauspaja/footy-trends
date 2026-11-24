@@ -26,20 +26,50 @@ export function cooldownKey(providerLabel: string, path: string): string {
   return `provider-cooldown:${providerLabel}:${path.replace(/[?&]hash=[^&]*$/, "")}`;
 }
 
-async function coolingDown(key: string): Promise<boolean> {
+/**
+ * A Redis call that gives up with the caller: a slow Redis must not hold a
+ * caller past its own deadline, the health check's among them.
+ *
+ * decisions/880-bounded-provider-requests.md
+ */
+function untilAborted<T>(work: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  if (signal === undefined) return work;
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason);
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+    signal.addEventListener("abort", onAbort, { once: true });
+    work.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      }
+    );
+  });
+}
+
+async function coolingDown(key: string, signal: AbortSignal | undefined): Promise<boolean> {
   try {
-    return (await redis.get(key)) !== null;
+    return (await untilAborted(redis.get(key), signal)) !== null;
   } catch (error) {
-    // Redis down: ask the provider, as before the cooldown existed.
+    if (signal?.aborted) throw signal.reason;
+    // Redis down: a cooldown no one can read blocks nothing, so the provider is asked.
     logger.error({ err: error, key }, "Cache read failed");
     return false;
   }
 }
 
-async function startCooldown(key: string): Promise<void> {
+async function startCooldown(key: string, signal: AbortSignal | undefined): Promise<void> {
   try {
-    await redis.setex(key, FAILURE_COOLDOWN_SECONDS, "1");
+    await untilAborted(redis.setex(key, FAILURE_COOLDOWN_SECONDS, "1"), signal);
   } catch (error) {
+    if (signal?.aborted) return;
     logger.error({ err: error, key }, "Cache write failed");
   }
 }
@@ -136,7 +166,7 @@ export async function fetchProviderJson<T>(
   attemptTimeoutMs?: number
 ): Promise<T> {
   const cooldown = cooldownKey(providerLabel, path);
-  if (await coolingDown(cooldown)) {
+  if (await coolingDown(cooldown, signal)) {
     throw new ProviderCoolingDownError(
       `${providerLabel} request skipped: the path failed within ${FAILURE_COOLDOWN_SECONDS} s`
     );
@@ -152,12 +182,17 @@ export async function fetchProviderJson<T>(
     );
   } catch (error) {
     // A caller giving up is not the provider failing; its own timeout per attempt is.
-    if (!signal?.aborted) await startCooldown(cooldown);
+    if (!signal?.aborted) await startCooldown(cooldown, signal);
     throw error;
   }
 }
 
-// `fetchProviderJson`'s request and its one retry, with the parameters it documents.
+/**
+ * `fetchProviderJson`'s request and its one retry, with the parameters it documents.
+ *
+ * decisions/197-rate-limit-backoff.md
+ * decisions/880-bounded-provider-requests.md
+ */
 async function requestWithRetry<T>(
   providerLabel: string,
   baseUrl: string,

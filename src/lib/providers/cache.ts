@@ -72,15 +72,17 @@ export async function getCachedUnlessDegraded<T>(
     }
   }
 
-  const { value, degraded } = await sharedFetch(key, fetcher);
-  if (degraded) return value;
-
-  try {
-    await redis.setex(key, ttlSeconds, JSON.stringify(value));
-  } catch (error) {
-    logger.error({ err: error, key }, "Cache write failed");
-  }
-
+  // The write is part of what is shared, so a miss just after the fetch still joins it.
+  const { value } = await sharedFetch(key, async () => {
+    const fetched = await fetcher();
+    if (fetched.degraded) return fetched;
+    try {
+      await redis.setex(key, ttlSeconds, JSON.stringify(fetched.value));
+    } catch (error) {
+      logger.error({ err: error, key }, "Cache write failed");
+    }
+    return fetched;
+  });
   return value;
 }
 
@@ -108,6 +110,7 @@ export function generationKey({ kind, code, seasonId }: ComputedFrom): string {
  * stored where nothing reads it. Without a generation it is computed and not stored.
  *
  * decisions/691-computed-cache-generations.md
+ * decisions/880-bounded-provider-requests.md
  */
 export async function getComputedUnlessDegraded<T>(
   from: ComputedFrom,
@@ -120,7 +123,7 @@ export async function getComputedUnlessDegraded<T>(
     generation = await redis.get(generationKey(from));
   } catch (error) {
     logger.error({ err: error, key: generationKey(from) }, "Cache read failed");
-    return (await fetcher()).value;
+    return (await sharedFetch(key, fetcher)).value;
   }
   return getCachedUnlessDegraded(`${key}:g${generation ?? 0}`, ttlSeconds, fetcher);
 }
