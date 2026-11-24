@@ -21,6 +21,7 @@ import {
  * Sourcery wrote, word for word.
  *
  * decisions/597-check-sourcery.md
+ * decisions/885-sourcery-review-shapes.md
  */
 
 const FOUND = "Hey - I've found 2 issues\n\n<details>\n<summary>Prompt for AI Agents</summary>";
@@ -29,6 +30,10 @@ const LOOKS_GREAT =
 const QUICK = "### Sourcery assessment\n\n**Approved.**";
 const BUDGET =
   "Sorry @someone, this account has used its review budget of 1,500,000 diff characters for the last 7 days.\n\nYou can request another review in 10 hours and 21 minutes.";
+const TOO_LARGE =
+  "**Sorry @someone, this pull request is too large to review**\n\nIt changes 534 files. Sourcery can review pull requests with up to 300 changed files.";
+const REQUIREMENTS =
+  "New gaps against the [linked issues](https://github.com/koodauspaja/footy-trends/pull/882#issuecomment-7120350755)";
 
 const HEAD = "f4e9a2da8d79ff975d6284198f2d00373a46813b";
 const EARLIER = "797ee79000000000000000000000000000000000";
@@ -70,6 +75,10 @@ describe("reviewKind", () => {
     expect(reviewKind("Sorry, we are unable to review this pull request\n\nToo large.")).toBe(
       "skip"
     );
+  });
+
+  it("reads an apology in bold as a skip too", () => {
+    expect(reviewKind(TOO_LARGE)).toBe("skip");
   });
 
   it("does not guess at a body in no known shape", () => {
@@ -128,6 +137,22 @@ describe("headReview", () => {
     ];
 
     expect(headReview(reviews, HEAD)).toBe("quick");
+  });
+
+  it("ignores the requirement table's note, so a full review beside it decides", () => {
+    const reviews = [
+      review(HEAD, REQUIREMENTS, "2026-11-24T04:55:22Z"),
+      review(HEAD, FOUND, "2026-11-24T04:59:45Z"),
+    ];
+
+    expect(headReview(reviews, HEAD)).toBe("full");
+    expect(headReview(reviews.slice(0, 1), HEAD)).toBeUndefined();
+  });
+
+  it("still refuses the note with anything more written after it", () => {
+    const reviews = [review(HEAD, `${REQUIREMENTS}\n\nOne gap.`, "2026-11-24T04:55:22Z")];
+
+    expect(() => headReview(reviews, HEAD)).toThrow("It starts: New gaps against the");
   });
 
   it("does not count a full review of the head that was dismissed", () => {
