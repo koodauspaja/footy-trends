@@ -172,6 +172,20 @@ describe("fetchProviderJson rate limiting", () => {
 
     await expect(pending).rejects.toThrow("timed out");
   });
+
+  it("does not wait out a 429's backoff for a caller that gave up as it arrived", async () => {
+    const controller = new AbortController();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      // The caller gives up while the 429 is on its way back.
+      controller.abort(new Error("health gave up"));
+      return rateLimited({ "retry-after": "30" });
+    });
+
+    await expect(
+      fetchProviderJson("Test", "https://x", "/y", () => ({}), controller.signal)
+    ).rejects.toThrow("health gave up");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });
 
 // A fetch that accepts the connection and then never answers: the only failure
