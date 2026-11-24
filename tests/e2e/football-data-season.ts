@@ -22,10 +22,12 @@ export function seasonLabel(start: number): string {
 
 async function clubsInTable(page: Page, season: number): Promise<string[]> {
   await page.goto(`/ulkomaat/sarjataulukko?kilpailu=CL&kausi=${season}`);
-  const hrefs = await page
-    .locator("table tbody tr")
-    .getByRole("link")
-    .evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
+  const links = page.locator("table tbody tr").getByRole("link");
+  // The tables are streamed after `load`, and `evaluateAll` does not wait for them.
+  await links.first().waitFor();
+  const hrefs = await links.evaluateAll((all) =>
+    all.map((link) => link.getAttribute("href") ?? "")
+  );
   return hrefs.flatMap((href) => /\/ulkomaat\/joukkue\/(\d+)/.exec(href)?.[1] ?? []);
 }
 
