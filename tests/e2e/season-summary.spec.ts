@@ -343,6 +343,9 @@ test("shows no block for a cup season", async ({ page }) => {
 
 test("shows no block on a national team's pages", async ({ page }) => {
   await signedIn(page);
+  // Stores the tournament, which the team page is found in on an empty database.
+  await page.goto("/maajoukkueet/sarjataulukko?kilpailu=WC&kausi=2026");
+  await page.locator("table tbody tr").first().waitFor();
 
   for (const url of [
     "/maajoukkueet/joukkue/770?kilpailu=WC&kausi=2026",

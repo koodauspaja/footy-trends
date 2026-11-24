@@ -83,6 +83,9 @@ test.describe("Liigacup team page, signed in", () => {
 
   test.beforeEach(async ({ page }) => {
     await signedIn(page);
+    // Stores the cup's season, which a team page is found in on an empty database.
+    await page.goto("/kotimaa/sarjataulukko?kilpailu=LC&kausi=2026");
+    await page.locator("table tbody tr").first().waitFor();
   });
 
   test("renders its Analyysit as a cup team page", async ({ page }) => {
