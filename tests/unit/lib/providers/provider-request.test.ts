@@ -332,6 +332,30 @@ describe("fetchProviderJson failure cooldown", () => {
     expect(store.has(cooldownKey("Test", "/y"))).toBe(true);
   });
 
+  it("gives up with the caller when Redis does not answer, asking the provider nothing", async () => {
+    redisGet.mockImplementationOnce(() => new Promise<string | null>(() => undefined));
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    const controller = new AbortController();
+
+    const pending = fetchProviderJson("Test", "https://x", "/y", () => ({}), controller.signal);
+    controller.abort(new Error("health gave up"));
+
+    await expect(pending).rejects.toThrow("health gave up");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("does not hold a caller past its own signal while the cooldown is written", async () => {
+    redisSetex.mockImplementationOnce(() => new Promise<void>(() => undefined));
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("", { status: 503 }));
+    const controller = new AbortController();
+
+    const pending = fetchProviderJson("Test", "https://x", "/y", () => ({}), controller.signal);
+    await vi.waitFor(() => expect(redisSetex).toHaveBeenCalledTimes(1));
+    controller.abort(new Error("health gave up"));
+
+    await expect(pending).rejects.toThrow("Test request failed: 503");
+  });
+
   it("leaves another path, and another provider's same path, to be asked", async () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
