@@ -88,6 +88,21 @@ describe("a foreign league's upcoming season", () => {
     expect(context.status === "ok" && context.season).toEqual({ kind: "valid", seasonId: 2027 });
   });
 
+  it("renders the page with the season greyed out when the stored seasons cannot be read", async () => {
+    getSeasonContext.mockResolvedValue(WITH_UPCOMING);
+    storedForeignSeasons.mockRejectedValue(new Error("database unreachable"));
+
+    const context = await resolveBasePageContext({ kilpailu: "PL" }, "foreign");
+
+    expect(context.status).toBe("ok");
+    expect(context.status === "ok" && context.context.selectableSeasons[0]).toEqual({
+      seasonId: 2027,
+      label: "2027/28",
+      noMatches: true,
+    });
+    expect(context.status === "ok" && context.seasonId).toBe(2026);
+  });
+
   it("is left as it is on the national-team pages, which read nothing stored for it", async () => {
     getSeasonContext.mockResolvedValue(WITH_UPCOMING);
 

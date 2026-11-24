@@ -58,10 +58,18 @@ async function withUpcomingMarked(
   context: SeasonContext
 ): Promise<SeasonContext> {
   const upcoming = context.upcomingSeasonId;
-  if (upcoming === undefined || (await storedForeignSeasons(competitionCode)).has(upcoming)) {
-    return context;
+  if (upcoming === undefined) return context;
+  let stored: Set<number>;
+  try {
+    stored = await storedForeignSeasons(competitionCode);
+  } catch (error) {
+    // Unknown is not offered: the page still renders, with the season greyed out.
+    logger.error({ err: error, competitionCode }, "Unable to read the stored seasons");
+    stored = new Set();
   }
-  return { ...context, selectableSeasons: withNoMatches(context.selectableSeasons, upcoming) };
+  return stored.has(upcoming)
+    ? context
+    : { ...context, selectableSeasons: withNoMatches(context.selectableSeasons, upcoming) };
 }
 
 async function resolveSeasonContext(
