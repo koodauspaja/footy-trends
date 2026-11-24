@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { createServer, type Server } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 /**
@@ -11,11 +12,13 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
  * directory is empty, so no `.env` is read.
  *
  * decisions/571-bounded-database-close.md
+ * decisions/883-real-clock-tests-and-the-daily-hour.md
  */
 
 const REPOSITORY = process.cwd();
 const TSX = path.join(REPOSITORY, "node_modules", "tsx", "dist", "cli.mjs");
 const SCRIPT = path.join(REPOSITORY, "scripts", "predictions", "predictions.ts");
+const CLOCK = path.join(REPOSITORY, "tests", "fixtures", "clock-at-noon.mjs");
 
 let listener: Server;
 let port = 0;
@@ -47,6 +50,8 @@ function predictions(
         // The `@/` paths, which tsx would otherwise look for from the empty directory.
         TSX_TSCONFIG_PATH: path.join(REPOSITORY, "tsconfig.json"),
         DATABASE_URL: `postgres://nobody:nothing@127.0.0.1:${port}/nothing`,
+        // Outside the daily refresh's hour, whose paced requests would outlast the timeout.
+        NODE_OPTIONS: `--import=${pathToFileURL(CLOCK).href}`,
       },
       timeout: 25_000,
     });
