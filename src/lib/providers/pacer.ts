@@ -84,8 +84,8 @@ export function createPacer(
  * A pacer per provider at the rates above. The hourly run makes one and its
  * daily refresh shares it, so the two never add up to more than either rate.
  *
- * decisions/052-predictions-log.md
  * decisions/080-daily-refresh-of-every-competition.md
+ * decisions/052-predictions-log.md
  */
 export function providerPacers(): ProviderPacers {
   return {
