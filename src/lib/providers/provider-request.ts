@@ -163,7 +163,8 @@ export async function fetchProviderJson<T>(
         { err: error, method: "GET", path, durationMs: Date.now() - startedAt },
         `${providerLabel} request failed`
       );
-      await startCooldown(cooldown);
+      // A caller giving up is not the provider failing; its own timeout per attempt is.
+      if (!signal?.aborted) await startCooldown(cooldown);
       throw error;
     }
 

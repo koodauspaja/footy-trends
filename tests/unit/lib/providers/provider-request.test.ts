@@ -309,6 +309,29 @@ describe("fetchProviderJson failure cooldown", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("starts no cooldown when the caller's own signal gave up, but does when an attempt timed out", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      (_url, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          const signal = init?.signal;
+          if (signal?.aborted) reject(signal.reason);
+          signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+        })
+    );
+    const controller = new AbortController();
+    const pending = fetchProviderJson("Test", "https://x", "/y", () => ({}), controller.signal);
+    await vi.waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(1));
+    controller.abort(new Error("health gave up"));
+
+    await expect(pending).rejects.toThrow("health gave up");
+    expect(redisSetex).not.toHaveBeenCalled();
+
+    await expect(
+      fetchProviderJson("Test", "https://x", "/y", () => ({}), undefined, 5)
+    ).rejects.toThrow();
+    expect(store.has(cooldownKey("Test", "/y"))).toBe(true);
+  });
+
   it("leaves another path, and another provider's same path, to be asked", async () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
