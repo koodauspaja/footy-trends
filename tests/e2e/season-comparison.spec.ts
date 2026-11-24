@@ -42,6 +42,12 @@ async function rows(page: Page): Promise<string[]> {
 test.describe("Season comparison, signed in", () => {
   test.beforeEach(async ({ page }) => {
     await signedIn(page);
+    // Both seasons stored first: the team page is found in stored rows, and on an empty
+    // database it then has another season to compare with.
+    for (const season of [FINISHED - 1, FINISHED]) {
+      await page.goto(`/ulkomaat/sarjataulukko?kilpailu=PL&kausi=${season}`);
+      await page.locator("table tbody tr").first().waitFor();
+    }
   });
 
   test("shows the season's own points per match, as the table has them", async ({ page }) => {
@@ -71,11 +77,6 @@ test.describe("Season comparison, signed in", () => {
   });
 
   test("names what it is comparing against, above the bars", async ({ page }) => {
-    // Both seasons stored here, so there is another to compare with on an empty database.
-    for (const season of [FINISHED - 1, FINISHED]) {
-      await page.goto(`/ulkomaat/sarjataulukko?kilpailu=PL&kausi=${season}`);
-      await page.locator("table tbody tr").first().waitFor();
-    }
     await page.goto(TEAM);
     await openAnalytics(page);
     const panel = page.getByRole("region", { name: HEADING });

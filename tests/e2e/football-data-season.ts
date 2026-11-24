@@ -32,8 +32,8 @@ async function clubsInTable(page: Page, season: number): Promise<string[]> {
 }
 
 /**
- * A club's page for a Champions League season, the club read from the tables: one that played the
- * season before too, so a comparison has a previous season. No club plays in it every year.
+ * A club's page for a Champions League season, the club read from the tables: one in the season
+ * before too, so a comparison has one. The tables are cached 15 minutes, so a run reads each once.
  *
  * decisions/888-e2e-reads-the-greyed-out-season.md
  */
