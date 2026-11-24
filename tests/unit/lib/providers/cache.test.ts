@@ -368,6 +368,8 @@ describe("misses of the same key at once", () => {
 
     await expect(Promise.all([first, second])).resolves.toEqual([5, 5]);
     expect(fetcher).toHaveBeenCalledTimes(1);
+    // Stored once, for the lifetime its caller gave.
+    expect(setexMock).toHaveBeenCalledWith("writing", 60, "5");
   });
 
   it("share a computation when the generation cannot be read", async () => {

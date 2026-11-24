@@ -358,6 +358,32 @@ describe("fetchProviderJson failure cooldown", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("leaves no Redis failure unhandled for a caller that had already given up", async () => {
+    let failRedis!: (error: Error) => void;
+    redisGet.mockImplementationOnce(
+      () =>
+        new Promise<string | null>((_, reject) => {
+          failRedis = reject;
+        })
+    );
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    const controller = new AbortController();
+    controller.abort(new Error("health gave up"));
+
+    try {
+      await expect(
+        fetchProviderJson("Test", "https://x", "/y", () => ({}), controller.signal)
+      ).rejects.toThrow("health gave up");
+      failRedis(new Error("redis down"));
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    } finally {
+      process.off("unhandledRejection", unhandled);
+    }
+
+    expect(unhandled).not.toHaveBeenCalled();
+  });
+
   it("asks the provider when Redis fails under a caller's signal that has not given up", async () => {
     redisGet.mockRejectedValueOnce(new Error("redis down"));
     const fetchMock = vi
