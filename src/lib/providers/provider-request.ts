@@ -1,4 +1,76 @@
 import { logger } from "../platform/logger";
+import { redis } from "../platform/redis";
+
+/**
+ * How long a path that failed is left alone: a request for it meanwhile fails
+ * at once, and readers see the stored rows, as after any failed refresh.
+ *
+ * decisions/880-bounded-provider-requests.md
+ */
+export const FAILURE_COOLDOWN_SECONDS = 60;
+
+/**
+ * A request not made, because the same path failed within the cooldown.
+ *
+ * decisions/880-bounded-provider-requests.md
+ */
+export class ProviderCoolingDownError extends Error {}
+
+/**
+ * Where a path's cooldown is kept: one per provider and path, TASO's trailing
+ * signature left out, so the same request signed again is the same path.
+ *
+ * decisions/880-bounded-provider-requests.md
+ */
+export function cooldownKey(providerLabel: string, path: string): string {
+  return `provider-cooldown:${providerLabel}:${path.replace(/[?&]hash=[^&]*$/, "")}`;
+}
+
+/**
+ * A Redis call that gives up with the caller: a slow Redis must not hold a
+ * caller past its own deadline, the health check's among them.
+ *
+ * decisions/880-bounded-provider-requests.md
+ */
+function untilAborted<T>(work: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  if (signal === undefined) return work;
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason);
+    // Handled before the abort can win, so Redis failing after it rejects nothing unheard.
+    work.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      }
+    );
+    if (signal.aborted) onAbort();
+    else signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+async function coolingDown(key: string, signal: AbortSignal | undefined): Promise<boolean> {
+  try {
+    return (await untilAborted(redis.get(key), signal)) !== null;
+  } catch (error) {
+    if (signal?.aborted) throw signal.reason;
+    // Redis down: a cooldown no one can read blocks nothing, so the provider is asked.
+    logger.error({ err: error, key }, "Cache read failed");
+    return false;
+  }
+}
+
+async function startCooldown(key: string, signal: AbortSignal | undefined): Promise<void> {
+  try {
+    await untilAborted(redis.setex(key, FAILURE_COOLDOWN_SECONDS, "1"), signal);
+  } catch (error) {
+    if (signal?.aborted) return;
+    logger.error({ err: error, key }, "Cache write failed");
+  }
+}
 
 /**
  * One retry, not a loop: enough to clear a counter reset, bounded enough that a
@@ -73,6 +145,7 @@ function wait(ms: number, signal?: AbortSignal): Promise<void> {
  * decisions/009-veikkausliiga.md
  * decisions/197-rate-limit-backoff.md
  * decisions/363-render-timeouts.md
+ * decisions/880-bounded-provider-requests.md
  */
 export async function fetchProviderJson<T>(
   providerLabel: string,
@@ -88,6 +161,42 @@ export async function fetchProviderJson<T>(
    * Bounds one network attempt, and each attempt gets a fresh one. Not the same
    * thing as `signal`: the backoff between attempts is left alone.
    */
+  attemptTimeoutMs?: number
+): Promise<T> {
+  const cooldown = cooldownKey(providerLabel, path);
+  if (await coolingDown(cooldown, signal)) {
+    throw new ProviderCoolingDownError(
+      `${providerLabel} request skipped: the path failed within ${FAILURE_COOLDOWN_SECONDS} s`
+    );
+  }
+  try {
+    return await requestWithRetry<T>(
+      providerLabel,
+      baseUrl,
+      path,
+      buildHeaders,
+      signal,
+      attemptTimeoutMs
+    );
+  } catch (error) {
+    // A caller giving up is not the provider failing; its own timeout per attempt is.
+    if (!signal?.aborted) await startCooldown(cooldown, signal);
+    throw error;
+  }
+}
+
+/**
+ * `fetchProviderJson`'s request and its one retry, with the parameters it documents.
+ *
+ * decisions/197-rate-limit-backoff.md
+ * decisions/880-bounded-provider-requests.md
+ */
+async function requestWithRetry<T>(
+  providerLabel: string,
+  baseUrl: string,
+  path: string,
+  buildHeaders: () => Record<string, string>,
+  signal?: AbortSignal,
   attemptTimeoutMs?: number
 ): Promise<T> {
   const startedAt = Date.now();

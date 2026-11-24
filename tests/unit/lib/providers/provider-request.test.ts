@@ -1,5 +1,26 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { backoffSecondsFrom, fetchProviderJson } from "@/lib/providers/provider-request";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { redis } from "@/lib/platform/redis";
+import {
+  backoffSecondsFrom,
+  cooldownKey,
+  FAILURE_COOLDOWN_SECONDS,
+  fetchProviderJson,
+  ProviderCoolingDownError,
+} from "@/lib/providers/provider-request";
+
+// Redis as a map, emptied before each test, so no cooldown reaches a real Redis
+// or another test.
+const { store, redisGet, redisSetex } = vi.hoisted(() => {
+  const store = new Map<string, { value: string; ttl: number }>();
+  return {
+    store,
+    redisGet: vi.fn(async (key: string) => store.get(key)?.value ?? null),
+    redisSetex: vi.fn(async (key: string, ttl: number, value: string) => {
+      store.set(key, { value, ttl });
+    }),
+  };
+});
+vi.mock("@/lib/platform/redis", () => ({ redis: { get: redisGet, setex: redisSetex } }));
 
 /**
  * Requests to a provider: the rate-limit backoff, the per-attempt bound, and
@@ -9,6 +30,7 @@ import { backoffSecondsFrom, fetchProviderJson } from "@/lib/providers/provider-
  * decisions/182-national-team-pages-not-prerendered.md
  * decisions/363-render-timeouts.md
  * decisions/529-one-whole-number-parser.md
+ * decisions/880-bounded-provider-requests.md
  */
 
 const headers = (init: Record<string, string>) => new Headers(init);
@@ -21,6 +43,12 @@ const jsonResponse = (body: unknown) =>
 
 const rateLimited = (init: Record<string, string> = {}) =>
   new Response("", { status: 429, headers: init });
+
+beforeEach(() => {
+  store.clear();
+  redisGet.mockClear();
+  redisSetex.mockClear();
+});
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -145,6 +173,20 @@ describe("fetchProviderJson rate limiting", () => {
 
     await expect(pending).rejects.toThrow("timed out");
   });
+
+  it("does not wait out a 429's backoff for a caller that gave up as it arrived", async () => {
+    const controller = new AbortController();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      // The caller gives up while the 429 is on its way back.
+      controller.abort(new Error("health gave up"));
+      return rateLimited({ "retry-after": "30" });
+    });
+
+    await expect(
+      fetchProviderJson("Test", "https://x", "/y", () => ({}), controller.signal)
+    ).rejects.toThrow("health gave up");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });
 
 // A fetch that accepts the connection and then never answers: the only failure
@@ -245,5 +287,193 @@ describe("fetchProviderJson attempt bound", () => {
     controller.abort(new Error("caller gave up"));
 
     await expect(pending).rejects.toThrow("caller gave up");
+  });
+});
+
+describe("fetchProviderJson failure cooldown", () => {
+  const failing = () => new Response("", { status: 503 });
+
+  it("asks nothing for a path that failed within the cooldown, and says why", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(failing());
+
+    await expect(fetchProviderJson("Test", "https://x", "/y", () => ({}))).rejects.toThrow(
+      "Test request failed: 503"
+    );
+    const second = fetchProviderJson("Test", "https://x", "/y", () => ({}));
+
+    await expect(second).rejects.toBeInstanceOf(ProviderCoolingDownError);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(store.get(cooldownKey("Test", "/y"))).toEqual({
+      value: "1",
+      ttl: FAILURE_COOLDOWN_SECONDS,
+    });
+    expect(FAILURE_COOLDOWN_SECONDS).toBe(60);
+  });
+
+  it("cools a path down after a network failure too", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValue(new TypeError("fetch failed"));
+
+    await expect(fetchProviderJson("Test", "https://x", "/y", () => ({}))).rejects.toThrow(
+      "fetch failed"
+    );
+    await expect(fetchProviderJson("Test", "https://x", "/y", () => ({}))).rejects.toBeInstanceOf(
+      ProviderCoolingDownError
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("starts no cooldown when the caller's own signal gave up, but does when an attempt timed out", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      (_url, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          const signal = init?.signal;
+          if (signal?.aborted) reject(signal.reason);
+          signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+        })
+    );
+    const controller = new AbortController();
+    const pending = fetchProviderJson("Test", "https://x", "/y", () => ({}), controller.signal);
+    await vi.waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(1));
+    controller.abort(new Error("health gave up"));
+
+    await expect(pending).rejects.toThrow("health gave up");
+    expect(redisSetex).not.toHaveBeenCalled();
+
+    await expect(
+      fetchProviderJson("Test", "https://x", "/y", () => ({}), undefined, 5)
+    ).rejects.toThrow();
+    expect(store.has(cooldownKey("Test", "/y"))).toBe(true);
+  });
+
+  it("gives up with the caller when Redis does not answer, asking the provider nothing", async () => {
+    redisGet.mockImplementationOnce(() => new Promise<string | null>(() => undefined));
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    const controller = new AbortController();
+
+    const pending = fetchProviderJson("Test", "https://x", "/y", () => ({}), controller.signal);
+    controller.abort(new Error("health gave up"));
+
+    await expect(pending).rejects.toThrow("health gave up");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("leaves no Redis failure unhandled for a caller that had already given up", async () => {
+    let failRedis!: (error: Error) => void;
+    // A plain function, not a mock: a mock handles the promise it returns itself.
+    redis.get = () =>
+      new Promise<string | null>((_, reject) => {
+        failRedis = reject;
+      });
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    const controller = new AbortController();
+    controller.abort(new Error("health gave up"));
+
+    try {
+      await expect(
+        fetchProviderJson("Test", "https://x", "/y", () => ({}), controller.signal)
+      ).rejects.toThrow("health gave up");
+      failRedis(new Error("redis down"));
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    } finally {
+      process.off("unhandledRejection", unhandled);
+      redis.get = redisGet;
+    }
+
+    expect(unhandled).not.toHaveBeenCalled();
+  });
+
+  it("asks the provider when Redis fails under a caller's signal that has not given up", async () => {
+    redisGet.mockRejectedValueOnce(new Error("redis down"));
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => jsonResponse({ ok: true }));
+
+    await expect(
+      fetchProviderJson("Test", "https://x", "/y", () => ({}), new AbortController().signal)
+    ).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not hold a caller past its own signal while the cooldown is written", async () => {
+    redisSetex.mockImplementationOnce(() => new Promise<void>(() => undefined));
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("", { status: 503 }));
+    const controller = new AbortController();
+
+    const pending = fetchProviderJson("Test", "https://x", "/y", () => ({}), controller.signal);
+    let settled = false;
+    pending.then(
+      () => (settled = true),
+      () => (settled = true)
+    );
+    await vi.waitFor(() => expect(redisSetex).toHaveBeenCalledTimes(1));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    // The write is awaited, so a request after this one finds the cooldown.
+    expect(settled).toBe(false);
+    controller.abort(new Error("health gave up"));
+
+    await expect(pending).rejects.toThrow("Test request failed: 503");
+  });
+
+  it("leaves another path, and another provider's same path, to be asked", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(failing())
+      .mockImplementation(async () => jsonResponse({ ok: true }));
+
+    await expect(fetchProviderJson("Test", "https://x", "/y", () => ({}))).rejects.toThrow();
+    await expect(fetchProviderJson("Test", "https://x", "/z", () => ({}))).resolves.toEqual({
+      ok: true,
+    });
+    await expect(fetchProviderJson("Other", "https://x", "/y", () => ({}))).resolves.toEqual({
+      ok: true,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("starts no cooldown on a success, nor on a 429 its retry clears", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(rateLimited({ "retry-after": "1" }))
+        .mockResolvedValue(jsonResponse({ ok: true }));
+
+      const pending = fetchProviderJson("Test", "https://x", "/y", () => ({}));
+      await vi.advanceTimersByTimeAsync(1000);
+
+      await expect(pending).resolves.toEqual({ ok: true });
+      expect(redisSetex).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keys a TASO path without its trailing signature, so the path signed again is the same", () => {
+    expect(
+      cooldownKey("TASO", "/getMatches?competition_id=spljp26&category_id=VL&hash=abc123")
+    ).toBe("provider-cooldown:TASO:/getMatches?competition_id=spljp26&category_id=VL");
+    expect(cooldownKey("TASO", "/getCompetitions?hash=abc123")).toBe(
+      "provider-cooldown:TASO:/getCompetitions"
+    );
+    expect(cooldownKey("Football data", "/competitions/PL/matches?season=2026")).toBe(
+      "provider-cooldown:Football data:/competitions/PL/matches?season=2026"
+    );
+  });
+
+  it("asks the provider as before when Redis cannot be read or written", async () => {
+    redisGet.mockRejectedValueOnce(new Error("redis down"));
+    redisSetex.mockRejectedValueOnce(new Error("redis down"));
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(failing());
+
+    await expect(fetchProviderJson("Test", "https://x", "/y", () => ({}))).rejects.toThrow(
+      "Test request failed: 503"
+    );
+    // Nothing was stored, so the next request goes to the provider.
+    await expect(fetchProviderJson("Test", "https://x", "/y", () => ({}))).rejects.toThrow(
+      "Test request failed: 503"
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
