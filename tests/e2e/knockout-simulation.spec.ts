@@ -2,6 +2,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/auth/e2e-analytics";
 import { dropCached } from "../support/e2e-redis";
 import { openAnalytics } from "./folds";
+import { lastFinishedSeason } from "./football-data-season";
 
 /**
  * The Champions League's `Kauden ennuste`, end to end, on the stored season in
@@ -9,6 +10,7 @@ import { openAnalytics } from "./folds";
  * named: the figures move with every result.
  *
  * decisions/067-knockout-simulation.md
+ * decisions/888-e2e-reads-the-greyed-out-season.md
  */
 
 const STANDINGS = "/ulkomaat/sarjataulukko?kilpailu=CL";
@@ -89,7 +91,7 @@ test.describe("Champions League forecast, signed in", () => {
   });
 
   test("a finished season shows no forecast", async ({ page }) => {
-    await page.goto(`${STANDINGS}&kausi=2024`);
+    await page.goto(`${STANDINGS}&kausi=${lastFinishedSeason()}`);
     await openAnalytics(page);
 
     await expect(page.getByRole("region", { name: "Tämä kausi" })).toBeVisible();

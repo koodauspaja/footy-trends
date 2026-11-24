@@ -4,6 +4,7 @@ import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/auth/e2e-anal
 import { dropCached } from "../support/e2e-redis";
 import { testDatabaseUrl } from "../support/test-database";
 import { openAnalytics } from "./folds";
+import { cupTeamPage, lastFinishedSeason } from "./football-data-season";
 
 /**
  * `Kausi lyhyesti`, end to end, on two clubs seeded into Premier League 2020/21 to 2023/24, so the
@@ -14,7 +15,10 @@ import { openAnalytics } from "./folds";
  * decisions/069-season-summary-clean-sheets.md
  * decisions/070-season-summary-position.md
  * decisions/708-season-summary-seeds-its-table.md
+ * decisions/888-e2e-reads-the-greyed-out-season.md
  */
+
+const FINISHED = lastFinishedSeason();
 
 const HEADING = "Kausi lyhyesti";
 const CLUB = 999_066_001;
@@ -331,7 +335,7 @@ test("takes the block away once the club has played in a later season", async ({
 test("shows no block for a cup season", async ({ page }) => {
   await signedIn(page);
 
-  await page.goto("/ulkomaat/joukkue/57?kilpailu=CL&kausi=2024");
+  await page.goto(await cupTeamPage(page, FINISHED));
   await openAnalytics(page);
   await expect(page.getByRole("heading", { level: 3, name: "Ottelu ottelulta" })).toBeVisible();
   await expect(page.getByRole("heading", { name: HEADING })).toHaveCount(0);

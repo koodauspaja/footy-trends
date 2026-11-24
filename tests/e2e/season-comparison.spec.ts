@@ -1,6 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/auth/e2e-analytics";
 import { openAnalytics } from "./folds";
+import { lastFinishedSeason } from "./football-data-season";
 
 /**
  * The team page's `Tämä kausi verrattuna` panel, end to end. Signed in the way
@@ -10,11 +11,14 @@ import { openAnalytics } from "./folds";
  * decisions/038-season-against-history.md
  * decisions/045-bogey-teams.md
  * decisions/424-analytics-panel-groups.md
+ * decisions/888-e2e-reads-the-greyed-out-season.md
  */
 
+const FINISHED = lastFinishedSeason();
+
 const HEADING = "Tämä kausi verrattuna";
-const TEAM = "/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024";
-const STANDINGS = "/ulkomaat/sarjataulukko?kilpailu=PL&kausi=2024";
+const TEAM = `/ulkomaat/joukkue/57?kilpailu=PL&kausi=${FINISHED}`;
+const STANDINGS = `/ulkomaat/sarjataulukko?kilpailu=PL&kausi=${FINISHED}`;
 
 // `Pisteitä / ottelu: tämä kausi 2,05, tavallisesti 1,71.`
 const POINTS_ROW = /^Pisteitä \/ ottelu: tämä kausi ([\d,]+), tavallisesti (.+)\.$/;
