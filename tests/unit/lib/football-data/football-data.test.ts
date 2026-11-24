@@ -24,6 +24,7 @@ import {
  * decisions/016-world-cup-and-euro.md
  * decisions/036-halftime-comebacks.md
  * decisions/363-render-timeouts.md
+ * decisions/880-bounded-provider-requests.md
  */
 
 const { getCachedMock, loggerInfoMock, loggerErrorMock } = vi.hoisted(() => ({
@@ -32,6 +33,11 @@ const { getCachedMock, loggerInfoMock, loggerErrorMock } = vi.hoisted(() => ({
   loggerErrorMock: vi.fn(),
 }));
 vi.mock("@/lib/providers/cache", () => ({ getCached: getCachedMock }));
+// No cooldown is ever held, so each test asks the stubbed fetch, and no test
+// reaches a real Redis; the cooldown is tested with the request itself.
+vi.mock("@/lib/platform/redis", () => ({
+  redis: { get: async () => null, setex: async () => "OK" },
+}));
 vi.mock("@/lib/platform/logger", () => ({
   logger: { info: loggerInfoMock, error: loggerErrorMock },
 }));

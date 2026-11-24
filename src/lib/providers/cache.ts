@@ -9,6 +9,31 @@ import { redis } from "../platform/redis";
  */
 export type Fetched<T> = { value: T; degraded: boolean };
 
+/**
+ * The fetch already running for a key in this process, if any.
+ *
+ * decisions/880-bounded-provider-requests.md
+ */
+const inFlight = new Map<string, Promise<Fetched<unknown>>>();
+
+/**
+ * One fetch for every caller that misses the same key at once: the first starts
+ * it, the rest await it, and it is forgotten once it settles.
+ *
+ * decisions/880-bounded-provider-requests.md
+ */
+function sharedFetch<T>(key: string, fetcher: () => Promise<Fetched<T>>): Promise<Fetched<T>> {
+  const running = inFlight.get(key);
+  if (running !== undefined) return running as Promise<Fetched<T>>;
+  const started = fetcher();
+  inFlight.set(key, started);
+  const forget = () => {
+    inFlight.delete(key);
+  };
+  started.then(forget, forget);
+  return started;
+}
+
 export function getCached<T>(
   key: string,
   ttlSeconds: number,
@@ -25,6 +50,7 @@ export function getCached<T>(
  * and not stored, so the next call asks again.
  *
  * decisions/534-taso-season-fallback-cache.md
+ * decisions/880-bounded-provider-requests.md
  */
 export async function getCachedUnlessDegraded<T>(
   key: string,
@@ -46,7 +72,7 @@ export async function getCachedUnlessDegraded<T>(
     }
   }
 
-  const { value, degraded } = await fetcher();
+  const { value, degraded } = await sharedFetch(key, fetcher);
   if (degraded) return value;
 
   try {
