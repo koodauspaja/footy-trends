@@ -36,11 +36,7 @@ function untilAborted<T>(work: Promise<T>, signal: AbortSignal | undefined): Pro
   if (signal === undefined) return work;
   return new Promise<T>((resolve, reject) => {
     const onAbort = () => reject(signal.reason);
-    if (signal.aborted) {
-      onAbort();
-      return;
-    }
-    signal.addEventListener("abort", onAbort, { once: true });
+    // Handled before the abort can win, so Redis failing after it rejects nothing unheard.
     work.then(
       (value) => {
         signal.removeEventListener("abort", onAbort);
@@ -51,6 +47,8 @@ function untilAborted<T>(work: Promise<T>, signal: AbortSignal | undefined): Pro
         reject(error);
       }
     );
+    if (signal.aborted) onAbort();
+    else signal.addEventListener("abort", onAbort, { once: true });
   });
 }
 

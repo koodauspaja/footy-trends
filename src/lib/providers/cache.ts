@@ -75,15 +75,18 @@ export async function getCachedUnlessDegraded<T>(
   // The write is part of what is shared, so a miss just after the fetch still joins it.
   const { value } = await sharedFetch(key, async () => {
     const fetched = await fetcher();
-    if (fetched.degraded) return fetched;
-    try {
-      await redis.setex(key, ttlSeconds, JSON.stringify(fetched.value));
-    } catch (error) {
-      logger.error({ err: error, key }, "Cache write failed");
-    }
+    if (!fetched.degraded) await store(key, ttlSeconds, fetched.value);
     return fetched;
   });
   return value;
+}
+
+async function store(key: string, ttlSeconds: number, value: unknown): Promise<void> {
+  try {
+    await redis.setex(key, ttlSeconds, JSON.stringify(value));
+  } catch (error) {
+    logger.error({ err: error, key }, "Cache write failed");
+  }
 }
 
 /**
