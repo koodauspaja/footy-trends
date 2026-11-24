@@ -1,6 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/auth/e2e-analytics";
 import { openAnalytics } from "./folds";
+import { lastFinishedSeason } from "./football-data-season";
 
 /**
  * `Kääntyneet ottelut` on the team page, end to end. Signed in the way league-position.spec.ts
@@ -14,7 +15,10 @@ import { openAnalytics } from "./folds";
  * decisions/045-bogey-teams.md
  * decisions/046-comebacks-half-time-coverage.md
  * decisions/424-analytics-panel-groups.md
+ * decisions/888-e2e-reads-the-greyed-out-season.md
  */
+
+const FINISHED = lastFinishedSeason();
 
 const HEADING = "Kääntyneet ottelut";
 // Fixture HJK, in the seeded season: see
@@ -24,7 +28,7 @@ const FIXTURE_TEAM = "/kotimaa/joukkue/990001?kilpailu=VL&kausi=2017";
 const FIXTURE_OTHER_TEAM = "/kotimaa/joukkue/990002?kilpailu=VL&kausi=2017";
 // Fixture Ilves, which surrendered two leads and never rescued a deficit.
 const FIXTURE_THIRD_TEAM = "/kotimaa/joukkue/990003?kilpailu=VL&kausi=2017";
-const LIVE_TEAM = "/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024";
+const LIVE_TEAM = `/ulkomaat/joukkue/57?kilpailu=PL&kausi=${FINISHED}`;
 
 async function signedIn(page: Page): Promise<void> {
   await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
@@ -105,7 +109,7 @@ test.describe("Comebacks, signed in", () => {
   });
 
   test("never counts more than the standings page played, in a live league", async ({ page }) => {
-    await page.goto("/ulkomaat/sarjataulukko?kilpailu=PL&kausi=2024");
+    await page.goto(`/ulkomaat/sarjataulukko?kilpailu=PL&kausi=${FINISHED}`);
     const played = Number(
       await page
         .locator("table tbody tr")

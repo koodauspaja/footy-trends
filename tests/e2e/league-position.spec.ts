@@ -1,6 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/auth/e2e-analytics";
 import { openAnalytics } from "./folds";
+import { cupTeamPage, lastFinishedSeason } from "./football-data-season";
 
 /**
  * The team page's league-position chart, end to end. Signed in is simulated: the
@@ -10,7 +11,10 @@ import { openAnalytics } from "./folds";
  * decisions/030-league-position-by-matchday.md
  * decisions/031-rolling-form-trend.md
  * decisions/413-rounds-a-team-sat-out.md
+ * decisions/888-e2e-reads-the-greyed-out-season.md
  */
+
+const FINISHED = lastFinishedSeason();
 
 const HEADING = "Sijoitus kierroksittain";
 const SIGNED_OUT = "Kirjaudu sisään nähdäksesi analyysit ja trendit.";
@@ -18,7 +22,7 @@ const SIGNED_OUT = "Kirjaudu sisään nähdäksesi analyysit ja trendit.";
 // Arsenal, and a completed season: every round is played, so every point
 // exists.
 const TEAM = "/ulkomaat/joukkue/57";
-const SEASON = "kilpailu=PL&kausi=2024";
+const SEASON = `kilpailu=PL&kausi=${FINISHED}`;
 
 async function signedIn(page: Page): Promise<void> {
   await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
@@ -69,7 +73,7 @@ test.describe("League position chart, signed in", () => {
   });
 
   test("offers no chart for a cup, which has no league position", async ({ page }) => {
-    await page.goto(`${TEAM}?kilpailu=CL&kausi=2024`);
+    await page.goto(await cupTeamPage(page, FINISHED));
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await openAnalytics(page);
 

@@ -5,6 +5,7 @@ import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/auth/e2e-anal
 import { SESSION_COOKIE, storeSignedInReader } from "../support/e2e-session";
 import { testDatabaseUrl } from "../support/test-database";
 import { openEveryFold } from "./folds";
+import { lastFinishedSeason } from "./football-data-season";
 import { signedInAs } from "./session";
 
 /**
@@ -14,7 +15,10 @@ import { signedInAs } from "./session";
  *
  * decisions/701-links-and-switches.md
  * decisions/735-links-spec-seeds-its-matches.md
+ * decisions/888-e2e-reads-the-greyed-out-season.md
  */
+
+const FINISHED = lastFinishedSeason();
 
 const STANDINGS = "/kotimaa/sarjataulukko?kilpailu=VL&kausi=2017";
 
@@ -33,7 +37,7 @@ const CLEAR = /^rgba\(.*,\s*0\)$/;
 // The links the sweep found looking like plain text, each on a page that has it.
 const FOUND: ReadonlyArray<readonly [string, string, string | RegExp]> = [
   ["a standings page's", STANDINGS, "Kaikki ottelut"],
-  ["a team page's", "/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024", "Sarjataulukkoon"],
+  ["a team page's", `/ulkomaat/joukkue/57?kilpailu=PL&kausi=${FINISHED}`, "Sarjataulukkoon"],
   ["a played match's", PLAYED, /^Kaikki kohtaamiset/],
   ["an upcoming match's", `/kotimaa/ottelu/${UPCOMING_ID}`, "Kuinka hyvin ennusteet ovat osuneet?"],
   ["the missing page's", "/ei-ole-olemassa", "Etusivulle"],

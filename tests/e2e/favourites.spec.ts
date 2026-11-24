@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { lastFinishedSeason } from "./football-data-season";
 import { signedInAs, waitForSession } from "./session";
 
 /**
@@ -7,7 +8,10 @@ import { signedInAs, waitForSession } from "./session";
  * write reads a real cookie and refuses; the unit and integration suites cover it.
  *
  * decisions/026-favourites.md
+ * decisions/888-e2e-reads-the-greyed-out-season.md
  */
+
+const FINISHED = lastFinishedSeason();
 
 test.describe("Favourites, signed out", () => {
   test("explains itself instead of redirecting", async ({ page }) => {
@@ -108,7 +112,7 @@ test.describe("Favourites, signed in", () => {
   // checked on it as well.
   for (const [region, path, club] of [
     ["kotimaa", "/kotimaa/joukkue/60987", "Inter"],
-    ["ulkomaat", "/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024", "Arsenal"],
+    ["ulkomaat", `/ulkomaat/joukkue/57?kilpailu=PL&kausi=${FINISHED}`, "Arsenal"],
   ] as const) {
     test(`puts one star beside the club's name on a /${region} team page`, async ({ page }) => {
       await signedInAs(page, "Matti Meikäläinen");

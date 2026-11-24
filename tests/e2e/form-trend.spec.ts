@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/auth/e2e-analytics";
 import { openAnalytics } from "./folds";
+import { cupTeamPage, lastFinishedSeason } from "./football-data-season";
 
 /**
  * The team page's form chart, end to end, and the order of the Analyysit
@@ -11,7 +12,10 @@ import { openAnalytics } from "./folds";
  * decisions/032-goals-scored-vs-conceded.md
  * decisions/040-cup-analytics.md
  * decisions/424-analytics-panel-groups.md
+ * decisions/888-e2e-reads-the-greyed-out-season.md
  */
+
+const FINISHED = lastFinishedSeason();
 
 const HEADING = "Vire otteluittain";
 const SENTENCE = /^Vire (\d+)\. ottelun jälkeen: (\d),(\d) pistettä ottelua kohden\.$/;
@@ -50,13 +54,13 @@ test.describe("Form chart, signed in", () => {
 
   test("ends at the Vire the standings table shows — a Premier League team", async ({ page }) => {
     // The property the feature rests on, against the page a reader compares
-    // it with. Arsenal's 2024/25 season is complete: 38 matches, so points
+    // it with. Arsenal's season is a finished one: 38 matches, so points
     // from the fifth to the 38th.
-    await page.goto("/ulkomaat/sarjataulukko?kilpailu=PL&kausi=2024");
+    await page.goto(`/ulkomaat/sarjataulukko?kilpailu=PL&kausi=${FINISHED}`);
     const row = page.locator("table tbody tr").filter({ hasText: "Arsenal" });
     const vire = await vireOf(row);
 
-    await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
+    await page.goto(`/ulkomaat/joukkue/57?kilpailu=PL&kausi=${FINISHED}`);
     const points = await plotted(page);
 
     expect(points.map(([match]) => match)).toEqual(Array.from({ length: 34 }, (_, i) => i + 5));
@@ -86,7 +90,7 @@ test.describe("Form chart, signed in", () => {
   });
 
   test("sits under Analyysit, after the position chart", async ({ page }) => {
-    await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
+    await page.goto(`/ulkomaat/joukkue/57?kilpailu=PL&kausi=${FINISHED}`);
     await openAnalytics(page);
     const section = page.getByRole("region", { name: "Analyysit" });
 
@@ -110,7 +114,7 @@ test.describe("Form chart, signed in", () => {
   test("offers Analyysit for a cup, without a position chart", async ({ page }) => {
     // A cup has every panel but `Sijoitus kierroksittain`, which needs a table
     // a knockout has not got.
-    await page.goto("/ulkomaat/joukkue/57?kilpailu=CL&kausi=2024");
+    await page.goto(await cupTeamPage(page, FINISHED));
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await openAnalytics(page);
 
@@ -122,7 +126,7 @@ test.describe("Form chart, signed in", () => {
 
 test.describe("Form chart, signed out", () => {
   test("shows one prompt for every chart, and no form value in the page", async ({ page }) => {
-    const response = await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
+    const response = await page.goto(`/ulkomaat/joukkue/57?kilpailu=PL&kausi=${FINISHED}`);
     const html = (await response?.text()) ?? "";
 
     await openAnalytics(page);

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { lastFinishedSeason, seasonLabel } from "./football-data-season";
 
 /**
  * A club's page under Ulkomaat, end to end.
@@ -7,7 +8,10 @@ import { expect, test } from "@playwright/test";
  * decisions/007-back-navigation.md
  * decisions/020-context-free-team-page.md
  * decisions/022-teams-between-tiers.md
+ * decisions/888-e2e-reads-the-greyed-out-season.md
  */
+
+const FINISHED = lastFinishedSeason();
 
 test.describe("Team match list", () => {
   test("a relegated club is told where it played instead of being unknown", async ({ page }) => {
@@ -71,14 +75,16 @@ test.describe("Team match list", () => {
   });
 
   test("a season alone resolves the competition of that season's matches", async ({ page }) => {
-    await page.goto("/ulkomaat/sarjataulukko?kilpailu=BL1&kausi=2024");
+    await page.goto(`/ulkomaat/sarjataulukko?kilpailu=BL1&kausi=${FINISHED}`);
     await page.locator("table tbody tr").first().getByRole("link").first().click();
     await expect(page).toHaveURL(/\/ulkomaat\/joukkue\/\d+/);
 
     const bare = new URL(page.url()).pathname;
-    await page.goto(`${bare}?kausi=2024`);
+    await page.goto(`${bare}?kausi=${FINISHED}`);
 
-    await expect(page.getByRole("heading", { level: 1 })).toContainText("Bundesliga 2024/25");
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(
+      `Bundesliga ${seasonLabel(FINISHED)}`
+    );
   });
 
   test("an unknown team id shows the reduced not-found page", async ({ page }) => {
