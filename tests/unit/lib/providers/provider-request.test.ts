@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { redis } from "@/lib/platform/redis";
 import {
   backoffSecondsFrom,
   cooldownKey,
@@ -360,12 +361,11 @@ describe("fetchProviderJson failure cooldown", () => {
 
   it("leaves no Redis failure unhandled for a caller that had already given up", async () => {
     let failRedis!: (error: Error) => void;
-    redisGet.mockImplementationOnce(
-      () =>
-        new Promise<string | null>((_, reject) => {
-          failRedis = reject;
-        })
-    );
+    // A plain function, not a mock: a mock handles the promise it returns itself.
+    redis.get = () =>
+      new Promise<string | null>((_, reject) => {
+        failRedis = reject;
+      });
     const unhandled = vi.fn();
     process.on("unhandledRejection", unhandled);
     const controller = new AbortController();
@@ -379,6 +379,7 @@ describe("fetchProviderJson failure cooldown", () => {
       await new Promise((resolve) => setTimeout(resolve, 10));
     } finally {
       process.off("unhandledRejection", unhandled);
+      redis.get = redisGet;
     }
 
     expect(unhandled).not.toHaveBeenCalled();
