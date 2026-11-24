@@ -344,6 +344,18 @@ describe("fetchProviderJson failure cooldown", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("asks the provider when Redis fails under a caller's signal that has not given up", async () => {
+    redisGet.mockRejectedValueOnce(new Error("redis down"));
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => jsonResponse({ ok: true }));
+
+    await expect(
+      fetchProviderJson("Test", "https://x", "/y", () => ({}), new AbortController().signal)
+    ).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("does not hold a caller past its own signal while the cooldown is written", async () => {
     redisSetex.mockImplementationOnce(() => new Promise<void>(() => undefined));
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("", { status: 503 }));
