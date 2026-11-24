@@ -1,6 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/auth/e2e-analytics";
 import { fold, isOpen, openFolds } from "./folds";
+import { cupTeamPage, lastFinishedSeason } from "./football-data-season";
 
 /**
  * The team page's two folds: the match list, which starts open, and Analyysit,
@@ -11,7 +12,10 @@ import { fold, isOpen, openFolds } from "./folds";
  * decisions/040-cup-analytics.md
  * decisions/045-bogey-teams.md
  * decisions/071-section-toggles.md
+ * decisions/888-e2e-reads-the-greyed-out-season.md
  */
+
+const FINISHED = lastFinishedSeason();
 
 async function signedIn(page: Page): Promise<void> {
   await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
@@ -29,7 +33,7 @@ function summary(page: Page, heading: string) {
 }
 
 for (const [provider, path] of [
-  ["football-data", "/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024"],
+  ["football-data", `/ulkomaat/joukkue/57?kilpailu=PL&kausi=${FINISHED}`],
   ["TASO", "/kotimaa/sarjataulukko?kilpailu=VL&kausi=2025"],
 ] as const) {
   test.describe(`Team page folds, ${provider}`, () => {
@@ -85,7 +89,7 @@ for (const [provider, path] of [
 test("keeps no analytics value in a folded signed-out page", async ({ page }) => {
   // The gate is unchanged by the fold: the prompt sits in it, and the HTML
   // carries no chart value, folded or not.
-  const response = await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
+  const response = await page.goto(`/ulkomaat/joukkue/57?kilpailu=PL&kausi=${FINISHED}`);
   const html = (await response?.text()) ?? "";
 
   await expect(summary(page, "Analyysit")).toBeVisible();
@@ -97,7 +101,7 @@ test("keeps no analytics value in a folded signed-out page", async ({ page }) =>
 test("a cup page folds its match list and its Analyysit", async ({ page }) => {
   // Both folds: a cup has its analytics as well as the match list.
   await signedIn(page);
-  await page.goto("/ulkomaat/joukkue/57?kilpailu=CL&kausi=2024");
+  await page.goto(await cupTeamPage(page, FINISHED));
 
   await expect(summary(page, "Ottelut")).toBeVisible();
   await expect(summary(page, "Analyysit")).toBeVisible();

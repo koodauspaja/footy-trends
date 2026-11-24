@@ -6,6 +6,7 @@ import { expect, type Page, test } from "@playwright/test";
  * a Suspense boundary that widens the blank-title window fails here.
  *
  * decisions/170-tab-title-follows-the-season.md
+ * decisions/888-e2e-reads-the-greyed-out-season.md
  */
 
 // The title is `generateMetadata`'s season name and label, and the `PageShell`
@@ -26,9 +27,9 @@ function selectedLabel(page: Page, selectId: string) {
   return page.locator(`#${selectId} option:checked`).textContent();
 }
 
-// Switches `select` to its first option that is not already selected, and
-// returns that option's label. Choosing dynamically keeps the spec working as
-// seasons roll over.
+// Switches `select` to its first option that is not already selected and can be
+// chosen, and returns that option's label. Choosing dynamically keeps the spec
+// working as seasons roll over; a greyed-out season cannot be chosen.
 async function changeToAnotherOption(page: Page, selectId: string): Promise<string> {
   const current = await selectedLabel(page, selectId);
   const options = page.locator(`#${selectId} option`);
@@ -37,7 +38,7 @@ async function changeToAnotherOption(page: Page, selectId: string): Promise<stri
   for (let index = 0; index < count; index += 1) {
     const option = options.nth(index);
     const label = await option.textContent();
-    if (label === current) continue;
+    if (label === current || (await option.isDisabled())) continue;
     const value = await option.getAttribute("value");
     await page.selectOption(`#${selectId}`, value ?? "");
     return label ?? "";

@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/auth/e2e-analytics";
 import { openAnalytics } from "./folds";
+import { lastFinishedSeason } from "./football-data-season";
 
 /**
  * The team page's `Koti- ja vierastilastot` panel, end to end. Signed in the
@@ -8,7 +9,10 @@ import { openAnalytics } from "./folds";
  *
  * decisions/033-home-vs-away.md
  * decisions/424-analytics-panel-groups.md
+ * decisions/888-e2e-reads-the-greyed-out-season.md
  */
+
+const FINISHED = lastFinishedSeason();
 
 const HEADING = "Koti- ja vierastilastot";
 
@@ -66,12 +70,12 @@ test.describe("Home and away panel, signed in", () => {
   });
 
   test("adds up to the table's row — a Premier League team", async ({ page }) => {
-    await page.goto("/ulkomaat/sarjataulukko?kilpailu=PL&kausi=2024");
+    await page.goto(`/ulkomaat/sarjataulukko?kilpailu=PL&kausi=${FINISHED}`);
     const figures = await tableFigures(
       page.locator("table tbody tr").filter({ hasText: "Arsenal" })
     );
 
-    await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
+    await page.goto(`/ulkomaat/joukkue/57?kilpailu=PL&kausi=${FINISHED}`);
 
     expect(await panelTotals(page)).toEqual(figures);
   });
@@ -93,7 +97,7 @@ test.describe("Home and away panel, signed in", () => {
   });
 
   test("fills home, outlines away, and names both", async ({ page }) => {
-    await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
+    await page.goto(`/ulkomaat/joukkue/57?kilpailu=PL&kausi=${FINISHED}`);
     await openAnalytics(page);
     const panel = page.getByRole("region", { name: HEADING });
 
@@ -107,7 +111,7 @@ test.describe("Home and away panel, signed in", () => {
     // This panel summarises the season and does not track it match by match, so
     // it starts the second group, after `Nollapelit`. Asserted in full in
     // form-trend.spec.ts.
-    await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
+    await page.goto(`/ulkomaat/joukkue/57?kilpailu=PL&kausi=${FINISHED}`);
     await openAnalytics(page);
     const headings = page
       .getByRole("region", { name: "Analyysit" })
@@ -118,7 +122,7 @@ test.describe("Home and away panel, signed in", () => {
 });
 
 test("sends no home or away value to a signed-out reader", async ({ page }) => {
-  const response = await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
+  const response = await page.goto(`/ulkomaat/joukkue/57?kilpailu=PL&kausi=${FINISHED}`);
   const html = (await response?.text()) ?? "";
   await openAnalytics(page);
 

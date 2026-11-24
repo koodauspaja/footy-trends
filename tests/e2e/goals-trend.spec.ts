@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/auth/e2e-analytics";
 import { openAnalytics } from "./folds";
+import { lastFinishedSeason } from "./football-data-season";
 
 /**
  * The team page's two goals charts, end to end. Signed in the way
@@ -8,7 +9,10 @@ import { openAnalytics } from "./folds";
  * `_test`-database server.
  *
  * decisions/032-goals-scored-vs-conceded.md
+ * decisions/888-e2e-reads-the-greyed-out-season.md
  */
+
+const FINISHED = lastFinishedSeason();
 
 const ROLLING = "Maalit otteluittain";
 const TOTALS = "Maalit yhteensä";
@@ -43,12 +47,12 @@ test.describe("Goals charts, signed in", () => {
   });
 
   test("end at the TM and PM the table shows — a Premier League team", async ({ page }) => {
-    await page.goto("/ulkomaat/sarjataulukko?kilpailu=PL&kausi=2024");
+    await page.goto(`/ulkomaat/sarjataulukko?kilpailu=PL&kausi=${FINISHED}`);
     const [played, scored, conceded] = await tableFigures(
       page.locator("table tbody tr").filter({ hasText: "Arsenal" })
     );
 
-    await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
+    await page.goto(`/ulkomaat/joukkue/57?kilpailu=PL&kausi=${FINISHED}`);
 
     expect(await lastTotals(page)).toEqual([played, scored, conceded]);
   });
@@ -70,7 +74,7 @@ test.describe("Goals charts, signed in", () => {
   });
 
   test("line the rolling chart up with the form chart, match for match", async ({ page }) => {
-    await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
+    await page.goto(`/ulkomaat/joukkue/57?kilpailu=PL&kausi=${FINISHED}`);
     await openAnalytics(page);
     await expect(page.getByRole("img", { name: ROLLING })).toBeVisible();
 
@@ -83,7 +87,7 @@ test.describe("Goals charts, signed in", () => {
   });
 
   test("tell the lines apart by style and name them in a legend", async ({ page }) => {
-    await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
+    await page.goto(`/ulkomaat/joukkue/57?kilpailu=PL&kausi=${FINISHED}`);
     await openAnalytics(page);
 
     for (const name of [ROLLING, TOTALS]) {
@@ -96,7 +100,7 @@ test.describe("Goals charts, signed in", () => {
   });
 
   test("sit in Analyysit after the form chart", async ({ page }) => {
-    await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
+    await page.goto(`/ulkomaat/joukkue/57?kilpailu=PL&kausi=${FINISHED}`);
     await openAnalytics(page);
 
     await expect(
@@ -120,7 +124,7 @@ test.describe("Goals charts, signed in", () => {
 
 test.describe("Goals charts, signed out", () => {
   test("send no goal value, and leave one prompt", async ({ page }) => {
-    const response = await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
+    const response = await page.goto(`/ulkomaat/joukkue/57?kilpailu=PL&kausi=${FINISHED}`);
     const html = (await response?.text()) ?? "";
     await openAnalytics(page);
 

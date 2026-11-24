@@ -196,8 +196,12 @@ already, and #390 found two classes that had never been written down at all.
    | a full review | a review of the head whose body starts `Hey - I've reviewed your changes` or `Hey - I've found N issues` | 0 |
    | the quick check only | a review of the head whose whole body is `### Sourcery assessment` and `**Approved.**` | 0 when nothing but documentation changed since the last full review, 1 otherwise |
    | a budget notice, and no review | a review, or a `skipped` check-run, that starts `Sorry @…, this account has used its review budget` | 1 |
-   | a skip, and no review | a `skipped` check-run, or a review that starts `Sorry`, for any other reason; see "When Sourcery skips" below | 1 |
+   | a skip, and no review | a `skipped` check-run, or a review that starts `Sorry` or `**Sorry`, for any other reason; see "When Sourcery skips" below | 1 |
    | nothing from Sourcery | no review of the head, and a check-run that did not skip, or none | 0 when the check-run reads `success` and nothing but documentation changed since the last full review, 1 otherwise |
+
+   A review whose whole body is `New gaps against the [linked issues](…)` is
+   left out: it points at Sourcery's requirement table, a comment of its own,
+   and says nothing about the code. Read that table before handing off.
 
    **Only the first line of the body tells a full review from the quick
    check.** A full review that found nothing and the quick check are both a

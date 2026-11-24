@@ -24,6 +24,7 @@ import {
  * decisions/016-world-cup-and-euro.md
  * decisions/036-halftime-comebacks.md
  * decisions/363-render-timeouts.md
+ * decisions/880-bounded-provider-requests.md
  */
 
 const { getCachedMock, loggerInfoMock, loggerErrorMock } = vi.hoisted(() => ({
@@ -32,6 +33,11 @@ const { getCachedMock, loggerInfoMock, loggerErrorMock } = vi.hoisted(() => ({
   loggerErrorMock: vi.fn(),
 }));
 vi.mock("@/lib/providers/cache", () => ({ getCached: getCachedMock }));
+// No cooldown is ever held, so each test asks the stubbed fetch, and no test
+// reaches a real Redis; the cooldown is tested with the request itself.
+vi.mock("@/lib/platform/redis", () => ({
+  redis: { get: async () => null, setex: async () => "OK" },
+}));
 vi.mock("@/lib/platform/logger", () => ({
   logger: { info: loggerInfoMock, error: loggerErrorMock },
 }));
@@ -295,10 +301,22 @@ describe("football-data mapping", () => {
       seasons: [{ id: 2600, startDate: "2099-08-15" }],
     });
 
-    const { activeSeasonId, selectableSeasons } = await getSeasonContext("PL");
+    const { activeSeasonId, upcomingSeasonId, selectableSeasons } = await getSeasonContext("PL");
 
     expect(activeSeasonId).toBe(2025);
+    expect(upcomingSeasonId).toBe(2099);
     expect(selectableSeasons[0]).toEqual({ seasonId: 2099, label: "2099/00" });
+  });
+
+  it("names no upcoming season when the provider lists none", async () => {
+    getCachedMock.mockResolvedValue({
+      currentSeason: { id: 2403, startDate: "2025-08-15", endDate: "2026-05-24" },
+    });
+
+    const context = await getSeasonContext("PL");
+
+    expect(context.activeSeasonId).toBe(2025);
+    expect("upcomingSeasonId" in context).toBe(false);
   });
 
   it("ignores the provider's unreachable historical seasons when listing selectable ones", async () => {

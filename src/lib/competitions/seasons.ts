@@ -10,7 +10,31 @@ export const DEFAULT_EARLIEST_SEASON = 2023;
 export type SeasonOption = {
   seasonId: number;
   label: string;
+  /** Announced, with no match stored: shown in the selector, never chosen. */
+  noMatches?: true;
 };
+
+/**
+ * The options with one season marked as having no matches, or as they are when
+ * there is none to mark.
+ *
+ * decisions/878-empty-season-not-selectable.md
+ */
+export function withNoMatches(options: SeasonOption[], seasonId: number | null): SeasonOption[] {
+  if (seasonId === null) return options;
+  return options.map((option) =>
+    option.seasonId === seasonId ? { ...option, noMatches: true } : option
+  );
+}
+
+/**
+ * Whether `kausi` names a season the selector lets a reader choose.
+ *
+ * decisions/878-empty-season-not-selectable.md
+ */
+export function isChoosable(selectable: SeasonOption[], seasonId: number): boolean {
+  return selectable.some((option) => option.seasonId === seasonId && option.noMatches !== true);
+}
 
 export type SeasonParamResult =
   | { kind: "absent" }
@@ -76,6 +100,7 @@ export function listSelectableSeasons(
  * unvalidated value must never reach the provider URL, a cache key, or a query.
  *
  * decisions/002-season-selector-and-backfill.md
+ * decisions/878-empty-season-not-selectable.md
  */
 export function parseSeasonParam(
   rawValue: string | string[] | undefined,
@@ -85,7 +110,5 @@ export function parseSeasonParam(
   const seasonId = parseWholeNumber(rawValue);
   if (seasonId === null) return { kind: "invalid" };
 
-  return selectable.some((option) => option.seasonId === seasonId)
-    ? { kind: "valid", seasonId }
-    : { kind: "invalid" };
+  return isChoosable(selectable, seasonId) ? { kind: "valid", seasonId } : { kind: "invalid" };
 }

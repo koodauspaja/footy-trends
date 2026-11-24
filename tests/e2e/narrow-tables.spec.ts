@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { openFolds } from "./folds";
+import { lastFinishedSeason } from "./football-data-season";
 
 /**
  * Tables on a phone keep their key column in view: a standings table its
@@ -7,7 +8,10 @@ import { openFolds } from "./folds";
  * column really left out and the rest inside the screen.
  *
  * decisions/699-narrow-tables.md
+ * decisions/888-e2e-reads-the-greyed-out-season.md
  */
+
+const FINISHED = lastFinishedSeason();
 
 const STANDINGS = "/kotimaa/sarjataulukko?kilpailu=VL&kausi=2026";
 // Inter's team page: its `Ottelut` list, with a `Sarja` column after `Tulos`.
@@ -17,8 +21,8 @@ const BRACKET = "/kotimaa/sarjataulukko?kausi=2017";
 // Pages with `Wolverhampton Wanderers FC`, whose first word is wider than a
 // phone leaves the flexible column.
 const LONG_NAMES = [
-  "/ulkomaat/sarjataulukko?kilpailu=PL&kausi=2024",
-  "/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024",
+  `/ulkomaat/sarjataulukko?kilpailu=PL&kausi=${FINISHED}`,
+  `/ulkomaat/joukkue/57?kilpailu=PL&kausi=${FINISHED}`,
 ];
 
 // The first header named `name`: where it starts and ends, where the box it

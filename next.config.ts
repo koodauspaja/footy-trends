@@ -8,6 +8,7 @@
  * decisions/527-one-route-table.md
  * decisions/808-security-headers.md
  * decisions/830-sentry-source-maps.md
+ * decisions/873-quiet-build-and-e2e-warnings.md
  */
 
 // From `@sentry/nextjs/config`, not the package root, whose export is
@@ -156,6 +157,15 @@ const nextConfig: NextConfig = {
   },
 };
 
+/**
+ * Whether this build uploads to Sentry: only where `SENTRY_AUTH_TOKEN` is set,
+ * which is Railway's builds. Anywhere else the plugin would try and warn.
+ *
+ * decisions/830-sentry-source-maps.md
+ * decisions/873-quiet-build-and-e2e-warnings.md
+ */
+const uploadsToSentry = (process.env.SENTRY_AUTH_TOKEN ?? "").trim() !== "";
+
 export default withSentryConfig(nextConfig, {
   // For all available options, see:
   // https://www.npmjs.com/package/@sentry/webpack-plugin#options
@@ -167,6 +177,13 @@ export default withSentryConfig(nextConfig, {
 
   // Only print logs for uploading source maps in CI
   silent: !process.env.CI,
+
+  // A release and an upload only where there is a token to make them with: with
+  // no release name the plugin skips the release quietly. And no data about the
+  // plugin itself sent to Sentry.
+  release: uploadsToSentry ? {} : { name: "" },
+  sourcemaps: { disable: uploadsToSentry ? false : "disable-upload" },
+  telemetry: false,
 
   // For all available options, see:
   // https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/

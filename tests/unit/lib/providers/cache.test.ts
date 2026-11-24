@@ -7,6 +7,7 @@ import { warmModules } from "../../../support/warm-module";
  *
  * decisions/029-forced-season-refresh.md
  * decisions/691-computed-cache-generations.md
+ * decisions/880-bounded-provider-requests.md
  */
 
 const getMock = vi.fn();
@@ -308,5 +309,89 @@ describe("generations", () => {
       expect.objectContaining({ key: "generation:taso:VL:2026" }),
       "Cache write failed"
     );
+  });
+});
+
+describe("misses of the same key at once", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getMock.mockReset().mockResolvedValue(null);
+    setexMock.mockReset().mockResolvedValue("OK");
+  });
+
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    let reject!: (error: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  }
+
+  it("share one fetch, and every caller gets its value", async () => {
+    const { getCached } = await import("@/lib/providers/cache");
+    const answer = deferred<number>();
+    const fetcher = vi.fn(() => answer.promise);
+
+    const callers = [1, 2, 3].map(() => getCached("shared", 60, fetcher));
+    answer.resolve(7);
+
+    await expect(Promise.all(callers)).resolves.toEqual([7, 7, 7]);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("share a failure too, and the next miss after it asks again", async () => {
+    const { getCached } = await import("@/lib/providers/cache");
+    const answer = deferred<number>();
+    const fetcher = vi.fn().mockReturnValueOnce(answer.promise).mockResolvedValue(8);
+
+    const callers = [1, 2].map(() => getCached("failing", 60, fetcher));
+    answer.reject(new Error("provider down"));
+
+    for (const caller of callers) await expect(caller).rejects.toThrow("provider down");
+    await expect(getCached("failing", 60, fetcher)).resolves.toBe(8);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("share the cache write too, so a miss just after the fetch still joins it", async () => {
+    const { getCached } = await import("@/lib/providers/cache");
+    const write = deferred<string>();
+    setexMock.mockReturnValueOnce(write.promise);
+    const fetcher = vi.fn(async () => 5);
+
+    const first = getCached("writing", 60, fetcher);
+    await vi.waitFor(() => expect(setexMock).toHaveBeenCalledTimes(1));
+    // The fetch has settled and its write is still running.
+    const second = getCached("writing", 60, fetcher);
+    write.resolve("OK");
+
+    await expect(Promise.all([first, second])).resolves.toEqual([5, 5]);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    // Stored once, for the lifetime its caller gave.
+    expect(setexMock).toHaveBeenCalledWith("writing", 60, "5");
+  });
+
+  it("share a computation when the generation cannot be read", async () => {
+    const { getComputedUnlessDegraded } = await import("@/lib/providers/cache");
+    getMock.mockRejectedValue(new Error("redis down"));
+    const answer = deferred<{ value: number; degraded: boolean }>();
+    const fetcher = vi.fn(() => answer.promise);
+    const VL = { kind: "taso", code: "VL", seasonId: 2024 } as const;
+
+    const callers = [1, 2].map(() => getComputedUnlessDegraded(VL, "forecast:VL", 60, fetcher));
+    answer.resolve({ value: 3, degraded: false });
+
+    await expect(Promise.all(callers)).resolves.toEqual([3, 3]);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("keep different keys apart", async () => {
+    const { getCached } = await import("@/lib/providers/cache");
+    const fetcher = vi.fn(async () => 1);
+
+    await Promise.all([getCached("one", 60, fetcher), getCached("two", 60, fetcher)]);
+
+    expect(fetcher).toHaveBeenCalledTimes(2);
   });
 });

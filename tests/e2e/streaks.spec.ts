@@ -1,6 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/auth/e2e-analytics";
 import { openAnalytics } from "./folds";
+import { lastFinishedSeason } from "./football-data-season";
 
 /**
  * The team page's `Putket` panel, end to end. Signed in the way
@@ -9,10 +10,13 @@ import { openAnalytics } from "./folds";
  * decisions/035-streaks.md
  * decisions/045-bogey-teams.md
  * decisions/424-analytics-panel-groups.md
+ * decisions/888-e2e-reads-the-greyed-out-season.md
  */
 
+const FINISHED = lastFinishedSeason();
+
 const HEADING = "Putket";
-const TEAM = "/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024";
+const TEAM = `/ulkomaat/joukkue/57?kilpailu=PL&kausi=${FINISHED}`;
 
 async function signedIn(page: Page): Promise<void> {
   await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
@@ -43,7 +47,7 @@ test.describe("Streaks, signed in", () => {
     // The standings table's `Vire` is the team's last five results, oldest
     // first. The run it ends on is the run the panel calls current: the same
     // matches, read two ways.
-    await page.goto("/ulkomaat/sarjataulukko?kilpailu=PL&kausi=2024");
+    await page.goto(`/ulkomaat/sarjataulukko?kilpailu=PL&kausi=${FINISHED}`);
     const letters = (
       (await page
         .locator("table tbody tr")
@@ -75,7 +79,7 @@ test.describe("Streaks, signed in", () => {
   });
 
   test("keeps every run inside the season's matches", async ({ page }) => {
-    await page.goto("/ulkomaat/sarjataulukko?kilpailu=PL&kausi=2024");
+    await page.goto(`/ulkomaat/sarjataulukko?kilpailu=PL&kausi=${FINISHED}`);
     const played = Number(
       await page
         .locator("table tbody tr")

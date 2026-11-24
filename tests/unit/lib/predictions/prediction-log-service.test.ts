@@ -17,6 +17,8 @@ import type { HomeBaseline } from "@/lib/predictions/home-baseline";
  * decisions/072-match-guesses.md
  * decisions/074-against-the-models.md
  * decisions/075-season-guesses.md
+ * decisions/080-daily-refresh-of-every-competition.md
+ * decisions/883-real-clock-tests-and-the-daily-hour.md
  */
 
 const mocks = vi.hoisted(() => ({
@@ -34,6 +36,7 @@ const mocks = vi.hoisted(() => ({
   loggerInfo: vi.fn(),
   settleGuesses: vi.fn(),
   settleSeasonGuesses: vi.fn(),
+  runDailyRefresh: vi.fn(),
 }));
 
 vi.mock("@/db", () => ({
@@ -72,6 +75,11 @@ vi.mock("@/lib/providers/cache", () => ({ invalidateCache: mocks.invalidateCache
 vi.mock("@/lib/guessing-game/guessing-game-settle", () => ({ settleGuesses: mocks.settleGuesses }));
 vi.mock("@/lib/guessing-game/guessing-game-season-store", () => ({
   settleSeasonGuesses: mocks.settleSeasonGuesses,
+}));
+// The real hour check, with the step itself replaced: its own test covers what it fetches.
+vi.mock("@/lib/predictions/daily-refresh", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/predictions/daily-refresh")>()),
+  runDailyRefresh: mocks.runDailyRefresh,
 }));
 
 // Every key a backtest's reports are cached under: each provider's own, then one per competition.
@@ -213,7 +221,14 @@ describe("runPredictionLog", () => {
     expect(mocks.synchronizeTasoMatches).toHaveBeenCalledWith([{ id: "taso" }]);
     // Each match is logged under the baseline and the three Elo models; no
     // stored match gives Poisson a fit of these competitions.
-    expect(report).toEqual({ refreshed: 2, logged: 8, backtested: 0, settled: 0, failures: [] });
+    expect(report).toEqual({
+      refreshed: 2,
+      logged: 8,
+      backtested: 0,
+      settled: 0,
+      daily: null,
+      failures: [],
+    });
   });
 
   it("logs every loggable match under the model, one baseline read per competition", async () => {
@@ -248,6 +263,56 @@ describe("runPredictionLog", () => {
     expect(rendered(upsert.set.predictedAwayGoals)).toBe("excluded.predicted_away_goals");
   });
 
+  it("runs the daily refresh first in the run that starts at 03 UTC, with the run's own pacers", async () => {
+    const order: string[] = [];
+    mocks.runDailyRefresh.mockImplementation(async () => {
+      order.push("daily");
+      return { refreshed: 24, failures: [] };
+    });
+    mocks.select.mockImplementationOnce(async () => {
+      order.push("candidates");
+      return [];
+    });
+    stored([], []);
+
+    const report = await runPredictionLog(() => new Date("2026-10-03T03:00:00Z"), immediate);
+
+    expect(mocks.runDailyRefresh).toHaveBeenCalledWith(immediate);
+    expect(order).toEqual(["daily", "candidates"]);
+    expect(report).toEqual({
+      refreshed: 0,
+      logged: 0,
+      backtested: 0,
+      settled: 0,
+      daily: 24,
+      failures: [],
+    });
+  });
+
+  it.each(["2026-10-03T02:59:00Z", "2026-10-03T04:00:00Z"])(
+    "does not run the daily refresh in a run that starts at %s",
+    async (startedAt) => {
+      stored([], []);
+
+      const report = await runPredictionLog(() => new Date(startedAt), immediate);
+
+      expect(mocks.runDailyRefresh).not.toHaveBeenCalled();
+      expect(report.daily).toBeNull();
+    }
+  );
+
+  it("reports the daily refresh's failures first, and the rest of the run still runs", async () => {
+    mocks.runDailyRefresh.mockResolvedValue({ refreshed: 23, failures: ["daily taso VL 2026"] });
+    stored([footballDataRow({ kickoffAt: new Date("2026-10-03T08:00:00Z") })], []);
+    mocks.getFootballDataSeasonMatches.mockRejectedValue(new Error("429"));
+
+    const report = await runPredictionLog(() => new Date("2026-10-03T03:00:00Z"), immediate);
+
+    expect(report.daily).toBe(23);
+    expect(report.failures).toEqual(["daily taso VL 2026", "refresh football-data PL 2026"]);
+    expect(report.logged).toBe(4);
+  });
+
   it("refreshes a competition for a missing result, and writes nothing for it", async () => {
     stored(
       [footballDataRow({ kickoffAt: at(-3), status: "IN_PLAY", homeGoals: 1, awayGoals: 0 })],
@@ -257,7 +322,14 @@ describe("runPredictionLog", () => {
     const report = await runPredictionLog(() => NOW, immediate);
 
     expect(mocks.getFootballDataSeasonMatches).toHaveBeenCalledTimes(1);
-    expect(report).toEqual({ refreshed: 1, logged: 0, backtested: 0, settled: 0, failures: [] });
+    expect(report).toEqual({
+      refreshed: 1,
+      logged: 0,
+      backtested: 0,
+      settled: 0,
+      daily: null,
+      failures: [],
+    });
   });
 
   it("neither refreshes nor logs a finished match with its result stored", async () => {
@@ -269,7 +341,14 @@ describe("runPredictionLog", () => {
     const report = await runPredictionLog(() => NOW, immediate);
 
     expect(mocks.getFootballDataSeasonMatches).not.toHaveBeenCalled();
-    expect(report).toEqual({ refreshed: 0, logged: 0, backtested: 0, settled: 0, failures: [] });
+    expect(report).toEqual({
+      refreshed: 0,
+      logged: 0,
+      backtested: 0,
+      settled: 0,
+      daily: null,
+      failures: [],
+    });
   });
 
   it("files a TASO row by its season's pair, and ignores a row no predicted competition holds", async () => {
@@ -296,6 +375,7 @@ describe("runPredictionLog", () => {
       logged: 8,
       backtested: 0,
       settled: 0,
+      daily: null,
       failures: ["refresh football-data PL 2026"],
     });
     expect(mocks.loggerError).toHaveBeenCalledWith(
@@ -332,7 +412,14 @@ describe("runPredictionLog", () => {
 
     const report = await runPredictionLog(() => NOW, immediate);
 
-    expect(report).toEqual({ refreshed: 1, logged: 0, backtested: 0, settled: 0, failures: [] });
+    expect(report).toEqual({
+      refreshed: 1,
+      logged: 0,
+      backtested: 0,
+      settled: 0,
+      daily: null,
+      failures: [],
+    });
   });
 
   it("logs from the stored rows as they are after the refresh", async () => {
@@ -348,7 +435,14 @@ describe("runPredictionLog", () => {
 
     const report = await runPredictionLog(() => NOW, immediate);
 
-    expect(report).toEqual({ refreshed: 1, logged: 0, backtested: 0, settled: 0, failures: [] });
+    expect(report).toEqual({
+      refreshed: 1,
+      logged: 0,
+      backtested: 0,
+      settled: 0,
+      daily: null,
+      failures: [],
+    });
   });
 
   it("skips a match that kicked off while the run was refreshing, and stamps the write time", async () => {
@@ -380,14 +474,28 @@ describe("runPredictionLog", () => {
     expect(mocks.getHomeBaseline).not.toHaveBeenCalled();
   });
 
-  it("uses the real clock and its own pacers when given none", async () => {
-    const soon = new Date(Date.now() + 5 * HOUR);
-    stored([footballDataRow({ kickoffAt: soon })], []);
+  it("uses the system clock and its own pacers when given none", async () => {
+    // The system clock pinned outside the daily refresh's hour, whenever the suite runs.
+    vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+    vi.setSystemTime(NOW);
+    try {
+      const soon = at(5);
+      stored([footballDataRow({ kickoffAt: soon })], []);
 
-    const report = await runPredictionLog();
+      const report = await runPredictionLog();
 
-    expect(report).toEqual({ refreshed: 1, logged: 4, backtested: 0, settled: 0, failures: [] });
-    expect(written()).toEqual([expect.objectContaining({ kickoffAt: soon })]);
+      expect(report).toEqual({
+        refreshed: 1,
+        logged: 4,
+        backtested: 0,
+        settled: 0,
+        daily: null,
+        failures: [],
+      });
+      expect(written()).toEqual([expect.objectContaining({ kickoffAt: soon })]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("logs elo-v1 from the current ratings and the baseline's draw share", async () => {
@@ -580,7 +688,14 @@ describe("runPredictionLog", () => {
       "Unable to fit the Poisson model for predictions"
     );
     expect(mocks.loggerInfo).toHaveBeenCalledWith(
-      { refreshed: 1, logged: 4, backtested: 0, settled: 0, failures: ["poisson strengths"] },
+      {
+        refreshed: 1,
+        logged: 4,
+        backtested: 0,
+        settled: 0,
+        daily: null,
+        failures: ["poisson strengths"],
+      },
       "Predictions run finished"
     );
   });
@@ -737,7 +852,14 @@ describe("runPredictionLog", () => {
           }),
         ]);
       }
-      expect(report).toEqual({ refreshed: 0, logged: 0, backtested: 5, settled: 0, failures: [] });
+      expect(report).toEqual({
+        refreshed: 0,
+        logged: 0,
+        backtested: 5,
+        settled: 0,
+        daily: null,
+        failures: [],
+      });
       expect(mocks.loggerInfo).toHaveBeenCalledWith(report, "Predictions run finished");
     });
 
@@ -798,6 +920,7 @@ describe("runPredictionLog", () => {
         logged: 5,
         backtested: 0,
         settled: 0,
+        daily: null,
         failures: ["backtest"],
       });
       expect(mocks.loggerError).toHaveBeenCalledWith(
@@ -825,6 +948,7 @@ describe("runPredictionLog", () => {
         logged: 0,
         backtested: 0,
         settled: 0,
+        daily: null,
         failures: ["backtest"],
       });
       for (const model of MODELS) expect(backtested(model)).toEqual([]);

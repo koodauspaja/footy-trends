@@ -5,18 +5,23 @@
  *
  * decisions/052-predictions-log.md
  * decisions/072-match-guesses.md
+ * decisions/080-daily-refresh-of-every-competition.md
  */
 
+import type { DailyRefreshReport } from "../../src/lib/predictions/daily-refresh";
 import type { PredictionRunReport } from "../../src/lib/predictions/prediction-log-service";
 
-export type PredictionCommand = "log" | "backtest" | "settle";
+export type PredictionCommand = "log" | "backtest" | "settle" | "refresh";
 
 export const USAGE = [
   "Usage:",
   "  DATABASE_URL=<target> npm run predictions -- log       the hourly run (specs/052, S1)",
   "  DATABASE_URL=<target> npm run predictions -- backtest  backtest rows (S10)",
   "  DATABASE_URL=<target> npm run predictions -- settle    settle Arvauspeli guesses (specs/072)",
+  "  DATABASE_URL=<target> npm run predictions -- refresh   every competition's current season (specs/080)",
 ];
+
+const COMMANDS: readonly PredictionCommand[] = ["log", "backtest", "settle", "refresh"];
 
 /**
  * The command asked for, or null for anything else.
@@ -25,8 +30,8 @@ export const USAGE = [
  */
 export function parseCommand(args: readonly string[]): PredictionCommand | null {
   if (args.length !== 1) return null;
-  const [command] = args;
-  return command === "log" || command === "backtest" || command === "settle" ? command : null;
+  const command = COMMANDS.find((known) => known === args[0]);
+  return command ?? null;
 }
 
 /**
@@ -37,10 +42,27 @@ export function parseCommand(args: readonly string[]): PredictionCommand | null 
  */
 export function describeRun(report: PredictionRunReport): string[] {
   return [
+    ...(report.daily === null ? [] : [dailyLine(report.daily)]),
     `Refreshed    ${report.refreshed} competition-season(s)`,
     `Logged       ${report.logged} prediction(s)`,
     `Backtested   ${report.backtested} prediction(s)`,
     `Settled      ${report.settled} guess(es)`,
+    ...report.failures.map((failure) => `Failed       ${failure}`),
+  ];
+}
+
+function dailyLine(refreshed: number): string {
+  return `Daily        ${refreshed} competition-season(s) refreshed`;
+}
+
+/**
+ * The daily refresh's summary when it runs alone, as `refresh`.
+ *
+ * decisions/080-daily-refresh-of-every-competition.md
+ */
+export function describeDailyRefresh(report: DailyRefreshReport): string[] {
+  return [
+    dailyLine(report.refreshed),
     ...report.failures.map((failure) => `Failed       ${failure}`),
   ];
 }
@@ -51,6 +73,6 @@ export function describeRun(report: PredictionRunReport): string[] {
  *
  * decisions/052-predictions-log.md
  */
-export function exitCodeFor(report: PredictionRunReport): number {
+export function exitCodeFor(report: Pick<PredictionRunReport, "failures">): number {
   return report.failures.length === 0 ? 0 : 1;
 }

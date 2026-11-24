@@ -10,6 +10,7 @@ import { openAnalytics } from "./folds";
  *
  * decisions/061-season-simulation.md
  * decisions/065-foreign-league-zones.md
+ * decisions/888-e2e-reads-the-greyed-out-season.md
  */
 
 const STANDINGS = (code: string) => `/ulkomaat/sarjataulukko?kilpailu=${code}`;
@@ -28,10 +29,12 @@ async function dropCaches() {
   await dropCached("poisson:v1:football-data", "forecast:v4:football-data:*");
 }
 
+// The seasons that can be chosen, newest first: an upcoming season with no fixtures stored is
+// offered greyed out above the current one, and is left out.
 function seasonsOffered(page: Page) {
   return page
     .getByLabel("Kausi")
-    .locator("option")
+    .locator("option:not([disabled])")
     .evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value));
 }
 

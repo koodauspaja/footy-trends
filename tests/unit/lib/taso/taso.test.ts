@@ -27,6 +27,7 @@ import {
  * decisions/672-e2e-without-the-provider.md
  * decisions/681-taso-request-signing.md
  * decisions/076-guesses-on-irregular-matches.md
+ * decisions/880-bounded-provider-requests.md
  */
 
 const { loggerInfoMock, loggerErrorMock, loggerWarnMock, getCachedMock } = vi.hoisted(() => ({
@@ -41,6 +42,11 @@ vi.mock("@/lib/platform/logger", () => ({
   logger: { info: loggerInfoMock, error: loggerErrorMock, warn: loggerWarnMock },
 }));
 vi.mock("@/lib/providers/cache", () => ({ getCached: getCachedMock }));
+// No cooldown is ever held, so each test asks the stubbed fetch, and no test
+// reaches a real Redis; the cooldown is tested with the request itself.
+vi.mock("@/lib/platform/redis", () => ({
+  redis: { get: async () => null, setex: async () => "OK" },
+}));
 
 // For every block, not one: a stubbed variable, a salt above all, must not reach
 // a test that runs after it in a shuffled order.
@@ -808,18 +814,20 @@ describe("getCurrentSeason", () => {
   // by identity: it is combined with the per-attempt bound by `AbortSignal.any`, so this
   // asserts what the caller depends on, that aborting theirs aborts the request.
   it("aborts the request when the caller's signal aborts", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(
-        (_url: string, init?: RequestInit) =>
-          new Promise<Response>((_resolve, reject) => {
-            const signal = init?.signal;
-            signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
-          })
-      )
+    const fetchMock = vi.fn(
+      (_url: string, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          const signal = init?.signal;
+          // As real fetch does: an already aborted signal rejects at once.
+          if (signal?.aborted) reject(signal.reason);
+          signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+        })
     );
+    vi.stubGlobal("fetch", fetchMock);
     const controller = new AbortController();
     const pending = getCurrentSeason(controller.signal);
+    // Aborted once the request is out, not while the cooldown is read before it.
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
     controller.abort(new Error("health gave up"));
 
     await expect(pending).rejects.toThrow("health gave up");

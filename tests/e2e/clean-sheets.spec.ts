@@ -1,6 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/auth/e2e-analytics";
 import { openAnalytics } from "./folds";
+import { lastFinishedSeason } from "./football-data-season";
 
 /**
  * The team page's `Nollapelit` panel, end to end. Signed in the way
@@ -8,7 +9,10 @@ import { openAnalytics } from "./folds";
  *
  * decisions/034-clean-sheets.md
  * decisions/424-analytics-panel-groups.md
+ * decisions/888-e2e-reads-the-greyed-out-season.md
  */
+
+const FINISHED = lastFinishedSeason();
 
 const HEADING = "Nollapelit";
 const ROW = /^Nollapelien osuus (\d+)\. ottelun jälkeen: (\d+)\s?% \((\d+)\/(\d+)\)\.$/;
@@ -33,11 +37,11 @@ test.describe("Clean sheets, signed in", () => {
   });
 
   test("counts every league match the table counts — a Premier League team", async ({ page }) => {
-    await page.goto("/ulkomaat/sarjataulukko?kilpailu=PL&kausi=2024");
+    await page.goto(`/ulkomaat/sarjataulukko?kilpailu=PL&kausi=${FINISHED}`);
     const row = page.locator("table tbody tr").filter({ hasText: "Arsenal" });
     const played = Number(await row.locator("td:nth-child(3)").textContent());
 
-    await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
+    await page.goto(`/ulkomaat/joukkue/57?kilpailu=PL&kausi=${FINISHED}`);
     const [match, percent, kept, of] = await lastRow(page);
 
     expect(match).toBe(played);
@@ -70,7 +74,7 @@ test.describe("Clean sheets, signed in", () => {
     // A running share plotted match by match belongs with the other per-match
     // series, and `Koti- ja vierastilastot` heads the next group. The order is
     // asserted in full in form-trend.spec.ts.
-    await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
+    await page.goto(`/ulkomaat/joukkue/57?kilpailu=PL&kausi=${FINISHED}`);
     await openAnalytics(page);
     const headings = page
       .getByRole("region", { name: "Analyysit" })
@@ -81,7 +85,7 @@ test.describe("Clean sheets, signed in", () => {
 });
 
 test("sends no clean-sheet value to a signed-out reader", async ({ page }) => {
-  const response = await page.goto("/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024");
+  const response = await page.goto(`/ulkomaat/joukkue/57?kilpailu=PL&kausi=${FINISHED}`);
   const html = (await response?.text()) ?? "";
   await openAnalytics(page);
 

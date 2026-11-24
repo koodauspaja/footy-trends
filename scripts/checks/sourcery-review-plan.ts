@@ -6,6 +6,7 @@
  * decisions/559-sourcery-review-kind.md
  * decisions/597-check-sourcery.md
  * decisions/600-silence-beside-a-green-check.md
+ * decisions/885-sourcery-review-shapes.md
  */
 
 /**
@@ -65,8 +66,10 @@ export type Outcome =
 const FULL_REVIEW = /^Hey - I['’]ve (?:reviewed|found)\b/;
 const QUICK_CHECK = /^### Sourcery assessment\s+\*\*Approved\.\*\*$/;
 const BUDGET_NOTICE = /^Sorry\b.*\bhas used its review budget\b/;
-// Any other apology: "Sorry, we are unable to review this pull request".
-const REFUSAL = /^Sorry\b/;
+// Any other apology, plain or bold: "**Sorry @…, this pull request is too large to review**".
+const REFUSAL = /^(?:\*\*)?Sorry\b/;
+// The whole body when Sourcery posts its requirement table, which is a comment of its own.
+const REQUIREMENTS_NOTE = /^New gaps against the \[linked issues\]\(https:\/\/github\.com\/\S+\)$/;
 
 /**
  * What a Sourcery review body is, read from how it starts: nothing else on the
@@ -91,15 +94,25 @@ function oldestFirst(a: Review, b: Review): number {
   return a.submittedAt.localeCompare(b.submittedAt);
 }
 
-// What Sourcery wrote about a commit, oldest first. A reply in a review
-// thread is a review with an empty body, and says nothing about the commit.
+/**
+ * What Sourcery wrote about a commit, oldest first. A reply in a thread, an empty body, and the
+ * requirement table's note say nothing about the code, so they are left out.
+ *
+ * decisions/597-check-sourcery.md
+ * decisions/885-sourcery-review-shapes.md
+ */
 function written(reviews: readonly Review[], commit: string): Review[] {
   return reviews
     .filter(
       (review) =>
-        review.author === SOURCERY_LOGIN && review.commit === commit && review.body.trim() !== ""
+        review.author === SOURCERY_LOGIN && review.commit === commit && saysSomething(review.body)
     )
     .sort(oldestFirst);
+}
+
+function saysSomething(body: string): boolean {
+  const text = body.trim();
+  return text !== "" && !REQUIREMENTS_NOTE.test(text);
 }
 
 /**

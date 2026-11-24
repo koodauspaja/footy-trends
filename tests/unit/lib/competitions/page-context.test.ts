@@ -7,11 +7,13 @@ import { resolveBasePageContext } from "@/lib/competitions/page-context";
  *
  * decisions/024-account-settings.md
  * decisions/012-finnish-urls-english-code.md
+ * decisions/878-empty-season-not-selectable.md
  */
 
-const { getSeasonContext, getViewerPreferences } = vi.hoisted(() => ({
+const { getSeasonContext, getViewerPreferences, storedForeignSeasons } = vi.hoisted(() => ({
   getSeasonContext: vi.fn(),
   getViewerPreferences: vi.fn<() => Promise<unknown>>(async () => null),
+  storedForeignSeasons: vi.fn<(code: string) => Promise<Set<number>>>(),
 }));
 
 vi.mock("@/lib/football-data/football-data", async (importOriginal) => {
@@ -19,6 +21,10 @@ vi.mock("@/lib/football-data/football-data", async (importOriginal) => {
   return { ...actual, getSeasonContext };
 });
 vi.mock("@/lib/auth/viewer", () => ({ getViewerPreferences }));
+vi.mock("@/lib/football-data/standings-service", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/football-data/standings-service")>();
+  return { ...actual, storedForeignSeasons };
+});
 
 const SEASON_CONTEXT = {
   activeSeasonId: 2026,
@@ -40,6 +46,80 @@ beforeEach(() => {
   vi.clearAllMocks();
   getSeasonContext.mockResolvedValue(SEASON_CONTEXT);
   getViewerPreferences.mockResolvedValue(null);
+  storedForeignSeasons.mockResolvedValue(new Set([2025, 2026]));
+});
+
+describe("a foreign league's upcoming season", () => {
+  // Announced by football-data, after the active 2026.
+  const WITH_UPCOMING = {
+    activeSeasonId: 2026,
+    upcomingSeasonId: 2027,
+    selectableSeasons: [
+      { seasonId: 2027, label: "2027/28" },
+      { seasonId: 2026, label: "2026/27" },
+    ],
+    spansCalendarYears: true,
+  };
+
+  it("is greyed out until its fixtures are stored, and a typed one opens the active season", async () => {
+    getSeasonContext.mockResolvedValue(WITH_UPCOMING);
+
+    const context = await resolveBasePageContext({ kilpailu: "PL", kausi: "2027" }, "foreign");
+
+    expect(storedForeignSeasons).toHaveBeenCalledWith("PL");
+    expect(context.status === "ok" && context.context.selectableSeasons).toEqual([
+      { seasonId: 2027, label: "2027/28", noMatches: true },
+      { seasonId: 2026, label: "2026/27" },
+    ]);
+    expect(context.status === "ok" && context.season).toEqual({ kind: "invalid" });
+    expect(context.status === "ok" && context.seasonId).toBe(2026);
+  });
+
+  it("is offered, before its first match day, once its fixtures are stored", async () => {
+    getSeasonContext.mockResolvedValue(WITH_UPCOMING);
+    storedForeignSeasons.mockResolvedValue(new Set([2026, 2027]));
+
+    const context = await resolveBasePageContext({ kilpailu: "PL", kausi: "2027" }, "foreign");
+
+    expect(context.status === "ok" && context.context.selectableSeasons[0]).toEqual({
+      seasonId: 2027,
+      label: "2027/28",
+    });
+    expect(context.status === "ok" && context.season).toEqual({ kind: "valid", seasonId: 2027 });
+  });
+
+  it("renders the page with the season greyed out when the stored seasons cannot be read", async () => {
+    getSeasonContext.mockResolvedValue(WITH_UPCOMING);
+    storedForeignSeasons.mockRejectedValue(new Error("database unreachable"));
+
+    const context = await resolveBasePageContext({ kilpailu: "PL" }, "foreign");
+
+    expect(context.status).toBe("ok");
+    expect(context.status === "ok" && context.context.selectableSeasons[0]).toEqual({
+      seasonId: 2027,
+      label: "2027/28",
+      noMatches: true,
+    });
+    expect(context.status === "ok" && context.seasonId).toBe(2026);
+  });
+
+  it("is left as it is on the national-team pages, which read nothing stored for it", async () => {
+    getSeasonContext.mockResolvedValue(WITH_UPCOMING);
+
+    const context = await resolveBasePageContext({ kilpailu: "WC" }, "national-teams");
+
+    expect(storedForeignSeasons).not.toHaveBeenCalled();
+    expect(context.status === "ok" && context.context.selectableSeasons[0]).toEqual({
+      seasonId: 2027,
+      label: "2027/28",
+    });
+  });
+
+  it("reads nothing stored when football-data lists no upcoming season", async () => {
+    await resolveBasePageContext({}, "foreign");
+
+    expect(storedForeignSeasons).not.toHaveBeenCalled();
+  });
 });
 
 describe("a reader's stored competition default", () => {

@@ -72,14 +72,19 @@ export async function storedSeasonSides(code: string, seasonId: number): Promise
 }
 
 /**
- * The newest season we hold for a competition, or `null` for none.
+ * The newest season we hold matches of, or `null` for none: group rows alone do
+ * not make a season one a page can land on.
  *
  * decisions/011-current-season-discovery.md
  * decisions/029-forced-season-refresh.md
+ * decisions/878-empty-season-not-selectable.md
  */
 async function newestStoredSeason(competitionCode: string): Promise<number | null> {
-  const seasons = await storedTasoSeasons(competitionCode);
-  return seasons.size === 0 ? null : Math.max(...seasons);
+  const seasons = await db
+    .selectDistinct({ seasonId: tasoMatches.seasonId })
+    .from(tasoMatches)
+    .where(inArray(tasoMatches.categoryId, categoryIdsFor(competitionCode)));
+  return seasons.length === 0 ? null : Math.max(...seasons.map((row) => row.seasonId));
 }
 
 /**
@@ -147,6 +152,24 @@ export const resolveTasoSeasonCeiling = cache(async function resolveTasoSeasonCe
 });
 
 /**
+ * The season a page lands on while the ceiling season has no matches: the newer
+ * of the newest stored and the one before, kept inside the selector's range.
+ *
+ * decisions/080-daily-refresh-of-every-competition.md
+ * decisions/865-active-season-has-matches.md
+ */
+export function seasonShownBeforeMatches(
+  competitionCode: string,
+  currentSeason: number,
+  newestStored: number | null
+): number {
+  return Math.max(
+    earliestSeasonFor(competitionCode),
+    Math.min(Math.max(newestStored ?? 0, currentSeason - 1), currentSeason)
+  );
+}
+
+/**
  * A competition's season ceiling, and the season a page lands on: the newest
  * with matches, so a just-published season does not open empty.
  *
@@ -188,13 +211,7 @@ export const resolveTasoSeasonContext = cache(async function resolveTasoSeasonCo
       );
     }
 
-    // The newer of the newest stored season and the one before the empty one.
-    // Clamped to both ends of the selector's range: a default outside it lands
-    // the page on a season the selector does not offer.
-    const fallbackDefault = Math.max(
-      earliestSeasonFor(competitionCode),
-      Math.min(Math.max(newestStored ?? 0, currentSeason - 1), currentSeason)
-    );
+    const fallbackDefault = seasonShownBeforeMatches(competitionCode, currentSeason, newestStored);
     return {
       value: { currentSeason, defaultSeason: fallbackDefault },
       degraded: discoveryFailed || syncFailed,

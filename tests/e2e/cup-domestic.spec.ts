@@ -10,6 +10,7 @@ import { openFolds } from "./folds";
  * decisions/043-liigacup.md
  * decisions/178-cup-page-measured-after-its-rounds.md
  * decisions/698-long-lists-start-closed.md
+ * decisions/888-e2e-reads-the-greyed-out-season.md
  */
 
 // Opens every round, so a check reads the folded rounds' lists too: a closed
@@ -39,6 +40,28 @@ function seasonsDownTo(offered: string[], first: number) {
   const newest = Number(offered[0]);
   expect(newest).toBeGreaterThanOrEqual(2026);
   return Array.from({ length: newest - first + 1 }, (_, index) => String(newest - index));
+}
+
+// Each option's season and whether it can be chosen, read from its value: a season TASO has
+// announced with no match listed is offered greyed out, under a longer label.
+function offeredSeasons(page: Page) {
+  return page
+    .getByLabel("Kausi")
+    .locator("option")
+    .evaluateAll((options) =>
+      options.map((option) => ({
+        year: (option as HTMLOptionElement).value,
+        disabled: (option as HTMLOptionElement).disabled,
+      }))
+    );
+}
+
+// The seasons offered are every year down to `first`, and only the newest may be greyed out.
+async function expectSeasonsDownTo(page: Page, first: number) {
+  const offered = await offeredSeasons(page);
+  const years = offered.map(({ year }) => year);
+  expect(years).toEqual(seasonsDownTo(years, first));
+  expect(offered.slice(1).filter(({ disabled }) => disabled)).toEqual([]);
 }
 
 test.describe("Finnish cups", () => {
@@ -171,15 +194,13 @@ test.describe("Finnish cups", () => {
   test("offers only the seasons Liigacup has since 2023", async ({ page }) => {
     await page.goto("/kotimaa/sarjataulukko?kilpailu=LC");
 
-    const years = await page.getByLabel("Kausi").locator("option").allTextContents();
-    expect(years).toEqual(seasonsDownTo(years, 2023));
+    await expectSeasonsDownTo(page, 2023);
   });
 
   test("offers only the seasons Ykkösliigacup actually has", async ({ page }) => {
     await page.goto("/kotimaa/sarjataulukko?kilpailu=M1LCUP");
 
-    const years = await page.getByLabel("Kausi").locator("option").allTextContents();
-    expect(years).toEqual(seasonsDownTo(years, 2024));
+    await expectSeasonsDownTo(page, 2024);
   });
 
   test("opens only the latest round on a phone, sparing it every match", async ({ page }) => {

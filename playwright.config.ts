@@ -14,6 +14,7 @@
  * decisions/674-e2e-on-an-empty-database.md
  * decisions/615-e2e-own-redis.md
  * decisions/814-health-providers-token.md
+ * decisions/873-quiet-build-and-e2e-warnings.md
  */
 
 import { existsSync } from "node:fs";
@@ -147,6 +148,9 @@ export default defineConfig({
   use: {
     baseURL: BASE_URL,
     trace: "on-first-retry",
+    // The client address Railway's edge sends in production, so Better Auth's
+    // rate limiting resolves one instead of warning on every request.
+    extraHTTPHeaders: { "x-real-ip": "127.0.0.1" },
   },
   projects: [
     {

@@ -1,6 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { E2E_ANALYTICS_HEADER, E2E_SIGNED_IN } from "../../src/lib/auth/e2e-analytics";
 import { openAnalytics } from "./folds";
+import { lastFinishedSeason } from "./football-data-season";
 
 /**
  * The size the charts' text is painted at, in both layouts. jsdom has
@@ -10,10 +11,15 @@ import { openAnalytics } from "./folds";
  * decisions/441-line-chart-text-on-a-phone.md
  * decisions/053-elo-ratings.md
  * decisions/700-legible-charts.md
+ * decisions/888-e2e-reads-the-greyed-out-season.md
  */
 
+const FINISHED = lastFinishedSeason();
+
 // Arsenal, and a completed season: every chart has its full set of points.
-const TEAM = "/ulkomaat/joukkue/57?kilpailu=PL&kausi=2024";
+const TEAM = `/ulkomaat/joukkue/57?kilpailu=PL&kausi=${FINISHED}`;
+// Opened first: it stores the season, which a team page is found in on an empty database.
+const STANDINGS = `/ulkomaat/sarjataulukko?kilpailu=PL&kausi=${FINISHED}`;
 
 // `text-xs`, which the charts keep from the `sm` breakpoint up.
 const DESKTOP_UNITS = 12;
@@ -27,6 +33,8 @@ const PHONE_BAR_UNITS = 14;
 async function textSizes(page: Page, width: number, selector: string): Promise<number[]> {
   await page.setViewportSize({ width, height: 900 });
   await page.setExtraHTTPHeaders({ [E2E_ANALYTICS_HEADER]: E2E_SIGNED_IN });
+  await page.goto(STANDINGS);
+  await page.locator("table tbody tr").first().waitFor();
   await page.goto(TEAM);
   await openAnalytics(page);
   await page.getByRole("img", { name: "Sijoitus kierroksittain" }).waitFor();
