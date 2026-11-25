@@ -47,8 +47,8 @@ async function recordTitles(page: Page) {
   });
 }
 
-// Measured at 1–5 ms after a change, and 7–17 ms before that; a blank a reader
-// could notice is far longer than this.
+// The blank was measured at 1–5 ms, and at 7–17 ms on an older Next; a blank a
+// reader could notice lasts far longer than this.
 const LONGEST_BLANK_MS = 100;
 
 // The title was never blank for `LONGEST_BLANK_MS` or longer since
