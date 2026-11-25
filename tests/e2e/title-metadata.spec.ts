@@ -7,6 +7,7 @@ import { expect, type Page, test } from "@playwright/test";
  *
  * decisions/170-tab-title-follows-the-season.md
  * decisions/888-e2e-reads-the-greyed-out-season.md
+ * decisions/890-tab-title-test-waits-for-the-new-title.md
  */
 
 // The title is `generateMetadata`'s season name and label, and the `PageShell`
@@ -20,6 +21,14 @@ async function expectTitleToMatchHeading(page: Page) {
       return title !== "" && heading.startsWith(title);
     })
     .toBe(true);
+}
+
+// Waits until the title names the option just chosen, then for the heading to
+// agree. Every step retries, so neither the page before the navigation nor the
+// moment its title is blank can pass for the page after it.
+async function expectTitleToName(page: Page, label: string) {
+  await expect.poll(() => page.title()).toContain(label);
+  await expectTitleToMatchHeading(page);
 }
 
 // The label of the currently selected option, e.g. `2021` or `2024/25`.
@@ -59,32 +68,52 @@ test.describe("Tab title follows the selected season", () => {
     test(`${name} updates the title when Kausi changes`, async ({ page }) => {
       await page.goto(url);
       await expectTitleToMatchHeading(page);
-      const titleBefore = await page.title();
 
       const newSeason = await changeToAnotherOption(page, "kausi");
 
       await expect(page).toHaveURL(new RegExp(`kausi=${newSeason.split("/")[0]}`));
-      await expectTitleToMatchHeading(page);
-      await expect(page).not.toHaveTitle(titleBefore);
       // The season the title names is the one the selector now shows: a title a
       // navigation behind is the staleness that was reported.
-      expect(await page.title()).toContain(newSeason);
+      await expectTitleToName(page, newSeason);
     });
   }
 
   test("/ulkomaat/sarjataulukko updates the title when Kilpailu changes", async ({ page }) => {
     await page.goto("/ulkomaat/sarjataulukko?kilpailu=PL");
     await expectTitleToMatchHeading(page);
-    const titleBefore = await page.title();
 
     const newCompetition = await changeToAnotherOption(page, "kilpailu");
 
-    await expectTitleToMatchHeading(page);
-    await expect(page).not.toHaveTitle(titleBefore);
     // Both halves matter: that the control settled on the competition asked
     // for, and that the title names that same one. Asserting only that the
     // title changed would pass a navigation routed to the wrong competition.
     await expect(page.locator("#kilpailu option:checked")).toHaveText(newCompetition);
-    expect(await page.title()).toContain(newCompetition);
+    await expectTitleToName(page, newCompetition);
+  });
+
+  // A stand-in page that, like the real one, keeps the old title and heading for
+  // a moment after the change and then shows a blank title, held long enough
+  // here that a check reading the title once cannot miss it.
+  test("the title check waits out the old page and a blank title", async ({ page }) => {
+    await page.setContent(`
+      <title>Alpha 2026</title>
+      <h1>Alpha 2026</h1>
+      <select id="kilpailu"><option value="A">Alpha</option><option value="B">Beta</option></select>
+      <script>
+        document.getElementById("kilpailu").addEventListener("change", () => {
+          setTimeout(() => { document.title = ""; }, 200);
+          setTimeout(() => {
+            document.title = "Beta 2026";
+            document.querySelector("h1").textContent = "Beta 2026";
+          }, 700);
+        });
+      </script>
+    `);
+    await expectTitleToMatchHeading(page);
+
+    const newCompetition = await changeToAnotherOption(page, "kilpailu");
+
+    await expectTitleToName(page, newCompetition);
+    expect(await page.title()).toBe("Beta 2026");
   });
 });
