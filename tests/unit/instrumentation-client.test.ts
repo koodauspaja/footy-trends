@@ -98,6 +98,12 @@ describe("instrumentation-client", () => {
     expect(options && "integrations" in options).toBe(false);
   });
 
+  it("sends its events to the same-origin tunnel, /monitoring, which the CSP allows", async () => {
+    await load();
+
+    expect(init).toHaveBeenCalledWith(expect.objectContaining({ tunnel: { path: "/monitoring" } }));
+  });
+
   it("exports Sentry's router-transition hook for Next to call", async () => {
     const module = await import("@/instrumentation-client");
 

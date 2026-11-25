@@ -10,6 +10,15 @@
 import type { init } from "@sentry/nextjs";
 
 /**
+ * The same-origin path the browser sends its events to and the server forwards
+ * to Sentry, which keeps them past ad-blockers and inside `connect-src 'self'`.
+ *
+ * decisions/808-security-headers.md
+ * decisions/801-sentry-tunnel-in-init.md
+ */
+export const TUNNEL_PATH = "/monitoring";
+
+/**
  * The default when a variable is unset, blank, or unusable: a tenth, so an
  * environment that sets nothing cannot trace every request.
  *

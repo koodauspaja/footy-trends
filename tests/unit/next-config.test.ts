@@ -19,11 +19,7 @@ type Redirect = Rewrite & { permanent?: boolean };
 async function evaluated(): Promise<{ rewrites: Rewrite[]; redirects: Redirect[] }> {
   const rewrites = (await config.rewrites?.()) as Rewrite[];
   const redirects = (await config.redirects?.()) as Redirect[];
-  return {
-    // Sentry adds its tunnel to another host, which is not a page.
-    rewrites: rewrites.filter((rewrite) => rewrite.destination.startsWith("/")),
-    redirects,
-  };
+  return { rewrites, redirects };
 }
 
 // Every `page.tsx` under `src/app` but the home page, as the path its folder
